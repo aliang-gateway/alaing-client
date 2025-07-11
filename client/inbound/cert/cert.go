@@ -133,7 +133,7 @@ func CreateTlsConfigForHost(host string) *tls.Config {
 		Certificates:       certs,
 		NextProtos:         []string{http2.NextProtoTLS, "http/1.1"},
 		InsecureSkipVerify: true,
-		//MaxVersion:         tls.VersionTLS13,
-		//MinVersion:         tls.VersionTLS10,
+		MaxVersion:         tls.VersionTLS13,
+		MinVersion:         tls.VersionTLS12,
 	}
 }

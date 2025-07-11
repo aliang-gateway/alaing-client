@@ -3,6 +3,7 @@ package tunnel
 import (
 	"context"
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -62,6 +63,9 @@ func (t *Tunnel) handleTCPConn(originConn adapter.TCPConn) {
 				tlsConf := cert.CreateTlsConfigForHost(serverName)
 				tlsConn := tls.Server(newOriginConn, tlsConf)
 				if err := tlsConn.Handshake(); err != nil {
+					if errors.Is(err, io.EOF) {
+						logger.Info("client close the handshake connection", serverName)
+					}
 					logger.Error("TLS handshake failed:", serverName, err)
 					return
 				}
