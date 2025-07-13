@@ -5,8 +5,9 @@ import (
 	"fmt"
 	"io"
 	"net"
-	"nursor.org/nursorgate/common/logger"
 	"time"
+
+	"nursor.org/nursorgate/common/logger"
 )
 
 func parseSNIFromBuffer(buf []byte) (string, []byte, error) {
@@ -151,14 +152,14 @@ func ExtractSNI(conn net.Conn) (string, []byte, error) {
 				}
 				break
 			}
-			logger.Error("failure in reading ClientHello", err)
+			logger.Warn("failure in reading ClientHello", err)
 			return "", nil, err
 		}
 	}
 
 	s, _, err := parseSNIFromBuffer(totalBuf)
 	if err != nil {
-		logger.Error("failure in reading sni", err)
+		logger.Warn("failure in reading sni", err)
 		return "", nil, err
 	}
 	return s, totalBuf, nil

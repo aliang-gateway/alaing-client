@@ -66,7 +66,7 @@ func (t *Tunnel) handleTCPConn(originConn adapter.TCPConn) {
 					if errors.Is(err, io.EOF) {
 						logger.Info("client close the handshake connection", serverName)
 					}
-					logger.Error("TLS handshake failed:", serverName, err)
+					logger.Error(fmt.Sprintf("TLS handshake failed: %s, %v", serverName, err))
 					return
 				}
 				state := tlsConn.ConnectionState()
@@ -81,6 +81,9 @@ func (t *Tunnel) handleTCPConn(originConn adapter.TCPConn) {
 			logger.Info(fmt.Printf("[TCP] dial %s: %v", metadata.DestinationAddress(), err))
 			return
 		}
+		// if serverName == "marketplace.cursorapi.com" {
+		// 	print("the marketplace domain occured")
+		// }
 	} else {
 		remoteConn, err = t.Dialer().DialContext(ctx, metadata)
 		if err != nil {

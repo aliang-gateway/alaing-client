@@ -7,8 +7,9 @@ import (
 	"log"
 	"net"
 	"net/http"
-	"nursor.org/nursorgate/common/logger"
 	"strings"
+
+	"nursor.org/nursorgate/common/logger"
 
 	"nursor.org/nursorgate/client/inbound"
 
@@ -67,7 +68,7 @@ func handleRawConnection(conn net.Conn) {
 		tlsConf := cert.CreateTlsConfigForHost(req.Host)
 		tlsConn := tls.Server(conn, tlsConf)
 		if err := tlsConn.Handshake(); err != nil {
-			logger.Error("TLS handshake with client failed:", req.Host, err)
+			logger.Warn("TLS handshake with client failed:", req.Host, err)
 			return
 		}
 		// 处理 TLS 后的请求

@@ -28,7 +28,7 @@ var defaultGateway = "192.168.1.1"
 func Start() {
 	defer func() {
 		if r := recover(); r != nil {
-			logger.Error("Recovered from panic in Start: %v", r)
+			logger.Error(fmt.Sprintf("Recovered from panic in Start: %v", r))
 			//debug.PrintStack()
 			//RunStatusChan <- map[string]string{"status": "failed", "message": fmt.Sprintf("Panic: %v", r)}
 		}
@@ -55,20 +55,20 @@ func Start() {
 	// }
 
 	if err := ConfigureTunInterface(defaultKey.Device); err != nil {
-		logger.Error("配置 TUN 接口失败: ", err)
+		logger.Error(fmt.Sprintf("配置 TUN 接口失败: %v", err))
 		RunStatusChan <- map[string]string{"status": "failed", "message": err.Error()}
 		return
 	}
 
 	// 等待设备就绪，最多等待10秒
 	if err := waitForTunDeviceReady(defaultKey.Device, 10*time.Second); err != nil {
-		logger.Error("等待 TUN 设备就绪失败: ", err)
+		logger.Error(fmt.Sprintf("等待 TUN 设备就绪失败: %v", err))
 		RunStatusChan <- map[string]string{"status": "failed", "message": err.Error()}
 		return
 	}
 
 	if err := ConfigureTunRoute(); err != nil {
-		logger.Error("配置 TUN 路由失败: ", err)
+		logger.Error(fmt.Sprintf("配置 TUN 路由失败: %v", err))
 		RunStatusChan <- map[string]string{"status": "failed", "message": err.Error()}
 		return
 	}

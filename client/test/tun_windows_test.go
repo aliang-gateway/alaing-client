@@ -1,7 +1,6 @@
 package test
 
 import (
-	"fmt"
 	"log"
 	"net"
 	"os"
@@ -13,7 +12,6 @@ import (
 	"golang.zx2c4.com/wireguard/tun"
 	mytun "nursor.org/nursorgate/client/server/tun"
 	"nursor.org/nursorgate/client/utils"
-	"nursor.org/nursorgate/common/config"
 	"nursor.org/nursorgate/common/model"
 )
 
@@ -50,23 +48,7 @@ func TestTunWindows(t *testing.T) {
 }
 
 func TestTunWindows2(t *testing.T) {
-	nacosClient, err := config.NewNacosClient(
-		"http://local-nacos-config.nursor.org",
-		"5afe4eb9-d3ee-4b37-a072-7ea04421467a",
-		80,
-	)
-	if err != nil {
-		panic("failed to create nacos client: " + err.Error())
-	}
-	allowDomain := model.NewAllowProxyDomain()
-	err = allowDomain.SyncFromNacos(
-		nacosClient.GetConfigClient(),
-		"nursor-user-door", // 配置ID
-		"DEFAULT_GROUP",    // 配置分组
-	)
-	if err != nil {
-		fmt.Println(err.Error())
-	}
+	model.NewAllowProxyDomain()
 	utils.SetServerHost("192.140.163.38:12235")
 	mytun.Start()
 	sigCh := make(chan os.Signal, 1)

@@ -26,7 +26,7 @@ func convertGBKToUTF8(s string) (string, error) {
 }
 
 func ConfigureTunInterface(ifname string) error {
-	logger.Info("[INFO] Configuring TUN interface on %s", runtime.GOOS)
+	logger.Info(fmt.Sprintf("[INFO] Configuring TUN interface on %s", runtime.GOOS))
 	switch runtime.GOOS {
 	case "windows":
 		return configureWindowsTunInterface(ifname)
@@ -188,7 +188,7 @@ func configureWindowsTunRoute() error {
 
 		lines = strings.Split(outputStr, "\n")
 		for _, line := range lines {
-			if strings.Contains(line, "0.0.0.0") && strings.Contains(line, "0.0.0.0") {
+			if strings.Contains(line, "0.0.0.0") {
 				fields := strings.Fields(line)
 				if len(fields) >= 4 {
 					defaultGateway = fields[2]
@@ -202,7 +202,7 @@ func configureWindowsTunRoute() error {
 		return fmt.Errorf("无法找到默认网关，请检查网络连接")
 	}
 
-	logger.Info("找到默认网关: %s (跃点数: %d)", defaultGateway, defaultRouteMetric)
+	logger.Info(fmt.Printf("找到默认网关: %s (跃点数: %d)", defaultGateway, defaultRouteMetric))
 
 	// 删除现有默认路由
 	commands := [][]string{
@@ -212,7 +212,7 @@ func configureWindowsTunRoute() error {
 
 	for _, cmd := range commands {
 		if err := utils.RunCommand(cmd[0], cmd[1:]...); err != nil {
-			logger.Error("删除路由失败: %v", err)
+			logger.Error(fmt.Printf("删除路由失败: %v", err))
 		}
 	}
 

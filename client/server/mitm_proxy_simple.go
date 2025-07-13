@@ -73,7 +73,7 @@ func handleRawConnectionSimple(conn net.Conn) {
 			tlsConf := cert.CreateTlsConfigForHost(req.Host)
 			tlsConn := tls.Server(conn, tlsConf)
 			if err := tlsConn.Handshake(); err != nil {
-				logger.Error("TLS handshake with client failed:", req.Host, err)
+				logger.Warn("TLS handshake with client failed:", req.Host, err)
 				// return
 			}
 			inbound.HandleTLSConnectionSimple(tlsConn, req)

@@ -145,7 +145,7 @@ func netstack(k *Key) (err error) {
 	if k.TUNPreUp != "" {
 		print("[TUN] pre-execute command: `%s`", k.TUNPreUp)
 		if preUpErr := execCommand(k.TUNPreUp); preUpErr != nil {
-			logger.Info("[TUN] failed to pre-execute: %s: %v", k.TUNPreUp, preUpErr)
+			logger.Info(fmt.Sprintf("[TUN] failed to pre-execute: %s: %v", k.TUNPreUp, preUpErr))
 		}
 	}
 
@@ -155,19 +155,19 @@ func netstack(k *Key) (err error) {
 		}
 		print("[TUN] post-execute command: `%s`", k.TUNPostUp)
 		if postUpErr := execCommand(k.TUNPostUp); postUpErr != nil {
-			logger.Info("[TUN] failed to post-execute: %s: %v", k.TUNPostUp, postUpErr)
+			logger.Info(fmt.Sprintf("[TUN] failed to post-execute: %s: %v", k.TUNPostUp, postUpErr))
 		}
 	}()
 	if _defaultProxy, err = parseProxy(k.Proxy); err != nil {
 		return
 	}
-	_nursorProxy, err := parseProxy(k.NursorProxy)
-	if err != nil {
-		return
-	}
+	// _nursorProxy, err := parseProxy(k.NursorProxy)
+	// if err != nil {
+	// 	return
+	// }
 
 	tunnel.SetDefaultProxy(_defaultProxy)
-	tunnel.SetNursorProxy(_nursorProxy)
+	// tunnel.SetNursorProxy(_nursorProxy)
 
 	tunnel.T().SetDialer(_defaultProxy)
 

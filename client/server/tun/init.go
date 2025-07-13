@@ -17,17 +17,17 @@ func InitArgs() engine.Key {
 	// 获取默认网络接口
 	defaultInterface, err := utils.GetDefaultInterface()
 	if err != nil {
-		logger.Error("Failed to get default interface: %v", err)
+		logger.Error(fmt.Sprintf("Failed to get default interface: %v", err))
 		defaultInterface = "en0" // 设置一个默认值
 	}
 
 	defaultKey := engine.Key{
 		//Proxy: "http://clash:asd123456@172.16.1.1:7890",
 		Proxy:       "direct://",
-		NursorProxy: "http://ai-gateway.nursor.org:8888",
+		NursorProxy: "https://ai-gateway.nursor.org:8888",
 		MTU:         0,
 		Mark:        0,
-		Device:      getDefaultTunDevice(),
+		Device:      getDefaultTunName(),
 		Interface:   defaultInterface,
 	}
 	return defaultKey
@@ -121,8 +121,8 @@ func getAvailableWintunDevice() string {
 	return "Wintun999"
 }
 
-// getDefaultTunDevice 根据操作系统返回默认的 TUN 设备名称
-func getDefaultTunDevice() string {
+// getDefaultTunName 根据操作系统返回默认的 TUN 设备名称
+func getDefaultTunName() string {
 	switch runtime.GOOS {
 	case "darwin":
 		return getAvailableUtunDevice()

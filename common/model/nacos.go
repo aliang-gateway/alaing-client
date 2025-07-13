@@ -58,7 +58,7 @@ func NewAllowProxyDomain() *AllowProxyDomain {
 			ToCursorDomain: []string{"cursor.sh", "cursor.com"},
 		}
 		nacosClient, err := config.NewNacosClient(
-			"http://local-nacos-config.nursor.org",
+			"http://nacos-config.nursor.org",
 			"5afe4eb9-d3ee-4b37-a072-7ea04421467a",
 			80,
 		)

@@ -2,9 +2,11 @@ package tunnel
 
 import (
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
+	"nursor.org/nursorgate/client/server/helper"
 	"sync"
 	"time"
 
@@ -27,9 +29,12 @@ func (c *OutboundClient2) Forward(localConn *tls.Conn, req *http.Request) error 
 	wg.Add(2)
 
 	go func() {
-		n, err := io.Copy(c.conn, localConn)
+		wrapConn := &helper.WatcherWrapConn{Conn: localConn}
+		n, err := io.Copy(c.conn, wrapConn)
 		if err != nil {
-			logger.Error("--->remote", err.Error(), req)
+			if !errors.Is(err, io.EOF) {
+				logger.Error("--->remote", err.Error(), req)
+			}
 		}
 		logger.Info(fmt.Sprintf("forwarded send %d bytes for host: %s", n, req.Host))
 		err = c.conn.CloseWrite()
@@ -42,7 +47,9 @@ func (c *OutboundClient2) Forward(localConn *tls.Conn, req *http.Request) error 
 
 		n, err := io.Copy(localConn, c.conn)
 		if err != nil {
-			logger.Error("local<---", err.Error(), req)
+			if errors.Is(err, io.EOF) {
+				logger.Error("local<---", err.Error(), req)
+			}
 		}
 
 		logger.Info(fmt.Sprintf("forwarded return %d bytes from host: %s", n, req.Host))
