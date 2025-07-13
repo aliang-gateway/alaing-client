@@ -73,7 +73,7 @@ func triggerAuthPost() {
 		}()
 
 		mu.RLock()
-		tokenPayload := strings.Replace(userToken, "Bearer ", "", 0)
+		tokenPayload := strings.Replace(accessToken, "Bearer ", "", -1)
 		authHeader := fmt.Sprintf("Bearer %s", userToken)
 		mu.RUnlock()
 
