@@ -1,8 +1,10 @@
 package tun
 
 import (
+	"encoding/json"
 	"fmt"
 	"net"
+	"os/exec"
 	"runtime"
 	"strings"
 
@@ -14,6 +16,12 @@ import (
 	"nursor.org/nursorgate/client/utils"
 	"nursor.org/nursorgate/common/logger"
 )
+
+type RouteEntry struct {
+	DestinationPrefix string `json:"DestinationPrefix"`
+	NextHop           string `json:"NextHop"`
+	RouteMetric       int    `json:"RouteMetric"`
+}
 
 // convertGBKToUTF8 将 GBK 编码转换为 UTF-8
 func convertGBKToUTF8(s string) (string, error) {
@@ -91,6 +99,23 @@ func configureLinuxTunInterface(ifname string) error {
 	return nil
 }
 
+func GetDefaultGateway2() (string, error) {
+	cmd := exec.Command("powershell", "-Command", `Get-NetRoute -DestinationPrefix '0.0.0.0/0' | Sort-Object RouteMetric | ConvertTo-Json`)
+	out, err := cmd.Output()
+	if err != nil {
+		return "", err
+	}
+
+	var routes []RouteEntry
+	if err := json.Unmarshal(out, &routes); err != nil {
+		return "", fmt.Errorf("JSON parse failed: %w", err)
+	}
+	if len(routes) == 0 {
+		return "", fmt.Errorf("no default route found")
+	}
+	return routes[0].NextHop, nil
+}
+
 func configureWindowsTunRoute() error {
 	// 保存当前默认路由
 	cmd := utils.GetRunCommand("netsh", "interface", "ipv4", "show", "route")
@@ -145,6 +170,12 @@ func configureWindowsTunRoute() error {
 		}
 	}
 
+	if defaultGateway == "" {
+		defaultGateway, err = GetDefaultGateway2()
+		if err != nil {
+			logger.Error(fmt.Printf("Failure in get default gateway 2 %v", err))
+		}
+	}
 	// 如果没有找到默认路由，尝试使用 ipconfig 命令
 	if defaultGateway == "" {
 		cmd = utils.GetRunCommand("ipconfig")
@@ -153,7 +184,7 @@ func configureWindowsTunRoute() error {
 			return fmt.Errorf("failed to get ipconfig: %w", err)
 		}
 
-		outputStr, err = convertGBKToUTF8(string(output))
+		outputStr, err = utils.AutoConvertEncoding(output)
 		if err != nil {
 			return fmt.Errorf("failed to convert ipconfig encoding: %w", err)
 		}
@@ -181,7 +212,7 @@ func configureWindowsTunRoute() error {
 			return fmt.Errorf("failed to get route print: %w", err)
 		}
 
-		outputStr, err = convertGBKToUTF8(string(output))
+		outputStr, err = utils.AutoConvertEncoding(output)
 		if err != nil {
 			return fmt.Errorf("failed to convert route print encoding: %w", err)
 		}
