@@ -15,6 +15,7 @@ import (
 	"nursor.org/nursorgate/client/install"
 	"nursor.org/nursorgate/client/outbound"
 	"nursor.org/nursorgate/client/server/tun"
+	"nursor.org/nursorgate/client/user"
 	"nursor.org/nursorgate/client/utils"
 	"nursor.org/nursorgate/common/logger"
 )
@@ -167,6 +168,14 @@ func writePortToFile(port string) error {
 }
 
 func handleRun(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		UserToken string `json:"user_token"`
+	}
+	if err := decodeRequest(r, &req); err != nil {
+		sendError(w, "Invalid request body", http.StatusBadRequest, nil)
+		return
+	}
+	user.SetUserToken(req.UserToken)
 	go tun.Start()
 	res := <-tun.RunStatusChan
 	sendResponse(w, res)

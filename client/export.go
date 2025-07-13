@@ -12,6 +12,7 @@ import (
 	"nursor.org/nursorgate/client/outbound"
 	"nursor.org/nursorgate/client/server"
 	"nursor.org/nursorgate/client/server/tun"
+	"nursor.org/nursorgate/client/user"
 	"nursor.org/nursorgate/client/utils"
 	"nursor.org/nursorgate/common/logger"
 	"nursor.org/nursorgate/common/model"
@@ -79,7 +80,9 @@ func getToCursorDomain() *C.char {
 }
 
 //export runGate
-func runGate() *C.char {
+func runGate(userToken *C.char) *C.char {
+	uToken := C.GoString(userToken)
+	user.SetUserToken(uToken)
 	model.NewAllowProxyDomain()
 	utils.SetServerHost("192.140.163.38:12235")
 	go tun.Start()

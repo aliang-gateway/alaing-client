@@ -4,77 +4,122 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
-	"golang.org/x/net/http2/hpack"
+	"log"
 	"net"
+
+	"golang.org/x/net/http2/hpack"
+	"nursor.org/nursorgate/client/user"
+)
+
+const (
+	frameHeaderLen   = 9
+	frameTypeHeaders = 0x1
+	frameTypeCont    = 0x9
+	flagEndHeaders   = 0x4
 )
 
 type WatcherWrapConn struct {
 	net.Conn
-	buf      bytes.Buffer
-	captured bool
+	buf          bytes.Buffer
+	prefetched   bool
+	isTokenFound bool
 }
 
 func (w *WatcherWrapConn) Read(p []byte) (int, error) {
 	n, err := w.Conn.Read(p)
-	if n > 0 && !w.captured {
-		w.buf.Write(p[:n])
-		if tryExtractAuthorization(w.buf.Bytes()) {
-			w.captured = true
+	if n > 0 && !w.isTokenFound {
+		// step 1: prefetch the client preface (24 bytes)
+		if !w.prefetched {
+			w.buf.Write(p[:n])
+			if w.buf.Len() < 24 {
+				return n, err // wait for more
+			}
+			preface := w.buf.Next(24)
+			if string(preface) != "PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n" {
+				log.Println("❌ Not a valid HTTP/2 connection preface")
+				return n, fmt.Errorf("invalid preface")
+			}
+			w.prefetched = true
+			log.Println("✅ HTTP/2 connection preface detected")
+			if w.buf.Len() == 0 {
+				return n, err // preface done, no other data
+			}
+		} else {
+			w.buf.Write(p[:n])
+		}
+
+		for {
+			frame, ok := w.tryParseFrame()
+			if !ok {
+				break
+			}
+			w.processFrame(frame)
 		}
 	}
 	return n, err
 }
 
-// ========== HTTP/2 解析逻辑 =========
-
-type FrameHeader struct {
-	Length   uint32
-	Type     uint8
-	Flags    uint8
-	StreamID uint32
-}
-
-func parseFrameHeader(data []byte) (*FrameHeader, error) {
-	if len(data) < 9 {
-		return nil, fmt.Errorf("too short")
+func (w *WatcherWrapConn) tryParseFrame() ([]byte, bool) {
+	data := w.buf.Bytes()
+	if len(data) < frameHeaderLen {
+		return nil, false
 	}
 	length := binary.BigEndian.Uint32(append([]byte{0}, data[0:3]...))
-	return &FrameHeader{
-		Length:   length,
-		Type:     data[3],
-		Flags:    data[4],
-		StreamID: binary.BigEndian.Uint32(data[5:9]) & 0x7FFFFFFF,
-	}, nil
+	totalLen := frameHeaderLen + int(length)
+	if len(data) < totalLen {
+		return nil, false
+	}
+	frame := make([]byte, totalLen)
+	copy(frame, data[:totalLen])
+	w.buf.Next(totalLen)
+	return frame, true
 }
 
-func decodeHeadersFragment(fragment []byte) (map[string]string, error) {
-	headers := make(map[string]string)
-	decoder := hpack.NewDecoder(4096, func(f hpack.HeaderField) {
-		headers[f.Name] = f.Value
-	})
-	_, err := decoder.Write(fragment)
-	return headers, err
-}
+func (w *WatcherWrapConn) processFrame(frame []byte) {
+	length := binary.BigEndian.Uint32(append([]byte{0}, frame[0:3]...))
+	ftype := frame[3]
+	flags := frame[4]
+	streamID := binary.BigEndian.Uint32(frame[5:9]) & 0x7FFFFFFF
+	log.Printf("Frame len=%d type=%d stream=%d", length, ftype, streamID)
+	payload := frame[frameHeaderLen:]
 
-func tryExtractAuthorization(data []byte) bool {
-	for len(data) >= 9 {
-		fh, err := parseFrameHeader(data)
-		if err != nil || uint32(len(data)) < 9+fh.Length {
-			break
-		}
-		if fh.Type == 0x1 { // HEADERS
-			payload := data[9 : 9+fh.Length]
-			headers, err := decodeHeadersFragment(payload)
-			if err == nil {
-				for k, v := range headers {
-					if k == "authorization" {
-						fmt.Println("🚨 Authorization:", v)
-						return true
-					}
+	if ftype == frameTypeHeaders {
+		headerBlock := append([]byte{}, payload...)
+		if flags&flagEndHeaders == 0 {
+			// Continue collecting CONTINUATION frames
+			for {
+				contFrame, ok := w.tryParseFrame()
+				if !ok {
+					break
+				}
+				ctype := contFrame[3]
+				cflags := contFrame[4]
+				cstreamID := binary.BigEndian.Uint32(contFrame[5:9]) & 0x7FFFFFFF
+				if ctype != frameTypeCont || cstreamID != streamID {
+					break
+				}
+				headerBlock = append(headerBlock, contFrame[frameHeaderLen:]...)
+				if cflags&flagEndHeaders != 0 {
+					break
 				}
 			}
 		}
-		data = data[9+fh.Length:]
+		headers, err := decodeHeaderBlock(headerBlock)
+		if err == nil {
+			if val, ok := headers["authorization"]; ok {
+				w.isTokenFound = true
+				user.SetAccessToken(val)
+				// fmt.Println("\u2705 Authorization:", val)
+			}
+		}
 	}
-	return false
+}
+
+func decodeHeaderBlock(block []byte) (map[string]string, error) {
+	headers := make(map[string]string)
+	decoder := hpack.NewDecoder(4096, func(hf hpack.HeaderField) {
+		headers[hf.Name] = hf.Value
+	})
+	_, err := decoder.Write(block)
+	return headers, err
 }
