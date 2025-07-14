@@ -37,7 +37,7 @@ func (c *OutboundClient2) Forward(localConn *tls.Conn, req *http.Request) error 
 		if err != nil {
 			if ne, ok := err.(net.Error); !ok || !ne.Timeout() {
 				// 忽略 timeout 错误
-				logger.Error("--->remote", err.Error(), req)
+				logger.Warn("--->remote", err.Error(), req)
 			}
 		}
 		logger.Info(fmt.Sprintf("forwarded send %d bytes for host: %s", n, req.Host))
@@ -49,7 +49,7 @@ func (c *OutboundClient2) Forward(localConn *tls.Conn, req *http.Request) error 
 		n, err := io.Copy(localConn, c.conn)
 		if err != nil {
 			if errors.Is(err, io.EOF) {
-				logger.Error("local<---", err.Error(), req)
+				logger.Warn("local<---", err.Error(), req)
 			}
 		}
 

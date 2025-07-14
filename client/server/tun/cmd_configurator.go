@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net"
-	"os/exec"
 	"runtime"
 	"strings"
 
@@ -104,8 +103,8 @@ func configureLinuxTunInterface(ifname string) error {
 }
 
 func GetDefaultGateway2() (string, error) {
-	cmd := exec.Command("powershell", "-Command", `Get-NetRoute -DestinationPrefix '0.0.0.0/0' | Sort-Object RouteMetric | ConvertTo-Json`)
-	out, err := cmd.Output()
+	cmd := utils.GetRunCommand("powershell", "-Command", `@(Get-NetRoute -DestinationPrefix '0.0.0.0/0' | Sort-Object RouteMetric) | ConvertTo-Json`)
+	out, err := cmd.CombinedOutput()
 	if err != nil {
 		return "", err
 	}
@@ -120,12 +119,12 @@ func GetDefaultGateway2() (string, error) {
 	return routes[0].NextHop, nil
 }
 
-func configureWindowsTunRoute() error {
+func getDefaultGateway() (string, error) {
 	var defaultGateway string
 	var defaultRouteMetric int = 999999 // 设置一个较大的初始值
 	defaultGateway, err := GetDefaultGateway2()
 	if err != nil {
-		logger.Error(fmt.Printf("Failure in mathod GetDefaultGateway2,  %v", err))
+		logger.Error(fmt.Printf("Failure in method GetDefaultGateway2,  %v", err))
 	}
 
 	if defaultGateway == "" {
@@ -212,7 +211,7 @@ func configureWindowsTunRoute() error {
 		cmd := utils.GetRunCommand("route", "print")
 		output, err := cmd.CombinedOutput()
 		if err != nil {
-			return fmt.Errorf("failed to get route print: %w", err)
+			return "", fmt.Errorf("failed to get route print: %w", err)
 		}
 
 		outputStr, err := utils.AutoConvertEncoding(output)
@@ -233,13 +232,22 @@ func configureWindowsTunRoute() error {
 
 	}
 
+	return defaultGateway, nil
+}
+
+func configureWindowsTunRoute() error {
+	defaultGateway, err := getDefaultGateway()
+	if err != nil {
+		return err
+	}
+
 	if defaultGateway == "" {
 		newErr := fmt.Errorf("无法找到默认网关，请检查网络连接")
 		logger.Error(fmt.Printf("%v", newErr))
 		return newErr
 	}
 
-	logger.Info(fmt.Printf("找到默认网关: %s (跃点数: %d)", defaultGateway, defaultRouteMetric))
+	logger.Info(fmt.Printf("找到默认网关: %s", defaultGateway))
 
 	// 删除现有默认路由
 	commands := [][]string{

@@ -15,9 +15,9 @@ type ErrorDedupConfig struct {
 // DefaultErrorDedupConfig 返回默认的错误去重配置
 func DefaultErrorDedupConfig() *ErrorDedupConfig {
 	return &ErrorDedupConfig{
-		ErrorWindow:     10 * time.Minute,
+		ErrorWindow:     1 * time.Hour,
 		MaxErrorCount:   4,
-		CleanupInterval: 10 * time.Minute,
+		CleanupInterval: 2 * time.Hour,
 	}
 }
 

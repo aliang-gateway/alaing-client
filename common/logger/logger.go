@@ -16,7 +16,8 @@ var (
 	// 全局日志记录器
 	logger *log.Logger
 	// 日志文件
-	logFile *os.File
+	logFile     *os.File
+	logFilePath string
 
 	// 错误去重相关变量
 	errorCache    = make(map[string]*errorInfo)
@@ -39,7 +40,22 @@ func init() {
 	logger.SetFlags(log.LstdFlags | log.Lshortfile)
 
 	// 启动清理协程
+	home, err := os.UserHomeDir()
+	if err != nil {
+		panic(err)
+	}
+	logDir := filepath.Join(home, ".nursor")
+	os.MkdirAll(logDir, 0755)
+	logFilePath = filepath.Join(logDir, "running.log")
+
+	// 打开文件（追加模式）
+	f, err := os.OpenFile(logFilePath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+	if err != nil {
+		panic(err)
+	}
+	logger = log.New(f, "", log.LstdFlags)
 	startCleanupRoutine()
+
 }
 
 // startCleanupRoutine 启动定期清理过期错误记录的协程

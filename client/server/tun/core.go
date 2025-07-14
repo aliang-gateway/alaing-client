@@ -45,12 +45,13 @@ func Start() {
 	engine.Insert(&defaultKey)
 	engine.Start()
 	defer engine.Stop()
-	defaultGateway, _ = GetDefaultGateway()
-	// if err != nil {
-	// 	logger.Error("获取默认网关失败: ", err)
-	// 	RunStatusChan <- map[string]string{"status": "failed", "message": err.Error()}
-	// 	return
-	// }
+	defaultGateway2, err := getDefaultGateway()
+	if err != nil {
+		logger.Error("获取默认网关失败: ", err)
+		RunStatusChan <- map[string]string{"status": "failed", "message": err.Error()}
+		return
+	}
+	defaultGateway = defaultGateway2
 
 	if err := ConfigureTunInterface(defaultKey.Device); err != nil {
 		logger.Error(fmt.Sprintf("配置 TUN 接口失败: %v", err))
@@ -298,21 +299,18 @@ func monitorTunDevice(ifname string) {
 	defer ticker.Stop()
 
 	var memStats runtime.MemStats
-	for {
-		select {
-		case <-ticker.C:
-			// 检查设备状态
-			if err := checkTunDeviceStatus(ifname); err != nil {
-				logger.Error(fmt.Sprintf("TUN 设备状态异常: %v", err))
-			}
-
-			// 获取内存统计
-			runtime.ReadMemStats(&memStats)
-			// 打印系统信息
-			logger.Info(fmt.Sprintf("系统信息 - Goroutines: %d, 内存使用: %v MB",
-				runtime.NumGoroutine(),
-				memStats.Alloc/1024/1024))
+	for range ticker.C {
+		// 检查设备状态
+		if err := checkTunDeviceStatus(ifname); err != nil {
+			logger.Warn(fmt.Sprintf("TUN 设备状态异常: %v", err))
 		}
+
+		// 获取内存统计
+		runtime.ReadMemStats(&memStats)
+		// 打印系统信息
+		logger.Info(fmt.Sprintf("系统信息 - Goroutines: %d, 内存使用: %v MB",
+			runtime.NumGoroutine(),
+			memStats.Alloc/1024/1024))
 	}
 }
 
