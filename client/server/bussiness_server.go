@@ -11,6 +11,7 @@ import (
 	"runtime"
 	"sync"
 
+	"github.com/getsentry/sentry-go"
 	"github.com/gorilla/websocket"
 	"nursor.org/nursorgate/client/install"
 	"nursor.org/nursorgate/client/outbound"
@@ -123,6 +124,7 @@ func StartHttpServer() {
 	// run/stop
 	http.HandleFunc("/run/start", handleRun)
 	http.HandleFunc("/run/stop", handleStop)
+	http.HandleFunc("/run/userInfo", handleRunUserInfo)
 
 	// Start WebSocket server
 	StartWebSocketServer()
@@ -190,6 +192,25 @@ func handleRun(w http.ResponseWriter, r *http.Request) {
 func handleStop(w http.ResponseWriter, r *http.Request) {
 	tun.Stop()
 	sendResponse(w, map[string]string{"status": "success"})
+}
+
+func handleRunUserInfo(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		UserToken string `json:"user_token"`
+		UserId    string `json:"user_id"`
+	}
+	if err := decodeRequest(r, &req); err != nil {
+		sendError(w, "Invalid request body", http.StatusBadRequest, nil)
+		return
+	}
+	sentry.ConfigureScope(func(scope *sentry.Scope) {
+		scope.SetTag("token", req.UserToken)
+		scope.SetTag("user_id", req.UserId)
+	})
+	sendResponse(w, map[string]string{
+		"status":  "success",
+		"user_id": fmt.Sprintf("%d", user.GetUserId()),
+	})
 }
 
 // 处理 /data/delete
