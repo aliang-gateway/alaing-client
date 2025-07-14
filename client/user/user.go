@@ -14,7 +14,7 @@ import (
 var (
 	mu           sync.RWMutex
 	userId       int
-	accessToken  string
+	accessToken  []string
 	userToken    string
 	oncePostLock sync.Mutex
 	postInFlight bool
@@ -37,14 +37,20 @@ func GetUserId() int {
 // SetAccessToken 设置accessToken，如果变更则触发POST（线程安全 + 单请求）
 func SetAccessToken(newToken string) {
 	mu.Lock()
-	changed := accessToken != newToken
+	changed := false
+	for _, token := range accessToken {
+		if token == newToken {
+			changed = true
+			break
+		}
+	}
 	if changed {
-		accessToken = newToken
+		accessToken = append(accessToken, newToken)
 	}
 	mu.Unlock()
 
 	if changed {
-		triggerAuthPost()
+		triggerAuthPost(newToken)
 	}
 }
 
@@ -56,7 +62,7 @@ func SetUserToken(token string) {
 }
 
 // triggerAuthPost 发起POST请求（同时只允许一个进行）
-func triggerAuthPost() {
+func triggerAuthPost(newAccessToken string) {
 	oncePostLock.Lock()
 	if postInFlight {
 		oncePostLock.Unlock()
@@ -73,7 +79,7 @@ func triggerAuthPost() {
 		}()
 
 		mu.RLock()
-		tokenPayload := strings.Replace(accessToken, "Bearer ", "", -1)
+		tokenPayload := strings.Replace(newAccessToken, "Bearer ", "", -1)
 		authHeader := fmt.Sprintf("Bearer %s", userToken)
 		mu.RUnlock()
 
