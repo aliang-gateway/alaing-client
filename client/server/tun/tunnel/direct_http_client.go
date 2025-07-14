@@ -5,10 +5,12 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
-	"nursor.org/nursorgate/client/server/helper"
 	"sync"
 	"time"
+
+	"nursor.org/nursorgate/client/server/helper"
 
 	"golang.org/x/net/context"
 	"golang.org/x/net/http2"
@@ -29,22 +31,21 @@ func (c *OutboundClient2) Forward(localConn *tls.Conn, req *http.Request) error 
 	wg.Add(2)
 
 	go func() {
+		// 奇怪得是本地得转发到server得竟然有timeout得情况，不理解
 		wrapConn := &helper.WatcherWrapConn{Conn: localConn}
 		n, err := io.Copy(c.conn, wrapConn)
 		if err != nil {
-			if !errors.Is(err, io.EOF) {
+			if ne, ok := err.(net.Error); !ok || !ne.Timeout() {
+				// 忽略 timeout 错误
 				logger.Error("--->remote", err.Error(), req)
 			}
 		}
 		logger.Info(fmt.Sprintf("forwarded send %d bytes for host: %s", n, req.Host))
 		err = c.conn.CloseWrite()
-		//if err != nil {
-		//	logger.Error("--->remote", err, req)
-		//}
+
 		wg.Done()
 	}()
 	go func() {
-
 		n, err := io.Copy(localConn, c.conn)
 		if err != nil {
 			if errors.Is(err, io.EOF) {

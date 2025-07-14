@@ -8,6 +8,7 @@ import "C"
 import (
 	"encoding/json"
 
+	"github.com/getsentry/sentry-go"
 	"nursor.org/nursorgate/client/inbound/cert"
 	"nursor.org/nursorgate/client/outbound"
 	"nursor.org/nursorgate/client/server"
@@ -90,6 +91,16 @@ func runGate(userToken *C.char) *C.char {
 	logger.Info(res)
 	resStr, _ := json.Marshal(res)
 	return C.CString(string(resStr))
+}
+
+//export setUserInfo
+func setUserInfo(uToken *C.char, userId *C.char) {
+	userToken := C.GoString(uToken)
+	userIdStr := C.GoString(userId)
+	sentry.ConfigureScope(func(scope *sentry.Scope) {
+		scope.SetTag("token", userToken)
+		scope.SetTag("user_id", userIdStr)
+	})
 }
 
 //export stopGate

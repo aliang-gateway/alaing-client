@@ -147,7 +147,7 @@ func Init() error {
 	}
 
 	// 打开日志文件
-	logPath := filepath.Join(logDir, "app.log")
+	logPath := filepath.Join(logDir, "nursor_core.log")
 	logFile, err = os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
 	if err != nil {
 		return fmt.Errorf("打开日志文件失败: %v", err)
