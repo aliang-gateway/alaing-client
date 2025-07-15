@@ -3,7 +3,6 @@ package engine
 import (
 	"errors"
 	"fmt"
-	"log"
 	"net"
 	"net/netip"
 	"sync"
@@ -40,16 +39,18 @@ var (
 )
 
 // Start starts the default engine up.
-func Start() {
+func Start() error {
 	if err := start(); err != nil {
-		log.Fatalf("[ENGINE] failed to start: %v", err)
+		logger.Error("[ENGINE] failed to start: %v", err)
+		return err
 	}
+	return nil
 }
 
 // Stop shuts the default engine down.
 func Stop() {
 	if err := stop(); err != nil {
-		log.Fatalf("[ENGINE] failed to stop: %v", err)
+		logger.Error("[ENGINE] failed to stop: %v", err)
 	}
 }
 
@@ -161,13 +162,13 @@ func netstack(k *Key) (err error) {
 	if _defaultProxy, err = parseProxy(k.Proxy); err != nil {
 		return
 	}
-	// _nursorProxy, err := parseProxy(k.NursorProxy)
-	// if err != nil {
-	// 	return
-	// }
+	_nursorProxy, err := parseProxy("hy2://lisi:IW6gUxtuG46FURELO08p9L9I3GtHtfh1@node1.nursor.org")
+	if err != nil {
+		return
+	}
 
 	tunnel.SetDefaultProxy(_defaultProxy)
-	// tunnel.SetNursorProxy(_nursorProxy)
+	tunnel.SetNursorProxy(_nursorProxy)
 
 	tunnel.T().SetDialer(_defaultProxy)
 

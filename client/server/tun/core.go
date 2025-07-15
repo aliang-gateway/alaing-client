@@ -43,15 +43,19 @@ func Start() {
 	go monitorTunDevice(defaultKey.Device)
 
 	engine.Insert(&defaultKey)
-	engine.Start()
+	if err := engine.Start(); err != nil {
+		RunStatusChan <- map[string]string{"status": "failed", "message": err.Error()}
+		return
+	}
+
 	defer engine.Stop()
-	defaultGateway2, err := getDefaultGateway()
+	_dfgw, err := getDefaultGateway()
 	if err != nil {
 		logger.Error("获取默认网关失败: ", err)
 		RunStatusChan <- map[string]string{"status": "failed", "message": err.Error()}
 		return
 	}
-	defaultGateway = defaultGateway2
+	defaultGateway = _dfgw
 
 	if err := ConfigureTunInterface(defaultKey.Device); err != nil {
 		logger.Error(fmt.Sprintf("配置 TUN 接口失败: %v", err))
@@ -336,8 +340,6 @@ func checkWindowsTunStatus(ifname string) error {
 	if err != nil {
 		return fmt.Errorf("获取接口状态失败: %w", err)
 	}
-	logger.Info(fmt.Sprintf("checkWindowsTunStatus output: %s", string(output)))
-
 	// 转换输出编码
 	outputStr, err := convertGBKToUTF8(string(output))
 	if err != nil {

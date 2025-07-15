@@ -16,6 +16,9 @@ func RunCommand(name string, args ...string) error {
 }
 
 func GetRunCommand(name string, args ...string) *exec.Cmd {
+	if len(args) > 0 && name == "powershell" && args[0] == "-Command" {
+		args[1] = "[Console]::OutputEncoding = [System.Text.UTF8Encoding]::new();" + args[1]
+	}
 	cmd := exec.Command(name, args...)
 	cmd.SysProcAttr = &syscall.SysProcAttr{
 		HideWindow: true, // 隐藏命令行窗口

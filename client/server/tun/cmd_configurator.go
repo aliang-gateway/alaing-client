@@ -119,15 +119,26 @@ func configureLinuxTunInterface(ifname string) error {
 }
 
 func GetDefaultGatewayWithPowerShell() (string, error) {
-	cmd := utils.GetRunCommand("powershell", "-Command", `@(Get-NetRoute -DestinationPrefix '0.0.0.0/0' | Sort-Object RouteMetric) | ConvertTo-Json`)
+	cmd := utils.GetRunCommand("powershell", "-Command", `
+	  $routes = @(Get-NetRoute -DestinationPrefix '0.0.0.0/0' | Sort-Object RouteMetric | Select-Object DestinationPrefix,NextHop,RouteMetric);
+	  $routes | ConvertTo-Json -Depth 3
+	`)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		return "", err
 	}
 
 	var routes []RouteEntry
-	if err := json.Unmarshal(out, &routes); err != nil {
-		return "", fmt.Errorf("JSON parse failed: %w", err)
+	if out[0] == '[' {
+		if err := json.Unmarshal(out, &routes); err != nil {
+			return "", err
+		}
+	} else {
+		var single RouteEntry
+		if err := json.Unmarshal(out, &single); err != nil {
+			return "", err
+		}
+		routes = append(routes, single)
 	}
 	if len(routes) == 0 {
 		return "", fmt.Errorf("no default route found")
@@ -140,7 +151,7 @@ func getDefaultGateway() (string, error) {
 	var defaultRouteMetric int = 999999 // 设置一个较大的初始值
 	defaultGateway, err := GetDefaultGatewayWithPowerShell()
 	if err != nil {
-		logger.Error(fmt.Printf("Failure in method GetDefaultGateway2,  %v", err))
+		logger.Error(fmt.Printf("Failure in method GetDefaultGatewayWithPowerShell,  %v", err))
 	}
 
 	if defaultGateway == "" {
