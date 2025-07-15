@@ -10,6 +10,7 @@ const (
 	//Socks5
 	//Shadowsocks
 	//Relay
+	Hy
 )
 
 type Proto uint8
@@ -28,8 +29,8 @@ func (proto Proto) String() string {
 	//	return "socks5"
 	//case Shadowsocks:
 	//	return "ss"
-	//case Relay:
-	//	return "relay"
+	case Hy:
+		return "hysteria"
 	default:
 		return fmt.Sprintf("proto(%d)", proto)
 	}

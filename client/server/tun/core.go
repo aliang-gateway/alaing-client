@@ -179,7 +179,7 @@ func CleanupTunRoute() error {
 
 	case "windows":
 		// 清理 Windows 防火墙规则（假设规则名为 "TUNRule"）
-		cmd := utils.GetRunCommand("netsh", "advfirewall", "firewall", "delete", "rule", "name=TUNRule")
+		cmd := utils.GetRunCommand("powershell", "-Command", `Get-NetFirewallRule -DisplayName "TUNRule" | Remove-NetFirewallRule`)
 		if err := cmd.Run(); err != nil {
 			logger.Info("Failed to delete firewall rule:", err)
 		}
@@ -210,7 +210,7 @@ func CleanupTunInterface(ifName string) error {
 		// 关闭 TUN 接口
 		cmd := utils.GetRunCommand("ifconfig", ifName, "down")
 		if err := cmd.Run(); err != nil {
-			logger.Info("Failed to bring down interface:", err)
+			logger.Error(fmt.Sprintf("Failed to bring down interface: %v", err))
 			// macOS 不支持直接删除 TUN 接口，继续执行
 		}
 
@@ -218,14 +218,14 @@ func CleanupTunInterface(ifName string) error {
 		// 可选：尝试通过 route 命令清理关联路由
 		cmd = utils.GetRunCommand("route", "-n", "flush")
 		if err := cmd.Run(); err != nil {
-			logger.Info("Failed to flush routes for interface:", err)
+			logger.Error(fmt.Sprintf("Failed to flush routes for interface: %v", err))
 		}
 
 	case "windows":
 		// 禁用 TUN 接口
-		cmd := utils.GetRunCommand("netsh", "interface", "set", "interface", ifName, "disable")
+		cmd := utils.GetRunCommand("powershell", "-Command", `Disable-NetAdapter -Name "`+ifName+`" -Confirm:$false`)
 		if err := cmd.Run(); err != nil {
-			logger.Info("Failed to disable interface:", err)
+			logger.Error(fmt.Sprintf("Failed to disable interface: %v", err))
 			// 继续尝试删除接口
 		}
 
@@ -331,11 +331,12 @@ func checkTunDeviceStatus(ifname string) error {
 // checkWindowsTunStatus 检查 Windows TUN 设备状态
 func checkWindowsTunStatus(ifname string) error {
 	// 使用 netsh 检查接口状态
-	cmd := utils.GetRunCommand("netsh", "interface", "ipv4", "show", "interfaces")
+	cmd := utils.GetRunCommand("powershell", "-Command", `Get-NetIPInterface | Format-Table -AutoSize`)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("获取接口状态失败: %w", err)
 	}
+	logger.Info(fmt.Sprintf("checkWindowsTunStatus output: %s", string(output)))
 
 	// 转换输出编码
 	outputStr, err := convertGBKToUTF8(string(output))
@@ -395,7 +396,7 @@ func waitForTunDeviceReady(deviceName string, timeout time.Duration) error {
 		switch runtime.GOOS {
 		case "windows":
 			// Windows 使用 netsh 检查接口状态
-			cmd = utils.GetRunCommand("netsh", "interface", "ipv4", "show", "interfaces")
+			cmd = utils.GetRunCommand("powershell", "-Command", "@(Get-NetAdapter | Select-Object Name, Status, InterfaceDescription, ifIndex) | ConvertTo-Json")
 			checkString = "connected"
 		case "linux": // darwin 是 macOS
 			// Linux/macOS 使用 ip link show 检查接口状态
@@ -431,7 +432,7 @@ func waitForTunDeviceReady(deviceName string, timeout time.Duration) error {
 		// 执行命令获取接口状态
 		output, err := cmd.CombinedOutput()
 		if err != nil {
-			logger.Info("检查接口状态失败: %v", err)
+			logger.Error(fmt.Sprintf("检查接口状态失败: %v", err))
 			time.Sleep(500 * time.Millisecond)
 			continue
 		}
@@ -442,7 +443,7 @@ func waitForTunDeviceReady(deviceName string, timeout time.Duration) error {
 			// Windows 需要处理编码（假设 utils.AutoConvertEncoding 处理 GBK 到 UTF-8）
 			outputStr, err = utils.AutoConvertEncoding(output)
 			if err != nil {
-				logger.Info("转换编码失败: %v", err)
+				logger.Error(fmt.Sprintf("转换编码失败: %v", err))
 				time.Sleep(2000 * time.Millisecond)
 				continue
 			}
@@ -451,8 +452,7 @@ func waitForTunDeviceReady(deviceName string, timeout time.Duration) error {
 		// 检查输出是否包含设备名称和状态
 		if strings.Contains(outputStr, deviceName) && strings.Contains(outputStr, checkString) {
 			// 进一步验证网卡可用性，通过 ping 测试
-			var pingCmd *exec.Cmd
-			pingCmd = utils.GetRunCommand("ping", "-n", "1", "10.0.0.1")
+			pingCmd := utils.GetRunCommand("ping", "-n", "1", "10.0.0.1")
 
 			if err := pingCmd.Run(); err == nil {
 				logger.Info("TUN 设备已就绪 OS: ", runtime.GOOS)

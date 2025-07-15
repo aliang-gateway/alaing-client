@@ -63,9 +63,25 @@ func ConfigureTunRoute() error {
 func configureWindowsTunInterface(ifname string) error {
 	// 使用 netsh 命令配置接口
 	commands := [][]string{
-		{"netsh", "interface", "ipv4", "set", "address", "name=" + ifname, "static", "10.0.0.1", "255.255.255.0"},
-		{"netsh", "interface", "ipv4", "set", "interface", "name=" + ifname, "metric=1"},
-		{"netsh", "interface", "ipv4", "set", "interface", "name=" + ifname, "admin=enabled"},
+		// 设置静态 IP
+		{"powershell", "-Command", `New-NetIPAddress -InterfaceAlias "` + ifname + `" -IPAddress 10.0.0.1 -PrefixLength 24`},
+
+		// 设置 Metric
+		{"powershell", "-Command", `Set-NetIPInterface -InterfaceAlias "` + ifname + `" -InterfaceMetric 1`},
+
+		// 启用接口
+		{"powershell", "-Command", `Enable-NetAdapter -Name "` + ifname + `"`},
+	}
+
+	preCheckCmd := utils.GetRunCommand("powershell", "-Command", `Get-NetAdapter | Select Name, InterfaceAlias, Status`)
+	_, err := preCheckCmd.CombinedOutput()
+	if err != nil {
+		logger.Error(fmt.Sprintf("failed to get net adapter: %v", err))
+		commands = [][]string{
+			{"netsh", "interface", "ipv4", "set", "address", "name=" + ifname, "static", "10.0.0.1", "255.255.255.0"},
+			{"netsh", "interface", "ipv4", "set", "interface", "name=" + ifname, "metric=1"},
+			{"netsh", "interface", "ipv4", "set", "interface", "name=" + ifname, "admin=enabled"},
+		}
 	}
 
 	for _, cmd := range commands {
@@ -102,7 +118,7 @@ func configureLinuxTunInterface(ifname string) error {
 	return nil
 }
 
-func GetDefaultGateway2() (string, error) {
+func GetDefaultGatewayWithPowerShell() (string, error) {
 	cmd := utils.GetRunCommand("powershell", "-Command", `@(Get-NetRoute -DestinationPrefix '0.0.0.0/0' | Sort-Object RouteMetric) | ConvertTo-Json`)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
@@ -122,7 +138,7 @@ func GetDefaultGateway2() (string, error) {
 func getDefaultGateway() (string, error) {
 	var defaultGateway string
 	var defaultRouteMetric int = 999999 // 设置一个较大的初始值
-	defaultGateway, err := GetDefaultGateway2()
+	defaultGateway, err := GetDefaultGatewayWithPowerShell()
 	if err != nil {
 		logger.Error(fmt.Printf("Failure in method GetDefaultGateway2,  %v", err))
 	}

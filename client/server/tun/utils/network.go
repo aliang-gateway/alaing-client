@@ -25,96 +25,48 @@ func GetDefaultInterface() (string, error) {
 
 // getWindowsDefaultInterface 获取 Windows 默认网络接口
 func getWindowsDefaultInterface() (string, error) {
-	// 使用 netsh 命令获取默认路由接口
-	cmd := utils.GetRunCommand("netsh", "interface", "ipv4", "show", "route")
+	// 用 PowerShell 获取默认路由的 InterfaceIndex
+	cmd := utils.GetRunCommand("powershell", "-Command", `
+	$defaultRoute = Get-NetRoute -DestinationPrefix "0.0.0.0/0" |
+	                Sort-Object RouteMetric |
+	                Select-Object -First 1;
+	if ($defaultRoute -ne $null) {
+		$index = $defaultRoute.InterfaceIndex
+		$adapter = Get-NetAdapter | Where-Object { $_.InterfaceIndex -eq $index -and $_.Status -eq "Up" }
+		if ($adapter) {
+			Write-Output $adapter.Name
+		}
+	}
+	`)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		return "", fmt.Errorf("failed to get routes: %w", err)
+		return "", fmt.Errorf("failed to get default interface: %w", err)
 	}
 
-	// 自动检测并转换编码
-	outputStr, err := utils.AutoConvertEncoding(output)
-	if err != nil {
-		return "", fmt.Errorf("failed to convert encoding: %w", err)
+	ifName := strings.TrimSpace(string(output))
+	if ifName != "" &&
+		!strings.Contains(strings.ToLower(ifName), "loopback") &&
+		!strings.Contains(strings.ToLower(ifName), "virtual") &&
+		!strings.Contains(strings.ToLower(ifName), "vethernet") {
+		return ifName, nil
 	}
 
-	// 解析输出找到默认路由（0.0.0.0/0）
-	lines := strings.Split(outputStr, "\n")
-	var defaultRouteIndex string
-	for _, line := range lines {
-		if strings.Contains(line, "0.0.0.0/0") {
-			fields := strings.Fields(line)
-			if len(fields) >= 5 {
-				// 在 Windows 输出中，索引是第 5 个字段
-				defaultRouteIndex = fields[4]
-				break
-			}
-		}
-	}
-
-	if defaultRouteIndex == "" {
-		return "", fmt.Errorf("no default route found")
-	}
-
-	// 获取所有网络接口的状态
-	cmd = utils.GetRunCommand("netsh", "interface", "ipv4", "show", "interfaces")
-	output, err = cmd.CombinedOutput()
-	if err != nil {
-		return "", fmt.Errorf("failed to get interfaces: %w", err)
-	}
-
-	// 自动检测并转换接口信息编码
-	outputStr, err = utils.AutoConvertEncoding(output)
-	if err != nil {
-		return "", fmt.Errorf("failed to convert encoding: %w", err)
-	}
-
-	// 解析接口信息
-	lines = strings.Split(outputStr, "\n")
-	var connectedInterfaces []string
-	for _, line := range lines {
-		fields := strings.Fields(line)
-		if len(fields) >= 5 {
-			// 检查是否是目标索引且状态为 connected
-			if fields[0] == defaultRouteIndex && fields[3] == "connected" {
-				// 接口名称是最后一个字段
-				interfaceName := fields[len(fields)-1]
-				// 排除虚拟接口和回环接口
-				if !strings.Contains(strings.ToLower(interfaceName), "loopback") &&
-					!strings.Contains(strings.ToLower(interfaceName), "pseudo") &&
-					!strings.Contains(strings.ToLower(interfaceName), "virtual") &&
-					!strings.Contains(strings.ToLower(interfaceName), "vethernet") {
-					connectedInterfaces = append(connectedInterfaces, interfaceName)
-				}
-			}
-		}
-	}
-
-	// 如果找到了连接的接口，返回第一个
-	if len(connectedInterfaces) > 0 {
-		return connectedInterfaces[0], nil
-	}
-
-	// 如果没有找到合适的接口，尝试获取所有活动的网络接口
+	// fallback: 遍历启用的物理接口（排除 loopback 和虚拟）
 	interfaces, err := net.Interfaces()
 	if err != nil {
 		return "", fmt.Errorf("failed to get interfaces: %w", err)
 	}
 
 	for _, iface := range interfaces {
-		// 检查接口是否启用且不是回环接口
 		if iface.Flags&net.FlagUp != 0 && iface.Flags&net.FlagLoopback == 0 {
-			// 尝试获取接口的 IP 地址
-			addrs, err := iface.Addrs()
-			if err != nil {
-				continue
-			}
-			for _, addr := range addrs {
-				// 检查是否是 IPv4 地址
-				if ipnet, ok := addr.(*net.IPNet); ok && !ipnet.IP.IsLoopback() && ipnet.IP.To4() != nil {
-					// 排除虚拟接口
-					if !strings.Contains(strings.ToLower(iface.Name), "virtual") &&
-						!strings.Contains(strings.ToLower(iface.Name), "vethernet") {
+			if !strings.Contains(strings.ToLower(iface.Name), "virtual") &&
+				!strings.Contains(strings.ToLower(iface.Name), "vethernet") {
+				addrs, err := iface.Addrs()
+				if err != nil {
+					continue
+				}
+				for _, addr := range addrs {
+					if ipnet, ok := addr.(*net.IPNet); ok && ipnet.IP.To4() != nil {
 						return iface.Name, nil
 					}
 				}
