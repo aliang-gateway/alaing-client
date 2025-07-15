@@ -52,7 +52,6 @@ func (c *OutboundClient2) Forward(localConn *tls.Conn, req *http.Request) error 
 				logger.Warn("local<---", err.Error(), req)
 			}
 		}
-
 		logger.Info(fmt.Sprintf("forwarded return %d bytes from host: %s", n, req.Host))
 		err = localConn.CloseWrite()
 		if err != nil {

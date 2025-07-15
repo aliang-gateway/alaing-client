@@ -4,13 +4,14 @@ import (
 	"fmt"
 	"net/netip"
 	"net/url"
+	"runtime"
+	"strings"
+
 	"nursor.org/nursorgate/client/server/tun/core/device"
 	"nursor.org/nursorgate/client/server/tun/core/device/fdbased"
 	"nursor.org/nursorgate/client/server/tun/core/device/tun"
 	"nursor.org/nursorgate/client/server/tun/proxy"
 	"nursor.org/nursorgate/client/server/tun/proxy/proto"
-	"runtime"
-	"strings"
 )
 
 func parseProxy(s string) (proxy.Proxy, error) {
@@ -32,6 +33,9 @@ func parseProxy(s string) (proxy.Proxy, error) {
 		return proxy.NewReject(), nil
 	case proto.HTTP.String():
 		return parseHTTP(u)
+	case proto.HY2.String():
+		password, _ := u.User.Password()
+		return proxy.NewHysteriaDialer(u.User.Username(), password)
 	default:
 		return nil, fmt.Errorf("unsupported protocol: %s", protocol)
 	}

@@ -3,14 +3,18 @@ package proxy
 import (
 	"context"
 	"errors"
+	"fmt"
+	"github.com/apernet/hysteria/extras/v2/obfs"
 	"net"
 	"sync"
 	"time"
 
 	M "nursor.org/nursorgate/client/server/tun/metadata"
 	"nursor.org/nursorgate/client/server/tun/proxy/proto"
+	"nursor.org/nursorgate/common/logger"
 
-	hysteria "github.com/apernet/hysteria/core/v2/client"
+	"github.com/apernet/hysteria/core/v2/client"
+	// hysteria "github.com/apernet/hysteria/core/v2/client"
 )
 
 // 确保实现 proxy.Dialer 接口
@@ -20,20 +24,101 @@ var _ interface {
 } = (*HysteriaDialer)(nil)
 
 type HysteriaDialer struct {
-	config *hysteria.Config
+	config *client.Config
 
-	client hysteria.Client
+	client client.Client
 	once   sync.Once
 	err    error
 }
 
+type adaptiveConnFactory struct {
+	NewFunc    func(addr net.Addr) (net.PacketConn, error)
+	Obfuscator obfs.Obfuscator // nil if no obfuscation
+}
+
+func (f *adaptiveConnFactory) New(addr net.Addr) (net.PacketConn, error) {
+	if f.Obfuscator == nil {
+		return f.NewFunc(addr)
+	} else {
+		conn, err := f.NewFunc(addr)
+		if err != nil {
+			return nil, err
+		}
+		return obfs.WrapPacketConn(conn, f.Obfuscator), nil
+	}
+}
+
+func applyToUDPConn(c *net.UDPConn) error {
+
+	return nil
+}
+
+func getDefaultConnFactory(salamada string) client.ConnFactory {
+	var ob obfs.Obfuscator
+	ob, _ = obfs.NewSalamanderObfuscator([]byte(salamada))
+
+	// Inner PacketConn
+	var newFunc func(addr net.Addr) (net.PacketConn, error)
+	newFunc = func(addr net.Addr) (net.PacketConn, error) {
+		uconn, err := net.ListenUDP("udp", nil)
+		if err != nil {
+			return nil, err
+		}
+		return uconn, nil
+	}
+	// Obfuscation
+	return &adaptiveConnFactory{
+		NewFunc:    newFunc,
+		Obfuscator: ob,
+	}
+
+}
+
+func BuildHysteriaClientConfig(username, password string) (*client.Config, error) {
+	server := "8.209.245.103:1443"
+
+	addr, err := net.ResolveUDPAddr("udp", server)
+	if err != nil {
+		return nil, fmt.Errorf("failed to resolve server address: %w", err)
+	}
+
+	return &client.Config{
+		ConnFactory: getDefaultConnFactory("2hKDWT79uWNIJuRMS5jqFNyOtSIf05Oc"),
+		ServerAddr:  addr,
+		Auth:        fmt.Sprintf("%s:%s", username, password),
+		TLSConfig: client.TLSConfig{
+			ServerName:         "node1.nursor.org",
+			InsecureSkipVerify: true,
+		},
+		QUICConfig: client.QUICConfig{
+			InitialStreamReceiveWindow:     8388608,
+			MaxStreamReceiveWindow:         8388608,
+			InitialConnectionReceiveWindow: 20971520,
+			MaxConnectionReceiveWindow:     20971520,
+			MaxIdleTimeout:                 20 * time.Second,
+			KeepAlivePeriod:                20 * time.Second,
+			DisablePathMTUDiscovery:        false,
+		},
+		BandwidthConfig: client.BandwidthConfig{
+			MaxTx: 1024 * 5,
+			MaxRx: 1024 * 5,
+		},
+		FastOpen: true,
+	}, nil
+}
+
 // NewHysteriaDialer 创建 Dialer 并建立连接
-func NewHysteriaDialer(config *hysteria.Config) (*HysteriaDialer, error) {
+func NewHysteriaDialer(username, password string) (*HysteriaDialer, error) {
+	config, err := BuildHysteriaClientConfig(username, password)
+	if err != nil {
+		logger.Error("failed to build hysteria client config: %v", err)
+		return nil, err
+	}
 	h := &HysteriaDialer{
 		config: config,
 	}
 	h.once.Do(func() {
-		h.client, _, h.err = hysteria.NewClient(config)
+		h.client, _, h.err = client.NewClient(config)
 	})
 	return h, h.err
 }
@@ -75,7 +160,7 @@ func (h *HysteriaDialer) DialUDP(m *M.Metadata) (net.PacketConn, error) {
 }
 
 func (h *HysteriaDialer) Proto() proto.Proto {
-	return proto.Hy
+	return proto.HY2
 }
 
 func (h *HysteriaDialer) Addr() string {
@@ -83,7 +168,7 @@ func (h *HysteriaDialer) Addr() string {
 }
 
 type hysteriaUDPConn struct {
-	session hysteria.HyUDPConn
+	session client.HyUDPConn
 	raddr   net.Addr
 }
 

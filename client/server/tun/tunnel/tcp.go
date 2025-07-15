@@ -43,6 +43,7 @@ func (t *Tunnel) handleTCPConn(originConn adapter.TCPConn) {
 
 	if metadata.DstPort == 443 {
 		serverName, sniBuf, err := helper.ExtractSNI(originConn)
+		nursorRouter := model.NewAllowProxyDomain()
 		if err != nil {
 			logger.Info("SNI extraction error:", err)
 			newOriginConn = &WrappedConn{
@@ -58,7 +59,7 @@ func (t *Tunnel) handleTCPConn(originConn adapter.TCPConn) {
 				Buf:  sniBuf,
 				Conn: originConn,
 			}
-			nursorRouter := model.NewAllowProxyDomain()
+
 			if nursorRouter.IsAllowToCursor(serverName) {
 				tlsConf := cert.CreateTlsConfigForHost(serverName)
 				tlsConn := tls.Server(newOriginConn, tlsConf)
@@ -76,14 +77,20 @@ func (t *Tunnel) handleTCPConn(originConn adapter.TCPConn) {
 			}
 		}
 
-		remoteConn, err = t.Dialer().DialContext(ctx, metadata)
-		if err != nil {
-			logger.Info(fmt.Printf("[TCP] dial %s: %v", metadata.DestinationAddress(), err))
-			return
+		if nursorRouter.IsAllowToAnyDoor(serverName) {
+			remoteConn, err = GetNursorProxy().DialContext(ctx, metadata)
+			if err != nil {
+				logger.Error(fmt.Printf("[TCP] dial %s: %v", metadata.DestinationAddress(), err))
+				return
+			}
+		} else {
+			remoteConn, err = t.Dialer().DialContext(ctx, metadata)
+			if err != nil {
+				logger.Info(fmt.Printf("[TCP] dial %s: %v", metadata.DestinationAddress(), err))
+				return
+			}
 		}
-		// if serverName == "marketplace.cursorapi.com" {
-		// 	print("the marketplace domain occured")
-		// }
+
 	} else {
 		remoteConn, err = t.Dialer().DialContext(ctx, metadata)
 		if err != nil {

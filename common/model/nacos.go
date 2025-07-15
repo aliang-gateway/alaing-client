@@ -17,6 +17,7 @@ type AllowProxyDomain struct {
 	ToGateDomains  []string `json:"toGateDomains"`
 	ToCursorDomain []string `json:"toCursorDomain"`
 	DenyDomains    []string `json:"denyDomains"`
+	ToDoorDomain   []string `json:"toDoorDomain"`
 }
 
 // 是否允许经过Gate，用作配置route的时候，windows上目前用不着
@@ -50,12 +51,30 @@ func (a *AllowProxyDomain) IsAllowToCursor(domain string) bool {
 	return false
 }
 
+func (a *AllowProxyDomain) IsAllowToAnyDoor(domain string) bool {
+	for _, d := range a.DenyDomains {
+		if strings.Contains(domain, d) {
+			return false
+		}
+	}
+	if len(a.ToDoorDomain) == 0 {
+		return strings.Contains(domain, "cursor")
+	}
+	for _, d := range a.ToDoorDomain {
+		if strings.Contains(domain, d) {
+			return true
+		}
+	}
+	return false
+}
+
 func NewAllowProxyDomain() *AllowProxyDomain {
 	if allowProxyDomain == nil {
 		allowProxyDomain = &AllowProxyDomain{
 			ToGateDomains:  []string{},
 			DenyDomains:    []string{},
 			ToCursorDomain: []string{"cursor.sh", "cursor.com"},
+			ToDoorDomain:   []string{"google.com"},
 		}
 		nacosClient, err := config.NewNacosClient(
 			"http://nacos-config.nursor.org",
