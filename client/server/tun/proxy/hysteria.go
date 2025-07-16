@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"github.com/apernet/hysteria/extras/v2/obfs"
 	"net"
+	"nursor.org/nursorgate/client/server/tun/dialer"
+	"strconv"
 	"sync"
 	"time"
 
@@ -14,7 +16,7 @@ import (
 	"nursor.org/nursorgate/common/logger"
 
 	"github.com/apernet/hysteria/core/v2/client"
-	// hysteria "github.com/apernet/hysteria/core/v2/client"
+	// hysteria "github.com/apernet/hysteria/core/v2/Client"
 )
 
 // 确保实现 proxy.Dialer 接口
@@ -26,52 +28,40 @@ var _ interface {
 type HysteriaDialer struct {
 	config *client.Config
 
-	client client.Client
+	Client client.Client
 	once   sync.Once
 	err    error
 }
 
-type adaptiveConnFactory struct {
-	NewFunc    func(addr net.Addr) (net.PacketConn, error)
+type TunBoundConnFactory struct {
+	//NewFunc    func(addr net.Addr) (net.PacketConn, error)
 	Obfuscator obfs.Obfuscator // nil if no obfuscation
 }
 
-func (f *adaptiveConnFactory) New(addr net.Addr) (net.PacketConn, error) {
-	if f.Obfuscator == nil {
-		return f.NewFunc(addr)
-	} else {
-		conn, err := f.NewFunc(addr)
-		if err != nil {
-			return nil, err
-		}
-		return obfs.WrapPacketConn(conn, f.Obfuscator), nil
+func (f *TunBoundConnFactory) New(addr net.Addr) (net.PacketConn, error) {
+	//conn, err := f.NewFunc(addr)
+
+	conn, err := dialer.ListenPacketWithOptions("udp", "0.0.0.0:0", &dialer.Options{
+		InterfaceName:  dialer.DefaultInterfaceName.Load(),       // eg: eth0, en0
+		InterfaceIndex: int(dialer.DefaultInterfaceIndex.Load()), // 可用 net.InterfaceByName 获取
+		RoutingMark:    int(dialer.DefaultRoutingMark.Load()),    // 如果你用 mark 来指定路由
+	})
+
+	if err != nil {
+		return nil, err
 	}
+	return obfs.WrapPacketConn(conn, f.Obfuscator), nil
+
 }
 
-func applyToUDPConn(c *net.UDPConn) error {
-
-	return nil
-}
-
-func getDefaultConnFactory(salamada string) client.ConnFactory {
+func getDefaultConnFactory(salamanda string) client.ConnFactory {
 	var ob obfs.Obfuscator
-	ob, _ = obfs.NewSalamanderObfuscator([]byte(salamada))
+	ob, _ = obfs.NewSalamanderObfuscator([]byte(salamanda))
 
-	// Inner PacketConn
-	var newFunc func(addr net.Addr) (net.PacketConn, error)
-	newFunc = func(addr net.Addr) (net.PacketConn, error) {
-		uconn, err := net.ListenUDP("udp", nil)
-		if err != nil {
-			return nil, err
-		}
-		return uconn, nil
-	}
 	// Obfuscation
-	return &adaptiveConnFactory{
-		NewFunc:    newFunc,
+	return &TunBoundConnFactory{
 		Obfuscator: ob,
 	}
-
 }
 
 func BuildHysteriaClientConfig(username, password string) (*client.Config, error) {
@@ -100,10 +90,10 @@ func BuildHysteriaClientConfig(username, password string) (*client.Config, error
 			DisablePathMTUDiscovery:        false,
 		},
 		BandwidthConfig: client.BandwidthConfig{
-			MaxTx: 1024 * 5,
-			MaxRx: 1024 * 5,
+			MaxTx: 1024 * 1024 * 1,
+			MaxRx: 1024 * 1024 * 1,
 		},
-		FastOpen: true,
+		FastOpen: false,
 	}, nil
 }
 
@@ -111,31 +101,81 @@ func BuildHysteriaClientConfig(username, password string) (*client.Config, error
 func NewHysteriaDialer(username, password string) (*HysteriaDialer, error) {
 	config, err := BuildHysteriaClientConfig(username, password)
 	if err != nil {
-		logger.Error("failed to build hysteria client config: %v", err)
+		logger.Error("failed to build hysteria Client config: %v", err)
 		return nil, err
 	}
 	h := &HysteriaDialer{
 		config: config,
 	}
 	h.once.Do(func() {
-		h.client, _, h.err = client.NewClient(config)
+		//h.Client, _, h.err = client.NewClient(config)
+		h.Client, h.err = client.NewReconnectableClient(func() (*client.Config, error) {
+			config, err := BuildHysteriaClientConfig(username, password)
+			return config, err
+		}, func(c client.Client, info *client.HandshakeInfo, i int) {
+			logger.Info("new connect3ed")
+		}, true)
 	})
 	return h, h.err
 }
 
 func (h *HysteriaDialer) DialContext(ctx context.Context, m *M.Metadata) (net.Conn, error) {
-	if h.client == nil {
-		return nil, errors.New("Hysteria client not initialized")
+	if h.Client == nil {
+		return nil, errors.New("Hysteria Client not initialized")
 	}
-	target := m.DstIP.String()
+	target := net.JoinHostPort(m.DstIP.String(), strconv.Itoa(int(m.DstPort)))
+
 	type result struct {
 		conn net.Conn
 		err  error
 	}
 	ch := make(chan result, 1)
+
 	go func() {
-		conn, err := h.client.TCP(target)
-		ch <- result{conn, err}
+		conn, err := h.Client.TCP(target)
+		select {
+		case ch <- result{conn, err}:
+			// 正常返回
+		case <-ctx.Done():
+			// 超时返回，主动关闭连接防止泄露
+			if conn != nil {
+				_ = conn.Close()
+			}
+		}
+
+	}()
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case res := <-ch:
+		return res.conn, res.err
+	}
+}
+
+func (h *HysteriaDialer) DialContextWithServerName(ctx context.Context, m *M.Metadata, SNI string) (net.Conn, error) {
+	if h.Client == nil {
+		return nil, errors.New("Hysteria Client not initialized")
+	}
+	//target := net.JoinHostPort(m.DstIP.String(), strconv.Itoa(int(m.DstPort)))
+
+	type result struct {
+		conn net.Conn
+		err  error
+	}
+	ch := make(chan result, 1)
+
+	go func() {
+		conn, err := h.Client.TCP(SNI)
+		select {
+		case ch <- result{conn, err}:
+			// 正常返回
+		case <-ctx.Done():
+			// 超时返回，主动关闭连接防止泄露
+			if conn != nil {
+				_ = conn.Close()
+			}
+		}
+
 	}()
 	select {
 	case <-ctx.Done():
@@ -146,10 +186,10 @@ func (h *HysteriaDialer) DialContext(ctx context.Context, m *M.Metadata) (net.Co
 }
 
 func (h *HysteriaDialer) DialUDP(m *M.Metadata) (net.PacketConn, error) {
-	if h.client == nil {
-		return nil, errors.New("Hysteria client not initialized")
+	if h.Client == nil {
+		return nil, errors.New("Hysteria Client not initialized")
 	}
-	session, err := h.client.UDP()
+	session, err := h.Client.UDP()
 	if err != nil {
 		return nil, err
 	}

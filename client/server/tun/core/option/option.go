@@ -16,7 +16,7 @@ const (
 	defaultTimeToLive uint8 = 64
 
 	// ipForwardingEnabled is the value used by stack to enable packet
-	// forwarding between NICs.
+	// hysteria_forwarding between NICs.
 	ipForwardingEnabled = true
 
 	// icmpBurst is the default number of ICMP messages that can be sent in
@@ -128,14 +128,14 @@ func WithDefaultTTL(ttl uint8) Option {
 	}
 }
 
-// WithForwarding sets packet forwarding between NICs for IPv4 & IPv6.
+// WithForwarding sets packet hysteria_forwarding between NICs for IPv4 & IPv6.
 func WithForwarding(v bool) Option {
 	return func(s *stack.Stack) error {
 		if err := s.SetForwardingDefaultAndAllNICs(ipv4.ProtocolNumber, v); err != nil {
-			return fmt.Errorf("set ipv4 forwarding: %s", err)
+			return fmt.Errorf("set ipv4 hysteria_forwarding: %s", err)
 		}
 		if err := s.SetForwardingDefaultAndAllNICs(ipv6.ProtocolNumber, v); err != nil {
-			return fmt.Errorf("set ipv6 forwarding: %s", err)
+			return fmt.Errorf("set ipv6 hysteria_forwarding: %s", err)
 		}
 		return nil
 	}

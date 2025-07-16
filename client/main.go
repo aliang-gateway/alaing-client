@@ -18,7 +18,7 @@ func main() {
 
 func RunBackground() {
 	go server.StartHttpServer()
-
+	//go server.StartMitmHttp()
 	model.NewAllowProxyDomain()
 
 	//utils.SetServerHost("ai-gateway.nursor.org:8889")

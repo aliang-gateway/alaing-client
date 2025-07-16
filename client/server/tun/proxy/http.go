@@ -88,7 +88,7 @@ func (h *HTTP) shakeHand(metadata *M.Metadata, rw io.ReadWriter) error {
 	}
 }
 
-// The Basic authentication scheme is based on the model that the client
+// The Basic authentication scheme is based on the model that the Client
 // needs to authenticate itself with a user-id and a password for each
 // protection space ("realm"). The realm value is a free-form string
 // that can only be compared for equality with other realms on that

@@ -4,14 +4,14 @@ import "nursor.org/nursorgate/client/server/tun/proxy"
 
 var (
 	defaultProxy proxy.Proxy
-	nursorProxy  proxy.Proxy
+	nursorProxy  *proxy.HysteriaDialer
 )
 
 func SetDefaultProxy(newProxy proxy.Proxy) {
 	defaultProxy = newProxy
 }
 
-func SetNursorProxy(newProxy proxy.Proxy) {
+func SetDoorProxy(newProxy *proxy.HysteriaDialer) {
 	nursorProxy = newProxy
 }
 
@@ -19,6 +19,6 @@ func GetDefaultProxy() proxy.Proxy {
 	return defaultProxy
 }
 
-func GetNursorProxy() proxy.Proxy {
+func GetDoorProxy() *proxy.HysteriaDialer {
 	return nursorProxy
 }

@@ -16,7 +16,7 @@ import (
 
 const (
 	// tcpConnectTimeout is the default timeout for TCP handshakes.
-	tcpConnectTimeout = 5 * time.Second
+	tcpConnectTimeout = 30 * time.Second
 	// tcpWaitTimeout implements a TCP half-close timeout.
 	tcpWaitTimeout = 60 * time.Second
 	// udpSessionTimeout is the default timeout for UDP sessions.

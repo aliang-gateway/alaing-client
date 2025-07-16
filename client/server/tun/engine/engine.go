@@ -162,13 +162,12 @@ func netstack(k *Key) (err error) {
 	if _defaultProxy, err = parseProxy(k.Proxy); err != nil {
 		return
 	}
-	_nursorProxy, err := parseProxy("hy2://lisi:IW6gUxtuG46FURELO08p9L9I3GtHtfh1@node1.nursor.org")
-	if err != nil {
-		return
-	}
-
 	tunnel.SetDefaultProxy(_defaultProxy)
-	tunnel.SetNursorProxy(_nursorProxy)
+	doorProxy, err := proxy.NewHysteriaDialer("lisi", "IW6gUxtuG46FURELO08p9L9I3GtHtfh1")
+	if err != nil {
+		logger.Error(err)
+	}
+	tunnel.SetDoorProxy(doorProxy)
 
 	tunnel.T().SetDialer(_defaultProxy)
 

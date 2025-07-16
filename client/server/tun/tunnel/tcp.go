@@ -78,11 +78,13 @@ func (t *Tunnel) handleTCPConn(originConn adapter.TCPConn) {
 		}
 
 		if nursorRouter.IsAllowToAnyDoor(serverName) {
-			remoteConn, err = GetNursorProxy().DialContext(ctx, metadata)
+			remoteConn, err = GetDoorProxy().DialContextWithServerName(ctx, metadata, serverName)
 			if err != nil {
-				logger.Error(fmt.Printf("[TCP] dial %s: %v", metadata.DestinationAddress(), err))
+				logger.Error(fmt.Sprintf("failure in connenct to anydoor %v", err))
 				return
 			}
+			//udpPipe(newOriginConn, udpPacket, metadata.SrcIP, metadata.DstIP.String())
+			//return
 		} else {
 			remoteConn, err = t.Dialer().DialContext(ctx, metadata)
 			if err != nil {
