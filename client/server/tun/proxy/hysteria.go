@@ -4,12 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/apernet/hysteria/extras/v2/obfs"
 	"net"
-	"nursor.org/nursorgate/client/server/tun/dialer"
 	"strconv"
 	"sync"
 	"time"
+
+	"github.com/apernet/hysteria/extras/v2/obfs"
+	"nursor.org/nursorgate/client/server/tun/dialer"
 
 	M "nursor.org/nursorgate/client/server/tun/metadata"
 	"nursor.org/nursorgate/client/server/tun/proxy/proto"
@@ -165,7 +166,7 @@ func (h *HysteriaDialer) DialContextWithServerName(ctx context.Context, m *M.Met
 	ch := make(chan result, 1)
 
 	go func() {
-		conn, err := h.Client.TCP(SNI)
+		conn, err := h.Client.TCP(fmt.Sprintf("%s:443", SNI))
 		select {
 		case ch <- result{conn, err}:
 			// 正常返回

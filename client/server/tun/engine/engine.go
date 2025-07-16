@@ -15,6 +15,7 @@ import (
 	"nursor.org/nursorgate/client/server/tun/dialer"
 	"nursor.org/nursorgate/client/server/tun/proxy"
 	"nursor.org/nursorgate/client/server/tun/tunnel"
+	"nursor.org/nursorgate/client/user"
 	"nursor.org/nursorgate/client/utils"
 	"nursor.org/nursorgate/common/logger"
 
@@ -163,7 +164,7 @@ func netstack(k *Key) (err error) {
 		return
 	}
 	tunnel.SetDefaultProxy(_defaultProxy)
-	doorProxy, err := proxy.NewHysteriaDialer("lisi", "IW6gUxtuG46FURELO08p9L9I3GtHtfh1")
+	doorProxy, err := proxy.NewHysteriaDialer(user.GetUsername(), user.GetPassword())
 	if err != nil {
 		logger.Error(err)
 	}

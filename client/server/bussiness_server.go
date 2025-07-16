@@ -198,6 +198,8 @@ func handleRunUserInfo(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		UserToken string `json:"user_token"`
 		UserId    string `json:"user_id"`
+		Username  string `json:"username"`
+		Password  string `json:"password"`
 	}
 	if err := decodeRequest(r, &req); err != nil {
 		sendError(w, "Invalid request body", http.StatusBadRequest, nil)
@@ -207,6 +209,8 @@ func handleRunUserInfo(w http.ResponseWriter, r *http.Request) {
 		scope.SetTag("token", req.UserToken)
 		scope.SetTag("user_id", req.UserId)
 	})
+	user.SetUsername(req.Username)
+	user.SetPassword(req.Password)
 	sendResponse(w, map[string]string{
 		"status":  "success",
 		"user_id": fmt.Sprintf("%d", user.GetUserId()),

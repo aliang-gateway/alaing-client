@@ -90,7 +90,7 @@ extern __declspec(dllexport) void deleteDataFromSqlite(char* key);
 extern __declspec(dllexport) void closeSqlite();
 extern __declspec(dllexport) char* getToCursorDomain();
 extern __declspec(dllexport) char* runGate(char* userToken);
-extern __declspec(dllexport) void setUserInfo(char* uToken, char* userId);
+extern __declspec(dllexport) void setUserInfo(char* uToken, char* userId, char* username, char* password);
 extern __declspec(dllexport) void stopGate();
 
 #ifdef __cplusplus
