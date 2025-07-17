@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sync"
 	"time"
 
@@ -40,9 +41,15 @@ func init() {
 	logger.SetFlags(log.LstdFlags | log.Lshortfile)
 
 	// 启动清理协程
-	home, err := os.UserHomeDir()
-	if err != nil {
-		panic(err)
+	var home string
+	var err error
+	if runtime.GOOS == "darwin" {
+		home = "/Library/Logs/Nursor"
+	} else {
+		home, err = os.UserHomeDir()
+		if err != nil {
+			panic(err)
+		}
 	}
 	logDir := filepath.Join(home, ".nursor")
 	os.MkdirAll(logDir, 0755)
