@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"net"
+	"os/exec"
+	"regexp"
 	"runtime"
 	"strings"
 
@@ -146,9 +148,53 @@ func GetDefaultGatewayWithPowerShell() (string, error) {
 	return routes[0].NextHop, nil
 }
 
+func getDefaultGatewayInUnix() (string, error) {
+	var cmd *exec.Cmd
+	if runtime.GOOS == "darwin" {
+		cmd = exec.Command("route", "-n", "get", "default")
+	} else if runtime.GOOS == "linux" {
+		cmd = exec.Command("ip", "route")
+	} else {
+		return "", fmt.Errorf("unsupported OS: %s", runtime.GOOS)
+	}
+
+	var out bytes.Buffer
+	cmd.Stdout = &out
+	err := cmd.Run()
+	if err != nil {
+		return "", err
+	}
+
+	output := out.String()
+
+	if runtime.GOOS == "darwin" {
+		re := regexp.MustCompile(`gateway: (\d+\.\d+\.\d+\.\d+)`)
+		matches := re.FindStringSubmatch(output)
+		if len(matches) > 1 {
+			return matches[1], nil
+		}
+	} else if runtime.GOOS == "linux" {
+		lines := strings.Split(output, "\n")
+		for _, line := range lines {
+			if strings.HasPrefix(line, "default") {
+				fields := strings.Fields(line)
+				if len(fields) >= 3 {
+					return fields[2], nil
+				}
+			}
+		}
+	}
+
+	return "", fmt.Errorf("could not parse default gateway")
+}
+
 func getDefaultGateway() (string, error) {
 	var defaultGateway string
 	var defaultRouteMetric int = 999999 // 设置一个较大的初始值
+
+	if runtime.GOOS != "windows" {
+		return getDefaultGatewayInUnix()
+	}
 	defaultGateway, err := GetDefaultGatewayWithPowerShell()
 	if err != nil {
 		logger.Error(fmt.Printf("Failure in method GetDefaultGatewayWithPowerShell,  %v", err))
@@ -162,7 +208,6 @@ func getDefaultGateway() (string, error) {
 			logger.Error(fmt.Printf("failed to get current routes with 'netsh interface': %w", err))
 		} else {
 			// 转换输出编码
-			//outputStr, err := convertGBKToUTF8(string(output))
 			outputStr, err := utils.AutoConvertEncoding(output)
 			if err != nil {
 				logger.Error(fmt.Printf("failed to convert encoding: %w", err))

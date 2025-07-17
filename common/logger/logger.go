@@ -176,10 +176,6 @@ func Init() error {
 	return nil
 }
 
-func GetCustomLogger() *log.Logger {
-	return logger
-}
-
 // Shutdown 关闭日志系统，清理资源
 func Shutdown() {
 	if cleanupTicker != nil {
@@ -190,4 +186,10 @@ func Shutdown() {
 	if logFile != nil {
 		logFile.Close()
 	}
+}
+
+func SetUserInfo(userID string) {
+	sentry.ConfigureScope(func(scope *sentry.Scope) {
+		scope.SetTag("user_id", userID)
+	})
 }

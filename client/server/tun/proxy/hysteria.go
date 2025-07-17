@@ -66,7 +66,7 @@ func getDefaultConnFactory(salamanda string) client.ConnFactory {
 }
 
 func BuildHysteriaClientConfig(username, password string) (*client.Config, error) {
-	server := "8.209.245.103:1443"
+	server := "node1.nursor.org:1443"
 
 	addr, err := net.ResolveUDPAddr("udp", server)
 	if err != nil {

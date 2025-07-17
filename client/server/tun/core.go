@@ -44,6 +44,7 @@ func Start() {
 
 	engine.Insert(&defaultKey)
 	if err := engine.Start(); err != nil {
+		logger.Error("engine 启动失败")
 		RunStatusChan <- map[string]string{"status": "failed", "message": err.Error()}
 		return
 	}

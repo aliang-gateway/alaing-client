@@ -206,7 +206,7 @@ func handleRunUserInfo(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	sentry.ConfigureScope(func(scope *sentry.Scope) {
-		scope.SetTag("token", req.UserToken)
+		//scope.SetTag("token", req.UserToken)
 		scope.SetTag("user_id", req.UserId)
 	})
 	user.SetUsername(req.Username)
