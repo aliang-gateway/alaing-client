@@ -2,22 +2,24 @@ package user
 
 import (
 	"bytes"
+	"crypto/tls"
 	"fmt"
 	"log"
 	"net/http"
 	"strings"
 	"sync"
+	"time"
 
 	"nursor.org/nursorgate/common/logger"
 )
 
 var (
-	mu           sync.RWMutex
-	userId       int
-	accessToken  []string
-	userToken    string
-	oncePostLock sync.Mutex
-	postInFlight bool
+	mu          sync.RWMutex
+	userId      int
+	accessToken []string
+	userToken   string
+	postLock    sync.Mutex
+	postRunning bool
 )
 
 // SetUserId 设置用户ID（线程安全）
@@ -38,14 +40,14 @@ func GetUserId() int {
 func SetAccessToken(newToken string) {
 	mu.Lock()
 	changed := false
+	if len(accessToken) == 0 {
+		changed = true
+	}
 	for _, token := range accessToken {
 		if token == newToken {
 			changed = true
 			break
 		}
-	}
-	if changed {
-		accessToken = append(accessToken, newToken)
 	}
 	mu.Unlock()
 
@@ -61,45 +63,63 @@ func SetUserToken(token string) {
 	userToken = token
 }
 
-// triggerAuthPost 发起POST请求（同时只允许一个进行）
+// 只允许一个请求在运行，多余的触发会被忽略
 func triggerAuthPost(newAccessToken string) {
-	oncePostLock.Lock()
-	if postInFlight {
-		oncePostLock.Unlock()
-		return // 已有请求在执行
+	postLock.Lock()
+	if postRunning {
+		postLock.Unlock()
+		return
 	}
-	postInFlight = true
-	oncePostLock.Unlock()
+	postRunning = true
+	postLock.Unlock()
 
-	go func() {
+	go func(token string) {
 		defer func() {
-			oncePostLock.Lock()
-			postInFlight = false
-			oncePostLock.Unlock()
+			postLock.Lock()
+			postRunning = false
+			postLock.Unlock()
 		}()
 
+		// 提取 token
+		tokenPayload := strings.TrimPrefix(token, "Bearer ")
+
 		mu.RLock()
-		tokenPayload := strings.Replace(newAccessToken, "Bearer ", "", -1)
 		authHeader := fmt.Sprintf("Bearer %s", userToken)
 		mu.RUnlock()
 
-		body := []byte(`{"client_id":"` + tokenPayload + `"}`)
+		body := []byte(fmt.Sprintf(`{"client_id":"%s"}`, tokenPayload))
 		req, err := http.NewRequest("POST", "https://api.nursor.org/api/user/auth/info/binding_v2", bytes.NewBuffer(body))
-
 		if err != nil {
-			logger.Error(fmt.Printf("❌ Failed to create request:", err))
+			logger.Error("❌ Failed to create request:", err)
 			return
 		}
+
 		req.Header.Set("Authorization", authHeader)
 		req.Header.Set("Content-Type", "application/json")
 
-		resp, err := http.DefaultClient.Do(req)
-		if err != nil && resp.StatusCode < 299 {
-			logger.Error(fmt.Printf("❌ Failed to send request:", err))
+		client := &http.Client{
+			Timeout: 10 * time.Second,
+			Transport: &http.Transport{
+				TLSClientConfig: &tls.Config{
+					InsecureSkipVerify: true, // 注意：线上别这么干
+				},
+			},
+		}
+
+		resp, err := client.Do(req)
+		if err != nil {
+			logger.Error("❌ Request failed:", err)
 			return
 		}
 		defer resp.Body.Close()
 
+		if resp.StatusCode >= 300 {
+			logger.Error("❌ Unexpected status:", resp.Status)
+			return
+		}
+
 		log.Println("✅ Auth post completed, status:", resp.Status)
-	}()
+
+		accessToken = append(accessToken, token)
+	}(newAccessToken)
 }
