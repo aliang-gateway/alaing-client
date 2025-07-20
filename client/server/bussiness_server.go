@@ -211,6 +211,7 @@ func handleRunUserInfo(w http.ResponseWriter, r *http.Request) {
 	})
 	user.SetUsername(req.Username)
 	user.SetPassword(req.Password)
+	print("set user info tag")
 	sendResponse(w, map[string]string{
 		"status":  "success",
 		"user_id": fmt.Sprintf("%d", user.GetUserId()),
