@@ -171,7 +171,7 @@ func (c *OutboundClient) Forward(localConn *tls.Conn) error {
 		if err != nil {
 			logger.Error(err.Error())
 		}
-		logger.Info(fmt.Sprintf("forwarded send %d bytes", n))
+		logger.Debug(fmt.Sprintf("forwarded send %d bytes", n))
 		wg.Done()
 	}()
 	go func() {
@@ -179,7 +179,7 @@ func (c *OutboundClient) Forward(localConn *tls.Conn) error {
 		if err != nil {
 			logger.Error(err.Error())
 		}
-		logger.Info(fmt.Sprintf("forwarded return %d bytes", n))
+		logger.Debug(fmt.Sprintf("forwarded return %d bytes", n))
 		wg.Done()
 	}()
 	wg.Wait()

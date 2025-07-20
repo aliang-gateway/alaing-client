@@ -45,13 +45,13 @@ func (t *Tunnel) handleTCPConn(originConn adapter.TCPConn) {
 		serverName, sniBuf, err := helper.ExtractSNI(originConn)
 		nursorRouter := model.NewAllowProxyDomain()
 		if err != nil {
-			logger.Info("SNI extraction error:", err)
+			logger.Debug("SNI extraction error:", err)
 			newOriginConn = &WrappedConn{
 				Buf:  sniBuf,
 				Conn: originConn,
 			}
 		} else {
-			logger.Info("Extracted SNI:", serverName)
+			logger.Debug("Extracted SNI:", serverName)
 			var req = &http.Request{
 				Host: serverName,
 			}
@@ -65,13 +65,13 @@ func (t *Tunnel) handleTCPConn(originConn adapter.TCPConn) {
 				tlsConn := tls.Server(newOriginConn, tlsConf)
 				if err := tlsConn.Handshake(); err != nil {
 					if errors.Is(err, io.EOF) {
-						logger.Info("client close the handshake connection", serverName)
+						logger.Debug("client close the handshake connection", serverName)
 					}
 					logger.Error(fmt.Sprintf("TLS handshake failed: %s, %v", serverName, err))
 					return
 				}
 				state := tlsConn.ConnectionState()
-				logger.Info("TLS handshake successful. Protocol:", state.NegotiatedProtocol, "Version:", state.Version)
+				logger.Debug("TLS handshake successful. Protocol:", state.NegotiatedProtocol, "Version:", state.Version)
 				handleTlsConnect(tlsConn, req)
 				return
 			}
@@ -88,7 +88,7 @@ func (t *Tunnel) handleTCPConn(originConn adapter.TCPConn) {
 		} else {
 			remoteConn, err = t.Dialer().DialContext(ctx, metadata)
 			if err != nil {
-				logger.Info(fmt.Printf("[TCP] dial %s: %v", metadata.DestinationAddress(), err))
+				logger.Debug(fmt.Printf("[TCP] dial %s: %v", metadata.DestinationAddress(), err))
 				return
 			}
 		}
@@ -96,7 +96,7 @@ func (t *Tunnel) handleTCPConn(originConn adapter.TCPConn) {
 	} else {
 		remoteConn, err = t.Dialer().DialContext(ctx, metadata)
 		if err != nil {
-			logger.Info(fmt.Printf("[TCP] dial %s: %v", metadata.DestinationAddress(), err))
+			logger.Debug(fmt.Printf("[TCP] dial %s: %v", metadata.DestinationAddress(), err))
 			return
 		}
 		newOriginConn = originConn

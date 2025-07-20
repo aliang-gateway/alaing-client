@@ -4,6 +4,8 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	_ "embed"
+
+	"nursor.org/nursorgate/common/logger"
 )
 
 //go:embed client.pem
@@ -35,7 +37,7 @@ func GetOutboundCert(isHttp2 bool, SNIName string) *OutboundCert {
 	if !caCertPool.AppendCertsFromPEM(CaCert) {
 		return nil
 	}
-	println("OutboundCert: CA cert loaded successfully", SNIName)
+	logger.Debug("OutboundCert: CA cert loaded successfully", SNIName)
 	var tlsConfig = &tls.Config{
 		RootCAs:            caCertPool,
 		Certificates:       []tls.Certificate{cert},

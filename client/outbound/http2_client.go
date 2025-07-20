@@ -149,7 +149,7 @@ func (c *OutboundClient2) Forward(localConn *tls.Conn) error {
 		if err != nil {
 			logger.Error(err.Error())
 		}
-		logger.Info(fmt.Sprintf("forwarded send %d bytes", n))
+		logger.Debug(fmt.Sprintf("forwarded send %d bytes", n))
 		err = c.Conn.CloseWrite()
 		if err != nil {
 			logger.Error(err)
@@ -161,7 +161,7 @@ func (c *OutboundClient2) Forward(localConn *tls.Conn) error {
 		if err != nil {
 			logger.Error(err.Error())
 		}
-		logger.Info(fmt.Sprintf("forwarded return %d bytes", n))
+		logger.Debug(fmt.Sprintf("forwarded return %d bytes", n))
 		err = localConn.CloseWrite()
 		if err != nil {
 			logger.Error(err)
@@ -181,7 +181,7 @@ func (c *OutboundClient2) ForwardSimple(localConn net.Conn, reqHost string) erro
 		if err != nil {
 			logger.Error(err.Error())
 		}
-		logger.Info(fmt.Sprintf("forwarded send %d bytes for host: %s", n, reqHost))
+		logger.Debug(fmt.Sprintf("forwarded send %d bytes for host: %s", n, reqHost))
 		err = c.Conn.CloseWrite()
 		if err != nil {
 			logger.Error(err)
@@ -193,7 +193,7 @@ func (c *OutboundClient2) ForwardSimple(localConn net.Conn, reqHost string) erro
 		if err != nil {
 			logger.Error(err.Error())
 		}
-		logger.Info(fmt.Sprintf("forwarded return %d bytes from host: %s", n, reqHost))
+		logger.Debug(fmt.Sprintf("forwarded return %d bytes from host: %s", n, reqHost))
 		// 关闭写入方向
 		localConnWriter, ok := localConn.(interface{ CloseWrite() error })
 		if ok {

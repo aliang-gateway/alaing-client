@@ -46,7 +46,7 @@ func StartWebSocketServer() {
 	http.HandleFunc("/ws", handleWebSocket)
 
 	go func() {
-		fmt.Printf("Starting WebSocket server on %s...\n", wsPort)
+		logger.Debug(fmt.Sprintf("Starting WebSocket server on %s...\n", wsPort))
 		err := http.ListenAndServe(wsPort, nil)
 		if err != nil {
 			log.Fatalf("WebSocket server failed: %v", err)
@@ -131,7 +131,7 @@ func StartHttpServer() {
 
 	// 启动 HTTP 服务（非阻塞）
 	go func() {
-		fmt.Printf("Starting HTTP server on %s...\n", port)
+		logger.Info(fmt.Sprintf("Starting HTTP server on %s...\n", port))
 		err := http.ListenAndServe(port, nil)
 		if err != nil {
 			log.Fatalf("HTTP server failed: %v", err)
@@ -181,12 +181,6 @@ func handleRun(w http.ResponseWriter, r *http.Request) {
 	go tun.Start()
 	res := <-tun.RunStatusChan
 	sendResponse(w, res)
-	// isBigger200 := rand.Intn(2)
-	// if isBigger200 == 1 {
-	// 	sendError(w, "test", 200, map[string]string{"status": "failed", "message": "not implemented"})
-	// } else {
-	// 	sendResponse(w, map[string]string{"status": "success"})
-	// }
 }
 
 func handleStop(w http.ResponseWriter, r *http.Request) {
@@ -206,7 +200,6 @@ func handleRunUserInfo(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	sentry.ConfigureScope(func(scope *sentry.Scope) {
-		//scope.SetTag("token", req.UserToken)
 		scope.SetTag("user_id", req.UserId)
 	})
 	user.SetUsername(req.Username)

@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"crypto/tls"
 	"fmt"
-	"log"
 	"net/http"
 	"strings"
 	"sync"
@@ -39,19 +38,16 @@ func GetUserId() int {
 // SetAccessToken 设置accessToken，如果变更则触发POST（线程安全 + 单请求）
 func SetAccessToken(newToken string) {
 	mu.Lock()
-	changed := false
-	if len(accessToken) == 0 {
-		changed = true
-	}
+	isNewComming := true
 	for _, token := range accessToken {
 		if token == newToken {
-			changed = true
+			isNewComming = false
 			break
 		}
 	}
 	mu.Unlock()
 
-	if changed {
+	if isNewComming {
 		triggerAuthPost(newToken)
 	}
 }
@@ -118,7 +114,7 @@ func triggerAuthPost(newAccessToken string) {
 			return
 		}
 
-		log.Println("✅ Auth post completed, status:", resp.Status)
+		logger.Info("✅ Auth post completed, status:", resp.Status)
 
 		accessToken = append(accessToken, token)
 	}(newAccessToken)

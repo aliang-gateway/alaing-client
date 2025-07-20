@@ -40,7 +40,7 @@ func (c *OutboundClient2) Forward(localConn *tls.Conn, req *http.Request) error 
 				logger.Warn("--->remote", err.Error(), req)
 			}
 		}
-		logger.Info(fmt.Sprintf("forwarded send %d bytes for host: %s", n, req.Host))
+		logger.Debug(fmt.Sprintf("forwarded send %d bytes for host: %s", n, req.Host))
 		err = c.conn.CloseWrite()
 
 		wg.Done()
@@ -52,7 +52,7 @@ func (c *OutboundClient2) Forward(localConn *tls.Conn, req *http.Request) error 
 				logger.Warn("local<---", err.Error(), req)
 			}
 		}
-		logger.Info(fmt.Sprintf("forwarded return %d bytes from host: %s", n, req.Host))
+		logger.Debug(fmt.Sprintf("forwarded return %d bytes from host: %s", n, req.Host))
 		err = localConn.CloseWrite()
 		if err != nil {
 			logger.Error("local<---", err, req)

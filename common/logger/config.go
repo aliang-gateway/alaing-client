@@ -30,6 +30,6 @@ func SetErrorDedupConfig(config *ErrorDedupConfig) {
 		errorDedupConfig = config
 		// 更新全局变量
 		errorWindow = config.ErrorWindow
-		maxErrorCount = config.MaxErrorCount
+		// maxErrorCount = config.MaxErrorCount
 	}
 }
