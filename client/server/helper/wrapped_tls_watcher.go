@@ -33,6 +33,7 @@ type WatcherWrapConn struct {
 func NewWatcherWrapConn(conn1 *tls.Conn) *WatcherWrapConn {
 	return &WatcherWrapConn{Conn: conn1, streams: map[uint32]*http2Stream{}, hpackDecoderReq: hpack.NewDecoder(4096, nil), hpackDecoderResp: hpack.NewDecoder(4096, nil)}
 }
+
 func (w *WatcherWrapConn) Read(p []byte) (int, error) {
 	n, err := w.Conn.Read(p)
 	if n <= 0 {
@@ -40,39 +41,39 @@ func (w *WatcherWrapConn) Read(p []byte) (int, error) {
 	}
 
 	w.reqBuf.Write(p[:n])
-
-	if !w.prefetched && !w.isTokenFound {
+	if !w.prefetched {
 		if w.reqBuf.Len() >= 24 {
 			preface := w.reqBuf.Bytes()[:24]
 			if string(preface) == http2.ClientPreface {
 				w.prefetched = true
-				logger.Debug("✅ HTTP/2 connection preface detected")
-				w.reqBuf.Next(24) // consume preface
-			} else {
-				w.isHttp1 = true
-				logger.Info("📦 HTTP/1 connection preface detected")
-				if err := w.processH1ReqHeaders(); err != nil {
-					return n, err
-				}
+				w.reqBuf.Next(24)
+				w.parseHttp2Req()
+				return n, err
 			}
-		} else {
-			// Not enough data to determine preface yet, wait for next read
-			return n, err
 		}
-	}
+		w.isHttp1 = true
+		logger.Info("📦 HTTP/1 connection preface detected")
+		w.parseHttp1Req()
 
-	// 如果是 http2 并且还有数据，就继续解析帧
-	if w.prefetched {
-		for {
-			frame, ok := w.tryParseFrameFromBuf(&w.reqBuf)
-			if !ok {
-				break
-			}
-			w.processHttp2RequestFrame(frame)
-		}
+	} else {
+		w.parseHttp2Req()
 	}
-
 	return n, err
+}
+
+func (w *WatcherWrapConn) parseHttp1Req() {
+	w.processH1ReqHeaders()
+}
+
+func (w *WatcherWrapConn) parseHttp2Req() {
+	for {
+		// 避免粘包、半包的情况
+		frame, ok := w.tryParseFrameFromBuf(&w.reqBuf, true)
+		if !ok {
+			break
+		}
+		w.processHttp2RequestFrame(frame)
+	}
 }
 
 func (w *WatcherWrapConn) Write(p []byte) (n int, err error) {
@@ -86,11 +87,10 @@ func (w *WatcherWrapConn) Write(p []byte) (n int, err error) {
 	if w.isHttp1 {
 		w.http1RespContent = string(p)
 		logger.HttpInfo(fmt.Sprintf("-----------starth1----------------\n%s--->-h1-<---\n%s-----------------endh1------------------\n\n", w.http1ReqContent, w.http1RespContent))
-
 	} else {
 		w.respBuf.Write(p[:n])
 		for {
-			frame, ok := w.tryParseFrameFromBuf(&w.respBuf)
+			frame, ok := w.tryParseFrameFromBuf(&w.respBuf, true)
 			if ok {
 				w.processHttp2ResponseFrame(frame)
 			} else {
@@ -101,7 +101,7 @@ func (w *WatcherWrapConn) Write(p []byte) (n int, err error) {
 	return n, err
 }
 
-func (w *WatcherWrapConn) tryParseFrameFromBuf(buf *bytes.Buffer) ([]byte, bool) {
+func (w *WatcherWrapConn) tryParseFrameFromBuf(buf *bytes.Buffer, shouldMove bool) ([]byte, bool) {
 	data := buf.Bytes()
 	if len(data) < frameHeaderLen {
 		return nil, false
@@ -113,7 +113,9 @@ func (w *WatcherWrapConn) tryParseFrameFromBuf(buf *bytes.Buffer) ([]byte, bool)
 	}
 	frame := make([]byte, totalLen)
 	copy(frame, data[:totalLen])
-	buf.Next(totalLen)
+	if shouldMove {
+		buf.Next(totalLen)
+	}
 	return frame, true
 }
 

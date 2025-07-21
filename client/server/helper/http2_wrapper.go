@@ -56,7 +56,7 @@ func (w *WatcherWrapConn) processHttp2RequestFrame(frame []byte) {
 		if flags&flagEndHeaders == 0 {
 			// Continue collecting CONTINUATION frames
 			for {
-				contFrame, ok := w.tryParseFrameFromBuf(&w.reqBuf)
+				contFrame, ok := w.tryParseFrameFromBuf(&w.reqBuf, false)
 				if !ok {
 					break
 				}
@@ -66,6 +66,8 @@ func (w *WatcherWrapConn) processHttp2RequestFrame(frame []byte) {
 				if ctype != frameTypeCont || cstreamID != streamID {
 					break
 				}
+				// 这里来move，避免上边的break丢去包的问题
+				w.reqBuf.Next(len(contFrame))
 				headerBlock = append(headerBlock, contFrame[frameHeaderLen:]...)
 				if cflags&flagEndHeaders != 0 {
 					break
@@ -84,7 +86,6 @@ func (w *WatcherWrapConn) processHttp2RequestFrame(frame []byte) {
 	case frameTypeData:
 		// 处理请求体（DATA帧）
 		w.streamsMu.Lock()
-
 		stream := w.streams[streamID]
 		stream.ReqBody.Write(payload)
 		if flags&flagEndStream != 0 {
@@ -118,7 +119,7 @@ func (w *WatcherWrapConn) processHttp2ResponseFrame(frame []byte) {
 		if flags&flagEndHeaders == 0 {
 			// 继续收集 CONTINUATION 帧
 			for {
-				contFrame, ok := w.tryParseFrameFromBuf(&w.respBuf) // 仍然从请求缓冲区读取
+				contFrame, ok := w.tryParseFrameFromBuf(&w.respBuf, false) // 仍然从请求缓冲区读取
 				if !ok {
 					break
 				}
@@ -128,6 +129,7 @@ func (w *WatcherWrapConn) processHttp2ResponseFrame(frame []byte) {
 				if ctype != frameTypeCont || cstreamID != streamID {
 					break // 不是当前流的 CONTINUATION 帧，或帧类型不对
 				}
+				w.respBuf.Next(len(contFrame))
 				headerBlock = append(headerBlock, contFrame[frameHeaderLen:]...)
 				if cflags&flagEndHeaders != 0 {
 					break // 收到 END_HEADERS 标志
@@ -175,7 +177,6 @@ func (w *WatcherWrapConn) processHttp2ResponseFrame(frame []byte) {
 
 	case frameTypeRstStream, frameTypeGoaway:
 		// 流重置或连接关闭，清除流信息
-
 		logger.Info(fmt.Sprintf("HTTP/2 Stream %d reset or GoAway, removing.", streamID))
 	case frameTypeSettings, frameTypePing, frameTypeWindowUpdate, frameTypePriority, frameTypePushPromise:
 		// 忽略其他帧类型或进行相应的协议处理
