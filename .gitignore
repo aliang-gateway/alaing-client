@@ -25,3 +25,4 @@ client/core-darwin-amd
 **/cache/*
 client/core-darwin-arm
 client/nursor-core-amd64.dll
+*_bin.exe*
