@@ -23,13 +23,15 @@ type WatcherWrapConn struct {
 	http1ReqContent  string
 	http1RespContent string
 
-	hpackDecoder *hpack.Decoder
-	streams      map[uint32]*http2Stream // 存储活跃的 HTTP/2 流
-	streamsMu    sync.Mutex              // 保护 streams map 的并发访问
+	hpackDecoderReq  *hpack.Decoder // 解码请求头
+	hpackDecoderResp *hpack.Decoder // 解码响应头
+
+	streams   map[uint32]*http2Stream // 存储活跃的 HTTP/2 流
+	streamsMu sync.Mutex              // 保护 streams map 的并发访问
 }
 
 func NewWatcherWrapConn(conn1 *tls.Conn) *WatcherWrapConn {
-	return &WatcherWrapConn{Conn: conn1, streams: map[uint32]*http2Stream{}, hpackDecoder: hpack.NewDecoder(4096, nil)}
+	return &WatcherWrapConn{Conn: conn1, streams: map[uint32]*http2Stream{}, hpackDecoderReq: hpack.NewDecoder(4096, nil), hpackDecoderResp: hpack.NewDecoder(4096, nil)}
 }
 func (w *WatcherWrapConn) Read(p []byte) (int, error) {
 	n, err := w.Conn.Read(p)
@@ -115,23 +117,21 @@ func (w *WatcherWrapConn) tryParseFrameFromBuf(buf *bytes.Buffer) ([]byte, bool)
 	return frame, true
 }
 
-func (w *WatcherWrapConn) decodeHeaderBlock(block []byte) (map[string]string, error) {
+func (w *WatcherWrapConn) decodeHeaderBlock(block []byte, isRequest bool) (map[string]string, error) {
 	headers := make(map[string]string)
 
-	// 设置 emit func
-	w.hpackDecoder.SetEmitFunc(func(f hpack.HeaderField) {
+	var decoder *hpack.Decoder
+	if isRequest {
+		decoder = w.hpackDecoderReq
+	} else {
+		decoder = w.hpackDecoderResp
+	}
+
+	// 每次重新设置 emitFunc（因为 headers 是临时的）
+	decoder.SetEmitFunc(func(f hpack.HeaderField) {
 		headers[f.Name] = f.Value
 	})
 
-	_, err := w.hpackDecoder.Write(block)
-	return headers, err
-}
-
-func decodeHeaderBlock(block []byte) (map[string]string, error) {
-	headers := make(map[string]string)
-	decoder := hpack.NewDecoder(4096, func(hf hpack.HeaderField) {
-		headers[hf.Name] = hf.Value
-	})
 	_, err := decoder.Write(block)
 	return headers, err
 }

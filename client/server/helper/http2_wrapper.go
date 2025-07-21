@@ -73,11 +73,11 @@ func (w *WatcherWrapConn) processHttp2RequestFrame(frame []byte) {
 
 			}
 		}
-		headers, err := w.decodeHeaderBlock(headerBlock)
+		headers, err := w.decodeHeaderBlock(headerBlock, true)
 		if err != nil {
 			logger.Error(fmt.Sprintf("Error decoding HTTP/2 headers for Stream %d: %v", streamID, err))
 		} else {
-			w.streams[streamID].RespHeaders = headers
+			w.streams[streamID].ReqHeaders = headers
 			logger.Debug(fmt.Sprintf("HTTP/2 Headers for Stream %d: %+v", streamID, headers))
 		}
 
@@ -134,12 +134,12 @@ func (w *WatcherWrapConn) processHttp2ResponseFrame(frame []byte) {
 				}
 			}
 		}
-		headers, err := decodeHeaderBlock(headerBlock)
-		if err == nil {
-			stream.RespHeaders = headers
-
+		headers, err := w.decodeHeaderBlock(headerBlock, false)
+		if err != nil {
+			logger.Error(fmt.Sprintf("Error decoding HTTP/2 headers for Stream %d: %v", streamID, err))
 		} else {
-			logger.Error(fmt.Sprintf("Error decoding HTTP/2 request headers for Stream %d: %v", streamID, err))
+			w.streams[streamID].RespHeaders = headers
+			logger.Debug(fmt.Sprintf("HTTP/2 Headers for Stream %d: %+v", streamID, headers))
 		}
 
 	case frameTypeData:
