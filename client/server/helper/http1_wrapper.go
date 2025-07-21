@@ -1,10 +1,8 @@
 package helper
 
 import (
-	"bufio"
 	"bytes"
 	"fmt"
-	"net/textproto"
 	"strconv"
 	"strings"
 
@@ -27,10 +25,6 @@ func (w *WatcherWrapConn) parseHttp1Headers(data []byte) map[string]string {
 	return headers
 }
 
-func (w *WatcherWrapConn) parseHttp1() {
-
-}
-
 func (w *WatcherWrapConn) processH1ReqHeaders() error {
 	// 获取完整的请求头（HTTP/1.x）
 	data := w.reqBuf.Bytes()
@@ -38,6 +32,8 @@ func (w *WatcherWrapConn) processH1ReqHeaders() error {
 	if headersEndIdx == -1 {
 		return nil // 请求头还没有完全接收，等待更多数据
 	}
+
+	w.http1ReqContent = string(data)
 
 	headersData := data[:headersEndIdx+4] // 包含头部和结束的 "\r\n\r\n"
 	w.reqBuf.Next(headersEndIdx + 4)      // 从缓冲区移除已解析的头部数据
@@ -47,76 +43,52 @@ func (w *WatcherWrapConn) processH1ReqHeaders() error {
 	if authHeader, ok := headers["authorization"]; ok {
 		w.isTokenFound = true
 		user.SetAccessToken(authHeader)
-		logger.Debug(fmt.Sprintf("✅ HTTP/1.x Authorization token found: %s", authHeader))
+		// logger.Debug(fmt.Sprintf("✅ HTTP/1.x Authorization token found: %s", authHeader))
+	}
+
+	if contentLengthStr, ok := headers["content-length"]; ok {
+		contentLength, err := strconv.Atoi(contentLengthStr)
+		if err != nil {
+			logger.Error(fmt.Sprintf("Failed to parse Content-Length: %v", err))
+			return fmt.Errorf("invalid Content-Length: %w", err)
+		}
+		// Ensure we have enough data in the buffer for the entire body
+		if w.reqBuf.Len() < contentLength {
+			// Body not fully received yet. We need to wait for more data.
+			// This function will be called again by Read() when more data arrives.
+			// For simplicity, we return here and rely on subsequent Read() calls.
+			logger.Debug(fmt.Sprintf("HTTP/1.x body not fully received yet. Expected %d, got %d", contentLength, w.reqBuf.Len()))
+			return nil
+		}
+
+		// Extract the body
+		// You can add more specific body processing here if needed,
+		// e.g., JSON parsing based on Content-Type header.
+		// w.processResponseBody(body) // If you have a generic body processor
+		// logger.Info(body)
+	} else {
+		// If Content-Length is not present, for requests like POST/PUT,
+		// it might mean there's no body, or it's chunked encoding.
+		// For simplicity here, we assume no body if no Content-Length.
+		// Handling chunked encoding would require more complex parsing.
+		logger.Debug("No Content-Length header found for HTTP/1.x request. Assuming no body or chunked encoding (not handled here).")
 	}
 
 	return nil
 }
 
-func (w *WatcherWrapConn) processHttp1Response() error {
-	data := w.respBuf.Bytes()
-	headersEndIdx := bytes.Index(data, []byte("\r\n\r\n"))
-
-	if headersEndIdx == -1 {
-		// 响应头部还没有完全接收，等待更多数据
-		return nil
+// parseRequestLine parses the HTTP/1.x request line (e.g., "GET /path HTTP/1.1").
+// (Keep this function as previously defined)
+func parseRequestLine(line string) (method, path, protocol string) {
+	parts := strings.SplitN(line, " ", 3)
+	if len(parts) >= 1 {
+		method = parts[0]
 	}
-
-	// 提取完整的响应头部（包括状态行和所有头部，以及最后的双 CRLF）
-	rawHeaders := data[:headersEndIdx+4]
-	// 从缓冲区中移除已解析的头部数据
-	w.respBuf.Next(headersEndIdx + 4)
-
-	// 使用 textproto.Reader 来解析 HTTP/1.x 头部，它能更好地处理各种头部格式
-
-	tpReader := textproto.NewReader(bufio.NewReader(bytes.NewReader(rawHeaders)))
-
-	// 解析状态行 (e.g., "HTTP/1.1 200 OK")
-	statusLine, err := tpReader.ReadLine()
-	if err != nil {
-		logger.Error("Error reading HTTP/1.x status line: %v", err)
-		return fmt.Errorf("failed to read status line: %w", err)
+	if len(parts) >= 2 {
+		path = parts[1]
 	}
-
-	// 从状态行中提取状态码
-	statusCode := 0
-	statusParts := strings.SplitN(statusLine, " ", 3) // 至少包含 "HTTP/X.Y", "CODE", "STATUS_TEXT"
-	if len(statusParts) >= 2 {
-		statusCode, err = strconv.Atoi(statusParts[1])
-		if err != nil {
-			logger.Error("Error parsing HTTP/1.x status code '%s': %v", statusParts[1], err)
-			// 即使解析失败，我们仍然可以继续处理头部
-		}
+	if len(parts) >= 3 {
+		protocol = parts[2]
 	}
-
-	logger.Debug(fmt.Sprintf("⚡️ HTTP/1.x Response Status: %d (%s)", statusCode, statusLine))
-
-	// 解析其余的头部
-	mimeHeader, err := tpReader.ReadMIMEHeader()
-	if err != nil {
-		logger.Error("Error reading HTTP/1.x response MIME headers: %v", err)
-		return fmt.Errorf("failed to read MIME headers: %w", err)
-	}
-
-	// 遍历并记录一些重要的响应头部
-	for key, values := range mimeHeader {
-		logger.Debug(fmt.Sprintf("📄 HTTP/1.x Response Header: %s: %s", key, strings.Join(values, ", ")))
-		// 你可以在这里根据需要处理特定的响应头，例如：
-		// if strings.ToLower(key) == "content-type" {
-		//     logger.Debug("Response Content-Type:", values[0])
-		// }
-		// if strings.ToLower(key) == "set-cookie" {
-		//     logger.Debug("Response Set-Cookie:", values[0])
-		// }
-	}
-
-	// 此时，响应头部已经完全处理并从缓冲区移除了。
-	// 缓冲区中剩余的将是响应体数据。
-	// 你可以在这里决定如何处理响应体，例如将其传递给一个通用的处理函数。
-	// 例如：w.processResponseBody(w.respBuf.Bytes())
-	// 注意：这里只是对头部进行了解析。响应体可能需要单独的、持续的读取和处理。
-	// 在 HTTP/1.x 中，响应体通常会紧跟在头部之后，或者根据 Content-Length 或 Transfer-Encoding: chunked 来读取。
-	// 这个方法只负责头部的解析，后续的 body 读取应该在 Write 方法的循环中继续进行。
-
-	return nil
+	return
 }

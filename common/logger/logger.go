@@ -49,6 +49,7 @@ func SetLogLevel(level LogLevel) {
 
 func init() {
 	Init()
+	InitHttp()
 }
 
 // 初始化日志系统

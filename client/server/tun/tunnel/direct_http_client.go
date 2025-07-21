@@ -29,10 +29,11 @@ type OutboundClient2 struct {
 func (c *OutboundClient2) Forward(localConn *tls.Conn, req *http.Request) error {
 	var wg sync.WaitGroup
 	wg.Add(2)
+	wrapConn := &helper.WatcherWrapConn{Conn: localConn}
 
 	go func() {
 		// 奇怪得是本地得转发到server得竟然有timeout得情况，不理解
-		wrapConn := &helper.WatcherWrapConn{Conn: localConn}
+
 		n, err := io.Copy(c.conn, wrapConn)
 		if err != nil {
 			if ne, ok := err.(net.Error); !ok || !ne.Timeout() {
@@ -46,7 +47,7 @@ func (c *OutboundClient2) Forward(localConn *tls.Conn, req *http.Request) error 
 		wg.Done()
 	}()
 	go func() {
-		n, err := io.Copy(localConn, c.conn)
+		n, err := io.Copy(wrapConn, c.conn)
 		if err != nil {
 			if errors.Is(err, io.EOF) {
 				logger.Warn("local<---", err.Error(), req)

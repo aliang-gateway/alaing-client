@@ -3,70 +3,57 @@ package helper
 import (
 	"bytes"
 	"encoding/binary"
+	"fmt"
 	"net"
+	"sync"
 
 	"golang.org/x/net/http2"
 	"golang.org/x/net/http2/hpack"
 	"nursor.org/nursorgate/common/logger"
 )
 
-const (
-	// Length of the HTTP/2 frame header
-	frameHeaderLen = 9
-
-	// HTTP/2 frame types
-	frameTypeData    = 0x0
-	frameTypeHeaders = 0x1
-	frameTypeCont    = 0x9
-
-	// HTTP/2 flags
-	flagEndStream  = 0x1
-	flagEndHeaders = 0x4
-)
-
 type WatcherWrapConn struct {
 	net.Conn
-	reqBuf       bytes.Buffer
-	respBuf      bytes.Buffer
-	prefetched   bool
-	isTokenFound bool
-	isHttp1      bool
+	reqBuf           bytes.Buffer
+	respBuf          bytes.Buffer
+	prefetched       bool
+	isTokenFound     bool
+	isHttp1          bool
+	http1ReqContent  string
+	http1RespContent string
+
+	streams   map[uint32]*http2Stream // 存储活跃的 HTTP/2 流
+	streamsMu sync.Mutex              // 保护 streams map 的并发访问
+
 }
 
 func (w *WatcherWrapConn) Read(p []byte) (int, error) {
 	n, err := w.Conn.Read(p)
 	if n > 0 && !w.isTokenFound {
-		// step 1: prefetch the client preface (24 bytes)
-		if !w.isTokenFound {
-			//  !w.prefetched && !w.isHttp1
-			w.reqBuf.Write(p[:n])
-			preface := w.reqBuf.Next(24)
-			if w.reqBuf.Len() < 24 || string(preface) != http2.ClientPreface {
-				// logger.Debug("❌ Not a valid HTTP/2 connection preface")
-				w.isHttp1 = true // 标记为已完成预取（虽然这不是 HTTP/2 请求）
-				// 不是http2,就是http1
-				if !w.isTokenFound && w.isHttp1 {
-					if err := w.processH1ReqHeaders(); err != nil {
-						return n, err
-					}
-				}
-			} else {
-				w.prefetched = true
-				logger.Debug("✅ HTTP/2 connection preface detected")
-				if w.reqBuf.Len() == 0 {
-					return n, err // preface done, no other data
-				}
-				for {
-					frame, ok := w.tryParseFrameFromBuf(&w.reqBuf)
-					if !ok {
-						break
-					}
-					w.processHttp2Frame(frame)
+		w.reqBuf.Write(p[:n])
+
+		if len(p) < 24 || string(p[:24]) != http2.ClientPreface {
+			// http1
+			logger.Info("📦 HTTP/1 connection preface detected")
+			w.isHttp1 = true
+			if !w.isTokenFound && w.isHttp1 {
+				if err := w.processH1ReqHeaders(); err != nil {
+					return n, err
 				}
 			}
-
 		} else {
-			w.reqBuf.Write(p[:n])
+			w.prefetched = true
+			logger.Debug("✅ HTTP/2 connection preface detected")
+			if w.reqBuf.Len() == 0 {
+				return n, err // preface done, no other data
+			}
+			for {
+				frame, ok := w.tryParseFrameFromBuf(&w.reqBuf)
+				if !ok {
+					break
+				}
+				w.processHttp2Frame(frame)
+			}
 		}
 
 	}
@@ -81,13 +68,27 @@ func (w *WatcherWrapConn) Write(p []byte) (n int, err error) {
 	}
 
 	// 假设是写入 HTTP/2 的 DATA 帧
-	if !w.isHttp1 {
-		w.respBuf.Write(p[:n])
-		frame, ok := w.tryParseFrameFromBuf(&w.respBuf)
-		if ok {
-			w.processHttp2ResponseFrame(frame)
-		}
+	if w.isHttp1 {
+		w.http1RespContent = string(p)
+		logger.HttpInfo(fmt.Sprintf("-----------starth1----------------\n%s--->--<---\n%s-----------------endh1------------------\n\n", w.http1ReqContent, w.http1RespContent))
+
 	} else {
+		w.respBuf.Write(p[:n])
+		for {
+			frame, ok := w.tryParseFrameFromBuf(&w.respBuf)
+			if ok {
+				w.processHttp2ResponseFrame(frame)
+			} else {
+				break
+			}
+		}
+
+		for streaId, payload := range w.streams {
+			if payload.RespEndStream {
+				logger.HttpInfo(fmt.Sprintf("-----------starth2----------------\n%v-------------------------endh2------------------\n\n", w.streams[streaId]))
+				delete(w.streams, streaId)
+			}
+		}
 
 	}
 
