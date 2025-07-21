@@ -5,7 +5,6 @@ import (
 	"encoding/binary"
 	"fmt"
 
-	"nursor.org/nursorgate/client/user"
 	"nursor.org/nursorgate/common/logger"
 )
 
@@ -39,16 +38,21 @@ type http2Stream struct {
 	RespEndStream bool // 标记响应体是否已结束 (收到 END_STREAM)
 }
 
-func (w *WatcherWrapConn) processHttp2Frame(frame []byte) {
+func (w *WatcherWrapConn) processHttp2RequestFrame(frame []byte) {
 	// length := binary.BigEndian.Uint32(append([]byte{0}, frame[0:3]...))
 	ftype := frame[3]
 	flags := frame[4]
 	streamID := binary.BigEndian.Uint32(frame[5:9]) & 0x7FFFFFFF
 	payload := frame[frameHeaderLen:]
 
+	if _, ok := w.streams[streamID]; !ok {
+		w.streams[streamID] = &http2Stream{}
+	}
+
 	switch ftype {
 	case frameTypeHeaders:
 		headerBlock := append([]byte{}, payload...)
+
 		if flags&flagEndHeaders == 0 {
 			// Continue collecting CONTINUATION frames
 			for {
@@ -66,27 +70,30 @@ func (w *WatcherWrapConn) processHttp2Frame(frame []byte) {
 				if cflags&flagEndHeaders != 0 {
 					break
 				}
+
 			}
 		}
-		headers, err := decodeHeaderBlock(headerBlock)
-		if err == nil {
-			if val, ok := headers["authorization"]; ok {
-				w.isTokenFound = true
-				user.SetAccessToken(val)
-				logger.Debug("✅ Authorization:", val)
-			}
+		headers, err := w.decodeHeaderBlock(headerBlock)
+		if err != nil {
+			logger.Error(fmt.Sprintf("Error decoding HTTP/2 headers for Stream %d: %v", streamID, err))
+		} else {
+			w.streams[streamID].RespHeaders = headers
+			logger.Debug(fmt.Sprintf("HTTP/2 Headers for Stream %d: %+v", streamID, headers))
 		}
 
 	case frameTypeData:
 		// 处理请求体（DATA帧）
-		logger.Debug(fmt.Sprintf("📦 HTTP/2 DATA frame stream=%d len=%d", streamID, len(payload)))
-		if len(payload) > 0 {
-			// 你可以加点智能逻辑，比如判断是不是 JSON、form-data 等
-			logger.Debug("📨 HTTP/2 Request body:", string(payload))
-		}
+		w.streamsMu.Lock()
+
+		stream := w.streams[streamID]
+		stream.ReqBody.Write(payload)
 		if flags&flagEndStream != 0 {
-			logger.Debug("✅ End of request body stream.")
+			stream.RespEndStream = true
 		}
+		w.streamsMu.Unlock()
+
+	case frameTypeGoaway:
+		logger.Debug("收到完整相应")
 	}
 }
 
@@ -111,7 +118,7 @@ func (w *WatcherWrapConn) processHttp2ResponseFrame(frame []byte) {
 		if flags&flagEndHeaders == 0 {
 			// 继续收集 CONTINUATION 帧
 			for {
-				contFrame, ok := w.tryParseFrameFromBuf(&w.reqBuf) // 仍然从请求缓冲区读取
+				contFrame, ok := w.tryParseFrameFromBuf(&w.respBuf) // 仍然从请求缓冲区读取
 				if !ok {
 					break
 				}
@@ -129,34 +136,46 @@ func (w *WatcherWrapConn) processHttp2ResponseFrame(frame []byte) {
 		}
 		headers, err := decodeHeaderBlock(headerBlock)
 		if err == nil {
-			stream.ReqHeaders = headers
-			if authHeader, ok := headers[":authorization"]; ok { // HTTP/2 伪头部
-				w.isTokenFound = true // 令牌通常只在请求中找到一次
-				user.SetAccessToken(authHeader)
-				logger.Debug("✅ HTTP/2 Request Authorization token found.")
-			}
+			stream.RespHeaders = headers
 
 		} else {
 			logger.Error(fmt.Sprintf("Error decoding HTTP/2 request headers for Stream %d: %v", streamID, err))
 		}
-		if flags&flagEndStream != 0 {
-			stream.ReqEndStream = true
-		}
 
 	case frameTypeData:
 		// 处理 DATA 帧 (请求体)
-		stream.ReqBody.Write(payload)
+		stream.RespBody.Write(payload)
 
 		if flags&flagEndStream != 0 {
+			w.streamsMu.Lock()
 			stream.ReqEndStream = true
-			logger.Debug(fmt.Sprintf("✅ HTTP/2 Request body EndStream for Stream %d.", streamID))
+			trimBody := func(buf *bytes.Buffer, n int) string {
+				data := buf.Bytes()
+				if len(data) > n {
+					return string(data[:n]) + "..."
+				}
+				return string(data)
+			}
+			logger.HttpInfo(fmt.Sprintf(
+				"-----------starth2----------------\n"+
+					"ReqHeaders: %+v\n"+
+					"RespHeaders: %+v\n"+
+					"ReqBody: %s\n"+
+					"RespBody: %s\n"+
+					"-------------------------endh2------------------\n\n",
+				stream.ReqHeaders,
+				stream.RespHeaders,
+				trimBody(&stream.ReqBody, 512),
+				trimBody(&stream.RespBody, 512),
+			))
+			delete(w.streams, streamID)
+			w.streamsMu.Unlock()
+
 		}
 
 	case frameTypeRstStream, frameTypeGoaway:
 		// 流重置或连接关闭，清除流信息
-		w.streamsMu.Lock()
-		delete(w.streams, streamID)
-		w.streamsMu.Unlock()
+
 		logger.Info(fmt.Sprintf("HTTP/2 Stream %d reset or GoAway, removing.", streamID))
 	case frameTypeSettings, frameTypePing, frameTypeWindowUpdate, frameTypePriority, frameTypePushPromise:
 		// 忽略其他帧类型或进行相应的协议处理
@@ -165,17 +184,4 @@ func (w *WatcherWrapConn) processHttp2ResponseFrame(frame []byte) {
 		logger.Debug(fmt.Sprintf("⚠️ HTTP/2 Request Unknown frame type: %d (stream=%d)", ftype, streamID))
 	}
 
-}
-
-func (w *WatcherWrapConn) processH2ResponseBody(payload []byte) {
-	// 这里只是简单地记录日志，可以根据需要对响应体进行更复杂的处理
-	logger.Debug("Response body:", string(payload))
-
-	// 如果是JSON或其他可解析的格式，你可以尝试解析
-	// 假设是JSON格式
-	if len(payload) > 0 && payload[0] == '{' {
-		logger.Debug("JSON response detected")
-		// 执行JSON解析操作
-		// json.Unmarshal(payload, &yourStruct)
-	}
 }

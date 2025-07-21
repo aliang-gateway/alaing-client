@@ -2,6 +2,7 @@ package helper
 
 import (
 	"bytes"
+	"crypto/tls"
 	"encoding/binary"
 	"fmt"
 	"net"
@@ -22,41 +23,53 @@ type WatcherWrapConn struct {
 	http1ReqContent  string
 	http1RespContent string
 
-	streams   map[uint32]*http2Stream // 存储活跃的 HTTP/2 流
-	streamsMu sync.Mutex              // 保护 streams map 的并发访问
-
+	hpackDecoder *hpack.Decoder
+	streams      map[uint32]*http2Stream // 存储活跃的 HTTP/2 流
+	streamsMu    sync.Mutex              // 保护 streams map 的并发访问
 }
 
+func NewWatcherWrapConn(conn1 *tls.Conn) *WatcherWrapConn {
+	return &WatcherWrapConn{Conn: conn1, streams: map[uint32]*http2Stream{}, hpackDecoder: hpack.NewDecoder(4096, nil)}
+}
 func (w *WatcherWrapConn) Read(p []byte) (int, error) {
 	n, err := w.Conn.Read(p)
-	if n > 0 && !w.isTokenFound {
-		w.reqBuf.Write(p[:n])
+	if n <= 0 {
+		return n, err
+	}
 
-		if len(p) < 24 || string(p[:24]) != http2.ClientPreface {
-			// http1
-			logger.Info("📦 HTTP/1 connection preface detected")
-			w.isHttp1 = true
-			if !w.isTokenFound && w.isHttp1 {
+	w.reqBuf.Write(p[:n])
+
+	if !w.prefetched && !w.isTokenFound {
+		if w.reqBuf.Len() >= 24 {
+			preface := w.reqBuf.Bytes()[:24]
+			if string(preface) == http2.ClientPreface {
+				w.prefetched = true
+				logger.Debug("✅ HTTP/2 connection preface detected")
+				w.reqBuf.Next(24) // consume preface
+			} else {
+				w.isHttp1 = true
+				logger.Info("📦 HTTP/1 connection preface detected")
 				if err := w.processH1ReqHeaders(); err != nil {
 					return n, err
 				}
 			}
 		} else {
-			w.prefetched = true
-			logger.Debug("✅ HTTP/2 connection preface detected")
-			if w.reqBuf.Len() == 0 {
-				return n, err // preface done, no other data
-			}
-			for {
-				frame, ok := w.tryParseFrameFromBuf(&w.reqBuf)
-				if !ok {
-					break
-				}
-				w.processHttp2Frame(frame)
-			}
+			// Not enough data to determine preface yet, wait for next read
+			return n, err
 		}
-
 	}
+
+	// 如果是 http2 并且还有数据，就继续解析帧
+	if w.prefetched {
+		for {
+			frame, ok := w.tryParseFrameFromBuf(&w.reqBuf)
+			if !ok {
+				break
+			}
+			w.processHttp2RequestFrame(frame)
+		}
+	}
+
 	return n, err
 }
 
@@ -70,7 +83,7 @@ func (w *WatcherWrapConn) Write(p []byte) (n int, err error) {
 	// 假设是写入 HTTP/2 的 DATA 帧
 	if w.isHttp1 {
 		w.http1RespContent = string(p)
-		logger.HttpInfo(fmt.Sprintf("-----------starth1----------------\n%s--->--<---\n%s-----------------endh1------------------\n\n", w.http1ReqContent, w.http1RespContent))
+		logger.HttpInfo(fmt.Sprintf("-----------starth1----------------\n%s--->-h1-<---\n%s-----------------endh1------------------\n\n", w.http1ReqContent, w.http1RespContent))
 
 	} else {
 		w.respBuf.Write(p[:n])
@@ -82,16 +95,7 @@ func (w *WatcherWrapConn) Write(p []byte) (n int, err error) {
 				break
 			}
 		}
-
-		for streaId, payload := range w.streams {
-			if payload.RespEndStream {
-				logger.HttpInfo(fmt.Sprintf("-----------starth2----------------\n%v-------------------------endh2------------------\n\n", w.streams[streaId]))
-				delete(w.streams, streaId)
-			}
-		}
-
 	}
-
 	return n, err
 }
 
@@ -109,6 +113,18 @@ func (w *WatcherWrapConn) tryParseFrameFromBuf(buf *bytes.Buffer) ([]byte, bool)
 	copy(frame, data[:totalLen])
 	buf.Next(totalLen)
 	return frame, true
+}
+
+func (w *WatcherWrapConn) decodeHeaderBlock(block []byte) (map[string]string, error) {
+	headers := make(map[string]string)
+
+	// 设置 emit func
+	w.hpackDecoder.SetEmitFunc(func(f hpack.HeaderField) {
+		headers[f.Name] = f.Value
+	})
+
+	_, err := w.hpackDecoder.Write(block)
+	return headers, err
 }
 
 func decodeHeaderBlock(block []byte) (map[string]string, error) {
