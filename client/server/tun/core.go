@@ -352,7 +352,7 @@ func checkWindowsTunStatus(ifname string) error {
 	lines := strings.Split(outputStr, "\n")
 	for _, line := range lines {
 		if strings.Contains(line, ifname) {
-			logger.Info(fmt.Sprintf("TUN 设备状态: %s", line))
+			logger.Debug(fmt.Sprintf("TUN 设备状态: %s", line))
 			// 检查接口是否启用
 			if strings.Contains(line, "已禁用") || strings.Contains(line, "disabled") {
 				return fmt.Errorf("TUN 设备已禁用")
@@ -372,7 +372,7 @@ func checkDarwinTunStatus(ifname string) error {
 		return fmt.Errorf("获取接口状态失败: %w", err)
 	}
 
-	logger.Info(fmt.Sprintf("TUN 设备状态: %s", string(output)))
+	logger.Debug(fmt.Sprintf("TUN 设备状态: %s", string(output)))
 	return nil
 }
 
@@ -384,7 +384,7 @@ func checkLinuxTunStatus(ifname string) error {
 		return fmt.Errorf("获取接口状态失败: %w", err)
 	}
 
-	logger.Info("TUN 设备状态: %s", string(output))
+	logger.Debug("TUN 设备状态: %s", string(output))
 	return nil
 }
 

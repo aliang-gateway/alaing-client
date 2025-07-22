@@ -22,6 +22,7 @@ typedef struct { const char *p; ptrdiff_t n; } _GoString_;
 #line 3 "export.go"
 
 #include <stdlib.h>
+#include <stdbool.h>
 
 #line 1 "cgo-generated-wrapper"
 
@@ -91,6 +92,8 @@ extern __declspec(dllexport) void closeSqlite();
 extern __declspec(dllexport) char* getToCursorDomain();
 extern __declspec(dllexport) char* runGate(char* userToken);
 extern __declspec(dllexport) void setUserInfo(char* uToken, char* userId, char* username, char* password);
+extern __declspec(dllexport) void setLogWatchMode(_Bool* enableWatch, int* level);
+extern __declspec(dllexport) void setCursorGateMode(_Bool* enableCursorGate);
 extern __declspec(dllexport) void stopGate();
 
 #ifdef __cplusplus

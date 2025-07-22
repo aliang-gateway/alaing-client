@@ -50,27 +50,27 @@ func (w *WatcherWrapConn) Read(p []byte) (int, error) {
 	if n <= 0 {
 		return n, err
 	}
-
-	w.reqBuf.Write(p[:n])
-	if !w.prefetched {
-		if w.reqBuf.Len() >= 24 {
-			preface := w.reqBuf.Bytes()[:24]
-			if string(preface) == http2.ClientPreface {
-				w.prefetched = true
-				w.reqBuf.Next(24)
-				w.parseHttp2Req()
-				return n, err
+	if IsWatcherAllowed {
+		w.reqBuf.Write(p[:n])
+		if !w.prefetched {
+			if w.reqBuf.Len() >= 24 {
+				preface := w.reqBuf.Bytes()[:24]
+				if string(preface) == http2.ClientPreface {
+					w.prefetched = true
+					w.reqBuf.Next(24)
+					w.parseHttp2Req()
+					return n, err
+				} else {
+					// 明确不是 http2 才判定为 http1
+					w.isHttp1 = true
+					w.parseHttp1Req()
+				}
 			} else {
-				// 明确不是 http2 才判定为 http1
-				w.isHttp1 = true
-				w.parseHttp1Req()
+				// 数据不够，等下一次
+				return n, err
 			}
-		} else {
-			// 数据不够，等下一次
-			return n, err
 		}
 	}
-
 	return n, err
 }
 
@@ -98,18 +98,20 @@ func (w *WatcherWrapConn) Write(p []byte) (n int, err error) {
 		return n, err
 	}
 
-	// 假设是写入 HTTP/2 的 DATA 帧
-	if w.isHttp1 {
-		w.http1RespContent = string(p)
-		logger.HttpInfo(fmt.Sprintf("-----------starth1----------------\n%s--->-h1-<---\n%s-----------------endh1------------------\n\n", w.http1ReqContent, w.http1RespContent))
-	} else {
-		w.respBuf.Write(p[:n])
-		for {
-			frame, ok := w.tryParseFrameFromBuf(&w.respBuf, true)
-			if ok {
-				w.processHttp2ResponseFrame(frame)
-			} else {
-				break
+	if IsWatcherAllowed {
+		// 假设是写入 HTTP/2 的 DATA 帧
+		if w.isHttp1 {
+			w.http1RespContent = string(p)
+			logger.HttpInfo(fmt.Sprintf("-----------starth1----------------\n%s--->-h1-<---\n%s-----------------endh1------------------\n\n", w.http1ReqContent, w.http1RespContent))
+		} else {
+			w.respBuf.Write(p[:n])
+			for {
+				frame, ok := w.tryParseFrameFromBuf(&w.respBuf, true)
+				if ok {
+					w.processHttp2ResponseFrame(frame)
+				} else {
+					break
+				}
 			}
 		}
 	}

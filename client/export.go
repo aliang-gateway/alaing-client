@@ -2,6 +2,7 @@ package main
 
 /*
 #include <stdlib.h>
+#include <stdbool.h>
 */
 import "C"
 
@@ -11,6 +12,7 @@ import (
 	"nursor.org/nursorgate/client/inbound/cert"
 	"nursor.org/nursorgate/client/outbound"
 	"nursor.org/nursorgate/client/server"
+	"nursor.org/nursorgate/client/server/helper"
 	"nursor.org/nursorgate/client/server/tun"
 	"nursor.org/nursorgate/client/user"
 	"nursor.org/nursorgate/client/utils"
@@ -100,6 +102,21 @@ func setUserInfo(uToken *C.char, userId *C.char, username *C.char, password *C.c
 	user.SetUsername(usernameStr)
 	user.SetPassword(passwordStr)
 	logger.SetUserInfo(userIdStr)
+}
+
+//export setLogWatchMode
+func setLogWatchMode(enableWatch *C.bool, level *C.int) {
+	watchMode := *enableWatch != C.bool(false)
+	helper.IsWatcherAllowed = watchMode
+	logLevel := int(*level)
+	logger.SetHttpLogLevel(logger.LogLevel(logLevel))
+	logger.SetLogLevel(logger.LogLevel(logLevel))
+}
+
+//export setCursorGateMode
+func setCursorGateMode(enableCursorGate *C.bool) {
+	cursorMode := *enableCursorGate != C.bool(false)
+	helper.IsCursorProxyEnabled = cursorMode
 }
 
 //export stopGate

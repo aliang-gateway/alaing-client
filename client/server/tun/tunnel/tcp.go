@@ -72,7 +72,17 @@ func (t *Tunnel) handleTCPConn(originConn adapter.TCPConn) {
 				}
 				state := tlsConn.ConnectionState()
 				logger.Debug("TLS handshake successful. Protocol:", state.NegotiatedProtocol, "Version:", state.Version)
-				handleTlsConnect(tlsConn, req)
+				if helper.IsCursorProxyEnabled {
+					handleTlsConnect(tlsConn, req)
+				} else {
+					remoteConn, err = GetDoorProxy().DialContextWithServerName(ctx, metadata, serverName)
+					if err != nil {
+						logger.Error(fmt.Sprintf("failure in connenct to anydoor %v", err))
+						return
+					}
+					watcherConn := helper.NewWatcherWrapConn(tlsConn)
+					pipe(watcherConn, remoteConn)
+				}
 				return
 			}
 		}
@@ -83,9 +93,8 @@ func (t *Tunnel) handleTCPConn(originConn adapter.TCPConn) {
 				logger.Error(fmt.Sprintf("failure in connenct to anydoor %v", err))
 				return
 			}
-			//udpPipe(newOriginConn, udpPacket, metadata.SrcIP, metadata.DstIP.String())
-			//return
 		} else {
+			// 直连
 			remoteConn, err = t.Dialer().DialContext(ctx, metadata)
 			if err != nil {
 				logger.Debug(fmt.Printf("[TCP] dial %s: %v", metadata.DestinationAddress(), err))
@@ -94,6 +103,7 @@ func (t *Tunnel) handleTCPConn(originConn adapter.TCPConn) {
 		}
 
 	} else {
+		// 直连
 		remoteConn, err = t.Dialer().DialContext(ctx, metadata)
 		if err != nil {
 			logger.Debug(fmt.Printf("[TCP] dial %s: %v", metadata.DestinationAddress(), err))
