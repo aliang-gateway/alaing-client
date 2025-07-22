@@ -156,18 +156,20 @@ func (w *WatcherWrapConn) processHttp2ResponseFrame(frame []byte) {
 				}
 				return string(data)
 			}
-			logger.HttpInfo(fmt.Sprintf(
-				"-----------starth2----------------\n"+
-					"ReqHeaders: %+v\n"+
-					"RespHeaders: %+v\n"+
-					"ReqBody: %s\n"+
-					"RespBody: %s\n"+
-					"-------------------------endh2------------------\n\n",
-				stream.ReqHeaders,
-				stream.RespHeaders,
-				trimBody(&stream.ReqBody, 512),
-				trimBody(&stream.RespBody, 512),
-			))
+			if IsWatcherAllowed {
+				logger.HttpInfo(fmt.Sprintf(
+					"-----------starth2----------------\n"+
+						"ReqHeaders: %+v\n"+
+						"RespHeaders: %+v\n"+
+						"ReqBody: %s\n"+
+						"RespBody: %s\n"+
+						"-------------------------endh2------------------\n\n",
+					stream.ReqHeaders,
+					stream.RespHeaders,
+					trimBody(&stream.ReqBody, 512),
+					trimBody(&stream.RespBody, 512),
+				))
+			}
 			delete(w.streams, streamID)
 			w.streamsMu.Unlock()
 		}
