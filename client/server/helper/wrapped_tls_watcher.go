@@ -34,6 +34,17 @@ func NewWatcherWrapConn(conn1 *tls.Conn) *WatcherWrapConn {
 	return &WatcherWrapConn{Conn: conn1, streams: map[uint32]*http2Stream{}, hpackDecoderReq: hpack.NewDecoder(4096, nil), hpackDecoderResp: hpack.NewDecoder(4096, nil)}
 }
 
+func (w *WatcherWrapConn) getOrCreateStream(id uint32) *http2Stream {
+	w.streamsMu.Lock()
+	defer w.streamsMu.Unlock()
+	if s, ok := w.streams[id]; ok {
+		return s
+	}
+	s := &http2Stream{}
+	w.streams[id] = s
+	return s
+}
+
 func (w *WatcherWrapConn) Read(p []byte) (int, error) {
 	n, err := w.Conn.Read(p)
 	if n <= 0 {
@@ -49,23 +60,27 @@ func (w *WatcherWrapConn) Read(p []byte) (int, error) {
 				w.reqBuf.Next(24)
 				w.parseHttp2Req()
 				return n, err
+			} else {
+				// 明确不是 http2 才判定为 http1
+				w.isHttp1 = true
+				w.parseHttp1Req()
 			}
+		} else {
+			// 数据不够，等下一次
+			return n, err
 		}
-		w.isHttp1 = true
-		logger.Info("📦 HTTP/1 connection preface detected")
-		w.parseHttp1Req()
-
-	} else {
-		w.parseHttp2Req()
 	}
+
 	return n, err
 }
 
 func (w *WatcherWrapConn) parseHttp1Req() {
+	logger.Debug("📦 HTTP/1 connection preface detected")
 	w.processH1ReqHeaders()
 }
 
 func (w *WatcherWrapConn) parseHttp2Req() {
+	logger.Debug("📦 HTTP/2 connection preface detected")
 	for {
 		// 避免粘包、半包的情况
 		frame, ok := w.tryParseFrameFromBuf(&w.reqBuf, true)

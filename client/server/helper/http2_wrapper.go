@@ -45,9 +45,7 @@ func (w *WatcherWrapConn) processHttp2RequestFrame(frame []byte) {
 	streamID := binary.BigEndian.Uint32(frame[5:9]) & 0x7FFFFFFF
 	payload := frame[frameHeaderLen:]
 
-	if _, ok := w.streams[streamID]; !ok {
-		w.streams[streamID] = &http2Stream{}
-	}
+	w.getOrCreateStream(streamID)
 
 	switch ftype {
 	case frameTypeHeaders:
@@ -77,10 +75,10 @@ func (w *WatcherWrapConn) processHttp2RequestFrame(frame []byte) {
 		}
 		headers, err := w.decodeHeaderBlock(headerBlock, true)
 		if err != nil {
-			logger.Error(fmt.Sprintf("Error decoding HTTP/2 headers for Stream %d: %v", streamID, err))
+			logger.Error(fmt.Sprintf("Error decoding HTTP/2 response headers for Stream %d: %v", streamID, err))
 		} else {
 			w.streams[streamID].ReqHeaders = headers
-			logger.Debug(fmt.Sprintf("HTTP/2 Headers for Stream %d: %+v", streamID, headers))
+			logger.Debug(fmt.Sprintf("HTTP/2 Request Headers for Stream %d: %+v", streamID, headers))
 		}
 
 	case frameTypeData:
@@ -89,7 +87,7 @@ func (w *WatcherWrapConn) processHttp2RequestFrame(frame []byte) {
 		stream := w.streams[streamID]
 		stream.ReqBody.Write(payload)
 		if flags&flagEndStream != 0 {
-			stream.RespEndStream = true
+			stream.ReqEndStream = true
 		}
 		w.streamsMu.Unlock()
 
@@ -138,10 +136,10 @@ func (w *WatcherWrapConn) processHttp2ResponseFrame(frame []byte) {
 		}
 		headers, err := w.decodeHeaderBlock(headerBlock, false)
 		if err != nil {
-			logger.Error(fmt.Sprintf("Error decoding HTTP/2 headers for Stream %d: %v", streamID, err))
+			logger.Error(fmt.Sprintf("Error decoding HTTP/2 response headers for Stream %d: %v", streamID, err))
 		} else {
 			w.streams[streamID].RespHeaders = headers
-			logger.Debug(fmt.Sprintf("HTTP/2 Headers for Stream %d: %+v", streamID, headers))
+			logger.Debug(fmt.Sprintf("HTTP/2 Response Headers for Stream %d: %+v", streamID, headers))
 		}
 
 	case frameTypeData:
@@ -172,9 +170,7 @@ func (w *WatcherWrapConn) processHttp2ResponseFrame(frame []byte) {
 			))
 			delete(w.streams, streamID)
 			w.streamsMu.Unlock()
-
 		}
-
 	case frameTypeRstStream, frameTypeGoaway:
 		// 流重置或连接关闭，清除流信息
 		logger.Info(fmt.Sprintf("HTTP/2 Stream %d reset or GoAway, removing.", streamID))
