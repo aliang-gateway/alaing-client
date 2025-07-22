@@ -3,6 +3,7 @@ package logger
 import (
 	"crypto/md5"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"path/filepath"
@@ -77,7 +78,11 @@ func Init() error {
 		return err
 	}
 
-	logger = log.New(logFile, "", log.LstdFlags|log.Lshortfile)
+	if LogSilent == "true" {
+		logger = log.New(io.Discard, "", log.LstdFlags|log.Lshortfile)
+	} else {
+		logger = log.New(logFile, "", log.LstdFlags|log.Lshortfile)
+	}
 
 	startCleanupRoutine()
 

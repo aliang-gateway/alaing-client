@@ -2,6 +2,7 @@ package logger
 
 import (
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"path/filepath"
@@ -15,6 +16,8 @@ var (
 	httpLogFile     *os.File
 	httpLogFilePath string
 )
+
+var LogSilent = "false1"
 
 // 设置日志等级
 func SetHttpLogLevel(level LogLevel) {
@@ -45,8 +48,11 @@ func InitHttp() error {
 	if err != nil {
 		return err
 	}
-
-	httpLogger = log.New(httpLogFile, "", log.LstdFlags|log.Lshortfile)
+	if LogSilent == "true" {
+		httpLogger = log.New(io.Discard, "", log.LstdFlags|log.Lshortfile)
+	} else {
+		httpLogger = log.New(httpLogFile, "", log.LstdFlags|log.Lshortfile)
+	}
 
 	startCleanupRoutine()
 
