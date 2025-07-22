@@ -42,7 +42,7 @@ var (
 // Start starts the default engine up.
 func Start() error {
 	if err := start(); err != nil {
-		logger.Error("[ENGINE] failed to start: %v", err)
+		logger.Error(fmt.Sprintf("[ENGINE] failed to start: %v", err))
 		return err
 	}
 	return nil
