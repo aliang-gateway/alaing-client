@@ -86,7 +86,7 @@ func runGate(userToken *C.char) *C.char {
 	uToken := C.GoString(userToken)
 	user.SetUserToken(uToken)
 	model.NewAllowProxyDomain()
-	utils.SetServerHost("192.140.163.38:12235")
+	utils.SetServerHost("api2.nursor.org:12235")
 	go tun.Start()
 	res := <-tun.RunStatusChan
 	logger.Info(res)

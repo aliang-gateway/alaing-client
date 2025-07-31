@@ -49,7 +49,7 @@ func TestTunWindows(t *testing.T) {
 
 func TestTunWindows2(t *testing.T) {
 	model.NewAllowProxyDomain()
-	utils.SetServerHost("192.140.163.38:12235")
+	utils.SetServerHost("api2.nursor.org:12235")
 	mytun.Start()
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
