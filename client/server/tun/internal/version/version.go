@@ -6,7 +6,8 @@ import (
 	"strings"
 )
 
-const Name = "tun2socks"
+// const Name = "tun2socks"
+const Name = "NursorCore"
 
 var (
 	// Version can be set at link time by executing

@@ -17,7 +17,7 @@ var (
 	httpLogFilePath string
 )
 
-var LogSilent = "false1"
+var LogSilent = "false"
 
 // 设置日志等级
 func SetHttpLogLevel(level LogLevel) {
