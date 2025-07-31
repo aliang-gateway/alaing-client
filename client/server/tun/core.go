@@ -2,6 +2,7 @@ package tun
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -24,6 +25,13 @@ var TunSignal = make(chan os.Signal, 1)
 var RunStatusChan = make(chan map[string]string, 1)
 var defaultKey engine.Key
 var defaultGateway = "192.168.1.1"
+
+type PSNetItem struct {
+	Name                 string `json:"Name"`
+	Status               string `json:"Status"`
+	InterfaceDescription string `json:"InterfaceDescription"`
+	IfIndex              int    `json:"ifIndex"`
+}
 
 func Start() {
 	defer func() {
@@ -391,7 +399,7 @@ func checkLinuxTunStatus(ifname string) error {
 // waitForTunDeviceReady 等待TUN设备就绪
 func waitForTunDeviceReady(deviceName string, timeout time.Duration) error {
 	deadline := time.Now().Add(timeout)
-
+	var outputStr string
 	for time.Now().Before(deadline) {
 		var cmd *exec.Cmd
 		var checkString string
@@ -442,7 +450,7 @@ func waitForTunDeviceReady(deviceName string, timeout time.Duration) error {
 		}
 
 		// 检查设备是否存在且状态为预期值
-		outputStr := string(output)
+		outputStr = string(output)
 		if runtime.GOOS == "windows" {
 			// Windows 需要处理编码（假设 utils.AutoConvertEncoding 处理 GBK 到 UTF-8）
 			outputStr, err = utils.AutoConvertEncoding(output)
@@ -466,8 +474,19 @@ func waitForTunDeviceReady(deviceName string, timeout time.Duration) error {
 			logger.Info("Ping 测试失败，设备可能尚未完全就绪")
 		}
 
+		// win10返回的是deviceName up这样的内容
+		var win10OutputJson []PSNetItem
+		err = json.Unmarshal(output, &win10OutputJson)
+		if err == nil {
+			for _, netItem := range win10OutputJson {
+				if strings.Contains(netItem.Name, "intun") && strings.ToLower(netItem.Status) == "up" {
+					return nil
+				}
+			}
+		}
+
 		time.Sleep(500 * time.Millisecond)
 	}
 
-	return fmt.Errorf("等待 TUN 设备就绪超时")
+	return fmt.Errorf("等待 TUN 设备就绪超时. %s", outputStr)
 }

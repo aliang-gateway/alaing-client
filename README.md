@@ -106,7 +106,7 @@ go build -ldflags="-s -w" -buildmode=c-shared -o nursor-core-arm64.so
 export CGO_ENABLED=1
 export GOOS=windows
 export GOARCH=amd64
-go build -ldflags="-s -w" -buildmode=c-shared -o nursor-core-amd64.dll
+go build -ldflags="-s -w -X 'nursor.org/nursorgate/common/logger.LogSilent=true'" -buildmode=c-shared -o nursor-core-amd64.dll
 
 
 
