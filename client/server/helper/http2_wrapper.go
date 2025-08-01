@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"fmt"
 
+	"golang.org/x/net/http2/hpack"
 	"nursor.org/nursorgate/common/logger"
 )
 
@@ -19,11 +20,82 @@ const (
 	frameTypePing         = 0x6
 	frameTypeGoaway       = 0x7
 	frameTypeWindowUpdate = 0x8
-	frameTypeCont         = 0x9
+	frameTypeContinuation = 0x9
 
 	flagEndHeaders = 0x4
 	flagEndStream  = 0x1 // 补充 END_STREAM 标志
+
+	// HTTP/2 SETTINGS 参数类型
+	SETTINGS_HEADER_TABLE_SIZE      = 0x1
+	SETTINGS_ENABLE_PUSH            = 0x2
+	SETTINGS_MAX_CONCURRENT_STREAMS = 0x3
+	SETTINGS_INITIAL_WINDOW_SIZE    = 0x4
+	SETTINGS_MAX_FRAME_SIZE         = 0x5
+	SETTINGS_MAX_HEADER_LIST_SIZE   = 0x6
 )
+
+// ParseSettingsFrame 解析 HTTP/2 SETTINGS 帧
+func (w *WatcherWrapConn) ParseSettingsFrame(payload []byte) {
+	if len(payload)%6 != 0 {
+		logger.Error("Invalid SETTINGS frame payload length")
+		return
+	}
+
+	w.settingsMu.Lock()
+	defer w.settingsMu.Unlock()
+
+	for i := 0; i < len(payload); i += 6 {
+		if i+6 > len(payload) {
+			break
+		}
+		identifier := binary.BigEndian.Uint16(payload[i : i+2])
+		value := binary.BigEndian.Uint32(payload[i+2 : i+6])
+
+		w.http2Settings[identifier] = value
+
+		// 记录解析到的 SETTINGS
+		var settingName string
+		switch identifier {
+		case SETTINGS_HEADER_TABLE_SIZE:
+			settingName = "HEADER_TABLE_SIZE"
+		case SETTINGS_ENABLE_PUSH:
+			settingName = "ENABLE_PUSH"
+		case SETTINGS_MAX_CONCURRENT_STREAMS:
+			settingName = "MAX_CONCURRENT_STREAMS"
+		case SETTINGS_INITIAL_WINDOW_SIZE:
+			settingName = "INITIAL_WINDOW_SIZE"
+		case SETTINGS_MAX_FRAME_SIZE:
+			settingName = "MAX_FRAME_SIZE"
+		case SETTINGS_MAX_HEADER_LIST_SIZE:
+			settingName = "MAX_HEADER_LIST_SIZE"
+		default:
+			settingName = fmt.Sprintf("UNKNOWN_%d", identifier)
+		}
+
+		logger.Debug(fmt.Sprintf("HTTP/2 SETTINGS: %s = %d", settingName, value))
+	}
+}
+
+// GetHttp2Setting 获取指定的 HTTP/2 SETTINGS 值
+func (w *WatcherWrapConn) GetHttp2Setting(identifier uint16) (uint32, bool) {
+	w.settingsMu.Lock()
+	defer w.settingsMu.Unlock()
+	value, exists := w.http2Settings[identifier]
+	return value, exists
+}
+
+// GetAllHttp2Settings 获取所有 HTTP/2 SETTINGS
+func (w *WatcherWrapConn) GetAllHttp2Settings() map[uint16]uint32 {
+	w.settingsMu.Lock()
+	defer w.settingsMu.Unlock()
+
+	// 返回一个副本，避免并发访问问题
+	settings := make(map[uint16]uint32)
+	for k, v := range w.http2Settings {
+		settings[k] = v
+	}
+	return settings
+}
 
 // http2Stream 结构体用于存储单个 HTTP/2 流（请求及其对应的响应）的所有信息
 type http2Stream struct {
@@ -38,7 +110,7 @@ type http2Stream struct {
 	RespEndStream bool // 标记响应体是否已结束 (收到 END_STREAM)
 }
 
-func (w *WatcherWrapConn) processHttp2RequestFrame(frame []byte) {
+func (w *WatcherWrapConn) processHttp2RequestFrame(frame []byte) ([]byte, bool, error) {
 	// length := binary.BigEndian.Uint32(append([]byte{0}, frame[0:3]...))
 	ftype := frame[3]
 	flags := frame[4]
@@ -61,7 +133,8 @@ func (w *WatcherWrapConn) processHttp2RequestFrame(frame []byte) {
 				ctype := contFrame[3]
 				cflags := contFrame[4]
 				cstreamID := binary.BigEndian.Uint32(contFrame[5:9]) & 0x7FFFFFFF
-				if ctype != frameTypeCont || cstreamID != streamID {
+				if ctype != frameTypeContinuation || cstreamID != streamID {
+					// 这里break，可以跳出这次stream的处理，出去再进来，就是处理另外一个stream的逻辑了
 					break
 				}
 				// 这里来move，避免上边的break丢去包的问题
@@ -73,13 +146,17 @@ func (w *WatcherWrapConn) processHttp2RequestFrame(frame []byte) {
 
 			}
 		}
-		headers, err := w.decodeHeaderBlock(headerBlock, true)
+		newHeader, err := w.rebuildReqHeadersWithInjectedField(headerBlock, streamID, payload, "nursor-token", "1234567890")
 		if err != nil {
-			logger.Error(fmt.Sprintf("Error decoding HTTP/2 response headers for Stream %d: %v", streamID, err))
-		} else {
-			w.streams[streamID].ReqHeaders = headers
-			logger.Debug(fmt.Sprintf("HTTP/2 Request Headers for Stream %d: %+v", streamID, headers))
+			logger.Error(fmt.Sprintf("Error rebuilding HTTP/2 Request headers for Stream %d: %v", streamID, err))
+			return headerBlock, true, err
 		}
+		return newHeader, true, nil
+
+	case frameTypeSettings:
+		// 解析并保存 SETTINGS 帧
+		w.ParseSettingsFrame(payload)
+		logger.Debug("HTTP/2 SETTINGS frame processed and saved")
 
 	case frameTypeData:
 		// 处理请求体（DATA帧）
@@ -94,6 +171,8 @@ func (w *WatcherWrapConn) processHttp2RequestFrame(frame []byte) {
 	case frameTypeGoaway:
 		logger.Debug("收到完整相应")
 	}
+	return frame, false, nil
+
 }
 
 func (w *WatcherWrapConn) processHttp2ResponseFrame(frame []byte) {
@@ -124,7 +203,7 @@ func (w *WatcherWrapConn) processHttp2ResponseFrame(frame []byte) {
 				ctype := contFrame[3]
 				cflags := contFrame[4]
 				cstreamID := binary.BigEndian.Uint32(contFrame[5:9]) & 0x7FFFFFFF
-				if ctype != frameTypeCont || cstreamID != streamID {
+				if ctype != frameTypeContinuation || cstreamID != streamID {
 					break // 不是当前流的 CONTINUATION 帧，或帧类型不对
 				}
 				w.respBuf.Next(len(contFrame))
@@ -134,6 +213,7 @@ func (w *WatcherWrapConn) processHttp2ResponseFrame(frame []byte) {
 				}
 			}
 		}
+
 		headers, err := w.decodeHeaderBlock(headerBlock, false)
 		if err != nil {
 			logger.Error(fmt.Sprintf("Error decoding HTTP/2 response headers for Stream %d: %v", streamID, err))
@@ -183,4 +263,113 @@ func (w *WatcherWrapConn) processHttp2ResponseFrame(frame []byte) {
 		logger.Debug(fmt.Sprintf("⚠️ HTTP/2 Request Unknown frame type: %d (stream=%d)", ftype, streamID))
 	}
 
+}
+
+// 重新组装http2的header，并注入新的字段
+func (w *WatcherWrapConn) rebuildReqHeadersWithInjectedField(
+	headerBlock []byte,
+	streamID uint32,
+	remainingPayload []byte, // headers 后面剩余的 TCP 流数据
+	keyToInject string,
+	valueToInject string,
+) ([]byte, error) {
+	// 1. 解码原始 header block
+	headers := make(map[string]string)
+	w.hpackDecoderReq.SetEmitFunc(func(f hpack.HeaderField) {
+		headers[f.Name] = f.Value
+	})
+	if _, err := w.hpackDecoderReq.Write(headerBlock); err != nil {
+		return nil, fmt.Errorf("decode error: %w", err)
+	}
+
+	// 2. 注入新字段
+	headers[keyToInject] = valueToInject
+
+	w.streams[streamID].RespHeaders = headers
+	logger.Debug(fmt.Sprintf("HTTP/2 Request Headers for Stream %d: %+v", streamID, headers))
+
+	// 3. HPACK 编码新的 header block
+	// var hpackBuf bytes.Buffer
+	// encoder := hpack.NewEncoder(&hpackBuf)
+	w.toServerBuffer.Reset()
+	for k, v := range headers {
+		if err := w.hpackEncoderToServer.WriteField(hpack.HeaderField{Name: k, Value: v}); err != nil {
+			return nil, fmt.Errorf("hpack encode error: %w", err)
+		}
+	}
+	newHeaderBlock := w.toServerBuffer.Bytes()
+
+	// 4. 拆分帧
+	maxFrameSize := 16384                                          // 默认值
+	if val, ok := w.GetHttp2Setting(SETTINGS_MAX_FRAME_SIZE); ok { // 0x5 是 SETTINGS_MAX_FRAME_SIZE
+		maxFrameSize = int(val)
+	}
+
+	var frames [][]byte
+	remaining := newHeaderBlock
+	first := true
+	for len(remaining) > 0 {
+		chunkSize := len(remaining)
+		if chunkSize > maxFrameSize {
+			chunkSize = maxFrameSize
+		}
+		chunk := remaining[:chunkSize]
+		remaining = remaining[chunkSize:]
+
+		var frameType byte
+		var flags byte
+		if first {
+			frameType = frameTypeHeaders
+			flags = 0
+			if len(remaining) == 0 {
+				flags |= flagEndHeaders
+			}
+		} else {
+			frameType = frameTypeContinuation
+			flags = 0
+			if len(remaining) == 0 {
+				flags |= flagEndHeaders
+			}
+		}
+
+		// 构造 HTTP/2 frame header
+		length := uint32(len(chunk))
+		frame := make([]byte, frameHeaderLen+len(chunk))
+		frame[0] = byte(length >> 16)
+		frame[1] = byte(length >> 8)
+		frame[2] = byte(length)
+		frame[3] = frameType
+		frame[4] = flags
+		binary.BigEndian.PutUint32(frame[5:9], streamID&0x7FFFFFFF)
+		copy(frame[frameHeaderLen:], chunk)
+		frames = append(frames, frame)
+		first = false
+	}
+
+	// 5. 合并帧+剩余原始数据
+	var fullBuf bytes.Buffer
+	for _, f := range frames {
+		fullBuf.Write(f)
+	}
+	fullBuf.Write(remainingPayload)
+	return fullBuf.Bytes(), nil
+}
+
+func (w *WatcherWrapConn) decodeHeaderBlock(block []byte, isRequest bool) (map[string]string, error) {
+	headers := make(map[string]string)
+
+	var decoder *hpack.Decoder
+	if isRequest {
+		decoder = w.hpackDecoderReq
+	} else {
+		decoder = w.hpackDecoderResp
+	}
+
+	// 每次重新设置 emitFunc（因为 headers 是临时的）
+	w.hpackDecoderReq.SetEmitFunc(func(f hpack.HeaderField) {
+		headers[f.Name] = f.Value
+	})
+
+	_, err := decoder.Write(block)
+	return headers, err
 }

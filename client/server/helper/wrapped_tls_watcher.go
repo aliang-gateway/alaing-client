@@ -22,16 +22,36 @@ type WatcherWrapConn struct {
 	isHttp1          bool
 	http1ReqContent  string
 	http1RespContent string
-
 	hpackDecoderReq  *hpack.Decoder // 解码请求头
 	hpackDecoderResp *hpack.Decoder // 解码响应头
 
+	toServerBuffer       bytes.Buffer
+	hpackEncoderToServer *hpack.Encoder
+	// hpackDecoderToServer *hpack.Decoder
+
 	streams   map[uint32]*http2Stream // 存储活跃的 HTTP/2 流
 	streamsMu sync.Mutex              // 保护 streams map 的并发访问
+
+	// HTTP/2 SETTINGS 存储
+	http2Settings map[uint16]uint32 // 存储 HTTP/2 SETTINGS 参数
+	settingsMu    sync.Mutex        // 保护 settings map 的并发访问
+
+	pendingBuffer *bytes.Buffer
 }
 
 func NewWatcherWrapConn(conn1 *tls.Conn) *WatcherWrapConn {
-	return &WatcherWrapConn{Conn: conn1, streams: map[uint32]*http2Stream{}, hpackDecoderReq: hpack.NewDecoder(4096, nil), hpackDecoderResp: hpack.NewDecoder(4096, nil)}
+	newBuffer := bytes.NewBuffer([]byte{})
+	return &WatcherWrapConn{
+		Conn:             conn1,
+		streams:          map[uint32]*http2Stream{},
+		http2Settings:    map[uint16]uint32{},
+		hpackDecoderReq:  hpack.NewDecoder(4096, nil),
+		hpackDecoderResp: hpack.NewDecoder(4096, nil),
+
+		toServerBuffer:       *newBuffer,
+		hpackEncoderToServer: hpack.NewEncoder(newBuffer),
+		// hpackDecoderToServer: ,
+	}
 }
 
 func (w *WatcherWrapConn) getOrCreateStream(id uint32) *http2Stream {
@@ -46,49 +66,87 @@ func (w *WatcherWrapConn) getOrCreateStream(id uint32) *http2Stream {
 }
 
 func (w *WatcherWrapConn) Read(p []byte) (int, error) {
+	if w.pendingBuffer != nil && w.pendingBuffer.Len() > 0 {
+		pending := w.pendingBuffer.Bytes()
+		copied := copy(p, pending)
+		w.pendingBuffer.Next(copied)
+		return copied, nil
+	}
 	n, err := w.Conn.Read(p)
-	if n <= 0 {
+	if n <= 0 || err != nil {
 		return n, err
 	}
-	if IsWatcherAllowed {
-		w.reqBuf.Write(p[:n])
-		if !w.prefetched {
-			if w.reqBuf.Len() >= 24 {
-				preface := w.reqBuf.Bytes()[:24]
-				if string(preface) == http2.ClientPreface {
-					w.prefetched = true
-					w.reqBuf.Next(24)
-					w.parseHttp2Req()
-					return n, err
-				} else {
-					// 明确不是 http2 才判定为 http1
-					w.isHttp1 = true
-					w.parseHttp1Req()
-				}
-			} else {
-				// 数据不够，等下一次
+
+	w.reqBuf.Write(p[:n])
+
+	if w.reqBuf.Len() >= 24 {
+		preface := w.reqBuf.Bytes()[:24]
+		if string(preface) == http2.ClientPreface || w.prefetched {
+			w.prefetched = true
+			w.reqBuf.Next(24)
+			newBuf, err := w.parseHttp2Req()
+			if err != nil {
+				logger.Error(fmt.Sprintf("Error parsing HTTP/2 request: %v", err))
 				return n, err
 			}
+			w.reqBuf.Write(newBuf)
+
+			// 安全地复制数据，避免越界
+			copied := copy(p, newBuf)
+			if copied < len(newBuf) {
+				w.pendingBuffer = bytes.NewBuffer(newBuf[copied:])
+			}
+			return copied, err
+		} else {
+			// 明确不是 http2 才判定为 http1
+			w.isHttp1 = true
+			newReq, err := w.parseHttp1Req()
+			if err != nil {
+				return n, err
+			}
+
+			// 安全地复制数据，避免越界
+			copied := copy(p, newReq)
+			if copied < len(newReq) {
+				w.pendingBuffer = bytes.NewBuffer(newReq[copied:])
+			}
+			return copied, err
 		}
+	} else {
+		// 数据不够，等下一次
+		return n, err
 	}
-	return n, err
 }
 
-func (w *WatcherWrapConn) parseHttp1Req() {
+func (w *WatcherWrapConn) parseHttp1Req() ([]byte, error) {
 	logger.Debug("📦 HTTP/1 connection preface detected")
-	w.processH1ReqHeaders()
+	return w.processH1ReqHeaders()
 }
 
-func (w *WatcherWrapConn) parseHttp2Req() {
+func (w *WatcherWrapConn) parseHttp2Req() ([]byte, error) {
 	logger.Debug("📦 HTTP/2 connection preface detected")
+	preBuff := bytes.NewBuffer([]byte{})
 	for {
 		// 避免粘包、半包的情况
 		frame, ok := w.tryParseFrameFromBuf(&w.reqBuf, true)
 		if !ok {
 			break
 		}
-		w.processHttp2RequestFrame(frame)
+		newFrame, isEnd, err := w.processHttp2RequestFrame(frame)
+		preBuff.Write(newFrame)
+		if err != nil {
+			logger.Error(fmt.Sprintf("Error processing HTTP/2 request frame: %v", err))
+			// 修复：[]byte 不能直接用 + 连接，应该用 append
+			result := append(preBuff.Bytes(), w.reqBuf.Bytes()...)
+			return result, nil
+		}
+		if isEnd {
+			break
+		}
 	}
+	// 修复：[]byte 不能直接用 + 连接，应该用 append
+	result := append(preBuff.Bytes(), w.reqBuf.Bytes()...)
+	return result, nil
 }
 
 func (w *WatcherWrapConn) Write(p []byte) (n int, err error) {
@@ -135,23 +193,4 @@ func (w *WatcherWrapConn) tryParseFrameFromBuf(buf *bytes.Buffer, shouldMove boo
 		buf.Next(totalLen)
 	}
 	return frame, true
-}
-
-func (w *WatcherWrapConn) decodeHeaderBlock(block []byte, isRequest bool) (map[string]string, error) {
-	headers := make(map[string]string)
-
-	var decoder *hpack.Decoder
-	if isRequest {
-		decoder = w.hpackDecoderReq
-	} else {
-		decoder = w.hpackDecoderResp
-	}
-
-	// 每次重新设置 emitFunc（因为 headers 是临时的）
-	decoder.SetEmitFunc(func(f hpack.HeaderField) {
-		headers[f.Name] = f.Value
-	})
-
-	_, err := decoder.Write(block)
-	return headers, err
 }

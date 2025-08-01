@@ -1,5 +1,5 @@
 package helper
 
-var IsWatcherAllowed = false
+var IsWatcherAllowed = true
 
 var IsCursorProxyEnabled = true

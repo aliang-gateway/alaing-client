@@ -3,7 +3,6 @@ package helper
 import (
 	"bytes"
 	"fmt"
-	"strconv"
 	"strings"
 
 	"nursor.org/nursorgate/client/user"
@@ -25,56 +24,46 @@ func (w *WatcherWrapConn) parseHttp1Headers(data []byte) map[string]string {
 	return headers
 }
 
-func (w *WatcherWrapConn) processH1ReqHeaders() error {
-	// 获取完整的请求头（HTTP/1.x）
-	data := w.reqBuf.Bytes()
-	headersEndIdx := bytes.Index(data, []byte("\r\n\r\n"))
+func (w *WatcherWrapConn) processH1ReqHeaders() ([]byte, error) {
+	dataOrigin := w.reqBuf.Bytes()
+	headersEndIdx := bytes.Index(dataOrigin, []byte("\r\n\r\n"))
 	if headersEndIdx == -1 {
-		return nil // 请求头还没有完全接收，等待更多数据
+		return dataOrigin, nil // 请求头还没接收完整
 	}
 
-	w.http1ReqContent = string(data)
+	headersData := dataOrigin[:headersEndIdx+4]
+	bodyData := dataOrigin[headersEndIdx+4:]
 
-	headersData := data[:headersEndIdx+4] // 包含头部和结束的 "\r\n\r\n"
-	w.reqBuf.Next(headersEndIdx + 4)      // 从缓冲区移除已解析的头部数据
+	w.http1ReqContent = string(dataOrigin)
 
-	// 解析 HTTP/1.x 头部
+	// 解析 headers
 	headers := w.parseHttp1Headers(headersData)
+
+	// 获取首行（request line）
+	lines := bytes.SplitN(headersData, []byte("\r\n"), 2)
+	if len(lines) < 2 {
+		return dataOrigin, fmt.Errorf("invalid HTTP/1 request: missing request line")
+	}
+	requestLine := string(lines[0]) // 比如：GET /abc HTTP/1.1
+
+	// 注入自定义 header
+	headers["nursor-token"] = "1a12dfa3456"
 	if authHeader, ok := headers["authorization"]; ok {
 		w.isTokenFound = true
 		user.SetAccessToken(authHeader)
-		// logger.Debug(fmt.Sprintf("✅ HTTP/1.x Authorization token found: %s", authHeader))
 	}
 
-	if contentLengthStr, ok := headers["content-length"]; ok {
-		contentLength, err := strconv.Atoi(contentLengthStr)
-		if err != nil {
-			logger.Error(fmt.Sprintf("Failed to parse Content-Length: %v", err))
-			return fmt.Errorf("invalid Content-Length: %w", err)
-		}
-		// Ensure we have enough data in the buffer for the entire body
-		if w.reqBuf.Len() < contentLength {
-			// Body not fully received yet. We need to wait for more data.
-			// This function will be called again by Read() when more data arrives.
-			// For simplicity, we return here and rely on subsequent Read() calls.
-			logger.Debug(fmt.Sprintf("HTTP/1.x body not fully received yet. Expected %d, got %d", contentLength, w.reqBuf.Len()))
-			return nil
-		}
-
-		// Extract the body
-		// You can add more specific body processing here if needed,
-		// e.g., JSON parsing based on Content-Type header.
-		// w.processResponseBody(body) // If you have a generic body processor
-		// logger.Info(body)
-	} else {
-		// If Content-Length is not present, for requests like POST/PUT,
-		// it might mean there's no body, or it's chunked encoding.
-		// For simplicity here, we assume no body if no Content-Length.
-		// Handling chunked encoding would require more complex parsing.
-		logger.Debug("No Content-Length header found for HTTP/1.x request. Assuming no body or chunked encoding (not handled here).")
+	// 重建 HTTP/1 请求头字符串
+	var rebuilt bytes.Buffer
+	rebuilt.WriteString(requestLine + "\r\n")
+	for k, v := range headers {
+		rebuilt.WriteString(fmt.Sprintf("%s: %s\r\n", k, v))
 	}
+	rebuilt.WriteString("\r\n") // headers 结束
+	rebuilt.Write(bodyData)     // 添加 body（如果有）
+	logger.Debug(fmt.Sprintf("new http1 content is : %s", rebuilt.String()))
 
-	return nil
+	return rebuilt.Bytes(), nil
 }
 
 // parseRequestLine parses the HTTP/1.x request line (e.g., "GET /path HTTP/1.1").
