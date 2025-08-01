@@ -24,7 +24,7 @@ func RunBackground() {
 	logger.SetLogLevel(logger.DEBUG)
 
 	//utils.SetServerHost("ai-gateway.nursor.org:8889")
-	utils.SetServerHost("api2.nursor.org:12235")
+	utils.SetServerHost("test-ai-gateway.nursor.org:18889")
 
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)

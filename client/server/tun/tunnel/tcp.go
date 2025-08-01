@@ -66,8 +66,9 @@ func (t *Tunnel) handleTCPConn(originConn adapter.TCPConn) {
 				if err := tlsConn.Handshake(); err != nil {
 					if errors.Is(err, io.EOF) {
 						logger.Debug("client close the handshake connection", serverName)
+					} else {
+						logger.Error(fmt.Sprintf("TLS handshake failed: %s, %v", serverName, err))
 					}
-					logger.Error(fmt.Sprintf("TLS handshake failed: %s, %v", serverName, err))
 					return
 				}
 				state := tlsConn.ConnectionState()
@@ -80,8 +81,8 @@ func (t *Tunnel) handleTCPConn(originConn adapter.TCPConn) {
 						logger.Error(fmt.Sprintf("failure in connenct to anydoor %v", err))
 						return
 					}
-					watcherConn := helper.NewWatcherWrapConn(tlsConn)
-					pipe(watcherConn, remoteConn)
+					// watcherConn := helper.NewWatcherWrapConn(tlsConn)
+					pipe(tlsConn, remoteConn)
 				}
 				return
 			}
