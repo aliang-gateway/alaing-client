@@ -21,7 +21,7 @@ func RunBackground() {
 	go server.StartHttpServer()
 	//go server.StartMitmHttp()
 	model.NewAllowProxyDomain()
-	logger.SetLogLevel(logger.DEBUG)
+	logger.SetLogLevel(logger.WARN)
 
 	//utils.SetServerHost("ai-gateway.nursor.org:8889")
 	utils.SetServerHost("test-ai-gateway.nursor.org:18889")

@@ -82,9 +82,12 @@ func getToCursorDomain() *C.char {
 }
 
 //export runGate
-func runGate(userToken *C.char) *C.char {
+func runGate(userToken *C.char, innerToken *C.char) *C.char {
 	uToken := C.GoString(userToken)
 	user.SetUserToken(uToken)
+	innerTokenStr := C.GoString(innerToken)
+	user.SetInnerToken(innerTokenStr)
+	logger.SetUserInfo(innerTokenStr)
 	model.NewAllowProxyDomain()
 	utils.SetServerHost("api2.nursor.org:12235")
 	go tun.Start()
@@ -95,13 +98,14 @@ func runGate(userToken *C.char) *C.char {
 }
 
 //export setUserInfo
-func setUserInfo(uToken *C.char, userId *C.char, username *C.char, password *C.char) {
-	userIdStr := C.GoString(userId)
+func setUserInfo(uToken *C.char, innerToken *C.char, username *C.char, password *C.char) {
+	innerTokenStr := C.GoString(innerToken)
 	usernameStr := C.GoString(username)
 	passwordStr := C.GoString(password)
 	user.SetUsername(usernameStr)
 	user.SetPassword(passwordStr)
-	logger.SetUserInfo(userIdStr)
+	user.SetInnerToken(innerTokenStr)
+	logger.SetUserInfo(innerTokenStr)
 }
 
 //export setLogWatchMode

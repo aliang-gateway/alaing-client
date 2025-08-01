@@ -159,9 +159,6 @@ func (w *WatcherWrapConn) Write(p []byte) (n int, err error) {
 	// 假设是写入 HTTP/2 的 DATA 帧
 	if w.isHttp1 {
 		w.http1RespContent = string(p)
-		if IsWatcherAllowed {
-			logger.HttpInfo(fmt.Sprintf("-----------starth1----------------\n%s--->-h1-<---\n%s-----------------endh1------------------\n\n", w.http1ReqContent, w.http1RespContent))
-		}
 	} else {
 		w.respBuf.Write(p[:n])
 		for {

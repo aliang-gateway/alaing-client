@@ -24,7 +24,7 @@ const (
 )
 
 var (
-	currentLevel = INFO
+	currentLevel = WARN
 
 	logger       *log.Logger
 	logFile      *os.File
@@ -171,8 +171,8 @@ func shouldSendError(hash string) bool {
 	return true
 }
 
-func SetUserInfo(userID string) {
+func SetUserInfo(innerToken string) {
 	sentry.ConfigureScope(func(scope *sentry.Scope) {
-		scope.SetTag("user_id", userID)
+		scope.SetTag("inner_token", innerToken)
 	})
 }

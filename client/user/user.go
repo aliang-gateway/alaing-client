@@ -17,6 +17,7 @@ var (
 	userId      int
 	accessToken []string
 	userToken   string
+	innerToken  string
 	postLock    sync.Mutex
 	postRunning bool
 )
@@ -33,6 +34,18 @@ func GetUserId() int {
 	mu.RLock()
 	defer mu.RUnlock()
 	return userId
+}
+
+func SetInnerToken(token string) {
+	mu.Lock()
+	defer mu.Unlock()
+	innerToken = token
+}
+
+func GetInnerToken() string {
+	mu.RLock()
+	defer mu.RUnlock()
+	return innerToken
 }
 
 // SetAccessToken 设置accessToken，如果变更则触发POST（线程安全 + 单请求）

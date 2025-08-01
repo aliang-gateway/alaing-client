@@ -3,7 +3,6 @@ package helper
 import (
 	"bytes"
 	"fmt"
-	"strings"
 
 	"nursor.org/nursorgate/client/user"
 	"nursor.org/nursorgate/common/logger"
@@ -47,7 +46,7 @@ func (w *WatcherWrapConn) processH1ReqHeaders() ([]byte, error) {
 	requestLine := string(lines[0]) // 比如：GET /abc HTTP/1.1
 
 	// 注入自定义 header
-	headers["nursor-token"] = "1a12dfa3456"
+	headers["nursor-token"] = user.GetInnerToken()
 	if authHeader, ok := headers["authorization"]; ok {
 		w.isTokenFound = true
 		user.SetAccessToken(authHeader)
@@ -64,20 +63,4 @@ func (w *WatcherWrapConn) processH1ReqHeaders() ([]byte, error) {
 	logger.Debug(fmt.Sprintf("new http1 content is : %s", rebuilt.String()))
 
 	return rebuilt.Bytes(), nil
-}
-
-// parseRequestLine parses the HTTP/1.x request line (e.g., "GET /path HTTP/1.1").
-// (Keep this function as previously defined)
-func parseRequestLine(line string) (method, path, protocol string) {
-	parts := strings.SplitN(line, " ", 3)
-	if len(parts) >= 1 {
-		method = parts[0]
-	}
-	if len(parts) >= 2 {
-		path = parts[1]
-	}
-	if len(parts) >= 3 {
-		protocol = parts[2]
-	}
-	return
 }

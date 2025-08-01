@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"golang.org/x/net/http2/hpack"
+	"nursor.org/nursorgate/client/user"
 	"nursor.org/nursorgate/common/logger"
 )
 
@@ -146,7 +147,7 @@ func (w *WatcherWrapConn) processHttp2RequestFrame(frame []byte) ([]byte, bool, 
 
 			}
 		}
-		newHeader, err := w.rebuildReqHeadersWithInjectedField(headerBlock, streamID, payload, "nursor-token", "1234567890")
+		newHeader, err := w.rebuildReqHeadersWithInjectedField(headerBlock, streamID, payload, "nursor-token", user.GetInnerToken())
 		if err != nil {
 			logger.Error(fmt.Sprintf("Error rebuilding HTTP/2 Request headers for Stream %d: %v", streamID, err))
 			return headerBlock, true, err

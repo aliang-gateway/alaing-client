@@ -11,7 +11,6 @@ import (
 	"runtime"
 	"sync"
 
-	"github.com/getsentry/sentry-go"
 	"github.com/gorilla/websocket"
 	"nursor.org/nursorgate/client/install"
 	"nursor.org/nursorgate/client/outbound"
@@ -171,13 +170,15 @@ func writePortToFile(port string) error {
 
 func handleRun(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		UserToken string `json:"user_token"`
+		UserToken  string `json:"user_token"`
+		InnerToken string `json:"inner_token"`
 	}
 	if err := decodeRequest(r, &req); err != nil {
 		sendError(w, "Invalid request body", http.StatusBadRequest, nil)
 		return
 	}
 	user.SetUserToken(req.UserToken)
+	user.SetInnerToken(req.InnerToken)
 	go tun.Start()
 	res := <-tun.RunStatusChan
 	sendResponse(w, res)
@@ -190,21 +191,19 @@ func handleStop(w http.ResponseWriter, r *http.Request) {
 
 func handleRunUserInfo(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		UserToken string `json:"user_token"`
-		UserId    string `json:"user_id"`
-		Username  string `json:"username"`
-		Password  string `json:"password"`
+		UserToken  string `json:"user_token"`
+		InnerToken string `json:"inner_token"`
+		Username   string `json:"username"`
+		Password   string `json:"password"`
 	}
 	if err := decodeRequest(r, &req); err != nil {
 		sendError(w, "Invalid request body", http.StatusBadRequest, nil)
 		return
 	}
-	sentry.ConfigureScope(func(scope *sentry.Scope) {
-		scope.SetTag("user_id", req.UserId)
-	})
+	logger.SetUserInfo(req.InnerToken)
 	user.SetUsername(req.Username)
 	user.SetPassword(req.Password)
-	print("set user info tag")
+	logger.Info("set user info tag")
 	sendResponse(w, map[string]string{
 		"status":  "success",
 		"user_id": fmt.Sprintf("%d", user.GetUserId()),
