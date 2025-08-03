@@ -11,7 +11,9 @@ import (
 
 	"golang.zx2c4.com/wireguard/tun"
 	mytun "nursor.org/nursorgate/client/server/tun"
+	"nursor.org/nursorgate/client/user"
 	"nursor.org/nursorgate/client/utils"
+	"nursor.org/nursorgate/common/logger"
 	"nursor.org/nursorgate/common/model"
 )
 
@@ -48,8 +50,12 @@ func TestTunWindows(t *testing.T) {
 }
 
 func TestTunWindows2(t *testing.T) {
+	logger.SetLogLevel(logger.DEBUG)
 	model.NewAllowProxyDomain()
-	utils.SetServerHost("api2.nursor.org:12235")
+	user.SetUserToken("eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzg1NDk4NzI0LCJpYXQiOjE3NTM5NjI3MjQsImp0aSI6IjExOGYyNzcyZDIzNjQxYTc4ZjkxNmIzN2YxYWZiMjlhIiwidXNlcl9pZCI6ODd9.r-pRc9hB5FGfrGZ5i7sxiq0ksIePC2P0Hi-kMGygq-s")
+	user.SetInnerToken("mHyx3CjWgf94aqcSKT")
+	// utils.SetServerHost("api2.nursor.org:12235")
+	utils.SetServerHost("test-ai-gateway.nursor.org:18889")
 	mytun.Start()
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)

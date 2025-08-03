@@ -23,8 +23,11 @@ const (
 	frameTypeWindowUpdate = 0x8
 	frameTypeContinuation = 0x9
 
+	flagEndStream  = 0x1
+	flagAck        = 0x1
 	flagEndHeaders = 0x4
-	flagEndStream  = 0x1 // 补充 END_STREAM 标志
+	flagPadded     = 0x8
+	flagPriority   = 0x20
 
 	// HTTP/2 SETTINGS 参数类型
 	SETTINGS_HEADER_TABLE_SIZE      = 0x1
@@ -111,69 +114,92 @@ type http2Stream struct {
 	RespEndStream bool // 标记响应体是否已结束 (收到 END_STREAM)
 }
 
-func (w *WatcherWrapConn) processHttp2RequestFrame(frame []byte) ([]byte, bool, error) {
-	// length := binary.BigEndian.Uint32(append([]byte{0}, frame[0:3]...))
-	ftype := frame[3]
-	flags := frame[4]
-	streamID := binary.BigEndian.Uint32(frame[5:9]) & 0x7FFFFFFF
-	payload := frame[frameHeaderLen:]
+func (w *WatcherWrapConn) processHttp2RequestFrame(preBuff *bytes.Buffer) error {
+	for {
+		frame, ok := w.tryExtractFrameFromBuf(&w.reqBuf, true)
+		if !ok {
+			return nil
+		}
+		ftype := frame[3]
+		flags := frame[4]
+		streamID := binary.BigEndian.Uint32(frame[5:9]) & 0x7FFFFFFF
+		payload := frame[frameHeaderLen:]
 
-	w.getOrCreateStream(streamID)
+		w.getOrCreateStream(streamID)
 
-	switch ftype {
-	case frameTypeHeaders:
-		headerBlock := append([]byte{}, payload...)
+		switch ftype {
+		case frameTypeHeaders:
+			_, priorityPayload, _ := extraceHeaderBlockPriority(frame, flags)
 
-		if flags&flagEndHeaders == 0 {
-			// Continue collecting CONTINUATION frames
-			for {
-				contFrame, ok := w.tryParseFrameFromBuf(&w.reqBuf, false)
-				if !ok {
-					break
-				}
-				ctype := contFrame[3]
-				cflags := contFrame[4]
-				cstreamID := binary.BigEndian.Uint32(contFrame[5:9]) & 0x7FFFFFFF
-				if ctype != frameTypeContinuation || cstreamID != streamID {
-					// 这里break，可以跳出这次stream的处理，出去再进来，就是处理另外一个stream的逻辑了
-					break
-				}
-				// 这里来move，避免上边的break丢去包的问题
-				w.reqBuf.Next(len(contFrame))
-				headerBlock = append(headerBlock, contFrame[frameHeaderLen:]...)
-				if cflags&flagEndHeaders != 0 {
-					break
-				}
-
+			frameHeaderPayload, err := extractHeaderBlockFromHeaderFrame(frame, flags)
+			if err != nil {
+				return err
 			}
-		}
-		newHeader, err := w.rebuildReqHeadersWithInjectedField(headerBlock, streamID, payload, "nursor-token", user.GetInnerToken())
-		if err != nil {
-			logger.Error(fmt.Sprintf("Error rebuilding HTTP/2 Request headers for Stream %d: %v", streamID, err))
-			return headerBlock, true, err
-		}
-		return newHeader, true, nil
 
-	case frameTypeSettings:
-		// 解析并保存 SETTINGS 帧
-		w.ParseSettingsFrame(payload)
-		logger.Debug("HTTP/2 SETTINGS frame processed and saved")
+			headerBlock := append([]byte{}, frameHeaderPayload...)
 
-	case frameTypeData:
-		// 处理请求体（DATA帧）
-		w.streamsMu.Lock()
-		stream := w.streams[streamID]
-		stream.ReqBody.Write(payload)
-		if flags&flagEndStream != 0 {
-			stream.ReqEndStream = true
+			if flags&flagEndHeaders == 0 {
+				// Continue collecting CONTINUATION frames
+				for {
+					contFrame, ok := w.tryExtractFrameFromBuf(&w.reqBuf, false)
+					if !ok {
+						break
+					}
+					ctype := contFrame[3]
+					cflags := contFrame[4]
+					cstreamID := binary.BigEndian.Uint32(contFrame[5:9]) & 0x7FFFFFFF
+					if ctype != frameTypeContinuation || cstreamID != streamID {
+						// 这里break，可以跳出这次stream的处理，出去再进来，就是处理另外一个stream的逻辑了
+						break
+					}
+					// 这里来move，避免上边的break丢去包的问题
+					w.reqBuf.Next(len(contFrame))
+					frameHeaderPayload, err := extractHeaderBlockFromHeaderFrame(contFrame, cflags)
+					if err != nil {
+						// 这里可能有bug
+						break
+					}
+					headerBlock = append(headerBlock, frameHeaderPayload...)
+					if cflags&flagEndHeaders != 0 {
+						break
+					}
+				}
+			}
+			newHeader, err := w.rebuildReqHeadersWithInjectedField(headerBlock, streamID, flags, priorityPayload, "nursor-token", user.GetInnerToken())
+
+			if err != nil {
+				logger.Error(fmt.Sprintf("Error rebuilding HTTP/2 Request headers for Stream %d: %v", streamID, err))
+				return err
+			}
+			newHeader[4] = flags
+			preBuff.Write(newHeader)
+			return nil
+
+		case frameTypeSettings:
+			// 解析并保存 SETTINGS 帧
+			w.ParseSettingsFrame(payload)
+			logger.Debug("HTTP/2 SETTINGS frame processed and saved")
+			preBuff.Write(frame)
+
+		case frameTypeData:
+			// 处理请求体（DATA帧）
+			w.streamsMu.Lock()
+			stream := w.streams[streamID]
+			stream.ReqBody.Write(payload)
+			if flags&flagEndStream != 0 {
+				stream.ReqEndStream = true
+			}
+			w.streamsMu.Unlock()
+			preBuff.Write(frame)
+
+		case frameTypeGoaway:
+			logger.Debug("收到完整相应")
+			preBuff.Write(frame)
+		default:
+			preBuff.Write(frame)
+
 		}
-		w.streamsMu.Unlock()
-
-	case frameTypeGoaway:
-		logger.Debug("收到完整相应")
 	}
-	return frame, false, nil
-
 }
 
 func (w *WatcherWrapConn) processHttp2ResponseFrame(frame []byte) {
@@ -197,7 +223,7 @@ func (w *WatcherWrapConn) processHttp2ResponseFrame(frame []byte) {
 		if flags&flagEndHeaders == 0 {
 			// 继续收集 CONTINUATION 帧
 			for {
-				contFrame, ok := w.tryParseFrameFromBuf(&w.respBuf, false) // 仍然从请求缓冲区读取
+				contFrame, ok := w.tryExtractFrameFromBuf(&w.respBuf, false) // 仍然从请求缓冲区读取
 				if !ok {
 					break
 				}
@@ -270,7 +296,8 @@ func (w *WatcherWrapConn) processHttp2ResponseFrame(frame []byte) {
 func (w *WatcherWrapConn) rebuildReqHeadersWithInjectedField(
 	headerBlock []byte,
 	streamID uint32,
-	remainingPayload []byte, // headers 后面剩余的 TCP 流数据
+	originFlags byte,
+	priorityPayload []byte,
 	keyToInject string,
 	valueToInject string,
 ) ([]byte, error) {
@@ -290,8 +317,6 @@ func (w *WatcherWrapConn) rebuildReqHeadersWithInjectedField(
 	logger.Debug(fmt.Sprintf("HTTP/2 Request Headers for Stream %d: %+v", streamID, headers))
 
 	// 3. HPACK 编码新的 header block
-	// var hpackBuf bytes.Buffer
-	// encoder := hpack.NewEncoder(&hpackBuf)
 	w.toServerBuffer.Reset()
 	for k, v := range headers {
 		if err := w.hpackEncoderToServer.WriteField(hpack.HeaderField{Name: k, Value: v}); err != nil {
@@ -307,6 +332,9 @@ func (w *WatcherWrapConn) rebuildReqHeadersWithInjectedField(
 	}
 
 	var frames [][]byte
+	if originFlags&flagPriority != 0 {
+		newHeaderBlock = append(priorityPayload, newHeaderBlock...)
+	}
 	remaining := newHeaderBlock
 	first := true
 	for len(remaining) > 0 {
@@ -325,6 +353,10 @@ func (w *WatcherWrapConn) rebuildReqHeadersWithInjectedField(
 			if len(remaining) == 0 {
 				flags |= flagEndHeaders
 			}
+			if originFlags&flagPriority != 0 {
+				flags |= flagPriority
+			}
+
 		} else {
 			frameType = frameTypeContinuation
 			flags = 0
@@ -352,7 +384,6 @@ func (w *WatcherWrapConn) rebuildReqHeadersWithInjectedField(
 	for _, f := range frames {
 		fullBuf.Write(f)
 	}
-	fullBuf.Write(remainingPayload)
 	return fullBuf.Bytes(), nil
 }
 
@@ -367,10 +398,58 @@ func (w *WatcherWrapConn) decodeHeaderBlock(block []byte, isRequest bool) (map[s
 	}
 
 	// 每次重新设置 emitFunc（因为 headers 是临时的）
-	w.hpackDecoderReq.SetEmitFunc(func(f hpack.HeaderField) {
+	decoder.SetEmitFunc(func(f hpack.HeaderField) {
 		headers[f.Name] = f.Value
 	})
 
 	_, err := decoder.Write(block)
 	return headers, err
+}
+
+func extractHeaderBlockFromHeaderFrame(frame []byte, flags byte) ([]byte, error) {
+	payload := frame[frameHeaderLen:]
+
+	offset := 0
+
+	// 如果有 PADDED，先读取 padding 长度
+	if flags&flagPadded != 0 {
+		if len(payload) < 1 {
+			return nil, fmt.Errorf("PADDED flag set but payload too short")
+		}
+		padLength := int(payload[0])
+		offset += 1
+
+		// 确保长度合法
+		if len(payload) < offset+padLength {
+			return nil, fmt.Errorf("padding length invalid: payload=%d pad=%d", len(payload), padLength)
+		}
+
+		payload = payload[offset : len(payload)-padLength]
+		offset = 0
+	} else {
+		payload = payload[offset:]
+	}
+
+	// 如果有 PRIORITY，跳过 5 字节
+	if flags&flagPriority != 0 {
+		if len(payload) < 5 {
+			return nil, fmt.Errorf("PRIORITY flag set but payload too short")
+		}
+		payload = payload[5:]
+	}
+
+	return payload, nil
+}
+
+func extraceHeaderBlockPriority(frame []byte, flags byte) (bool, []byte, error) {
+	payload := frame[frameHeaderLen:]
+	if flags&flagPriority != 0 {
+		if len(payload) < 5 {
+			return false, nil, fmt.Errorf("PRIORITY flag set but payload too short")
+		}
+		priorityPayload := payload[:5]
+		return true, priorityPayload, nil
+
+	}
+	return false, nil, nil
 }

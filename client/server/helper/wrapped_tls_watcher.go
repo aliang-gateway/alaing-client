@@ -25,7 +25,7 @@ type WatcherWrapConn struct {
 	hpackDecoderReq  *hpack.Decoder // 解码请求头
 	hpackDecoderResp *hpack.Decoder // 解码响应头
 
-	toServerBuffer       bytes.Buffer
+	toServerBuffer       *bytes.Buffer
 	hpackEncoderToServer *hpack.Encoder
 	// hpackDecoderToServer *hpack.Decoder
 
@@ -48,7 +48,7 @@ func NewWatcherWrapConn(conn1 *tls.Conn) *WatcherWrapConn {
 		hpackDecoderReq:  hpack.NewDecoder(4096, nil),
 		hpackDecoderResp: hpack.NewDecoder(4096, nil),
 
-		toServerBuffer:       *newBuffer,
+		toServerBuffer:       newBuffer,
 		hpackEncoderToServer: hpack.NewEncoder(newBuffer),
 		// hpackDecoderToServer: ,
 	}
@@ -66,56 +66,88 @@ func (w *WatcherWrapConn) getOrCreateStream(id uint32) *http2Stream {
 }
 
 func (w *WatcherWrapConn) Read(p []byte) (int, error) {
+	// 1. 优先从 pendingBuffer 中读取
 	if w.pendingBuffer != nil && w.pendingBuffer.Len() > 0 {
-		pending := w.pendingBuffer.Bytes()
-		copied := copy(p, pending)
+		copied := copy(p, w.pendingBuffer.Bytes())
 		w.pendingBuffer.Next(copied)
+		if w.pendingBuffer.Len() == 0 {
+			w.pendingBuffer = nil
+		}
 		return copied, nil
 	}
+
+	// 2. 从底层连接读取数据
 	n, err := w.Conn.Read(p)
 	if n <= 0 || err != nil {
+		// 代表这次请求真的结束了
+		println(string(p))
 		return n, err
 	}
 
 	w.reqBuf.Write(p[:n])
 
-	if w.reqBuf.Len() >= 24 {
-		preface := w.reqBuf.Bytes()[:24]
-		if string(preface) == http2.ClientPreface || w.prefetched {
-			w.prefetched = true
-			w.reqBuf.Next(24)
-			newBuf, err := w.parseHttp2Req()
-			if err != nil {
-				logger.Error(fmt.Sprintf("Error parsing HTTP/2 request: %v", err))
-				return n, err
+	// 3. 判断是否是 HTTP/2 preface
+	if w.reqBuf.Len() >= 24 || w.prefetched {
+		isHttp2 := w.prefetched
+		isPrefaceDrop := false
+		// 避免碎片化的数据导致的越界
+		if !isHttp2 {
+			preface := w.reqBuf.Bytes()[:24]
+			isHttp2 = string(preface) == http2.ClientPreface
+			if isHttp2 {
+				w.prefetched = true
+				w.reqBuf.Next(24) // 移除preface
+				isPrefaceDrop = true
 			}
-			w.reqBuf.Write(newBuf)
+		}
 
-			// 安全地复制数据，避免越界
-			copied := copy(p, newBuf)
-			if copied < len(newBuf) {
-				w.pendingBuffer = bytes.NewBuffer(newBuf[copied:])
+		if isHttp2 {
+			originH2Content := string(p[:n])
+			newBuf, pErr := w.parseHttp2Req()
+			if pErr != nil {
+				logger.Error(fmt.Sprintf("Error parsing HTTP/2 request: %v", pErr))
+				// 相当于吹失败就直接放弃这次请求
+				return 0, pErr
 			}
-			return copied, err
+			// newBuf := w.reqBuf.Bytes()
+			var finalBuf []byte
+			if isPrefaceDrop {
+				finalBuf = append([]byte(http2.ClientPreface), newBuf...)
+			} else {
+				finalBuf = newBuf
+			}
+
+			copied := copy(p, finalBuf)
+			if copied < len(finalBuf) {
+				w.pendingBuffer = bytes.NewBuffer(finalBuf[copied:])
+			}
+			endH2Content := string(finalBuf)
+			fmt.Println("is the same? ->", originH2Content == endH2Content)
+			if originH2Content != endH2Content {
+
+			}
+			return copied, nil
+			// return n, nil
 		} else {
-			// 明确不是 http2 才判定为 http1
+			// HTTP/1.x 请求
 			w.isHttp1 = true
-			newReq, err := w.parseHttp1Req()
-			if err != nil {
-				return n, err
+			newReq, pErr := w.parseHttp1Req()
+			if pErr != nil {
+				// 反正http1全程就就一次，结束了亦可以将数据转发出去，所以0->n
+				return n, pErr
 			}
 
-			// 安全地复制数据，避免越界
 			copied := copy(p, newReq)
 			if copied < len(newReq) {
 				w.pendingBuffer = bytes.NewBuffer(newReq[copied:])
+				return copied, nil
 			}
 			return copied, err
 		}
-	} else {
-		// 数据不够，等下一次
-		return n, err
 	}
+
+	// 数据还不够判断协议，等待下一轮
+	return 0, nil
 }
 
 func (w *WatcherWrapConn) parseHttp1Req() ([]byte, error) {
@@ -126,25 +158,14 @@ func (w *WatcherWrapConn) parseHttp1Req() ([]byte, error) {
 func (w *WatcherWrapConn) parseHttp2Req() ([]byte, error) {
 	logger.Debug("📦 HTTP/2 connection preface detected")
 	preBuff := bytes.NewBuffer([]byte{})
-	for {
-		// 避免粘包、半包的情况
-		frame, ok := w.tryParseFrameFromBuf(&w.reqBuf, true)
-		if !ok {
-			break
-		}
-		newFrame, isEnd, err := w.processHttp2RequestFrame(frame)
-		preBuff.Write(newFrame)
-		if err != nil {
-			logger.Error(fmt.Sprintf("Error processing HTTP/2 request frame: %v", err))
-			// 修复：[]byte 不能直接用 + 连接，应该用 append
-			result := append(preBuff.Bytes(), w.reqBuf.Bytes()...)
-			return result, nil
-		}
-		if isEnd {
-			break
-		}
+	err := w.processHttp2RequestFrame(preBuff)
+	if err != nil {
+		logger.Error(fmt.Sprintf("Error processing HTTP/2 request frame: %v", err))
+		// 直接丢弃
+		result := append(preBuff.Bytes(), w.reqBuf.Bytes()...)
+		return result, err
 	}
-	// 修复：[]byte 不能直接用 + 连接，应该用 append
+
 	result := append(preBuff.Bytes(), w.reqBuf.Bytes()...)
 	return result, nil
 }
@@ -162,7 +183,7 @@ func (w *WatcherWrapConn) Write(p []byte) (n int, err error) {
 	} else {
 		w.respBuf.Write(p[:n])
 		for {
-			frame, ok := w.tryParseFrameFromBuf(&w.respBuf, true)
+			frame, ok := w.tryExtractFrameFromBuf(&w.respBuf, true)
 			if ok {
 				w.processHttp2ResponseFrame(frame)
 			} else {
@@ -174,7 +195,7 @@ func (w *WatcherWrapConn) Write(p []byte) (n int, err error) {
 	return n, err
 }
 
-func (w *WatcherWrapConn) tryParseFrameFromBuf(buf *bytes.Buffer, shouldMove bool) ([]byte, bool) {
+func (w *WatcherWrapConn) tryExtractFrameFromBuf(buf *bytes.Buffer, shouldMove bool) ([]byte, bool) {
 	data := buf.Bytes()
 	if len(data) < frameHeaderLen {
 		return nil, false
