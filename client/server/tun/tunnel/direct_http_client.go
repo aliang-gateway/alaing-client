@@ -95,8 +95,8 @@ func NewHttp2ProxyClient(server string, SNIName string) (*OutboundClient2, error
 	}
 	c := &OutboundClient2{conn: tlsConn}
 	//err = c.PreHttp2AuthCheck()
-	if err != nil {
-		return nil, err
-	}
+	// if err != nil {
+	// 	return nil, err
+	// }
 	return c, nil
 }

@@ -102,7 +102,7 @@ func BuildHysteriaClientConfig(username, password string) (*client.Config, error
 func NewHysteriaDialer(username, password string) (*HysteriaDialer, error) {
 	config, err := BuildHysteriaClientConfig(username, password)
 	if err != nil {
-		logger.Error("failed to build hysteria Client config: %v", err)
+		logger.Error(fmt.Sprintf("failed to build hysteria Client config: %v", err))
 		return nil, err
 	}
 	h := &HysteriaDialer{
@@ -122,7 +122,7 @@ func NewHysteriaDialer(username, password string) (*HysteriaDialer, error) {
 
 func (h *HysteriaDialer) DialContext(ctx context.Context, m *M.Metadata) (net.Conn, error) {
 	if h.Client == nil {
-		return nil, errors.New("Hysteria Client not initialized")
+		return nil, errors.New("hysteria client not initialized")
 	}
 	target := net.JoinHostPort(m.DstIP.String(), strconv.Itoa(int(m.DstPort)))
 
@@ -155,7 +155,7 @@ func (h *HysteriaDialer) DialContext(ctx context.Context, m *M.Metadata) (net.Co
 
 func (h *HysteriaDialer) DialContextWithServerName(ctx context.Context, m *M.Metadata, SNI string) (net.Conn, error) {
 	if h.Client == nil {
-		return nil, errors.New("Hysteria Client not initialized")
+		return nil, errors.New("hysteria client not initialized")
 	}
 	//target := net.JoinHostPort(m.DstIP.String(), strconv.Itoa(int(m.DstPort)))
 
@@ -188,7 +188,7 @@ func (h *HysteriaDialer) DialContextWithServerName(ctx context.Context, m *M.Met
 
 func (h *HysteriaDialer) DialUDP(m *M.Metadata) (net.PacketConn, error) {
 	if h.Client == nil {
-		return nil, errors.New("Hysteria Client not initialized")
+		return nil, errors.New("hysteria client not initialized")
 	}
 	session, err := h.Client.UDP()
 	if err != nil {

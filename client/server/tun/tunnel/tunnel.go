@@ -2,6 +2,7 @@ package tunnel
 
 import (
 	"context"
+	"fmt"
 	"runtime/debug"
 	"sync"
 	"time"
@@ -76,7 +77,7 @@ func (t *Tunnel) HandleUDP(conn adapter.UDPConn) {
 func (t *Tunnel) process(ctx context.Context) {
 	defer func() {
 		if r := recover(); r != nil {
-			logger.Error("Recovered from panic in Tunnel.process: %v", r)
+			logger.Error(fmt.Sprintf("Recovered from panic in Tunnel.process: %v", r))
 			debug.PrintStack()
 		}
 	}()
