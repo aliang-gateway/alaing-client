@@ -80,14 +80,12 @@ func (w *WatcherWrapConn) Read(p []byte) (int, error) {
 	n, err := w.Conn.Read(p)
 	if n <= 0 || err != nil {
 		// 代表这次请求真的结束了
-		println(string(p))
 		return n, err
 	}
 
-	w.reqBuf.Write(p[:n])
-
 	// 3. 判断是否是 HTTP/2 preface
-	if w.reqBuf.Len() >= 24 || w.prefetched {
+	if n >= 24 || w.prefetched {
+		w.reqBuf.Write(p[:n])
 		isHttp2 := w.prefetched
 		isPrefaceDrop := false
 		// 避免碎片化的数据导致的越界
@@ -107,7 +105,7 @@ func (w *WatcherWrapConn) Read(p []byte) (int, error) {
 			if pErr != nil {
 				logger.Error(fmt.Sprintf("Error parsing HTTP/2 request: %v", pErr))
 				// 相当于吹失败就直接放弃这次请求
-				return 0, pErr
+				return n, pErr
 			}
 			// newBuf := w.reqBuf.Bytes()
 			var finalBuf []byte
@@ -178,19 +176,19 @@ func (w *WatcherWrapConn) Write(p []byte) (n int, err error) {
 	}
 
 	// 假设是写入 HTTP/2 的 DATA 帧
-	if w.isHttp1 {
-		w.http1RespContent = string(p)
-	} else {
-		w.respBuf.Write(p[:n])
-		for {
-			frame, ok := w.tryExtractFrameFromBuf(&w.respBuf, true)
-			if ok {
-				w.processHttp2ResponseFrame(frame)
-			} else {
-				break
-			}
-		}
-	}
+	// if w.isHttp1 {
+	// 	w.http1RespContent = string(p)
+	// } else {
+	// 	w.respBuf.Write(p[:n])
+	// 	for {
+	// 		frame, ok := w.tryExtractFrameFromBuf(&w.respBuf, true)
+	// 		if ok {
+	// 			w.processHttp2ResponseFrame(frame)
+	// 		} else {
+	// 			break
+	// 		}
+	// 	}
+	// }
 
 	return n, err
 }

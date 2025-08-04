@@ -10,11 +10,10 @@ import (
 	"sync"
 	"time"
 
-	"nursor.org/nursorgate/client/server/helper"
-
 	"golang.org/x/net/context"
 	"golang.org/x/net/http2"
 	"nursor.org/nursorgate/client/outbound/cert"
+	"nursor.org/nursorgate/client/server/helper"
 	"nursor.org/nursorgate/client/server/tun/dialer"
 	"nursor.org/nursorgate/client/utils"
 	"nursor.org/nursorgate/common/logger"
@@ -30,6 +29,7 @@ func (c *OutboundClient2) Forward(localConn *tls.Conn, req *http.Request) error 
 	var wg sync.WaitGroup
 	wg.Add(2)
 	wrapConn := helper.NewWatcherWrapConn(localConn)
+	// wrapConn := localConn
 
 	go func() {
 		// 奇怪得是本地得转发到server得竟然有timeout得情况，不理解
