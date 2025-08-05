@@ -134,3 +134,11 @@ go build -ldflags="-s -w"  -o core-win-amd64
 
 ```
 
+
+
+## 8月4日
+1. http2的header的frame，priority要从payload中提取出来，剩余的payload才能被解析；
+2. payload中的header被组装后，priority要放回去，不然要出问题，cursor官网无法加载；
+3. envoy也可能会将http强行转换成h2，所以这里也要注意
+
+

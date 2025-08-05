@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
+	"io"
 
 	"golang.org/x/net/http2/hpack"
 	"nursor.org/nursorgate/client/user"
@@ -62,6 +63,8 @@ func (w *WatcherWrapConn) ParseSettingsFrame(payload []byte) {
 		switch identifier {
 		case SETTINGS_HEADER_TABLE_SIZE:
 			settingName = "HEADER_TABLE_SIZE"
+			w.hpackDecoderReq.SetMaxDynamicTableSize(value)
+			// w.hpackEncoderToServer.SetMaxDynamicTableSize(value)
 		case SETTINGS_ENABLE_PUSH:
 			settingName = "ENABLE_PUSH"
 		case SETTINGS_MAX_CONCURRENT_STREAMS:
@@ -126,9 +129,10 @@ func (w *WatcherWrapConn) processHttp2RequestFrame(preBuff *bytes.Buffer) error 
 		payload := frame[frameHeaderLen:]
 
 		w.getOrCreateStream(streamID)
-
+		cacheFrame := []byte{}
 		switch ftype {
 		case frameTypeHeaders:
+			cacheFrame = append(cacheFrame, frame...)
 			_, priorityPayload, _ := extraceHeaderBlockPriority(frame, flags)
 
 			frameHeaderPayload, err := extractHeaderBlockFromHeaderFrame(frame, flags)
@@ -141,20 +145,21 @@ func (w *WatcherWrapConn) processHttp2RequestFrame(preBuff *bytes.Buffer) error 
 			if flags&flagEndHeaders == 0 {
 				// Continue collecting CONTINUATION frames
 				for {
-					contFrame, ok := w.tryExtractFrameFromBuf(&w.reqBuf, false)
+					continueFrame, ok := w.tryExtractFrameFromBuf(&w.reqBuf, false)
 					if !ok {
 						break
 					}
-					ctype := contFrame[3]
-					cflags := contFrame[4]
-					cstreamID := binary.BigEndian.Uint32(contFrame[5:9]) & 0x7FFFFFFF
+					ctype := continueFrame[3]
+					cflags := continueFrame[4]
+					cstreamID := binary.BigEndian.Uint32(continueFrame[5:9]) & 0x7FFFFFFF
 					if ctype != frameTypeContinuation || cstreamID != streamID {
 						// 这里break，可以跳出这次stream的处理，出去再进来，就是处理另外一个stream的逻辑了
 						break
 					}
 					// 这里来move，避免上边的break丢去包的问题
-					w.reqBuf.Next(len(contFrame))
-					frameHeaderPayload, err := extractHeaderBlockFromHeaderFrame(contFrame, cflags)
+					w.reqBuf.Next(len(continueFrame))
+					cacheFrame = append(cacheFrame, continueFrame...)
+					frameHeaderPayload, err := extractHeaderBlockFromHeaderFrame(continueFrame, cflags)
 					if err != nil {
 						// 这里可能有bug
 						break
@@ -165,20 +170,21 @@ func (w *WatcherWrapConn) processHttp2RequestFrame(preBuff *bytes.Buffer) error 
 					}
 				}
 			}
-			newHeader, err := w.rebuildReqHeadersWithInjectedField(headerBlock, streamID, flags, priorityPayload, "nursor-token", user.GetInnerToken())
+			newHeaderFrames, err := w.rebuildReqHeadersWithInjectedField(headerBlock, streamID, flags, priorityPayload, "nursor-token", user.GetInnerToken())
 
 			if err != nil {
-				logger.Error(fmt.Sprintf("Error rebuilding HTTP/2 Request headers for Stream %d: %v", streamID, err))
-				return err
+				logger.Error(fmt.Sprintf("❌❌Error rebuilding HTTP/2 Request headers for Stream %d: %v", streamID, err))
+				preBuff.Write(cacheFrame)
+				return nil
 			}
-			newHeader[4] = flags
-			preBuff.Write(newHeader)
-			return nil
+			// newHeader[4] = flags
+			preBuff.Write(newHeaderFrames)
+			// return nil
 
 		case frameTypeSettings:
 			// 解析并保存 SETTINGS 帧
 			w.ParseSettingsFrame(payload)
-			logger.Debug("HTTP/2 SETTINGS frame processed and saved")
+			logger.Debug("HTTP/2 SETTINGS frame processed and saved %v", payload)
 			preBuff.Write(frame)
 
 		case frameTypeData:
@@ -291,6 +297,33 @@ func (w *WatcherWrapConn) processHttp2ResponseFrame(frame []byte) {
 	}
 
 }
+func decodeHPACKInteger(r *bytes.Reader, prefixBits uint8) (uint64, error) {
+	firstByte, err := r.ReadByte()
+	if err != nil {
+		return 0, err
+	}
+	prefixMask := uint8((1 << prefixBits) - 1)
+	value := uint64(firstByte & prefixMask)
+
+	if value < uint64(prefixMask) {
+		return value, nil
+	}
+
+	// 多字节表示
+	multiplier := uint64(1)
+	for {
+		b, err := r.ReadByte()
+		if err != nil {
+			return 0, err
+		}
+		value += uint64(b&127) * multiplier
+		if b&128 == 0 {
+			break
+		}
+		multiplier *= 128
+	}
+	return value, nil
+}
 
 // 重新组装http2的header，并注入新的字段
 func (w *WatcherWrapConn) rebuildReqHeadersWithInjectedField(
@@ -302,39 +335,77 @@ func (w *WatcherWrapConn) rebuildReqHeadersWithInjectedField(
 	valueToInject string,
 ) ([]byte, error) {
 	// 1. 解码原始 header block
-	headers := make(map[string]string)
+	// headers := make(map[string]string)
+	var headerFields []hpack.HeaderField
 	w.hpackDecoderReq.SetEmitFunc(func(f hpack.HeaderField) {
-		headers[f.Name] = f.Value
+		headerFields = append(headerFields, f)
 	})
-	if _, err := w.hpackDecoderReq.Write(headerBlock); err != nil {
+	r := bytes.NewReader(headerBlock)
+	peek, err := r.ReadByte()
+	if err != nil {
+		return nil, err
+	}
+	r.UnreadByte()
+	if peek&0b11100000 == 0b00100000 { // 001xxxxx => 动态表大小更新
+		// ✅ 解析 table size
+		size, err := decodeHPACKInteger(r, 5)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse dynamic table size: %w", err)
+		}
+		fmt.Printf("parsed dynamic table size: %d\n", size)
+
+		// ✅ 手动设置 decoder 的 max size
+		w.hpackDecoderReq.SetMaxDynamicTableSize(uint32(size))
+	}
+	oldRemaining, err := io.ReadAll(r)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read remaining header block: %w", err)
+	}
+
+	if _, err := w.hpackDecoderReq.Write(oldRemaining); err != nil {
+		fmt.Printf("%d", headerBlock)
 		return nil, fmt.Errorf("decode error: %w", err)
+		// tmpDecoder := hpack.NewDecoder(4096, nil)
+		// tmpDecoder.SetEmitFunc(func(f hpack.HeaderField) {
+		// 	headerFields = append(headerFields, f)
+		// })
+		// if _, err2 := tmpDecoder.Write(headerBlock); err2 != nil {
+		// 	fmt.Printf("%v", headerBlock)
+		// 	return nil, fmt.Errorf("decode error: %w", err2)
+		// }
 	}
 
 	// 2. 注入新字段
-	headers[keyToInject] = valueToInject
-
-	w.streams[streamID].RespHeaders = headers
-	logger.Debug(fmt.Sprintf("HTTP/2 Request Headers for Stream %d: %+v", streamID, headers))
+	// headers[keyToInject] = valueToInject
+	headerFields = append(headerFields, hpack.HeaderField{Name: keyToInject, Value: valueToInject})
+	// w.streams[streamID].RespHeaders = headers
+	// logger.Debug(fmt.Sprintf("HTTP/2 Request Headers for Stream %d: %+v", streamID, headers))
 
 	// 3. HPACK 编码新的 header block
 	w.toServerBuffer.Reset()
-	for k, v := range headers {
-		if err := w.hpackEncoderToServer.WriteField(hpack.HeaderField{Name: k, Value: v}); err != nil {
-			return nil, fmt.Errorf("hpack encode error: %w", err)
-		}
+	for _, v := range headerFields {
+		// if err := w.hpackEncoderToServer.WriteField(hpack.HeaderField{Name: v.Name, Value: v.Value, Sensitive: true}); err != nil {
+		// 	return nil, fmt.Errorf("hpack encode error: %w", err)
+		// }
+		v.Sensitive = true
+		w.hpackEncoderToServer.WriteField(v)
 	}
 	newHeaderBlock := w.toServerBuffer.Bytes()
-
+	// newHeaderBlock := headerBlock
 	// 4. 拆分帧
-	maxFrameSize := 16384                                          // 默认值
-	if val, ok := w.GetHttp2Setting(SETTINGS_MAX_FRAME_SIZE); ok { // 0x5 是 SETTINGS_MAX_FRAME_SIZE
+	maxFrameSize := 16384
+	if val, ok := w.GetHttp2Setting(SETTINGS_MAX_FRAME_SIZE); ok {
 		maxFrameSize = int(val)
 	}
 
-	var frames [][]byte
 	if originFlags&flagPriority != 0 {
 		newHeaderBlock = append(priorityPayload, newHeaderBlock...)
 	}
+
+	// 👇 判断原始 HEADERS 是否有 END_STREAM
+	hasEndStream := originFlags&flagEndStream != 0
+
+	var frames [][]byte
 	remaining := newHeaderBlock
 	first := true
 	for len(remaining) > 0 {
@@ -347,25 +418,29 @@ func (w *WatcherWrapConn) rebuildReqHeadersWithInjectedField(
 
 		var frameType byte
 		var flags byte
+
 		if first {
 			frameType = frameTypeHeaders
-			flags = 0
 			if len(remaining) == 0 {
 				flags |= flagEndHeaders
+				if hasEndStream {
+					flags |= flagEndStream // ✅ 添加 END_STREAM
+				}
 			}
 			if originFlags&flagPriority != 0 {
 				flags |= flagPriority
 			}
-
 		} else {
 			frameType = frameTypeContinuation
-			flags = 0
 			if len(remaining) == 0 {
 				flags |= flagEndHeaders
+				// if hasEndStream {
+				// 	flags |= flagEndStream // ✅ CONTINUATION 上也可以打 END_STREAM
+				// }
 			}
 		}
 
-		// 构造 HTTP/2 frame header
+		// 构造 frame
 		length := uint32(len(chunk))
 		frame := make([]byte, frameHeaderLen+len(chunk))
 		frame[0] = byte(length >> 16)
@@ -375,11 +450,12 @@ func (w *WatcherWrapConn) rebuildReqHeadersWithInjectedField(
 		frame[4] = flags
 		binary.BigEndian.PutUint32(frame[5:9], streamID&0x7FFFFFFF)
 		copy(frame[frameHeaderLen:], chunk)
+
 		frames = append(frames, frame)
 		first = false
 	}
 
-	// 5. 合并帧+剩余原始数据
+	// 5. 合并
 	var fullBuf bytes.Buffer
 	for _, f := range frames {
 		fullBuf.Write(f)
@@ -408,37 +484,40 @@ func (w *WatcherWrapConn) decodeHeaderBlock(block []byte, isRequest bool) (map[s
 
 func extractHeaderBlockFromHeaderFrame(frame []byte, flags byte) ([]byte, error) {
 	payload := frame[frameHeaderLen:]
-
 	offset := 0
 
-	// 如果有 PADDED，先读取 padding 长度
+	// PADDED 先读1字节
 	if flags&flagPadded != 0 {
-		if len(payload) < 1 {
+		if len(payload) < offset+1 {
 			return nil, fmt.Errorf("PADDED flag set but payload too short")
 		}
-		padLength := int(payload[0])
+		padLength := int(payload[offset])
 		offset += 1
 
-		// 确保长度合法
 		if len(payload) < offset+padLength {
 			return nil, fmt.Errorf("padding length invalid: payload=%d pad=%d", len(payload), padLength)
 		}
-
-		payload = payload[offset : len(payload)-padLength]
-		offset = 0
-	} else {
-		payload = payload[offset:]
+		// 先暂时不处理 padLength，后面再裁剪
 	}
 
-	// 如果有 PRIORITY，跳过 5 字节
+	// PRIORITY 读取 5 字节
 	if flags&flagPriority != 0 {
-		if len(payload) < 5 {
+		if len(payload) < offset+5 {
 			return nil, fmt.Errorf("PRIORITY flag set but payload too short")
 		}
-		payload = payload[5:]
+		offset += 5
 	}
 
-	return payload, nil
+	if flags&flagPadded != 0 {
+		padLength := int(frame[frameHeaderLen]) // 第一个字节始终是 pad length
+		if len(payload) < offset+padLength {
+			return nil, fmt.Errorf("final payload cut error: payload=%d offset=%d pad=%d", len(payload), offset, padLength)
+		}
+		return payload[offset : len(payload)-padLength], nil
+	}
+
+	// 正常情况
+	return payload[offset:], nil
 }
 
 func extraceHeaderBlockPriority(frame []byte, flags byte) (bool, []byte, error) {

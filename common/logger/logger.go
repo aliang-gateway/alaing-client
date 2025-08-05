@@ -81,7 +81,7 @@ func Init() error {
 	if LogSilent == "true" {
 		logger = log.New(io.Discard, "", log.LstdFlags|log.Lshortfile)
 	} else {
-		logger = log.New(logFile, "", log.LstdFlags|log.Lshortfile)
+		logger = log.New(os.Stdout, "", log.LstdFlags|log.Lshortfile)
 	}
 
 	startCleanupRoutine()

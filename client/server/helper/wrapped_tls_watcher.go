@@ -37,21 +37,53 @@ type WatcherWrapConn struct {
 	settingsMu    sync.Mutex        // 保护 settings map 的并发访问
 
 	pendingBuffer *bytes.Buffer
+
+	mu                 sync.Mutex
+	encoderToserverMap sync.Map
 }
 
 func NewWatcherWrapConn(conn1 *tls.Conn) *WatcherWrapConn {
 	newBuffer := bytes.NewBuffer([]byte{})
+	encoder := hpack.NewEncoder(newBuffer)
+
 	return &WatcherWrapConn{
 		Conn:             conn1,
 		streams:          map[uint32]*http2Stream{},
 		http2Settings:    map[uint16]uint32{},
-		hpackDecoderReq:  hpack.NewDecoder(4096, nil),
-		hpackDecoderResp: hpack.NewDecoder(4096, nil),
+		hpackDecoderReq:  hpack.NewDecoder(65536, nil),
+		hpackDecoderResp: hpack.NewDecoder(65536, nil),
 
 		toServerBuffer:       newBuffer,
-		hpackEncoderToServer: hpack.NewEncoder(newBuffer),
+		hpackEncoderToServer: encoder,
 		// hpackDecoderToServer: ,
 	}
+}
+
+func (m *WatcherWrapConn) GetDecoder(streamID uint32, emitFunc func(hpack.HeaderField)) *hpack.Decoder {
+	// double-checked locking
+	if d, ok := m.encoderToserverMap.Load(streamID); ok {
+		decoder := d.(*hpack.Decoder)
+		decoder.SetEmitFunc(emitFunc) // 更新回调
+		return decoder
+	}
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	// double-check inside lock
+	if d, ok := m.encoderToserverMap.Load(streamID); ok {
+		decoder := d.(*hpack.Decoder)
+		decoder.SetEmitFunc(emitFunc)
+		return decoder
+	}
+
+	decoder := hpack.NewDecoder(4096, emitFunc)
+	m.encoderToserverMap.Store(streamID, decoder)
+	return decoder
+}
+
+func (m *WatcherWrapConn) SetDecoder(streamId uint32, decoder hpack.Decoder) {
+	m.encoderToserverMap.Store(streamId, decoder)
 }
 
 func (w *WatcherWrapConn) getOrCreateStream(id uint32) *http2Stream {
@@ -123,6 +155,10 @@ func (w *WatcherWrapConn) Read(p []byte) (int, error) {
 			fmt.Println("is the same? ->", originH2Content == endH2Content)
 			if originH2Content != endH2Content {
 
+			}
+			if w.reqBuf.Available() == 0 {
+				// 释放一下控件
+				w.reqBuf.Reset()
 			}
 			return copied, nil
 			// return n, nil
