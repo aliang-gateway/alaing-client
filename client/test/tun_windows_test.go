@@ -52,7 +52,7 @@ func TestTunWindows(t *testing.T) {
 func TestTunWindows2(t *testing.T) {
 	logger.SetLogLevel(logger.DEBUG)
 	model.NewAllowProxyDomain()
-	user.SetUserToken("eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzg1NDk4NzI0LCJpYXQiOjE3NTM5NjI3MjQsImp0aSI6IjExOGYyNzcyZDIzNjQxYTc4ZjkxNmIzN2YxYWZiMjlhIiwidXNlcl9pZCI6ODd9.r-pRc9hB5FGfrGZ5i7sxiq0ksIePC2P0Hi-kMGygq-s")
+	// user.SetUserToken("eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzg1NDk4NzI0LCJpYXQiOjE3NTM5NjI3MjQsImp0aSI6IjExOGYyNzcyZDIzNjQxYTc4ZjkxNmIzN2YxYWZiMjlhIiwidXNlcl9pZCI6ODd9.r-pRc9hB5FGfrGZ5i7sxiq0ksIePC2P0Hi-kMGygq-s")
 	user.SetInnerToken("mHyx3CjWgf94aqcSKT")
 	// utils.SetServerHost("api2.nursor.org:12235")
 	utils.SetServerHost("test-ai-gateway.nursor.org:18889")

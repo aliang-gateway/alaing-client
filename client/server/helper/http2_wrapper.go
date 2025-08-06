@@ -184,7 +184,7 @@ func (w *WatcherWrapConn) processHttp2RequestFrame(preBuff *bytes.Buffer) error 
 		case frameTypeSettings:
 			// 解析并保存 SETTINGS 帧
 			w.ParseSettingsFrame(payload)
-			logger.Debug("HTTP/2 SETTINGS frame processed and saved %v", payload)
+			logger.Debug(fmt.Sprintf("HTTP/2 SETTINGS frame processed and saved %v", payload))
 			preBuff.Write(frame)
 
 		case frameTypeData:

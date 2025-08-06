@@ -170,14 +170,14 @@ func writePortToFile(port string) error {
 
 func handleRun(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		UserToken  string `json:"user_token"`
+		// UserToken  string `json:"user_token"`
 		InnerToken string `json:"inner_token"`
 	}
 	if err := decodeRequest(r, &req); err != nil {
 		sendError(w, "Invalid request body", http.StatusBadRequest, nil)
 		return
 	}
-	user.SetUserToken(req.UserToken)
+	// user.SetUserToken(req.UserToken)
 	user.SetInnerToken(req.InnerToken)
 	go tun.Start()
 	res := <-tun.RunStatusChan

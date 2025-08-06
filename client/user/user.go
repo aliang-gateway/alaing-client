@@ -61,7 +61,7 @@ func SetAccessToken(newToken string) {
 	mu.Unlock()
 
 	if isNewComming {
-		triggerAuthPost(newToken)
+		// triggerAuthPost(newToken)
 	}
 }
 

@@ -82,9 +82,7 @@ func getToCursorDomain() *C.char {
 }
 
 //export runGate
-func runGate(userToken *C.char, innerToken *C.char) *C.char {
-	uToken := C.GoString(userToken)
-	user.SetUserToken(uToken)
+func runGate(innerToken *C.char) *C.char {
 	innerTokenStr := C.GoString(innerToken)
 	user.SetInnerToken(innerTokenStr)
 	logger.SetUserInfo(innerTokenStr)
@@ -98,7 +96,7 @@ func runGate(userToken *C.char, innerToken *C.char) *C.char {
 }
 
 //export setUserInfo
-func setUserInfo(uToken *C.char, innerToken *C.char, username *C.char, password *C.char) {
+func setUserInfo(innerToken *C.char, username *C.char, password *C.char) {
 	innerTokenStr := C.GoString(innerToken)
 	usernameStr := C.GoString(username)
 	passwordStr := C.GoString(password)
