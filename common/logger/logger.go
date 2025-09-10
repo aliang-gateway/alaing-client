@@ -49,8 +49,14 @@ func SetLogLevel(level LogLevel) {
 }
 
 func init() {
-	Init()
-	InitHttp()
+	err := Init()
+	if err != nil {
+		fmt.Println("init failure")
+	}
+	err2 := InitHttp()
+	if err2 != nil {
+		fmt.Println("init http failure")
+	}
 }
 
 // 初始化日志系统
@@ -59,7 +65,7 @@ func Init() error {
 	var err error
 
 	if runtime.GOOS == "darwin" {
-		home = "/Library/Logs/Nursor"
+		home, _ = os.UserHomeDir()
 	} else {
 		home, err = os.UserHomeDir()
 		if err != nil {
@@ -131,7 +137,10 @@ func logf(level LogLevel, prefix string, v ...interface{}) {
 	if level < currentLevel {
 		return
 	}
-	logger.Output(3, fmt.Sprintf("[%s] %s\n", prefix, fmt.Sprint(v...)))
+	err := logger.Output(3, fmt.Sprintf("[%s] %s\n", prefix, fmt.Sprint(v...)))
+	if err != nil {
+		return
+	}
 }
 
 func Debug(v ...interface{}) { logf(DEBUG, "DEBUG", v...) }

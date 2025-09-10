@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	"nursor.org/nursorgate/client/server"
-	"nursor.org/nursorgate/client/utils"
 	"nursor.org/nursorgate/common/config"
 	"nursor.org/nursorgate/common/model"
 )
@@ -28,6 +27,6 @@ func TestHttpProxy(t *testing.T) {
 	if err != nil {
 		fmt.Println(err.Error())
 	}
-	utils.SetServerHost("127.0.0.1:8082")
+	// utils.SetServerHost("127.0.0.1:8082")
 	server.StartMitmHttpSimple()
 }

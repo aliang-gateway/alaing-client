@@ -2,20 +2,21 @@ package test
 
 import (
 	"context"
-	"github.com/stretchr/testify/assert"
 	"io"
 	"net"
 	"net/http"
 	"net/netip"
+	"testing"
+	"time"
+
+	"github.com/stretchr/testify/assert"
 	http2 "nursor.org/nursorgate/client/inbound/hysteria_forwarding/http"
 	"nursor.org/nursorgate/client/server/tun/metadata"
 	"nursor.org/nursorgate/client/server/tun/proxy"
-	"testing"
-	"time"
 )
 
 func TestHysteriaToGoogle(t *testing.T) {
-	dialer, err := proxy.NewHysteriaDialer("lisi", "IW6gUxtuG46FURELO08p9L9I3GtHtfh1")
+	dialer, err := proxy.NewHysteriaDialer("1lv4z2lm", "Y2QuH3NUCv")
 	if err != nil {
 		t.Fatal("dialer 初始化失败：", err)
 	}
@@ -25,10 +26,13 @@ func TestHysteriaToGoogle(t *testing.T) {
 
 	// 目标地址，标准 HTTP 请求用 80 端口
 	metadata := &metadata.Metadata{
-		//59.24.3.174
-		//142.250.196.196
-		//142.250.198.78
-		DstIP:   netip.AddrFrom4([4]byte([]byte{142, 250, 198, 78})), // google.com 的其中一个 IP
+		// 59.24.3.174
+		// 142.250.196.196
+		// 142.250.198.78
+		// 142.250.197.206
+		// Host: "www.youtube.com",
+		Network: metadata.TCP,
+		DstIP:   netip.AddrFrom4([4]byte([]byte{142, 250, 197, 206})), // google.com 的其中一个 IP
 		DstPort: 80,
 	}
 
@@ -40,7 +44,7 @@ func TestHysteriaToGoogle(t *testing.T) {
 
 	// 发起 HTTP 请求
 	req := "GET / HTTP/1.1\r\n" +
-		"Host: www.youtube.com\r\n" +
+		"Host: www.google.com\r\n" +
 		"User-Agent: Hysteria-Test\r\n" +
 		"Connection: close\r\n\r\n"
 

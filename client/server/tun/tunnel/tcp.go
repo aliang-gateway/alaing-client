@@ -1,6 +1,7 @@
 package tunnel
 
 import (
+	"bufio"
 	"context"
 	"crypto/tls"
 	"errors"
@@ -8,6 +9,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -21,6 +23,39 @@ import (
 
 	M "nursor.org/nursorgate/client/server/tun/metadata"
 )
+
+func detectDoH(tlsConn *tls.Conn) bool {
+	// 读取HTTP请求头
+	reader := bufio.NewReader(tlsConn)
+	line, _, _ := reader.ReadLine()
+
+	// 检查请求路径
+	if strings.Contains(string(line), "/dns-query") ||
+		strings.Contains(string(line), "/resolve") {
+		return true
+	}
+	return false
+}
+
+func isDoHProvider(serverName string) bool {
+	dohProviders := []string{
+		"dns.google",
+		"cloudflare-dns.com",
+		"doh.opendns.com",
+		"doh.quad9.net",
+		"doh.cleanbrowsing.org",
+		"1.1.1.1",
+		"8.8.8.8",
+		"9.9.9.9",
+	}
+
+	for _, provider := range dohProviders {
+		if strings.Contains(serverName, provider) {
+			return true
+		}
+	}
+	return false
+}
 
 func (t *Tunnel) handleTCPConn(originConn adapter.TCPConn) {
 	defer originConn.Close()
@@ -45,6 +80,11 @@ func (t *Tunnel) handleTCPConn(originConn adapter.TCPConn) {
 		serverName, sniBuf, err := helper.ExtractSNI(originConn)
 		nursorRouter := model.NewAllowProxyDomain()
 		if err != nil {
+			if isDoHProvider(serverName) {
+				logger.Info("[DoH] 检测到DoH流量，目标:", serverName)
+				// 特殊处理DoH流量
+				return
+			}
 			logger.Debug("SNI extraction error:", err)
 			newOriginConn = &WrappedConn{
 				Buf:  sniBuf,
@@ -76,7 +116,7 @@ func (t *Tunnel) handleTCPConn(originConn adapter.TCPConn) {
 				if helper.IsCursorProxyEnabled {
 					handleTlsConnect(tlsConn, req)
 				} else {
-					remoteConn, err = GetDoorProxy().DialContextWithServerName(ctx, metadata, serverName)
+					remoteConn, err = GetDoorProxy().DialContext(ctx, metadata)
 					if err != nil {
 						logger.Error(fmt.Sprintf("failure in connenct to anydoor %v", err))
 						return
@@ -89,9 +129,16 @@ func (t *Tunnel) handleTCPConn(originConn adapter.TCPConn) {
 		}
 
 		if nursorRouter.IsAllowToAnyDoor(serverName) {
-			remoteConn, err = GetDoorProxy().DialContextWithServerName(ctx, metadata, serverName)
+			ips, err := defaultResolver.LookupA(ctx, serverName)
 			if err != nil {
-				logger.Error(fmt.Sprintf("failure in connenct to anydoor %v", err))
+				logger.Error(fmt.Sprintf("%s failure in lookup dns %v", serverName, err))
+			} else {
+				metadata.DstIP = toNetip(ips[0])
+				metadata.DstPort = 443
+			}
+			remoteConn, err = GetDoorProxy().DialContext(ctx, metadata)
+			if err != nil {
+				logger.Error(fmt.Sprintf("%s failure in connenct to anydoor %v", serverName, err))
 				return
 			}
 		} else {

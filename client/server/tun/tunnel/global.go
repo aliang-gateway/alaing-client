@@ -1,9 +1,10 @@
 package tunnel
 
 import (
+	"sync"
+
 	"nursor.org/nursorgate/client/server/tun/proxy"
 	"nursor.org/nursorgate/client/server/tun/tunnel/statistic"
-	"sync"
 )
 
 var (
@@ -13,6 +14,7 @@ var (
 
 func init() {
 	ReplaceGlobal(New(&proxy.Base{}, statistic.DefaultManager))
+	//103.255.209.43
 	T().ProcessAsync()
 }
 

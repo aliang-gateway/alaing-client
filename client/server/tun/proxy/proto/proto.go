@@ -1,6 +1,8 @@
 package proto
 
-import "fmt"
+import (
+	"fmt"
+)
 
 const (
 	Direct Proto = iota
@@ -8,9 +10,10 @@ const (
 	HTTP
 	//Socks4
 	//Socks5
-	//Shadowsocks
+	Shadowsocks
 	//Relay
 	HY2
+	VLESS
 )
 
 type Proto uint8
@@ -27,10 +30,12 @@ func (proto Proto) String() string {
 	//	return "socks4"
 	//case Socks5:
 	//	return "socks5"
-	//case Shadowsocks:
-	//	return "ss"
+	case Shadowsocks:
+		return "ss"
 	case HY2:
 		return "hy2"
+	case VLESS:
+		return "singbox"
 	default:
 		return fmt.Sprintf("proto(%d)", proto)
 	}

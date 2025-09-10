@@ -7,6 +7,8 @@ import (
 
 	"nursor.org/nursorgate/client/utils"
 
+	_ "github.com/sagernet/reality"
+	_ "github.com/sagernet/sing-box"
 	"nursor.org/nursorgate/client/server"
 	"nursor.org/nursorgate/common/logger"
 	"nursor.org/nursorgate/common/model"
@@ -19,11 +21,9 @@ func main() {
 
 func RunBackground() {
 	go server.StartHttpServer()
-	//go server.StartMitmHttp()
 	model.NewAllowProxyDomain()
 	logger.SetLogLevel(logger.DEBUG)
 
-	// utils.SetServerHost("api2.nursor.org:12235")
 	utils.SetServerHost("test-ai-gateway.nursor.org:18889")
 
 	sigCh := make(chan os.Signal, 1)

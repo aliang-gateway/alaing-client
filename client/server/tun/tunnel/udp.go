@@ -1,14 +1,16 @@
 package tunnel
 
 import (
-	"github.com/nacos-group/nacos-sdk-go/common/logger"
 	"io"
 	"net"
+	"sync"
+	"time"
+
+	"github.com/miekg/dns"
+	"github.com/nacos-group/nacos-sdk-go/common/logger"
 	"nursor.org/nursorgate/client/server/tun/buffer"
 	"nursor.org/nursorgate/client/server/tun/core/adapter"
 	"nursor.org/nursorgate/client/server/tun/tunnel/statistic"
-	"sync"
-	"time"
 
 	M "nursor.org/nursorgate/client/server/tun/metadata"
 )
@@ -28,7 +30,7 @@ func (t *Tunnel) handleUDPConn(uc adapter.UDPConn) {
 
 	pc, err := t.Dialer().DialUDP(metadata)
 	if err != nil {
-		//log.Warnf("[UDP] dial %s: %v", metadata.DestinationAddress(), err)
+		logger.Warnf("[UDP] dial %s: %v", metadata.DestinationAddress(), err)
 		return
 	}
 	metadata.MidIP, metadata.MidPort = parseNetAddr(pc.LocalAddr())
@@ -44,8 +46,34 @@ func (t *Tunnel) handleUDPConn(uc adapter.UDPConn) {
 	}
 	pc = newSymmetricNATPacketConn(pc, metadata)
 
+	// If this is a DNS request (UDP/53), wrap the outbound PacketConn to log queried domain names
+	if metadata.DstPort == 53 {
+		pc = &dnsLoggingPacketConn{PacketConn: pc}
+	}
+
 	logger.Info("[UDP] %s <-> %s", metadata.SourceAddress(), metadata.DestinationAddress())
 	pipePacket(uc, pc, remote, t.udpTimeout.Load())
+}
+
+// dnsLoggingPacketConn logs DNS query names for UDP/53 traffic by decoding the
+// DNS message payload on WriteTo (client -> upstream DNS server).
+type dnsLoggingPacketConn struct {
+	net.PacketConn
+}
+
+func (d *dnsLoggingPacketConn) WriteTo(b []byte, addr net.Addr) (int, error) {
+	// Best-effort parse DNS query and log QNAMEs
+	// Only attempt when payload looks like a DNS message (at least header length)
+	if len(b) >= 12 {
+		var m dns.Msg
+		if err := m.Unpack(b); err == nil {
+			// Log all questions (usually 1)
+			for _, q := range m.Question {
+				logger.Info("[DNS] query: %s %s", q.Name, q.Qtype)
+			}
+		}
+	}
+	return d.PacketConn.WriteTo(b, addr)
 }
 
 func pipePacket(origin, remote net.PacketConn, to net.Addr, timeout time.Duration) {

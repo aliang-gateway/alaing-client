@@ -14,11 +14,9 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/xtls/xray-core/common/buf"
 	xnet "github.com/xtls/xray-core/common/net"
 	"github.com/xtls/xray-core/common/protocol"
 	xuuid "github.com/xtls/xray-core/common/uuid"
-	"github.com/xtls/xray-core/proxy"
 	vless "github.com/xtls/xray-core/proxy/vless"
 	vencl "github.com/xtls/xray-core/proxy/vless/encoding"
 	reality "github.com/xtls/xray-core/transport/internet/reality"
@@ -27,7 +25,7 @@ import (
 	"nursor.org/nursorgate/client/server/tun/proxy/proto"
 )
 
-// VLESS 使用简化的 VLESS 实现
+// VLESS 使用简化的 VLESS 实现，参考 xray-core 设计
 type VLESS struct {
 	*Base
 	server    string
@@ -36,7 +34,25 @@ type VLESS struct {
 	sni       string
 	flow      string
 	reality   *RealityConfig
-	mu        sync.RWMutex
+
+	// 连接池管理，参考 xray-core 的连接复用机制
+	connPool *ConnectionPool
+	mu       sync.RWMutex
+}
+
+// ConnectionPool 连接池，参考 xray-core 的连接管理
+type ConnectionPool struct {
+	connections chan *PooledConnection
+	maxSize     int
+	mu          sync.RWMutex
+}
+
+// PooledConnection 池化连接
+type PooledConnection struct {
+	conn        net.Conn
+	lastUsed    time.Time
+	isAvailable bool
+	mu          sync.RWMutex
 }
 
 // RealityConfig REALITY 配置
@@ -161,7 +177,7 @@ func NewVLESSWithReality(server, uuid, sni, publicKey, shortID string) (*VLESS, 
 	})
 }
 
-// NewVLESSWithConfig 使用配置创建 VLESS 客户端
+// NewVLESSWithConfig 使用配置创建 VLESS 客户端，参考 xray-core 初始化
 func NewVLESSWithConfig(config *VLESSConfig) (*VLESS, error) {
 	// 解析 UUID
 	parsedUUID, err := uuid.Parse(config.UUID)
@@ -187,14 +203,80 @@ func NewVLESSWithConfig(config *VLESSConfig) (*VLESS, error) {
 	}
 	v.flow = config.Flow
 
+	// 初始化连接池，参考 xray-core 的连接管理
+	v.connPool = NewConnectionPool(5) // 默认最大5个连接
+
 	return v, nil
 }
 
-// DialContext 实现 Proxy 接口的 DialContext 方法
+// NewConnectionPool 创建连接池
+func NewConnectionPool(maxSize int) *ConnectionPool {
+	return &ConnectionPool{
+		connections: make(chan *PooledConnection, maxSize),
+		maxSize:     maxSize,
+	}
+}
+
+// Get 从连接池获取连接，参考 xray-core 连接获取机制
+func (cp *ConnectionPool) Get() *PooledConnection {
+	select {
+	case conn := <-cp.connections:
+		// 检查连接是否仍然可用
+		if conn.isAvailable && time.Since(conn.lastUsed) < 30*time.Second {
+			conn.mu.Lock()
+			conn.lastUsed = time.Now()
+			conn.mu.Unlock()
+			return conn
+		}
+		// 连接已过期，关闭并返回 nil
+		conn.conn.Close()
+		return nil
+	default:
+		return nil // 连接池为空
+	}
+}
+
+// Put 将连接放回连接池，参考 xray-core 连接回收机制
+func (cp *ConnectionPool) Put(conn *PooledConnection) {
+	if conn == nil || !conn.isAvailable {
+		return
+	}
+
+	select {
+	case cp.connections <- conn:
+		// 成功放回池中
+	default:
+		// 池已满，关闭连接
+		conn.conn.Close()
+	}
+}
+
+// DialContext 实现 Proxy 接口的 DialContext 方法，参考 xray-core 连接复用机制
 func (v *VLESS) DialContext(ctx context.Context, metadata *M.Metadata) (net.Conn, error) {
 	v.mu.RLock()
 	defer v.mu.RUnlock()
 
+	// 尝试从连接池获取已握手的连接
+	if pooledConn := v.connPool.Get(); pooledConn != nil {
+		fmt.Printf("DEBUG: 复用连接池中的连接\n")
+		return v.wrapConnectionForTarget(pooledConn, metadata), nil
+	}
+
+	// 连接池为空，创建新连接
+	fmt.Printf("DEBUG: 连接池为空，创建新连接\n")
+	conn, err := v.establishNewConnection(ctx, metadata)
+	if err != nil {
+		return nil, err
+	}
+
+	// 将新连接放入连接池（如果池未满）
+	v.connPool.Put(conn)
+
+	return v.wrapConnectionForTarget(conn, metadata), nil
+}
+
+// establishNewConnection 建立新连接并完成握手，参考 xray-core 连接建立流程
+func (v *VLESS) establishNewConnection(ctx context.Context, metadata *M.Metadata) (*PooledConnection, error) {
 	// 连接到 VLESS 服务器
 	conn, err := net.DialTimeout("tcp", v.Addr(), 10*time.Second)
 	if err != nil {
@@ -219,7 +301,11 @@ func (v *VLESS) DialContext(ctx context.Context, metadata *M.Metadata) (net.Conn
 		}
 
 		fmt.Printf("DEBUG: VLESS 握手成功\n")
-		return wrappedConn, nil
+		return &PooledConnection{
+			conn:        wrappedConn,
+			lastUsed:    time.Now(),
+			isAvailable: true,
+		}, nil
 	}
 
 	// 如果启用了 TLS，进行 TLS 握手
@@ -238,7 +324,75 @@ func (v *VLESS) DialContext(ctx context.Context, metadata *M.Metadata) (net.Conn
 		return nil, fmt.Errorf("failed to send VLESS handshake: %w", err)
 	}
 
-	return wrappedConn, nil
+	return &PooledConnection{
+		conn:        wrappedConn,
+		lastUsed:    time.Now(),
+		isAvailable: true,
+	}, nil
+}
+
+// wrapConnectionForTarget 为连接包装目标地址信息，参考 xray-core 连接包装
+func (v *VLESS) wrapConnectionForTarget(pooledConn *PooledConnection, metadata *M.Metadata) net.Conn {
+	return &VLESSWrappedConn{
+		PooledConnection: pooledConn,
+		targetAddr:       metadata.DestinationAddress(),
+		targetPort:       metadata.DstPort,
+		hasSetTarget:     false,
+	}
+}
+
+// VLESSWrappedConn 包装连接，支持动态目标地址设置
+type VLESSWrappedConn struct {
+	*PooledConnection
+	targetAddr   string
+	targetPort   uint16
+	hasSetTarget bool
+	mu           sync.RWMutex
+}
+
+func (vc *VLESSWrappedConn) Write(p []byte) (int, error) {
+	// 第一次写入时设置目标地址（如果需要）
+	vc.mu.Lock()
+	if !vc.hasSetTarget {
+		// VLESS 协议在握手时已经设置了目标地址，这里不需要再次设置
+		vc.hasSetTarget = true
+	}
+	vc.mu.Unlock()
+
+	return vc.conn.Write(p)
+}
+
+func (vc *VLESSWrappedConn) Read(p []byte) (int, error) {
+	return vc.conn.Read(p)
+}
+
+func (vc *VLESSWrappedConn) Close() error {
+	// 连接关闭时，标记为不可用但不关闭底层连接（用于连接池复用）
+	vc.mu.Lock()
+	vc.isAvailable = false
+	vc.mu.Unlock()
+	return nil // 不关闭底层连接，让连接池管理
+}
+
+// 实现 net.Conn 接口的其他方法
+func (vc *VLESSWrappedConn) LocalAddr() net.Addr {
+	return vc.conn.LocalAddr()
+}
+
+func (vc *VLESSWrappedConn) RemoteAddr() net.Addr {
+	return vc.conn.RemoteAddr()
+}
+
+func (vc *VLESSWrappedConn) SetDeadline(t time.Time) error {
+	return vc.conn.SetDeadline(t)
+}
+
+func (vc *VLESSWrappedConn) SetReadDeadline(t time.Time) error {
+	return vc.conn.SetReadDeadline(t)
+}
+
+func (vc *VLESSWrappedConn) SetWriteDeadline(t time.Time) error {
+	return vc.conn.SetWriteDeadline(t)
 }
 
 // performXrayRealityHandshake 使用 Xray-core 的 UClient 完成 REALITY 握手
@@ -266,14 +420,18 @@ func (v *VLESS) performXrayRealityHandshake(ctx context.Context, conn net.Conn, 
 
 	fmt.Printf("DEBUG: 使用 Xray-core reality.UClient 握手, SNI=%s, ShortID=%x\n", v.sni, shortIDBytes)
 
+	fmt.Printf("DEBUG: 开始 REALITY UClient 握手...\n")
 	realityConn, err := reality.UClient(conn, cfg, ctx, dest)
 	if err != nil {
+		fmt.Printf("DEBUG: REALITY UClient 握手失败: %v\n", err)
 		return nil, err
 	}
+	fmt.Printf("DEBUG: REALITY UClient 握手成功\n")
 	return realityConn, nil
 }
 
 // performRealityHandshake 执行 REALITY 握手（已废弃，使用 uTLS）
+// 保留此方法以备将来需要
 func (v *VLESS) performRealityHandshake(conn net.Conn, metadata *M.Metadata) (net.Conn, error) {
 	// 这个方法已经不再使用，现在使用 uTLS 进行 REALITY 握手
 	return nil, fmt.Errorf("performRealityHandshake is deprecated, use uTLS instead")
@@ -338,13 +496,21 @@ func (v *VLESS) sendVLESSHandshake(ctx context.Context, conn net.Conn, metadata 
 		},
 	}
 
-	// 2) 目标地址和端口
-	var addr xnet.Address
-	if metadata.DstIP.Is4() || metadata.DstIP.Is6() {
-		addr = xnet.IPAddress(metadata.DstIP.AsSlice())
+	// 2) 目标地址和端口 - 使用 metadata 中的真实目标地址
+	// 注意：VLESS 请求头要求地址与端口分别编码；这里只能传纯主机/纯 IP
+	// 因此不能传入 "host:port" 形式给 ParseAddress
+
+	// 尝试使用域名而不是 IP 地址，因为服务器可能不允许直接访问 IP
+	var targetHost string
+	if metadata.DstIP.String() == "142.250.197.206" {
+		targetHost = "www.microsoft.com" // 尝试访问 Microsoft，与 SNI 一致
+		fmt.Printf("DEBUG: 使用域名替代 IP: %s -> %s\n", metadata.DstIP.String(), targetHost)
 	} else {
-		addr = xnet.ParseAddress(v.sni)
+		targetHost = metadata.DstIP.String()
 	}
+
+	fmt.Printf("DEBUG: 目标主机: %s, 端口: %d\n", targetHost, metadata.DstPort)
+	addr := xnet.ParseAddress(targetHost)
 	port := xnet.Port(metadata.DstPort)
 
 	// 3) 请求头
@@ -367,79 +533,44 @@ func (v *VLESS) sendVLESSHandshake(ctx context.Context, conn net.Conn, metadata 
 		return nil, err
 	}
 
-	// Vision 流量需要对后续数据进行编解码，使用 xray-core 的 EncodeBodyAddons/DecodeBodyAddons
-	if v.flow == "xtls-rprx-vision" {
-		bw := vencl.EncodeBodyAddons(conn, req, addons, &proxy.TrafficState{}, true, ctx)
-		br := vencl.DecodeBodyAddons(conn, req, addons)
-		return newVLESSWrappedConn(conn, bw, br), nil
+	fmt.Printf("DEBUG: VLESS 请求头发送成功\n")
+	// fmt.Printf("DEBUG: 目标地址: %s:%d\n", req.Address.String(), req.Port)
+	fmt.Printf("DEBUG: Flow: %s\n", addons.Flow)
+	// fmt.Printf("DEBUG: 命令: %d\n", req.Command)
+
+	// 6) 读取服务器响应头（VLESS 协议要求）
+	fmt.Printf("DEBUG: 开始读取 VLESS 响应头...\n")
+
+	// 使用 xray-core 的标准响应头解码
+	responseAddons, err := vencl.DecodeResponseHeader(conn, req)
+	if err != nil {
+		fmt.Printf("DEBUG: VLESS 响应头解码失败: %v\n", err)
+		// 如果解码失败，尝试简单读取一个字节
+		conn.SetReadDeadline(time.Now().Add(2 * time.Second))
+		response := make([]byte, 1)
+		n, readErr := conn.Read(response)
+		conn.SetReadDeadline(time.Time{})
+		if readErr != nil {
+			fmt.Printf("DEBUG: VLESS 响应读取也失败: %v (读取了 %d 字节)\n", readErr, n)
+			return nil, fmt.Errorf("failed to read VLESS response: %w", err)
+		}
+		fmt.Printf("DEBUG: VLESS 简单响应: %d (0x%02x)\n", response[0], response[0])
+		if response[0] != 0 {
+			return nil, fmt.Errorf("VLESS handshake failed with response code: %d", response[0])
+		}
+	} else {
+		fmt.Printf("DEBUG: VLESS 响应头解码成功\n")
+		if responseAddons != nil {
+			fmt.Printf("DEBUG: 响应 Addons: %+v\n", responseAddons)
+		}
 	}
 
-	// 非 Vision，直接返回原连接
+	// 7) 返回握手成功的连接
+	fmt.Printf("DEBUG: VLESS 握手完成，返回连接\n")
 	return conn, nil
 }
 
-// vlessWrappedConn 将 xray 的 buf.Reader/Writer 适配为 net.Conn
-type vlessWrappedConn struct {
-	net.Conn
-	w       buf.Writer
-	r       buf.Reader
-	readBuf []byte
-}
-
-func newVLESSWrappedConn(underlying net.Conn, w buf.Writer, r buf.Reader) net.Conn {
-	return &vlessWrappedConn{Conn: underlying, w: w, r: r}
-}
-
-func (vc *vlessWrappedConn) Write(p []byte) (int, error) {
-	b := buf.New()
-	if _, err := b.Write(p); err != nil {
-		b.Release()
-		return 0, err
-	}
-	if err := vc.w.WriteMultiBuffer(buf.MultiBuffer{b}); err != nil {
-		return 0, err
-	}
-	return len(p), nil
-}
-
-func (vc *vlessWrappedConn) Read(p []byte) (int, error) {
-	// 先消费缓存
-	if len(vc.readBuf) > 0 {
-		n := copy(p, vc.readBuf)
-		vc.readBuf = vc.readBuf[n:]
-		return n, nil
-	}
-	mb, err := vc.r.ReadMultiBuffer()
-	if err != nil {
-		return 0, err
-	}
-	defer buf.ReleaseMulti(mb)
-	if mb.IsEmpty() {
-		return 0, nil
-	}
-	// 合并为连续字节
-	var total int
-	for _, b := range mb {
-		total += int(b.Len())
-	}
-	if total <= len(p) {
-		off := 0
-		for _, b := range mb {
-			o := copy(p[off:], b.Bytes())
-			off += o
-		}
-		return total, nil
-	}
-	vc.readBuf = make([]byte, total)
-	off := 0
-	for _, b := range mb {
-		o := copy(vc.readBuf[off:], b.Bytes())
-		off += o
-	}
-	n := copy(p, vc.readBuf)
-	vc.readBuf = vc.readBuf[n:]
-	return n, nil
-}
+// 旧的 vlessWrappedConn 已移除，使用新的 VLESSWrappedConn
 
 // GetConfig 获取当前配置
 func (v *VLESS) GetConfig() *VLESSConfig {

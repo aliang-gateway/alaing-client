@@ -3,6 +3,7 @@
 .vscode
 .vscode/*
 logs/*
+client/log/*
 client/client
 common/test/tmp/
 nursor-core.dylib

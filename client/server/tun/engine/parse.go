@@ -36,6 +36,8 @@ func parseProxy(s string) (proxy.Proxy, error) {
 	case proto.HY2.String():
 		password, _ := u.User.Password()
 		return proxy.NewHysteriaDialer(u.User.Username(), password)
+	case proto.VLESS.String():
+		return proxy.NewVLESS("103.255.209.43:443", "c15c1096-752b-415c-ff54-f560e2e4ea85")
 	default:
 		return nil, fmt.Errorf("unsupported protocol: %s", protocol)
 	}

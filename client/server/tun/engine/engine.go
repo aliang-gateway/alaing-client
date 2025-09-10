@@ -15,7 +15,6 @@ import (
 	"nursor.org/nursorgate/client/server/tun/dialer"
 	"nursor.org/nursorgate/client/server/tun/proxy"
 	"nursor.org/nursorgate/client/server/tun/tunnel"
-	"nursor.org/nursorgate/client/user"
 	"nursor.org/nursorgate/client/utils"
 	"nursor.org/nursorgate/common/logger"
 
@@ -51,7 +50,7 @@ func Start() error {
 // Stop shuts the default engine down.
 func Stop() {
 	if err := stop(); err != nil {
-		logger.Error("[ENGINE] failed to stop: %v", err)
+		logger.Error(fmt.Sprintf("[ENGINE] failed to stop: %v", err))
 	}
 }
 
@@ -145,7 +144,7 @@ func netstack(k *Key) (err error) {
 	}
 
 	if k.TUNPreUp != "" {
-		print("[TUN] pre-execute command: `%s`", k.TUNPreUp)
+		print(fmt.Sprintf("[TUN] pre-execute command: `%s`", k.TUNPreUp))
 		if preUpErr := execCommand(k.TUNPreUp); preUpErr != nil {
 			logger.Info(fmt.Sprintf("[TUN] failed to pre-execute: %s: %v", k.TUNPreUp, preUpErr))
 		}
@@ -155,7 +154,7 @@ func netstack(k *Key) (err error) {
 		if k.TUNPostUp == "" || err != nil {
 			return
 		}
-		print("[TUN] post-execute command: `%s`", k.TUNPostUp)
+		print(fmt.Sprintf("[TUN] post-execute command: `%s`", k.TUNPostUp))
 		if postUpErr := execCommand(k.TUNPostUp); postUpErr != nil {
 			logger.Info(fmt.Sprintf("[TUN] failed to post-execute: %s: %v", k.TUNPostUp, postUpErr))
 		}
@@ -164,11 +163,21 @@ func netstack(k *Key) (err error) {
 		return
 	}
 	tunnel.SetDefaultProxy(_defaultProxy)
-	doorProxy, err := proxy.NewHysteriaDialer(user.GetUsername(), user.GetPassword())
+
+	// doorProxy, err := proxy.NewVLESSWithReality(
+	// 	"103.255.209.43:443",
+	// 	"c15c1096-752b-415c-ff54-f560e2e4ea85",
+	// 	"www.microsoft.com",
+	// 	"h1h7T-tqXyGaI0teh7i7kHu1qRLTT5HibTZcu30YtSs",
+	// 	"335fad66be5a",
+	// )
+	doorProxy, err := proxy.NewHysteriaDialer("", "Y2QuH3NUCv")
 	if err != nil {
 		logger.Error(err)
 	}
 	tunnel.SetDoorProxy(doorProxy)
+	defaultResolver := tunnel.NewDNSResolver("8.8.8.8:53", doorProxy, 5*time.Second, 5*time.Minute)
+	tunnel.SetDefaultResolver(defaultResolver)
 
 	tunnel.T().SetDialer(_defaultProxy)
 

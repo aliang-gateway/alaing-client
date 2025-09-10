@@ -66,7 +66,9 @@ func getDefaultConnFactory(salamanda string) client.ConnFactory {
 }
 
 func BuildHysteriaClientConfig(username, password string) (*client.Config, error) {
-	server := "node1.nursor.org:1443"
+	// server := "node1.nursor.org:1443"
+	// server := "103.255.209.43:1443"
+	server := "103.255.209.43:42345"
 
 	addr, err := net.ResolveUDPAddr("udp", server)
 	if err != nil {
@@ -76,9 +78,9 @@ func BuildHysteriaClientConfig(username, password string) (*client.Config, error
 	return &client.Config{
 		ConnFactory: getDefaultConnFactory("2hKDWT79uWNIJuRMS5jqFNyOtSIf05Oc"),
 		ServerAddr:  addr,
-		Auth:        fmt.Sprintf("%s:%s", username, password),
+		Auth:        password, // Hysteria2 只使用密码，不需要用户名
 		TLSConfig: client.TLSConfig{
-			ServerName:         "node1.nursor.org",
+			// ServerName:         "www.microsoft.com", // 使用你的配置中的 SNI
 			InsecureSkipVerify: true,
 		},
 		QUICConfig: client.QUICConfig{
@@ -134,6 +136,11 @@ func (h *HysteriaDialer) DialContext(ctx context.Context, m *M.Metadata) (net.Co
 
 	go func() {
 		conn, err := h.Client.TCP(target)
+		if err != nil {
+			logger.Error(fmt.Sprintf("[Hysteria2] 客户端连接失败: %s, 错误: %v", target, err))
+		} else {
+			logger.Info(fmt.Sprintf("[Hysteria2] 客户端连接成功: %s", target))
+		}
 		select {
 		case ch <- result{conn, err}:
 			// 正常返回
