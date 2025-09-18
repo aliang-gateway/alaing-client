@@ -6,13 +6,15 @@ require (
 	fyne.io/systray v1.11.0
 	github.com/apernet/hysteria/core/v2 v2.6.2
 	github.com/apernet/hysteria/extras/v2 v2.6.2
-	github.com/docker/go-units v0.4.0
+	github.com/docker/go-units v0.5.0
 	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/schema v1.4.1
 	github.com/gorilla/websocket v1.5.3
+	github.com/miekg/dns v1.1.68
 	github.com/sagernet/reality v0.0.0-20230406110435-ee17307e7691
 	github.com/stretchr/testify v1.11.1
+	github.com/xjasonlyu/tun2socks/v2 v2.6.0
 	github.com/xtls/xray-core v1.250831.0
 	go.uber.org/automaxprocs v1.6.0
 	golang.org/x/net v0.43.0
@@ -47,11 +49,11 @@ require (
 	github.com/metacubex/tfo-go v0.0.0-20250516165257-e29c16ae41d4 // indirect
 	github.com/metacubex/utls v1.8.0 // indirect
 	github.com/mholt/acmez/v3 v3.1.2 // indirect
-	github.com/miekg/dns v1.1.68 // indirect
 	github.com/onsi/ginkgo/v2 v2.22.2 // indirect
 	github.com/pires/go-proxyproto v0.8.1 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/quic-go/qpack v0.5.1 // indirect
+	github.com/quic-go/quic-go v0.54.0 // indirect
 	github.com/refraction-networking/utls v1.8.0 // indirect
 	github.com/sagernet/bbolt v0.0.0-20231014093535-ea5cb2fe9f0a // indirect
 	github.com/sagernet/fswatch v0.1.1 // indirect
@@ -77,12 +79,13 @@ require (
 	google.golang.org/grpc v1.75.0 // indirect
 	google.golang.org/protobuf v1.36.8 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
+	lukechampine.com/blake3 v1.4.1 // indirect
 )
 
 require (
 	github.com/google/btree v1.1.3 // indirect
-	golang.org/x/time v0.9.0
-	gvisor.dev/gvisor v0.0.0-20250428193742-2d800c3129d5
+	golang.org/x/time v0.11.0
+	gvisor.dev/gvisor v0.0.0-20250523182742-eede7a881b20
 )
 
 require (
@@ -108,7 +111,7 @@ require (
 	golang.org/x/sync v0.16.0 // indirect
 	golang.org/x/sys v0.35.0
 	golang.org/x/text v0.28.0
-	golang.zx2c4.com/wireguard v0.0.0-20231211153847-12269c276173
+	golang.zx2c4.com/wireguard v0.0.0-20250521234502-f333402bd9cb
 	gopkg.in/ini.v1 v1.67.0 // indirect
 	gopkg.in/natefinch/lumberjack.v2 v2.0.0 // indirect
 	gorm.io/driver/mysql v1.5.7 // indirect

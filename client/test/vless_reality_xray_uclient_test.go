@@ -53,7 +53,7 @@ func testRealityXrayUClient(t *testing.T, vless *proxy.VLESS, name string, ip [4
 	md := &metadata.Metadata{
 		Network: metadata.TCP,
 		DstIP:   netip.AddrFrom4(ip),
-		DstPort: 443,
+		DstPort: 80,
 		// 添加目标域名信息
 		// 注意：这里需要扩展 metadata 结构来支持目标域名
 	}

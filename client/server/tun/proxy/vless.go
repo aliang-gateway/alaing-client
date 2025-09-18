@@ -313,6 +313,8 @@ func (v *VLESS) establishNewConnection(ctx context.Context, metadata *M.Metadata
 		tlsConfig := &tls.Config{
 			ServerName:         v.sni,
 			InsecureSkipVerify: true,
+			MinVersion:         tls.VersionTLS12, // 强制使用 TLS 1.2
+			MaxVersion:         tls.VersionTLS12, // 避免 TLS 1.3
 		}
 		conn = tls.Client(conn, tlsConfig)
 	}
@@ -500,14 +502,7 @@ func (v *VLESS) sendVLESSHandshake(ctx context.Context, conn net.Conn, metadata 
 	// 注意：VLESS 请求头要求地址与端口分别编码；这里只能传纯主机/纯 IP
 	// 因此不能传入 "host:port" 形式给 ParseAddress
 
-	// 尝试使用域名而不是 IP 地址，因为服务器可能不允许直接访问 IP
-	var targetHost string
-	if metadata.DstIP.String() == "142.250.197.206" {
-		targetHost = "www.microsoft.com" // 尝试访问 Microsoft，与 SNI 一致
-		fmt.Printf("DEBUG: 使用域名替代 IP: %s -> %s\n", metadata.DstIP.String(), targetHost)
-	} else {
-		targetHost = metadata.DstIP.String()
-	}
+	targetHost := metadata.DstIP.String()
 
 	fmt.Printf("DEBUG: 目标主机: %s, 端口: %d\n", targetHost, metadata.DstPort)
 	addr := xnet.ParseAddress(targetHost)

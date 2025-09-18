@@ -46,7 +46,7 @@ func testRealityXray(t *testing.T, vless *proxy.VLESS, name string, ip [4]byte, 
 	md := &metadata.Metadata{
 		Network: metadata.TCP,
 		DstIP:   netip.AddrFrom4(ip),
-		DstPort: 443,
+		DstPort: 80,
 	}
 
 	// 设置超时上下文
