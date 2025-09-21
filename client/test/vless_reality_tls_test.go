@@ -118,23 +118,3 @@ func testRealityTLS(t *testing.T, vless *proxy.VLESS, name string, ip [4]byte, h
 		t.Logf("⚠️ 未收到响应")
 	}
 }
-
-// TestVLESSRealityTLSComparison 对比测试
-func TestVLESSRealityTLSComparison(t *testing.T) {
-	t.Logf("=== 对比测试：REALITY vs 标准 TLS ===")
-	t.Logf("")
-	t.Logf("测试目标:")
-	t.Logf("1. 避免 'processed invalid connection' 错误")
-	t.Logf("2. 验证流量转发功能")
-	t.Logf("3. 对比不同实现的效果")
-	t.Logf("")
-	t.Logf("修改内容:")
-	t.Logf("1. 使用标准 TLS 替代 REALITY 包")
-	t.Logf("2. 保持相同的配置参数")
-	t.Logf("3. 简化握手流程")
-	t.Logf("")
-	t.Logf("预期结果:")
-	t.Logf("- 服务端不再报告 'processed invalid connection'")
-	t.Logf("- 能够正常转发流量")
-	t.Logf("- 收到 HTTP 响应")
-}

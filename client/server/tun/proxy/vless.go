@@ -219,20 +219,26 @@ func NewConnectionPool(maxSize int) *ConnectionPool {
 
 // Get 从连接池获取连接，参考 xray-core 连接获取机制
 func (cp *ConnectionPool) Get() *PooledConnection {
-	select {
-	case conn := <-cp.connections:
-		// 检查连接是否仍然可用
-		if conn.isAvailable && time.Since(conn.lastUsed) < 30*time.Second {
-			conn.mu.Lock()
-			conn.lastUsed = time.Now()
-			conn.mu.Unlock()
-			return conn
+	for {
+		select {
+		case conn := <-cp.connections:
+			// 检查连接是否仍然可用且未过期
+			if conn != nil && conn.isAvailable && time.Since(conn.lastUsed) < 30*time.Second {
+				conn.mu.Lock()
+				conn.lastUsed = time.Now()
+				conn.mu.Unlock()
+				return conn
+			}
+			// 不合格则关闭并继续取下一个
+			if conn != nil && conn.conn != nil {
+				conn.conn.Close()
+			}
+			// 继续循环尝试从池中取下一个
+			continue
+		default:
+			// 池当前没有更多连接了
+			return nil
 		}
-		// 连接已过期，关闭并返回 nil
-		conn.conn.Close()
-		return nil
-	default:
-		return nil // 连接池为空
 	}
 }
 
@@ -289,7 +295,7 @@ func (v *VLESS) establishNewConnection(ctx context.Context, metadata *M.Metadata
 		realityConn, err := v.performXrayRealityHandshake(ctx, conn, metadata)
 		if err != nil {
 			conn.Close()
-			return nil, fmt.Errorf("Xray REALITY handshake failed: %w", err)
+			return nil, fmt.Errorf("failed to perform Xray REALITY handshake: %w", err)
 		}
 
 		// 发送 VLESS 握手并返回包装后的连接（若 Vision 则包裹编码/解码）
@@ -416,13 +422,11 @@ func (v *VLESS) performXrayRealityHandshake(ctx context.Context, conn net.Conn, 
 		PublicKey:  pubKeyBytes,
 		ShortId:    shortIDBytes[:],
 	}
-
-	// 目的地址：使用 SNI:443 作为目标
-	dest := xnet.TCPDestination(xnet.ParseAddress(v.sni), xnet.Port(443))
+	server, port, _ := xnet.SplitHostPort(v.Addr())
+	portInt, _ := xnet.PortFromString(port)
+	dest := xnet.TCPDestination(xnet.ParseAddress(server), portInt)
 
 	fmt.Printf("DEBUG: 使用 Xray-core reality.UClient 握手, SNI=%s, ShortID=%x\n", v.sni, shortIDBytes)
-
-	fmt.Printf("DEBUG: 开始 REALITY UClient 握手...\n")
 	realityConn, err := reality.UClient(conn, cfg, ctx, dest)
 	if err != nil {
 		fmt.Printf("DEBUG: REALITY UClient 握手失败: %v\n", err)
@@ -430,13 +434,6 @@ func (v *VLESS) performXrayRealityHandshake(ctx context.Context, conn net.Conn, 
 	}
 	fmt.Printf("DEBUG: REALITY UClient 握手成功\n")
 	return realityConn, nil
-}
-
-// performRealityHandshake 执行 REALITY 握手（已废弃，使用 uTLS）
-// 保留此方法以备将来需要
-func (v *VLESS) performRealityHandshake(conn net.Conn, metadata *M.Metadata) (net.Conn, error) {
-	// 这个方法已经不再使用，现在使用 uTLS 进行 REALITY 握手
-	return nil, fmt.Errorf("performRealityHandshake is deprecated, use uTLS instead")
 }
 
 // parseShortID 解析 ShortID 字符串为字节数组
@@ -484,8 +481,6 @@ func (v *VLESS) DialUDP(metadata *M.Metadata) (net.PacketConn, error) {
 
 // sendVLESSHandshake 发送 VLESS 握手
 func (v *VLESS) sendVLESSHandshake(ctx context.Context, conn net.Conn, metadata *M.Metadata) (net.Conn, error) {
-	// 使用 xray-core 的 VLESS 编码逻辑，避免手写协议
-
 	// 1) 构造用户（MemoryAccount + protocol.ID）
 	uParsed, err := xuuid.ParseString(v.uuid)
 	if err != nil {
@@ -497,10 +492,7 @@ func (v *VLESS) sendVLESSHandshake(ctx context.Context, conn net.Conn, metadata 
 			Flow: v.flow,
 		},
 	}
-
-	// 2) 目标地址和端口 - 使用 metadata 中的真实目标地址
-	// 注意：VLESS 请求头要求地址与端口分别编码；这里只能传纯主机/纯 IP
-	// 因此不能传入 "host:port" 形式给 ParseAddress
+	fmt.Printf("DEBUG: VLESS 用户信息 - UUID: %s, Flow: %s\n", v.uuid, v.flow)
 
 	targetHost := metadata.DstIP.String()
 
@@ -516,44 +508,34 @@ func (v *VLESS) sendVLESSHandshake(ctx context.Context, conn net.Conn, metadata 
 		Address: addr,
 		Port:    port,
 	}
+	fmt.Printf("DEBUG: VLESS 请求头 - Version: %d, Command: %d, Address: %s, Port: %d\n",
+		req.Version, req.Command, req.Address.String(), req.Port)
 
-	// 4) Addons（Vision 流需要设置为 XRV 才会写入 protobuf 附加字段）
+	// 4) Addons（Vision 流需要在 Addons 中设置 Flow）
 	addons := &vencl.Addons{}
 	if v.flow == "xtls-rprx-vision" {
-		addons.Flow = vless.XRV
+		addons.Flow = "xtls-rprx-vision"
 	}
+	fmt.Printf("DEBUG: VLESS Addons - Flow: %s\n", addons.Flow)
 
 	// 5) 编码并写入请求头
 	if err := vencl.EncodeRequestHeader(conn, req, addons); err != nil {
 		return nil, err
 	}
-
 	fmt.Printf("DEBUG: VLESS 请求头发送成功\n")
-	// fmt.Printf("DEBUG: 目标地址: %s:%d\n", req.Address.String(), req.Port)
-	fmt.Printf("DEBUG: Flow: %s\n", addons.Flow)
-	// fmt.Printf("DEBUG: 命令: %d\n", req.Command)
 
-	// 6) 读取服务器响应头（VLESS 协议要求）
-	fmt.Printf("DEBUG: 开始读取 VLESS 响应头...\n")
-
-	// 使用 xray-core 的标准响应头解码
-	responseAddons, err := vencl.DecodeResponseHeader(conn, req)
-	if err != nil {
-		fmt.Printf("DEBUG: VLESS 响应头解码失败: %v\n", err)
-		// 如果解码失败，尝试简单读取一个字节
-		conn.SetReadDeadline(time.Now().Add(2 * time.Second))
-		response := make([]byte, 1)
-		n, readErr := conn.Read(response)
-		conn.SetReadDeadline(time.Time{})
-		if readErr != nil {
-			fmt.Printf("DEBUG: VLESS 响应读取也失败: %v (读取了 %d 字节)\n", readErr, n)
-			return nil, fmt.Errorf("failed to read VLESS response: %w", err)
-		}
-		fmt.Printf("DEBUG: VLESS 简单响应: %d (0x%02x)\n", response[0], response[0])
-		if response[0] != 0 {
-			return nil, fmt.Errorf("VLESS handshake failed with response code: %d", response[0])
-		}
+	// 6) Vision 流不需要读取响应头，直接开始数据传输
+	if v.flow == "xtls-rprx-vision" {
+		fmt.Printf("DEBUG: Vision 流不需要响应头，直接开始数据传输\n")
 	} else {
+		// 非 Vision 流需要读取响应头
+		fmt.Printf("DEBUG: 开始读取 VLESS 响应头...\n")
+		responseAddons, err := vencl.DecodeResponseHeader(conn, req)
+		if err != nil {
+			fmt.Printf("DEBUG: VLESS 响应头解码失败: %v\n", err)
+			return nil, fmt.Errorf("VLESS handshake failed: %w", err)
+		}
+
 		fmt.Printf("DEBUG: VLESS 响应头解码成功\n")
 		if responseAddons != nil {
 			fmt.Printf("DEBUG: 响应 Addons: %+v\n", responseAddons)

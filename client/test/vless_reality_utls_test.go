@@ -20,7 +20,7 @@ func TestVLESSRealityUTLS(t *testing.T) {
 
 	// 创建带 REALITY 的 VLESS 客户端
 	vless, err := proxy.NewVLESSWithReality(
-		"103.255.209.43:443",
+		"127.0.0.1:443",
 		"c15c1096-752b-415c-ff54-f560e2e4ea85",
 		"www.microsoft.com",
 		"h1h7T-tqXyGaI0teh7i7kHu1qRLTT5HibTZcu30YtSs",
@@ -117,25 +117,4 @@ func testRealityUTLS(t *testing.T, vless *proxy.VLESS, name string, ip [4]byte, 
 	} else {
 		t.Logf("⚠️ 未收到响应")
 	}
-}
-
-// TestVLESSRealityUTLSComparison 对比测试
-func TestVLESSRealityUTLSComparison(t *testing.T) {
-	t.Logf("=== 对比测试：REALITY + uTLS vs 标准 TLS ===")
-	t.Logf("")
-	t.Logf("测试目标:")
-	t.Logf("1. 使用 uTLS 模拟真实浏览器指纹")
-	t.Logf("2. 避免 'processed invalid connection' 错误")
-	t.Logf("3. 验证流量转发功能")
-	t.Logf("")
-	t.Logf("修改内容:")
-	t.Logf("1. 使用 uTLS 替代标准 TLS")
-	t.Logf("2. 使用 Chrome 浏览器指纹")
-	t.Logf("3. 保持相同的配置参数")
-	t.Logf("")
-	t.Logf("预期结果:")
-	t.Logf("- 服务端不再报告 'processed invalid connection'")
-	t.Logf("- 能够正常转发流量")
-	t.Logf("- 收到 HTTP 响应")
-	t.Logf("- 连接类型为 *utls.UConn")
 }

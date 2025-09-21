@@ -46,7 +46,7 @@ func testRealityXrayComplete(t *testing.T, vless *proxy.VLESS, name string, ip [
 	md := &metadata.Metadata{
 		Network: metadata.TCP,
 		DstIP:   netip.AddrFrom4(ip),
-		DstPort: 443,
+		DstPort: 80, // 使用 HTTP 端口
 	}
 
 	// 设置超时上下文
@@ -117,28 +117,4 @@ func testRealityXrayComplete(t *testing.T, vless *proxy.VLESS, name string, ip [
 	} else {
 		t.Logf("⚠️ 未收到响应")
 	}
-}
-
-// TestVLESSRealityXrayCompleteComparison 对比测试
-func TestVLESSRealityXrayCompleteComparison(t *testing.T) {
-	t.Logf("=== 对比测试：完整 REALITY + Xray 发现 vs 之前实现 ===")
-	t.Logf("")
-	t.Logf("测试目标:")
-	t.Logf("1. 基于 Xray-core 代码发现的完整 REALITY 实现")
-	t.Logf("2. 正确设置 SessionId 中的版本信息和 ShortID")
-	t.Logf("3. 避免 'processed invalid connection' 错误")
-	t.Logf("4. 验证流量转发功能")
-	t.Logf("")
-	t.Logf("关键改进:")
-	t.Logf("1. 构建握手状态：utlsConn.BuildHandshakeState()")
-	t.Logf("2. 设置 SessionId：hello.SessionId = make([]byte, 32)")
-	t.Logf("3. 版本信息：hello.SessionId[0-3] = [1, 8, 0, 0]")
-	t.Logf("4. 时间戳：binary.BigEndian.PutUint32(hello.SessionId[4:], time)")
-	t.Logf("5. ShortID：copy(hello.SessionId[8:16], shortIDBytes[:])")
-	t.Logf("")
-	t.Logf("预期结果:")
-	t.Logf("- 服务端不再报告 'processed invalid connection'")
-	t.Logf("- 能够正常转发流量")
-	t.Logf("- 收到 HTTP 响应")
-	t.Logf("- 连接类型为 *tls.UConn")
 }

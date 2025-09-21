@@ -117,21 +117,13 @@ func testRealityXrayUClient(t *testing.T, vless *proxy.VLESS, name string, ip [4
 	conn.SetReadDeadline(time.Now().Add(20 * time.Second))
 
 	buf := make([]byte, 4096)
-	total := 0
-	for {
-		n, err := conn.Read(buf)
-		if n > 0 {
-			total += n
-			t.Logf("✅ 读取到数据块 (%d 字节)", n)
-		}
-		if err == io.EOF {
-			break
-		}
-		if err != nil {
-			t.Logf("❌ 读取响应失败: %v", err)
-			return
-		}
+	n, err = conn.Read(buf)
+	if err != nil && err != io.EOF {
+		t.Logf("❌ 读取响应失败: %v", err)
+		return
 	}
+
+	total := n
 
 	if total > 0 {
 		response := string(buf[:total])

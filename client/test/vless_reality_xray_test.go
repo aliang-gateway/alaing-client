@@ -20,7 +20,7 @@ func TestVLESSRealityXray(t *testing.T) {
 
 	// 创建带 REALITY 的 VLESS 客户端
 	vless, err := proxy.NewVLESSWithReality(
-		"103.255.209.43:443",
+		"127.0.0.1:443",
 		"c15c1096-752b-415c-ff54-f560e2e4ea85",
 		"www.microsoft.com",
 		"h1h7T-tqXyGaI0teh7i7kHu1qRLTT5HibTZcu30YtSs",
@@ -117,26 +117,4 @@ func testRealityXray(t *testing.T, vless *proxy.VLESS, name string, ip [4]byte, 
 	} else {
 		t.Logf("⚠️ 未收到响应")
 	}
-}
-
-// TestVLESSRealityXrayComparison 对比测试
-func TestVLESSRealityXrayComparison(t *testing.T) {
-	t.Logf("=== 对比测试：REALITY + Xray 思路 vs 标准实现 ===")
-	t.Logf("")
-	t.Logf("测试目标:")
-	t.Logf("1. 基于 Xray-core 的 REALITY 实现思路")
-	t.Logf("2. 使用 SessionTicketsDisabled: true")
-	t.Logf("3. 避免 'processed invalid connection' 错误")
-	t.Logf("4. 验证流量转发功能")
-	t.Logf("")
-	t.Logf("修改内容:")
-	t.Logf("1. 添加 SessionTicketsDisabled: true")
-	t.Logf("2. 基于 Xray-core 的配置思路")
-	t.Logf("3. 保持相同的握手流程")
-	t.Logf("")
-	t.Logf("预期结果:")
-	t.Logf("- 服务端不再报告 'processed invalid connection'")
-	t.Logf("- 能够正常转发流量")
-	t.Logf("- 收到 HTTP 响应")
-	t.Logf("- 连接类型为 *tls.UConn")
 }

@@ -46,7 +46,7 @@ func testRealityXrayOfficial(t *testing.T, vless *proxy.VLESS, name string, ip [
 	md := &metadata.Metadata{
 		Network: metadata.TCP,
 		DstIP:   netip.AddrFrom4(ip),
-		DstPort: 443,
+		DstPort: 80, // 使用 HTTP 端口
 	}
 
 	// 设置超时上下文
@@ -117,36 +117,4 @@ func testRealityXrayOfficial(t *testing.T, vless *proxy.VLESS, name string, ip [
 	} else {
 		t.Logf("⚠️ 未收到响应")
 	}
-}
-
-// TestVLESSRealityXrayOfficialComparison 对比测试
-func TestVLESSRealityXrayOfficialComparison(t *testing.T) {
-	t.Logf("=== 对比测试：真正的 Xray-core 官方 UClient 方法 ===")
-	t.Logf("")
-	t.Logf("测试目标:")
-	t.Logf("1. 完全按照 Xray-core 官方 UClient 方法实现")
-	t.Logf("2. 验证是否解决了 'processed invalid connection' 错误")
-	t.Logf("3. 验证流量转发功能")
-	t.Logf("4. 确保协议兼容性")
-	t.Logf("")
-	t.Logf("Xray-core UClient 方法步骤:")
-	t.Logf("1. localAddr := c.LocalAddr().String()")
-	t.Logf("2. 创建 uTLS 配置")
-	t.Logf("3. uConn := utls.UClient(c, utlsConfig, fingerprint)")
-	t.Logf("4. uConn.BuildHandshakeState()")
-	t.Logf("5. hello := uConn.HandshakeState.Hello")
-	t.Logf("6. hello.SessionId = make([]byte, 32)")
-	t.Logf("7. copy(hello.Raw[39:], hello.SessionId)")
-	t.Logf("8. 设置版本信息: core.Version_x, core.Version_y, core.Version_z")
-	t.Logf("9. 设置时间戳: binary.BigEndian.PutUint32")
-	t.Logf("10. 设置 ShortID: copy(hello.SessionId[8:], config.ShortId)")
-	t.Logf("11. uConn.Handshake()")
-	t.Logf("12. return uConn, nil")
-	t.Logf("")
-	t.Logf("预期结果:")
-	t.Logf("- 服务端不再报告 'processed invalid connection'")
-	t.Logf("- 能够正常转发流量")
-	t.Logf("- 收到 HTTP 响应")
-	t.Logf("- 连接类型为 *tls.UConn")
-	t.Logf("- 完全符合 Xray-core 官方规范")
 }
