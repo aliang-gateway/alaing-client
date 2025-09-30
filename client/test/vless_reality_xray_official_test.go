@@ -2,6 +2,7 @@ package test
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"io"
 	"net/netip"
@@ -46,7 +47,7 @@ func testRealityXrayOfficial(t *testing.T, vless *proxy.VLESS, name string, ip [
 	md := &metadata.Metadata{
 		Network: metadata.TCP,
 		DstIP:   netip.AddrFrom4(ip),
-		DstPort: 80, // 使用 HTTP 端口
+		DstPort: 443, // 使用 HTTPS 端口
 	}
 
 	// 设置超时上下文
@@ -64,9 +65,13 @@ func testRealityXrayOfficial(t *testing.T, vless *proxy.VLESS, name string, ip [
 	t.Logf("✅ 连接建立成功: %s -> %s", conn.LocalAddr(), conn.RemoteAddr())
 	t.Logf("连接类型: %T", conn)
 
-	// 发送 HTTP 请求
+	// 在 VLESS 连接上发起 TLS 握手（SNI=host）
+	tlsConn := tls.Client(conn, &tls.Config{ServerName: host, InsecureSkipVerify: true})
+	defer tlsConn.Close()
+
+	// 发送 HTTPS 请求
 	req := fmt.Sprintf("GET / HTTP/1.1\r\nHost: %s\r\nUser-Agent: VLESS-REALITY-Xray-Official-Test\r\nConnection: close\r\n\r\n", host)
-	_, err = conn.Write([]byte(req))
+	_, err = tlsConn.Write([]byte(req))
 	if err != nil {
 		t.Logf("❌ 写入请求失败: %v", err)
 		return
@@ -75,10 +80,10 @@ func testRealityXrayOfficial(t *testing.T, vless *proxy.VLESS, name string, ip [
 	t.Logf("✅ 成功发送 HTTP 请求到 %s", host)
 
 	// 读取响应（设置读取超时）
-	conn.SetReadDeadline(time.Now().Add(10 * time.Second))
+	tlsConn.SetReadDeadline(time.Now().Add(10 * time.Second))
 
 	buf := make([]byte, 4096)
-	n, err := conn.Read(buf)
+	n, err := tlsConn.Read(buf)
 	if err != nil && err != io.EOF {
 		t.Logf("❌ 读取响应失败: %v", err)
 		return

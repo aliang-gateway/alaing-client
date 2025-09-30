@@ -7,13 +7,14 @@ import (
 
 // Metadata contains metadata of transport protocol sessions.
 type Metadata struct {
-	Network Network    `json:"network"`
-	SrcIP   netip.Addr `json:"sourceIP"`
-	MidIP   netip.Addr `json:"dialerIP"`
-	DstIP   netip.Addr `json:"destinationIP"`
-	SrcPort uint16     `json:"sourcePort"`
-	MidPort uint16     `json:"dialerPort"`
-	DstPort uint16     `json:"destinationPort"`
+	Network  Network    `json:"network"`
+	SrcIP    netip.Addr `json:"sourceIP"`
+	MidIP    netip.Addr `json:"dialerIP"`
+	DstIP    netip.Addr `json:"destinationIP"`
+	SrcPort  uint16     `json:"sourcePort"`
+	MidPort  uint16     `json:"dialerPort"`
+	DstPort  uint16     `json:"destinationPort"`
+	HostName string     `json:"hostName"`
 }
 
 func (m *Metadata) DestinationAddrPort() netip.AddrPort {

@@ -21,6 +21,7 @@ import (
 	vencl "github.com/xtls/xray-core/proxy/vless/encoding"
 	reality "github.com/xtls/xray-core/transport/internet/reality"
 
+	"nursor.org/nursorgate/client/server/tun/dialer"
 	M "nursor.org/nursorgate/client/server/tun/metadata"
 	"nursor.org/nursorgate/client/server/tun/proxy/proto"
 )
@@ -164,7 +165,8 @@ func NewVLESSWithReality(server, uuid, sni, publicKey, shortID string) (*VLESS, 
 		Server:     host,
 		ServerPort: port,
 		UUID:       uuid,
-		Flow:       "xtls-rprx-vision",
+		// Flow:       "xtls-rprx-vision",
+		Flow: "",
 		TLS: &TLSConfig{
 			Enabled:    true,
 			ServerName: sni,
@@ -275,16 +277,16 @@ func (v *VLESS) DialContext(ctx context.Context, metadata *M.Metadata) (net.Conn
 		return nil, err
 	}
 
-	// 将新连接放入连接池（如果池未满）
-	v.connPool.Put(conn)
+	// 不要立即将连接放入池中，让连接使用完毕后再回收
+	// v.connPool.Put(conn)
 
 	return v.wrapConnectionForTarget(conn, metadata), nil
 }
 
 // establishNewConnection 建立新连接并完成握手，参考 xray-core 连接建立流程
 func (v *VLESS) establishNewConnection(ctx context.Context, metadata *M.Metadata) (*PooledConnection, error) {
-	// 连接到 VLESS 服务器
-	conn, err := net.DialTimeout("tcp", v.Addr(), 10*time.Second)
+	// 连接到 VLESS 服务器，使用默认 dialer
+	conn, err := dialer.DialContext(ctx, "tcp", v.Addr())
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to VLESS server: %w", err)
 	}
@@ -292,11 +294,12 @@ func (v *VLESS) establishNewConnection(ctx context.Context, metadata *M.Metadata
 	// 如果启用了 REALITY，进行 REALITY 握手
 	if v.reality != nil && v.reality.Enabled {
 		// 直接使用 Xray-core 的 UClient 方法完成 REALITY 握手
-		realityConn, err := v.performXrayRealityHandshake(ctx, conn, metadata)
-		if err != nil {
-			conn.Close()
-			return nil, fmt.Errorf("failed to perform Xray REALITY handshake: %w", err)
-		}
+		// realityConn, err := v.performXrayRealityHandshake(ctx, conn, metadata)
+		// if err != nil {
+		// 	conn.Close()
+		// 	return nil, fmt.Errorf("failed to perform Xray REALITY handshake: %w", err)
+		// }
+		realityConn := conn
 
 		// 发送 VLESS 握手并返回包装后的连接（若 Vision 则包裹编码/解码）
 		wrappedConn, err := v.sendVLESSHandshake(ctx, realityConn, metadata)
@@ -320,7 +323,7 @@ func (v *VLESS) establishNewConnection(ctx context.Context, metadata *M.Metadata
 			ServerName:         v.sni,
 			InsecureSkipVerify: true,
 			MinVersion:         tls.VersionTLS12, // 强制使用 TLS 1.2
-			MaxVersion:         tls.VersionTLS12, // 避免 TLS 1.3
+			MaxVersion:         tls.VersionTLS13, // 避免 TLS 1.3
 		}
 		conn = tls.Client(conn, tlsConfig)
 	}
@@ -367,19 +370,38 @@ func (vc *VLESSWrappedConn) Write(p []byte) (int, error) {
 	}
 	vc.mu.Unlock()
 
-	return vc.conn.Write(p)
+	fmt.Printf("DEBUG: VLESS Write %d bytes to %s\n", len(p), vc.targetAddr)
+	n, err := vc.conn.Write(p)
+	if err != nil {
+		fmt.Printf("DEBUG: VLESS Write error: %v\n", err)
+	} else {
+		fmt.Printf("DEBUG: VLESS Write success: %d bytes\n", n)
+	}
+	return n, err
 }
 
 func (vc *VLESSWrappedConn) Read(p []byte) (int, error) {
-	return vc.conn.Read(p)
+	fmt.Printf("DEBUG: VLESS Read attempt, buffer size: %d\n", len(p))
+	n, err := vc.conn.Read(p)
+	if err != nil {
+		fmt.Printf("DEBUG: VLESS Read error: %v\n", err)
+	} else {
+		fmt.Printf("DEBUG: VLESS Read success: %d bytes\n", n)
+	}
+	return n, err
 }
 
 func (vc *VLESSWrappedConn) Close() error {
-	// 连接关闭时，标记为不可用但不关闭底层连接（用于连接池复用）
+	// 连接关闭时，标记为不可用并关闭底层连接
 	vc.mu.Lock()
 	vc.isAvailable = false
 	vc.mu.Unlock()
-	return nil // 不关闭底层连接，让连接池管理
+
+	// 真正关闭底层连接
+	if vc.conn != nil {
+		return vc.conn.Close()
+	}
+	return nil
 }
 
 // 实现 net.Conn 接口的其他方法
@@ -494,7 +516,10 @@ func (v *VLESS) sendVLESSHandshake(ctx context.Context, conn net.Conn, metadata 
 	}
 	fmt.Printf("DEBUG: VLESS 用户信息 - UUID: %s, Flow: %s\n", v.uuid, v.flow)
 
-	targetHost := metadata.DstIP.String()
+	targetHost := metadata.HostName
+	if targetHost == "" {
+		targetHost = metadata.DstIP.String()
+	}
 
 	fmt.Printf("DEBUG: 目标主机: %s, 端口: %d\n", targetHost, metadata.DstPort)
 	addr := xnet.ParseAddress(targetHost)
@@ -502,7 +527,7 @@ func (v *VLESS) sendVLESSHandshake(ctx context.Context, conn net.Conn, metadata 
 
 	// 3) 请求头
 	req := &protocol.RequestHeader{
-		Version: vencl.Version,
+		Version: vencl.Version, // 使用 xray-core 定义的版本号 0
 		User:    user,
 		Command: protocol.RequestCommandTCP,
 		Address: addr,
@@ -523,27 +548,6 @@ func (v *VLESS) sendVLESSHandshake(ctx context.Context, conn net.Conn, metadata 
 		return nil, err
 	}
 	fmt.Printf("DEBUG: VLESS 请求头发送成功\n")
-
-	// 6) Vision 流不需要读取响应头，直接开始数据传输
-	if v.flow == "xtls-rprx-vision" {
-		fmt.Printf("DEBUG: Vision 流不需要响应头，直接开始数据传输\n")
-	} else {
-		// 非 Vision 流需要读取响应头
-		fmt.Printf("DEBUG: 开始读取 VLESS 响应头...\n")
-		responseAddons, err := vencl.DecodeResponseHeader(conn, req)
-		if err != nil {
-			fmt.Printf("DEBUG: VLESS 响应头解码失败: %v\n", err)
-			return nil, fmt.Errorf("VLESS handshake failed: %w", err)
-		}
-
-		fmt.Printf("DEBUG: VLESS 响应头解码成功\n")
-		if responseAddons != nil {
-			fmt.Printf("DEBUG: 响应 Addons: %+v\n", responseAddons)
-		}
-	}
-
-	// 7) 返回握手成功的连接
-	fmt.Printf("DEBUG: VLESS 握手完成，返回连接\n")
 	return conn, nil
 }
 

@@ -2,17 +2,28 @@ package server
 
 import (
 	"bufio"
-	"crypto/tls"
 	"log"
 	"net"
 	"net/http"
 
 	"nursor.org/nursorgate/client/inbound"
-	"nursor.org/nursorgate/client/inbound/cert"
 	"nursor.org/nursorgate/client/outbound"
-	"nursor.org/nursorgate/common/logger"
 	"nursor.org/nursorgate/common/model"
 )
+
+// readerFirstConn 在 Read 时优先从已有的 bufio.Reader 中读取，
+// 用于在 CONNECT 之后透传已经缓存在 reader 里的 TLS 首包字节。
+type readerFirstConn struct {
+	net.Conn
+	r *bufio.Reader
+}
+
+func (c *readerFirstConn) Read(p []byte) (int, error) {
+	if c.r != nil && c.r.Buffered() > 0 {
+		return c.r.Read(p)
+	}
+	return c.Conn.Read(p)
+}
 
 // 全局 CA 证书
 func StartMitmHttpSimple() {
@@ -49,19 +60,6 @@ func handleRawConnectionSimple(conn net.Conn) {
 
 	if req.Method == "CONNECT" {
 		log.Printf("Received CONNECT request for %s", req.Host)
-		// resp := http.Response{
-		// 	Status:        "200 Connection Established",
-		// 	StatusCode:    http.StatusOK,
-		// 	Proto:         "HTTP/1.1",
-		// 	ProtoMajor:    1,
-		// 	ProtoMinor:    1,
-		// 	Body:          io.NopCloser(strings.NewReader("")),
-		// 	ContentLength: 0,
-		// }
-		// if err := resp.Write(conn); err != nil {
-		// 	log.Printf("Failed to send 200 OK: %v", err)
-		// 	return
-		// }
 		_, err := conn.Write([]byte("HTTP/1.1 200 Connection Established\r\n\r\n"))
 		if err != nil {
 			log.Printf("Failed to send 200 OK: %v", err)
@@ -69,14 +67,23 @@ func handleRawConnectionSimple(conn net.Conn) {
 		}
 
 		allowDomain := model.NewAllowProxyDomain()
-		if allowDomain.IsAllowToCursor(req.Host) {
-			tlsConf := cert.CreateTlsConfigForHost(req.Host)
-			tlsConn := tls.Server(conn, tlsConf)
-			if err := tlsConn.Handshake(); err != nil {
-				logger.Warn("TLS handshake with client failed:", req.Host, err)
-				// return
-			}
-			inbound.HandleTLSConnectionSimple(tlsConn, req)
+		if allowDomain.IsAllowToCursor(req.Host) || allowDomain.IsAllowToAnyDoor(req.Host) || allowDomain.IsAllowToGate(req.Host) {
+			// tlsConf := cert.CreateTlsConfigForHost(req.Host)
+			// tlsConn := tls.Server(conn, tlsConf)
+			// if err := tlsConn.Handshake(); err != nil {
+			// 	logger.Warn("TLS handshake with client failed:", req.Host, err)
+			// 	return
+			// }
+			// inbound.HandleTLSConnectionSimple(tlsConn, req)
+			// 使用包级 readerFirstConn，复用上面的 reader，避免丢失缓冲中的 TLS 首包
+
+			// var newConn *readerFirstConn
+			// if reader.Buffered() > 0 {
+			// 	newConn = &readerFirstConn{Conn: conn, r: reader}
+			// } else {
+			// 	newConn = &readerFirstConn{Conn: conn, r: nil}
+			// }
+			inbound.HandleTLSConnectionSimpleWithoutDecrypt(conn, req.Host, req.Host, nil)
 			// outbound.Direct(tlsConn, req)
 		} else {
 			outbound.Direct(conn, req)
@@ -84,6 +91,12 @@ func handleRawConnectionSimple(conn net.Conn) {
 		// outbound.Direct(conn, req)
 
 	} else {
-		outbound.Direct(conn, req)
+		allowDomain := model.NewAllowProxyDomain()
+		if allowDomain.IsAllowToCursor(req.Host) || allowDomain.IsAllowToAnyDoor(req.Host) || allowDomain.IsAllowToGate(req.Host) {
+			inbound.HandleTLSConnectionSimpleWithoutDecrypt(conn, req.Host, req.Host, req)
+		} else {
+			outbound.Direct(conn, req)
+		}
+		// outbound.Direct(conn, req)
 	}
 }

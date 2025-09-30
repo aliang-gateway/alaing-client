@@ -6,8 +6,6 @@ import (
 	"io"
 	"log"
 	"os"
-	"path/filepath"
-	"runtime"
 	"sync"
 	"time"
 
@@ -61,28 +59,28 @@ func init() {
 
 // 初始化日志系统
 func Init() error {
-	var home string
-	var err error
+	// var home string
+	// var err error
 
-	if runtime.GOOS == "darwin" {
-		home, _ = os.UserHomeDir()
-	} else {
-		home, err = os.UserHomeDir()
-		if err != nil {
-			return err
-		}
-	}
+	// if runtime.GOOS == "darwin" {
+	// 	home, _ = os.UserHomeDir()
+	// } else {
+	// 	home, err = os.UserHomeDir()
+	// 	if err != nil {
+	// 		return err
+	// 	}
+	// }
 
-	logDir := filepath.Join(home, ".nursor")
-	if err := os.MkdirAll(logDir, 0755); err != nil {
-		return err
-	}
+	// logDir := filepath.Join(home, ".nursor")
+	// if err := os.MkdirAll(logDir, 0755); err != nil {
+	// 	return err
+	// }
 
-	logFilePath = filepath.Join(logDir, "nursor_core.log")
-	logFile, err = os.OpenFile(logFilePath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
-	if err != nil {
-		return err
-	}
+	// logFilePath = filepath.Join(logDir, "nursor_core.log")
+	// logFile, err = os.OpenFile(logFilePath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+	// if err != nil {
+	// 	return err
+	// }
 
 	if LogSilent == "true" {
 		logger = log.New(io.Discard, "", log.LstdFlags|log.Lshortfile)

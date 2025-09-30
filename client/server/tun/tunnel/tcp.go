@@ -116,7 +116,7 @@ func (t *Tunnel) handleTCPConn(originConn adapter.TCPConn) {
 				if helper.IsCursorProxyEnabled {
 					handleTlsConnect(tlsConn, req)
 				} else {
-					remoteConn, err = GetDoorProxy().DialContext(ctx, metadata)
+					remoteConn, err = (*GetDoorProxy()).DialContext(ctx, metadata)
 					if err != nil {
 						logger.Error(fmt.Sprintf("failure in connenct to anydoor %v", err))
 						return
@@ -136,7 +136,7 @@ func (t *Tunnel) handleTCPConn(originConn adapter.TCPConn) {
 				metadata.DstIP = toNetip(ips[0])
 				metadata.DstPort = 443
 			}
-			remoteConn, err = GetDoorProxy().DialContext(ctx, metadata)
+			remoteConn, err = (*GetDoorProxy()).DialContext(ctx, metadata)
 			if err != nil {
 				logger.Error(fmt.Sprintf("%s failure in connenct to anydoor %v", serverName, err))
 				return
