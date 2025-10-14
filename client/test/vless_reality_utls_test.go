@@ -20,8 +20,8 @@ func TestVLESSRealityUTLS(t *testing.T) {
 
 	// 创建带 REALITY 的 VLESS 客户端
 	vless, err := proxy.NewVLESSWithReality(
-		"127.0.0.1:443",
-		"c15c1096-752b-415c-ff54-f560e2e4ea85",
+		"127.0.0.1:6443",
+		"12345678-1234-1234-1234-123456789abc",
 		"www.microsoft.com",
 		"h1h7T-tqXyGaI0teh7i7kHu1qRLTT5HibTZcu30YtSs",
 		"335fad66be5a",
@@ -46,7 +46,7 @@ func testRealityUTLS(t *testing.T, vless *proxy.VLESS, name string, ip [4]byte, 
 	md := &metadata.Metadata{
 		Network: metadata.TCP,
 		DstIP:   netip.AddrFrom4(ip),
-		DstPort: 443,
+		DstPort: 80,
 	}
 
 	// 设置超时上下文

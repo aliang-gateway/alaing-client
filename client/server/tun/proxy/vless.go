@@ -1,6 +1,7 @@
 package proxy
 
 import (
+	"bytes"
 	"context"
 	"crypto/tls"
 	"encoding/base64"
@@ -50,9 +51,9 @@ type ConnectionPool struct {
 
 // PooledConnection 池化连接
 type PooledConnection struct {
-	conn        net.Conn
-	lastUsed    time.Time
-	isAvailable bool
+	Conn        net.Conn
+	LastUsed    time.Time
+	IsAvailable bool
 	mu          sync.RWMutex
 }
 
@@ -225,15 +226,15 @@ func (cp *ConnectionPool) Get() *PooledConnection {
 		select {
 		case conn := <-cp.connections:
 			// 检查连接是否仍然可用且未过期
-			if conn != nil && conn.isAvailable && time.Since(conn.lastUsed) < 30*time.Second {
+			if conn != nil && conn.IsAvailable && time.Since(conn.LastUsed) < 30*time.Second {
 				conn.mu.Lock()
-				conn.lastUsed = time.Now()
+				conn.LastUsed = time.Now()
 				conn.mu.Unlock()
 				return conn
 			}
 			// 不合格则关闭并继续取下一个
-			if conn != nil && conn.conn != nil {
-				conn.conn.Close()
+			if conn != nil && conn.Conn != nil {
+				conn.Conn.Close()
 			}
 			// 继续循环尝试从池中取下一个
 			continue
@@ -246,7 +247,7 @@ func (cp *ConnectionPool) Get() *PooledConnection {
 
 // Put 将连接放回连接池，参考 xray-core 连接回收机制
 func (cp *ConnectionPool) Put(conn *PooledConnection) {
-	if conn == nil || !conn.isAvailable {
+	if conn == nil || !conn.IsAvailable {
 		return
 	}
 
@@ -255,7 +256,7 @@ func (cp *ConnectionPool) Put(conn *PooledConnection) {
 		// 成功放回池中
 	default:
 		// 池已满，关闭连接
-		conn.conn.Close()
+		conn.Conn.Close()
 	}
 }
 
@@ -267,7 +268,12 @@ func (v *VLESS) DialContext(ctx context.Context, metadata *M.Metadata) (net.Conn
 	// 尝试从连接池获取已握手的连接
 	if pooledConn := v.connPool.Get(); pooledConn != nil {
 		fmt.Printf("DEBUG: 复用连接池中的连接\n")
-		return v.wrapConnectionForTarget(pooledConn, metadata), nil
+		// 为复用的连接准备新的握手数据
+		handshakeData, err := v.prepareVLESSHandshake(ctx, metadata)
+		if err != nil {
+			return nil, fmt.Errorf("failed to prepare handshake for reused connection: %w", err)
+		}
+		return v.wrapConnectionForTarget(pooledConn, metadata, handshakeData), nil
 	}
 
 	// 连接池为空，创建新连接
@@ -277,13 +283,20 @@ func (v *VLESS) DialContext(ctx context.Context, metadata *M.Metadata) (net.Conn
 		return nil, err
 	}
 
+	// 准备握手数据
+	handshakeData, err := v.prepareVLESSHandshake(ctx, metadata)
+	if err != nil {
+		conn.Conn.Close()
+		return nil, fmt.Errorf("failed to prepare handshake for new connection: %w", err)
+	}
+
 	// 不要立即将连接放入池中，让连接使用完毕后再回收
 	// v.connPool.Put(conn)
 
-	return v.wrapConnectionForTarget(conn, metadata), nil
+	return v.wrapConnectionForTarget(conn, metadata, handshakeData), nil
 }
 
-// establishNewConnection 建立新连接并完成握手，参考 xray-core 连接建立流程
+// establishNewConnection 建立新连接并准备握手数据，参考 xray-core 连接建立流程
 func (v *VLESS) establishNewConnection(ctx context.Context, metadata *M.Metadata) (*PooledConnection, error) {
 	// 连接到 VLESS 服务器，使用默认 dialer
 	conn, err := dialer.DialContext(ctx, "tcp", v.Addr())
@@ -301,19 +314,11 @@ func (v *VLESS) establishNewConnection(ctx context.Context, metadata *M.Metadata
 		// }
 		realityConn := conn
 
-		// 发送 VLESS 握手并返回包装后的连接（若 Vision 则包裹编码/解码）
-		wrappedConn, err := v.sendVLESSHandshake(ctx, realityConn, metadata)
-		if err != nil {
-			fmt.Printf("DEBUG: VLESS 握手失败: %v\n", err)
-			realityConn.Close()
-			return nil, fmt.Errorf("VLESS handshake failed: %w", err)
-		}
-
-		fmt.Printf("DEBUG: VLESS 握手成功\n")
+		fmt.Printf("DEBUG: REALITY 连接建立成功\n")
 		return &PooledConnection{
-			conn:        wrappedConn,
-			lastUsed:    time.Now(),
-			isAvailable: true,
+			Conn:        realityConn,
+			LastUsed:    time.Now(),
+			IsAvailable: true,
 		}, nil
 	}
 
@@ -328,50 +333,78 @@ func (v *VLESS) establishNewConnection(ctx context.Context, metadata *M.Metadata
 		conn = tls.Client(conn, tlsConfig)
 	}
 
-	// 发送 VLESS 握手并返回包装后的连接
-	wrappedConn, err := v.sendVLESSHandshake(ctx, conn, metadata)
-	if err != nil {
-		conn.Close()
-		return nil, fmt.Errorf("failed to send VLESS handshake: %w", err)
-	}
-
+	fmt.Printf("DEBUG: 连接建立成功\n")
 	return &PooledConnection{
-		conn:        wrappedConn,
-		lastUsed:    time.Now(),
-		isAvailable: true,
+		Conn:        conn,
+		LastUsed:    time.Now(),
+		IsAvailable: true,
 	}, nil
 }
 
 // wrapConnectionForTarget 为连接包装目标地址信息，参考 xray-core 连接包装
-func (v *VLESS) wrapConnectionForTarget(pooledConn *PooledConnection, metadata *M.Metadata) net.Conn {
+func (v *VLESS) wrapConnectionForTarget(pooledConn *PooledConnection, metadata *M.Metadata, handshakeData []byte) net.Conn {
 	return &VLESSWrappedConn{
 		PooledConnection: pooledConn,
-		targetAddr:       metadata.DestinationAddress(),
-		targetPort:       metadata.DstPort,
-		hasSetTarget:     false,
+		TargetAddr:       metadata.DestinationAddress(),
+		TargetPort:       metadata.DstPort,
+		HasSetTarget:     false,
+		HandshakeData:    handshakeData,
+		HandshakeSent:    false,
 	}
 }
 
-// VLESSWrappedConn 包装连接，支持动态目标地址设置
+// VLESSWrappedConn 包装连接，支持动态目标地址设置和延迟握手发送
 type VLESSWrappedConn struct {
 	*PooledConnection
-	targetAddr   string
-	targetPort   uint16
-	hasSetTarget bool
-	mu           sync.RWMutex
+	TargetAddr   string
+	TargetPort   uint16
+	HasSetTarget bool
+
+	// 延迟握手相关字段
+	HandshakeData []byte // 缓存的握手数据
+	HandshakeSent bool   // 握手是否已发送
+	mu            sync.RWMutex
 }
 
 func (vc *VLESSWrappedConn) Write(p []byte) (int, error) {
-	// 第一次写入时设置目标地址（如果需要）
 	vc.mu.Lock()
-	if !vc.hasSetTarget {
-		// VLESS 协议在握手时已经设置了目标地址，这里不需要再次设置
-		vc.hasSetTarget = true
-	}
-	vc.mu.Unlock()
+	defer vc.mu.Unlock()
 
-	fmt.Printf("DEBUG: VLESS Write %d bytes to %s\n", len(p), vc.targetAddr)
-	n, err := vc.conn.Write(p)
+	// 如果握手数据还没有发送，先发送握手数据
+	if !vc.HandshakeSent && len(vc.HandshakeData) > 0 {
+		fmt.Printf("DEBUG: 发送延迟的VLESS握手数据，长度: %d bytes\n", len(vc.HandshakeData))
+
+		// 将握手数据和真实数据拼接在一起
+		combinedData := make([]byte, len(vc.HandshakeData)+len(p))
+		copy(combinedData, vc.HandshakeData)
+		copy(combinedData[len(vc.HandshakeData):], p)
+
+		// 发送拼接后的数据
+		n, err := vc.Conn.Write(combinedData)
+		if err != nil {
+			fmt.Printf("DEBUG: VLESS 握手+数据发送失败: %v\n", err)
+			return 0, err
+		}
+
+		// 计算payload字节数（在释放握手数据之前）
+		handshakeLen := len(vc.HandshakeData)
+		payloadBytes := n - handshakeLen
+		if payloadBytes < 0 {
+			payloadBytes = 0
+		}
+
+		// 标记握手已发送
+		vc.HandshakeSent = true
+		vc.HandshakeData = nil // 释放握手数据内存
+
+		fmt.Printf("DEBUG: VLESS 握手+数据发送成功，总长度: %d bytes\n", n)
+
+		return payloadBytes, nil
+	}
+
+	// 握手已发送，直接发送数据
+	fmt.Printf("DEBUG: VLESS Write %d bytes to %s\n", len(p), vc.TargetAddr)
+	n, err := vc.Conn.Write(p)
 	if err != nil {
 		fmt.Printf("DEBUG: VLESS Write error: %v\n", err)
 	} else {
@@ -382,7 +415,7 @@ func (vc *VLESSWrappedConn) Write(p []byte) (int, error) {
 
 func (vc *VLESSWrappedConn) Read(p []byte) (int, error) {
 	fmt.Printf("DEBUG: VLESS Read attempt, buffer size: %d\n", len(p))
-	n, err := vc.conn.Read(p)
+	n, err := vc.Conn.Read(p)
 	if err != nil {
 		fmt.Printf("DEBUG: VLESS Read error: %v\n", err)
 	} else {
@@ -394,35 +427,35 @@ func (vc *VLESSWrappedConn) Read(p []byte) (int, error) {
 func (vc *VLESSWrappedConn) Close() error {
 	// 连接关闭时，标记为不可用并关闭底层连接
 	vc.mu.Lock()
-	vc.isAvailable = false
+	vc.IsAvailable = false
 	vc.mu.Unlock()
 
 	// 真正关闭底层连接
-	if vc.conn != nil {
-		return vc.conn.Close()
+	if vc.Conn != nil {
+		return vc.Conn.Close()
 	}
 	return nil
 }
 
 // 实现 net.Conn 接口的其他方法
 func (vc *VLESSWrappedConn) LocalAddr() net.Addr {
-	return vc.conn.LocalAddr()
+	return vc.Conn.LocalAddr()
 }
 
 func (vc *VLESSWrappedConn) RemoteAddr() net.Addr {
-	return vc.conn.RemoteAddr()
+	return vc.Conn.RemoteAddr()
 }
 
 func (vc *VLESSWrappedConn) SetDeadline(t time.Time) error {
-	return vc.conn.SetDeadline(t)
+	return vc.Conn.SetDeadline(t)
 }
 
 func (vc *VLESSWrappedConn) SetReadDeadline(t time.Time) error {
-	return vc.conn.SetReadDeadline(t)
+	return vc.Conn.SetReadDeadline(t)
 }
 
 func (vc *VLESSWrappedConn) SetWriteDeadline(t time.Time) error {
-	return vc.conn.SetWriteDeadline(t)
+	return vc.Conn.SetWriteDeadline(t)
 }
 
 // performXrayRealityHandshake 使用 Xray-core 的 UClient 完成 REALITY 握手
@@ -501,8 +534,13 @@ func (v *VLESS) DialUDP(metadata *M.Metadata) (net.PacketConn, error) {
 	return nil, fmt.Errorf("VLESS UDP not supported")
 }
 
-// sendVLESSHandshake 发送 VLESS 握手
-func (v *VLESS) sendVLESSHandshake(ctx context.Context, conn net.Conn, metadata *M.Metadata) (net.Conn, error) {
+// PrepareVLESSHandshake 准备 VLESS 握手数据但不立即发送（公开方法）
+func (v *VLESS) PrepareVLESSHandshake(ctx context.Context, metadata *M.Metadata) ([]byte, error) {
+	return v.prepareVLESSHandshake(ctx, metadata)
+}
+
+// prepareVLESSHandshake 准备 VLESS 握手数据但不立即发送
+func (v *VLESS) prepareVLESSHandshake(ctx context.Context, metadata *M.Metadata) ([]byte, error) {
 	// 1) 构造用户（MemoryAccount + protocol.ID）
 	uParsed, err := xuuid.ParseString(v.uuid)
 	if err != nil {
@@ -516,21 +554,27 @@ func (v *VLESS) sendVLESSHandshake(ctx context.Context, conn net.Conn, metadata 
 	}
 	fmt.Printf("DEBUG: VLESS 用户信息 - UUID: %s, Flow: %s\n", v.uuid, v.flow)
 
-	targetHost := metadata.HostName
+	// 在TUN层，强制使用IP地址而不是域名
+	// 因为TUN层工作在IP层，接收的是已经完成DNS解析的IP数据包
+	targetHost := metadata.DstIP.String()
 	if targetHost == "" {
-		targetHost = metadata.DstIP.String()
+		return nil, fmt.Errorf("no destination IP available in TUN layer")
 	}
 
-	fmt.Printf("DEBUG: 目标主机: %s, 端口: %d\n", targetHost, metadata.DstPort)
+	fmt.Printf("DEBUG: TUN层目标IP: %s, 端口: %d\n", targetHost, metadata.DstPort)
 	addr := xnet.ParseAddress(targetHost)
 	port := xnet.Port(metadata.DstPort)
 
 	// 3) 请求头
+	// 在TUN层，Address必须是IP地址，因为：
+	// - TUN层工作在IP层，接收的是已解析的IP数据包
+	// - 没有域名信息可用，只有IP地址
+	// - 使用IP地址可以避免服务器端进行DNS解析
 	req := &protocol.RequestHeader{
 		Version: vencl.Version, // 使用 xray-core 定义的版本号 0
 		User:    user,
 		Command: protocol.RequestCommandTCP,
-		Address: addr,
+		Address: addr, // 这里必须是IP地址，不能是域名
 		Port:    port,
 	}
 	fmt.Printf("DEBUG: VLESS 请求头 - Version: %d, Command: %d, Address: %s, Port: %d\n",
@@ -543,15 +587,16 @@ func (v *VLESS) sendVLESSHandshake(ctx context.Context, conn net.Conn, metadata 
 	}
 	fmt.Printf("DEBUG: VLESS Addons - Flow: %s\n", addons.Flow)
 
-	// 5) 编码并写入请求头
-	if err := vencl.EncodeRequestHeader(conn, req, addons); err != nil {
+	// 5) 编码握手数据到缓冲区而不是直接写入连接
+	var buf bytes.Buffer
+	if err := vencl.EncodeRequestHeader(&buf, req, addons); err != nil {
 		return nil, err
 	}
-	fmt.Printf("DEBUG: VLESS 请求头发送成功\n")
-	return conn, nil
-}
 
-// 旧的 vlessWrappedConn 已移除，使用新的 VLESSWrappedConn
+	handshakeData := buf.Bytes()
+	fmt.Printf("DEBUG: VLESS 握手数据准备完成，长度: %d bytes\n", len(handshakeData))
+	return handshakeData, nil
+}
 
 // GetConfig 获取当前配置
 func (v *VLESS) GetConfig() *VLESSConfig {
