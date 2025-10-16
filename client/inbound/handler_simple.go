@@ -38,6 +38,12 @@ func HandleTLSConnectionSimple(tlsConn *tls.Conn, req *http.Request) {
 }
 
 func HandleTLSConnectionSimpleWithoutDecrypt(conn net.Conn, sni string, ip string, req *http.Request) {
+	targetPort := uint16(443)
+	if req.URL.Scheme == "http" {
+		targetPort = uint16(80)
+	} else {
+		targetPort = uint16(443)
+	}
 	// 解析目标域名
 	targetHost := sni
 	// 移除端口号（如果有的话）
@@ -74,11 +80,9 @@ func HandleTLSConnectionSimpleWithoutDecrypt(conn net.Conn, sni string, ip strin
 	targetIP := ips[0]
 	logger.Info("Resolved", targetHost, "to", targetIP.String())
 
-	//outBoundClient, err := outbound.NewHttp2ProxyClient(utils.GetServerHost(), req.Host, isHttp2)
-	// outboundVless, err := proxy.NewVLESSWithReality("127.0.0.1:443", "c15c1096-752b-415c-ff54-f560e2e4ea85", "www.microsoft.com", "h1h7T-tqXyGaI0teh7i7kHu1qRLTT5HibTZcu30YtSs", "335fad66be5a")
 	outboundVless, err := proxy.NewVLESSWithReality(
-		"127.0.0.1:8443",
-		"c15c1096-752b-415c-ff54-f560e2e4ea85",
+		"127.0.0.1:6443",
+		"12345678-1234-1234-1234-123456789abc",
 		"www.microsoft.com",
 		"h1h7T-tqXyGaI0teh7i7kHu1qRLTT5HibTZcu30YtSs",
 		"335fad66be5a",
@@ -101,20 +105,21 @@ func HandleTLSConnectionSimpleWithoutDecrypt(conn net.Conn, sni string, ip strin
 		return
 	}
 
-	outboundVlessClient, err := outboundVless.DialContext(context.Background(), &metadata.Metadata{
+	// 创建Metadata结构体
+	meta := &metadata.Metadata{
 		Network:  metadata.TCP,
 		DstIP:    dstIP,
-		DstPort:  443, // HTTPS 端口
 		HostName: targetHost,
-	})
+		DstPort:  targetPort,
+	}
+
+	outboundVlessClient, err := outboundVless.DialContext(context.Background(), meta)
 	if err != nil {
 		logger.Error("Failed to dial VLESS proxy:", err.Error())
 		return
 	}
 	logger.Info("parse ", sni)
-	// if req != nil {
-	// 	req.Write(outboundVlessClient)
-	// }
+
 	pipe(conn, outboundVlessClient)
 }
 
@@ -153,4 +158,22 @@ func unidirectionalStream(dst, src net.Conn, dir string, wg *sync.WaitGroup) {
 	}
 	// Set TCP half-close timeout.
 	dst.SetReadDeadline(time.Now().Add(tcpWaitTimeout))
+}
+
+// determinePortFromMetadata 通过Metadata结构体和连接信息判断目标端口
+func determinePortFromMetadata(conn net.Conn) uint16 {
+	// 通过连接的远程端口判断
+	if remoteAddr := conn.RemoteAddr(); remoteAddr != nil {
+		if tcpAddr, ok := remoteAddr.(*net.TCPAddr); ok {
+			switch tcpAddr.Port {
+			case 443:
+				logger.Info("Detected HTTPS request from remote port 443, using destination port 443")
+				return 443
+			case 80:
+				logger.Info("Detected HTTP request from remote port 80, using destination port 80")
+				return 80
+			}
+		}
+	}
+	return 80
 }

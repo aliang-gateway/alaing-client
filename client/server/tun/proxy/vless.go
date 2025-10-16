@@ -8,6 +8,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net"
 	"strconv"
 	"strings"
@@ -167,12 +168,11 @@ func NewVLESSWithReality(server, uuid, sni, publicKey, shortID string) (*VLESS, 
 		ServerPort: port,
 		UUID:       uuid,
 		// Flow:       "xtls-rprx-vision",
-		Flow: "",
 		TLS: &TLSConfig{
-			Enabled:    true,
+			Enabled:    false,
 			ServerName: sni,
 			Reality: &RealityConfig{
-				Enabled:   true,
+				Enabled:   false,
 				PublicKey: publicKey,
 				ShortID:   shortID,
 			},
@@ -198,7 +198,7 @@ func NewVLESSWithConfig(config *VLESSConfig) (*VLESS, error) {
 		uuidBytes: parsedUUID[:], // 转换为字节数组
 	}
 
-	if config.TLS != nil {
+	if config.TLS != nil && config.TLS.Enabled {
 		v.sni = config.TLS.ServerName
 		if config.TLS.Reality != nil {
 			v.reality = config.TLS.Reality
@@ -266,15 +266,15 @@ func (v *VLESS) DialContext(ctx context.Context, metadata *M.Metadata) (net.Conn
 	defer v.mu.RUnlock()
 
 	// 尝试从连接池获取已握手的连接
-	if pooledConn := v.connPool.Get(); pooledConn != nil {
-		fmt.Printf("DEBUG: 复用连接池中的连接\n")
-		// 为复用的连接准备新的握手数据
-		handshakeData, err := v.prepareVLESSHandshake(ctx, metadata)
-		if err != nil {
-			return nil, fmt.Errorf("failed to prepare handshake for reused connection: %w", err)
-		}
-		return v.wrapConnectionForTarget(pooledConn, metadata, handshakeData), nil
-	}
+	// if pooledConn := v.connPool.Get(); pooledConn != nil {
+	// 	fmt.Printf("DEBUG: 复用连接池中的连接\n")
+	// 	// 为复用的连接准备新的握手数据
+	// 	handshakeData, err := v.prepareVLESSHandshake(ctx, metadata)
+	// 	if err != nil {
+	// 		return nil, fmt.Errorf("failed to prepare handshake for reused connection: %w", err)
+	// 	}
+	// 	return v.wrapConnectionForTarget(pooledConn, metadata, handshakeData), nil
+	// }
 
 	// 连接池为空，创建新连接
 	fmt.Printf("DEBUG: 连接池为空，创建新连接\n")
@@ -289,10 +289,6 @@ func (v *VLESS) DialContext(ctx context.Context, metadata *M.Metadata) (net.Conn
 		conn.Conn.Close()
 		return nil, fmt.Errorf("failed to prepare handshake for new connection: %w", err)
 	}
-
-	// 不要立即将连接放入池中，让连接使用完毕后再回收
-	// v.connPool.Put(conn)
-
 	return v.wrapConnectionForTarget(conn, metadata, handshakeData), nil
 }
 
@@ -363,7 +359,10 @@ type VLESSWrappedConn struct {
 	// 延迟握手相关字段
 	HandshakeData []byte // 缓存的握手数据
 	HandshakeSent bool   // 握手是否已发送
-	mu            sync.RWMutex
+
+	// 响应头处理相关字段
+	ResponseHeaderRead bool // VLESS 响应头是否已读取
+	mu                 sync.RWMutex
 }
 
 func (vc *VLESSWrappedConn) Write(p []byte) (int, error) {
@@ -372,34 +371,44 @@ func (vc *VLESSWrappedConn) Write(p []byte) (int, error) {
 
 	// 如果握手数据还没有发送，先发送握手数据
 	if !vc.HandshakeSent && len(vc.HandshakeData) > 0 {
-		fmt.Printf("DEBUG: 发送延迟的VLESS握手数据，长度: %d bytes\n", len(vc.HandshakeData))
-
-		// 将握手数据和真实数据拼接在一起
-		combinedData := make([]byte, len(vc.HandshakeData)+len(p))
-		copy(combinedData, vc.HandshakeData)
-		copy(combinedData[len(vc.HandshakeData):], p)
-
-		// 发送拼接后的数据
-		n, err := vc.Conn.Write(combinedData)
-		if err != nil {
-			fmt.Printf("DEBUG: VLESS 握手+数据发送失败: %v\n", err)
-			return 0, err
-		}
-
-		// 计算payload字节数（在释放握手数据之前）
 		handshakeLen := len(vc.HandshakeData)
-		payloadBytes := n - handshakeLen
-		if payloadBytes < 0 {
-			payloadBytes = 0
+		fmt.Printf("DEBUG: 发送延迟的VLESS握手数据，长度: %d bytes, payload: %d bytes\n", handshakeLen, len(p))
+
+		// 将握手数据和真实数据拼接在一起（VLESS 协议要求连续写入）
+		combinedData := make([]byte, handshakeLen+len(p))
+		copy(combinedData, vc.HandshakeData)
+		copy(combinedData[handshakeLen:], p)
+
+		// 循环写入，确保所有数据都发送完毕（处理短写情况）
+		totalWritten := 0
+		for totalWritten < len(combinedData) {
+			n, err := vc.Conn.Write(combinedData[totalWritten:])
+			if err != nil {
+				fmt.Printf("DEBUG: VLESS 握手+数据发送失败: %v, 已写入: %d/%d bytes\n", err, totalWritten, len(combinedData))
+				// 如果握手部分还没写完，不能标记为已发送
+				if totalWritten < handshakeLen {
+					return 0, err
+				}
+				// 握手已完成，但 payload 部分写入失败
+				payloadWritten := totalWritten - handshakeLen
+				vc.HandshakeSent = true
+				vc.HandshakeData = nil
+				return payloadWritten, err
+			}
+			totalWritten += n
+			if n > 0 {
+				fmt.Printf("DEBUG: VLESS 写入进度: %d/%d bytes\n", totalWritten, len(combinedData))
+			}
 		}
 
-		// 标记握手已发送
+		// 所有数据（握手+payload）都已成功写入
 		vc.HandshakeSent = true
 		vc.HandshakeData = nil // 释放握手数据内存
 
-		fmt.Printf("DEBUG: VLESS 握手+数据发送成功，总长度: %d bytes\n", n)
+		payloadWritten := totalWritten - handshakeLen
+		fmt.Printf("DEBUG: VLESS 握手+数据全部发送成功，总: %d bytes, payload: %d bytes\n", totalWritten, payloadWritten)
 
-		return payloadBytes, nil
+		return payloadWritten, nil
 	}
 
 	// 握手已发送，直接发送数据
@@ -412,15 +421,30 @@ func (vc *VLESSWrappedConn) Write(p []byte) (int, error) {
 	}
 	return n, err
 }
-
 func (vc *VLESSWrappedConn) Read(p []byte) (int, error) {
-	fmt.Printf("DEBUG: VLESS Read attempt, buffer size: %d\n", len(p))
-	n, err := vc.Conn.Read(p)
-	if err != nil {
-		fmt.Printf("DEBUG: VLESS Read error: %v\n", err)
-	} else {
-		fmt.Printf("DEBUG: VLESS Read success: %d bytes\n", n)
+	if !vc.ResponseHeaderRead {
+		header := make([]byte, 2)
+		vc.Conn.SetReadDeadline(time.Now().Add(3 * time.Second))
+		if _, err := io.ReadFull(vc.Conn, header); err != nil {
+			return 0, fmt.Errorf("read vless response header: %w", err)
+		}
+		vc.Conn.SetReadDeadline(time.Time{}) // clear deadline
+
+		version := header[0]
+		addonLen := int(header[1])
+		if addonLen > 0 {
+			addons := make([]byte, addonLen)
+			if _, err := io.ReadFull(vc.Conn, addons); err != nil {
+				return 0, fmt.Errorf("read vless addons: %w", err)
+			}
+			fmt.Printf("DEBUG: VLESS resp addons: %x\n", addons)
+		}
+
+		vc.ResponseHeaderRead = true
+		fmt.Printf("DEBUG: VLESS resp header ok, version=%d addons=%d\n", version, addonLen)
 	}
+
+	n, err := vc.Conn.Read(p)
 	return n, err
 }
 
@@ -554,27 +578,25 @@ func (v *VLESS) prepareVLESSHandshake(ctx context.Context, metadata *M.Metadata)
 	}
 	fmt.Printf("DEBUG: VLESS 用户信息 - UUID: %s, Flow: %s\n", v.uuid, v.flow)
 
-	// 在TUN层，强制使用IP地址而不是域名
-	// 因为TUN层工作在IP层，接收的是已经完成DNS解析的IP数据包
-	targetHost := metadata.DstIP.String()
+	// 优先使用 HostName；为空时降级到 IP
+	targetHost := metadata.HostName
 	if targetHost == "" {
-		return nil, fmt.Errorf("no destination IP available in TUN layer")
+		targetHost = metadata.DstIP.String()
+		if targetHost == "" {
+			return nil, fmt.Errorf("no destination host available (hostname and IP are empty)")
+		}
 	}
 
-	fmt.Printf("DEBUG: TUN层目标IP: %s, 端口: %d\n", targetHost, metadata.DstPort)
+	fmt.Printf("DEBUG: 目标 Host: %s, 端口: %d\n", targetHost, metadata.DstPort)
 	addr := xnet.ParseAddress(targetHost)
 	port := xnet.Port(metadata.DstPort)
 
 	// 3) 请求头
-	// 在TUN层，Address必须是IP地址，因为：
-	// - TUN层工作在IP层，接收的是已解析的IP数据包
-	// - 没有域名信息可用，只有IP地址
-	// - 使用IP地址可以避免服务器端进行DNS解析
 	req := &protocol.RequestHeader{
-		Version: vencl.Version, // 使用 xray-core 定义的版本号 0
+		Version: vencl.Version,
 		User:    user,
 		Command: protocol.RequestCommandTCP,
-		Address: addr, // 这里必须是IP地址，不能是域名
+		Address: addr,
 		Port:    port,
 	}
 	fmt.Printf("DEBUG: VLESS 请求头 - Version: %d, Command: %d, Address: %s, Port: %d\n",

@@ -19,7 +19,7 @@ func TestVLESSRealityTLS(t *testing.T) {
 	t.Logf("验证是否能避免 'processed invalid connection' 错误")
 
 	// 创建带 REALITY 的 VLESS 客户端
-	vless, err := proxy.NewVLESSWithReality(
+	vlessConfig, err := proxy.NewVLESSWithReality(
 		"103.255.209.43:443",
 		"c15c1096-752b-415c-ff54-f560e2e4ea85",
 		"www.microsoft.com",
@@ -31,11 +31,11 @@ func TestVLESSRealityTLS(t *testing.T) {
 	}
 
 	t.Logf("✅ VLESS + REALITY 客户端创建成功")
-	t.Logf("配置: %s", vless.String())
+	t.Logf("配置: %s", vlessConfig.String())
 
 	// 测试访问 Google
 	t.Logf("\n=== 测试访问 Google ===")
-	testRealityTLS(t, vless, "Google", [4]byte{142, 250, 197, 206}, "www.google.com")
+	testRealityTLS(t, vlessConfig, "Google", [4]byte{142, 250, 197, 206}, "www.google.com")
 }
 
 // testRealityTLS 测试使用标准 TLS 的 REALITY
