@@ -50,10 +50,3 @@ func handleRawConnection(conn net.Conn) {
 
 	inbound.HandleTLSConnectionSimpleWithoutDecrypt(conn, req.Host, req.Host, req)
 }
-
-func handleRawConnectionSimple(conn net.Conn) {
-	defer conn.Close()
-	// 读取客户端初始数据，检查是否为 CONNECT 请求
-
-	inbound.HandleTLSConnectionSimpleWithoutDecrypt(conn, "httpforever.com", "httpforever.com", nil)
-}
