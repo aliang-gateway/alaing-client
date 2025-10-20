@@ -79,19 +79,6 @@ func HandleTLSConnectionSimpleWithoutDecrypt(conn net.Conn, sni string, ip strin
 	// 使用第一个IP地址
 	targetIP := ips[0]
 	logger.Info("Resolved", targetHost, "to", targetIP.String())
-
-	outboundVless, err := proxy.NewVLESSWithReality(
-		"127.0.0.1:6443",
-		"12345678-1234-1234-1234-123456789abc",
-		"www.microsoft.com",
-		"h1h7T-tqXyGaI0teh7i7kHu1qRLTT5HibTZcu30YtSs",
-		"335fad66be5a",
-	)
-	if err != nil {
-		logger.Error(err.Error(), sni)
-		return
-	}
-
 	// 将net.IP转换为netip.Addr
 	var dstIP netip.Addr
 	if ipv4 := targetIP.To4(); ipv4 != nil {
@@ -105,6 +92,18 @@ func HandleTLSConnectionSimpleWithoutDecrypt(conn net.Conn, sni string, ip strin
 		return
 	}
 
+	// 使用已修复的 VLESS + REALITY + Vision 实现
+	outboundVless, err := proxy.NewVLESSWithReality(
+		"103.255.209.43:443",                          // 服务器地址
+		"d9868dc7-3547-4195-95f1-5455748e7706",        // UUID
+		"www.cloudflare.com",                          // SNI
+		"2cLV-hIMZlfDWUc0ESMUCnKYhDVEQL4WGzydSspzfEw", // REALITY PublicKey
+		"838f28591b",                                  // REALITY ShortID
+	)
+	if err != nil {
+		logger.Error(err.Error(), sni)
+		return
+	}
 	// 创建Metadata结构体
 	meta := &metadata.Metadata{
 		Network:  metadata.TCP,
