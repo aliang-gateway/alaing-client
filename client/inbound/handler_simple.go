@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/http"
 	"net/netip"
+	"strconv"
 	"sync"
 	"time"
 
@@ -38,20 +39,39 @@ func HandleTLSConnectionSimple(tlsConn *tls.Conn, req *http.Request) {
 }
 
 func HandleTLSConnectionSimpleWithoutDecrypt(conn net.Conn, sni string, ip string, req *http.Request) {
-	targetPort := uint16(443)
-	if req.URL.Scheme == "http" {
-		targetPort = uint16(80)
-	} else {
-		targetPort = uint16(443)
-	}
-	// 解析目标域名
+	// 从 req.Host 或 sni 中解析目标主机和端口
 	targetHost := sni
-	// 移除端口号（如果有的话）
-	if host, _, err := net.SplitHostPort(targetHost); err == nil {
-		targetHost = host
+	targetPort := uint16(443) // 默认端口
+
+	// 优先从 req.Host 解析（CONNECT 请求的格式是 host:port）
+	if req.Host != "" {
+		if host, portStr, err := net.SplitHostPort(req.Host); err == nil {
+			targetHost = host
+			if port, err := strconv.ParseUint(portStr, 10, 16); err == nil {
+				targetPort = uint16(port)
+			}
+		} else {
+			// 没有端口号，使用整个 req.Host 作为主机名
+			targetHost = req.Host
+			// 根据 scheme 判断端口
+			if req.URL != nil && req.URL.Scheme == "http" {
+				targetPort = 80
+			}
+		}
+	} else if sni != "" {
+		// 从 sni 中解析
+		if host, portStr, err := net.SplitHostPort(sni); err == nil {
+			targetHost = host
+			if port, err := strconv.ParseUint(portStr, 10, 16); err == nil {
+				targetPort = uint16(port)
+			}
+		} else {
+			targetHost = sni
+		}
 	}
 
-	logger.Info("Target host:", targetHost)
+	logger.Info("Target host:", targetHost, "port:", targetPort)
+	logger.Info("Request details - Method:", req.Method, "Host:", req.Host, "SNI:", sni)
 
 	// 解析域名到IP地址
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -81,8 +101,8 @@ func HandleTLSConnectionSimpleWithoutDecrypt(conn net.Conn, sni string, ip strin
 	logger.Info("Resolved", targetHost, "to", targetIP.String())
 
 	outboundVless, err := proxy.NewVLESSWithReality(
-		"127.0.0.1:6443",
-		"12345678-1234-1234-1234-123456789abc",
+		"103.255.209.43:443",
+		"d9868dc7-3547-4195-95f1-5455748e7706",
 		"www.microsoft.com",
 		"h1h7T-tqXyGaI0teh7i7kHu1qRLTT5HibTZcu30YtSs",
 		"335fad66be5a",
@@ -112,6 +132,8 @@ func HandleTLSConnectionSimpleWithoutDecrypt(conn net.Conn, sni string, ip strin
 		HostName: targetHost,
 		DstPort:  targetPort,
 	}
+
+	logger.Info("Creating VLESS connection with metadata - Host:", targetHost, "IP:", dstIP, "Port:", targetPort)
 
 	outboundVlessClient, err := outboundVless.DialContext(context.Background(), meta)
 	if err != nil {

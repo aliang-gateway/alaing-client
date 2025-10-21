@@ -21,7 +21,7 @@ func TestVLESSRealityTLS(t *testing.T) {
 	// 创建带 REALITY 的 VLESS 客户端
 	vlessConfig, err := proxy.NewVLESSWithReality(
 		"103.255.209.43:443",
-		"c15c1096-752b-415c-ff54-f560e2e4ea85",
+		"d9868dc7-3547-4195-95f1-5455748e7706",
 		"www.microsoft.com",
 		"h1h7T-tqXyGaI0teh7i7kHu1qRLTT5HibTZcu30YtSs",
 		"335fad66be5a",
