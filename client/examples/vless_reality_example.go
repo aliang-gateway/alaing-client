@@ -20,7 +20,6 @@ func main() {
 		"c15c1096-752b-415c-ff54-f560e2e4ea85",
 		"www.microsoft.com",
 		"h1h7T-tqXyGaI0teh7i7kHu1qRLTT5HibTZcu30YtSs",
-		"335fad66be5a",
 	)
 	if err != nil {
 		fmt.Printf("创建 VLESS 客户端失败: %v\n", err)
@@ -28,7 +27,6 @@ func main() {
 	}
 
 	fmt.Printf("✅ VLESS + REALITY 客户端创建成功\n")
-	fmt.Printf("配置: %s\n", vless.String())
 
 	// 测试访问 Google
 	fmt.Println("\n=== 测试访问 Google ===")

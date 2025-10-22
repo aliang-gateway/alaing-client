@@ -5,6 +5,7 @@ import (
 	"os/signal"
 	"syscall"
 
+	"nursor.org/nursorgate/client/server/tun"
 	"nursor.org/nursorgate/client/utils"
 
 	_ "github.com/sagernet/reality"
@@ -25,7 +26,7 @@ func RunBackground() {
 	logger.SetLogLevel(logger.DEBUG)
 
 	utils.SetServerHost("test-ai-gateway.nursor.org:18889")
-
+	go tun.Start()
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
 	<-sigCh

@@ -164,14 +164,12 @@ func netstack(k *Key) (err error) {
 	}
 	tunnel.SetDefaultProxy(_defaultProxy)
 
-	// doorProxy, err := proxy.NewVLESSWithReality(
-	// 	"103.255.209.43:443",
-	// 	"c15c1096-752b-415c-ff54-f560e2e4ea85",
-	// 	"www.microsoft.com",
-	// 	"h1h7T-tqXyGaI0teh7i7kHu1qRLTT5HibTZcu30YtSs",
-	// 	"335fad66be5a",
-	// )
-	doorProxy, err := proxy.NewVLESSWithReality("103.255.209.43:443", "c15c1096-752b-415c-ff54-f560e2e4ea85", "www.microsoft.com", "h1h7T-tqXyGaI0teh7i7kHu1qRLTT5HibTZcu30YtSs", "335fad66be5a")
+	doorProxy, err := proxy.NewVLESSWithReality(
+		"node1.nursor.org:443",
+		"c15c1096-752b-415c-ff54-f560e2e4ea85",
+		"www.microsoft.com",
+		"h1h7T-tqXyGaI0teh7i7kHu1qRLTT5HibTZcu30YtSs",
+	)
 	if err != nil {
 		logger.Error(err)
 	}
