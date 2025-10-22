@@ -38,13 +38,6 @@ func (l *SingBoxLogger) formatMessage(level string, args ...any) string {
 	return fmt.Sprintf("%s [%s] %s %s", timestamp, level, l.prefix, message)
 }
 
-// formatMessagef 格式化日志消息（使用格式字符串）
-func (l *SingBoxLogger) formatMessagef(level string, format string, args ...any) string {
-	timestamp := time.Now().Format("2006-01-02 15:04:05.000")
-	message := fmt.Sprintf(format, args...)
-	return fmt.Sprintf("%s [%s] %s %s", timestamp, level, l.prefix, message)
-}
-
 // Trace 输出 TRACE 级别日志
 func (l *SingBoxLogger) Trace(args ...any) {
 	l.logger.Println(l.formatMessage("TRACE", args...))

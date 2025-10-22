@@ -166,7 +166,7 @@ func netstack(k *Key) (err error) {
 
 	doorProxy, err := proxy.NewVLESSWithReality(
 		"node1.nursor.org:443",
-		"c15c1096-752b-415c-ff54-f560e2e4ea85",
+		"d9868dc7-3547-4195-95f1-5455748e7706",
 		"www.microsoft.com",
 		"h1h7T-tqXyGaI0teh7i7kHu1qRLTT5HibTZcu30YtSs",
 	)

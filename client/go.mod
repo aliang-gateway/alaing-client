@@ -13,9 +13,9 @@ require (
 	github.com/gorilla/websocket v1.5.3
 	github.com/miekg/dns v1.1.68
 	github.com/sagernet/reality v0.0.0-20230406110435-ee17307e7691
+	github.com/sagernet/sing-vmess v0.2.7
 	github.com/stretchr/testify v1.11.1
 	github.com/xjasonlyu/tun2socks/v2 v2.6.0
-	github.com/xtls/xray-core v1.250831.0
 	go.uber.org/automaxprocs v1.6.0
 	golang.org/x/net v0.43.0
 	nursor.org/nursorgate/common v0.0.0
@@ -26,10 +26,10 @@ require (
 	github.com/apernet/quic-go v0.52.1-0.20250607183305-9320c9d14431 // indirect
 	github.com/caddyserver/certmagic v0.23.0 // indirect
 	github.com/caddyserver/zerossl v0.1.3 // indirect
-	github.com/cloudflare/circl v1.6.1 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/fsnotify/fsnotify v1.7.0 // indirect
 	github.com/go-chi/chi/v5 v5.2.2 // indirect
+	github.com/go-logr/logr v1.4.3 // indirect
 	github.com/go-ole/go-ole v1.3.0 // indirect
 	github.com/go-task/slim-sprig/v3 v3.0.0 // indirect
 	github.com/godbus/dbus/v5 v5.1.1-0.20230522191255-76236955d466 // indirect
@@ -37,7 +37,6 @@ require (
 	github.com/google/go-cmp v0.7.0 // indirect
 	github.com/google/pprof v0.0.0-20250208200701-d0013a598941 // indirect
 	github.com/hashicorp/yamux v0.1.2 // indirect
-	github.com/juju/ratelimit v1.0.2 // indirect
 	github.com/klauspost/compress v1.18.0 // indirect
 	github.com/klauspost/cpuid/v2 v2.2.10 // indirect
 	github.com/libdns/alidns v1.0.5-libdns.v1.beta1 // indirect
@@ -50,11 +49,8 @@ require (
 	github.com/metacubex/utls v1.8.0 // indirect
 	github.com/mholt/acmez/v3 v3.1.2 // indirect
 	github.com/onsi/ginkgo/v2 v2.22.2 // indirect
-	github.com/pires/go-proxyproto v0.8.1 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/quic-go/qpack v0.5.1 // indirect
-	github.com/quic-go/quic-go v0.54.0 // indirect
-	github.com/refraction-networking/utls v1.8.0 // indirect
 	github.com/sagernet/bbolt v0.0.0-20231014093535-ea5cb2fe9f0a // indirect
 	github.com/sagernet/fswatch v0.1.1 // indirect
 	github.com/sagernet/gvisor v0.0.0-20250325023245-7a9c0f5725fb // indirect
@@ -62,11 +58,9 @@ require (
 	github.com/sagernet/nftables v0.3.0-beta.4 // indirect
 	github.com/sagernet/sing-mux v0.3.3 // indirect
 	github.com/sagernet/sing-tun v0.7.0-beta.1 // indirect
-	github.com/sagernet/sing-vmess v0.2.7 // indirect
 	github.com/sagernet/smux v1.5.34-mod.2 // indirect
 	github.com/stretchr/objx v0.5.2 // indirect
 	github.com/vishvananda/netns v0.0.5 // indirect
-	github.com/xtls/reality v0.0.0-20250828044527-046fad5ab64f // indirect
 	github.com/zeebo/blake3 v0.2.4 // indirect
 	go.uber.org/mock v0.5.0 // indirect
 	go.uber.org/zap/exp v0.3.0 // indirect
@@ -76,10 +70,8 @@ require (
 	golang.org/x/mod v0.27.0 // indirect
 	golang.org/x/tools v0.36.0 // indirect
 	golang.zx2c4.com/wintun v0.0.0-20230126152724-0fa3db229ce2 // indirect
-	google.golang.org/grpc v1.75.0 // indirect
 	google.golang.org/protobuf v1.36.8 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
-	lukechampine.com/blake3 v1.4.1 // indirect
 )
 
 require (
@@ -103,7 +95,7 @@ require (
 	github.com/modern-go/reflect2 v1.0.2 // indirect
 	github.com/nacos-group/nacos-sdk-go v1.1.5
 	github.com/pkg/errors v0.9.1 // indirect
-	github.com/sagernet/sing v0.7.6-0.20250825114712-2aeec120ce28 // indirect
+	github.com/sagernet/sing v0.7.6-0.20250825114712-2aeec120ce28
 	github.com/sagernet/sing-box v1.12.4
 	go.uber.org/atomic v1.11.0
 	go.uber.org/multierr v1.11.0 // indirect

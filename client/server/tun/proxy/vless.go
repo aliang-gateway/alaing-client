@@ -9,7 +9,6 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"time"
 
 	stls "github.com/sagernet/sing-box/common/tls"
 	sopt "github.com/sagernet/sing-box/option"
@@ -26,32 +25,14 @@ import (
 // VLESS 使用简化的 VLESS 实现，参考 xray-core 设计
 type VLESS struct {
 	*Base
-	server    string
-	uuid      string
-	uuidBytes []byte
-	sni       string
-	flow      string
-	reality   *RealityConfig
-	client    *vlessSingBox.Client
+	server  string
+	uuid    string
+	sni     string
+	flow    string
+	reality *RealityConfig
+	client  *vlessSingBox.Client
 
-	// 连接池管理，参考 xray-core 的连接复用机制
-	connPool *ConnectionPool
-	mu       sync.RWMutex
-}
-
-// ConnectionPool 连接池，参考 xray-core 的连接管理
-type ConnectionPool struct {
-	connections chan *PooledConnection
-	maxSize     int
-	mu          sync.RWMutex
-}
-
-// PooledConnection 池化连接
-type PooledConnection struct {
-	Conn        net.Conn
-	LastUsed    time.Time
-	IsAvailable bool
-	mu          sync.RWMutex
+	mu sync.RWMutex
 }
 
 // RealityConfig REALITY 配置
@@ -181,11 +162,6 @@ func NewVLESSWithReality(server, uuid, sni, publicKey string) (*VLESS, error) {
 
 // NewVLESSWithConfig 使用配置创建 VLESS 客户端，参考 xray-core 初始化
 func NewVLESSWithConfig(config *VLESSConfig) (*VLESS, error) {
-	// 解析 UUID
-	//parsedUUID, err := uuid.Parse(config.UUID)
-	//if err != nil {
-	//	return nil, fmt.Errorf("invalid UUID: %w", err)
-	//}
 
 	// 使用 SingBox 兼容的 logger
 	singBoxLogger := logger.GetSingBoxLogger()
@@ -216,52 +192,11 @@ func NewVLESSWithConfig(config *VLESSConfig) (*VLESS, error) {
 	return v, nil
 }
 
-// Get 从连接池获取连接，参考 xray-core 连接获取机制
-func (cp *ConnectionPool) Get() *PooledConnection {
-	for {
-		select {
-		case conn := <-cp.connections:
-			// 检查连接是否仍然可用且未过期
-			if conn != nil && conn.IsAvailable && time.Since(conn.LastUsed) < 30*time.Second {
-				conn.mu.Lock()
-				conn.LastUsed = time.Now()
-				conn.mu.Unlock()
-				return conn
-			}
-			// 不合格则关闭并继续取下一个
-			if conn != nil && conn.Conn != nil {
-				conn.Conn.Close()
-			}
-			// 继续循环尝试从池中取下一个
-			continue
-		default:
-			// 池当前没有更多连接了
-			return nil
-		}
-	}
-}
-
-// Put 将连接放回连接池，参考 xray-core 连接回收机制
-func (cp *ConnectionPool) Put(conn *PooledConnection) {
-	if conn == nil || !conn.IsAvailable {
-		return
-	}
-
-	select {
-	case cp.connections <- conn:
-		// 成功放回池中
-	default:
-		// 池已满，关闭连接
-		conn.Conn.Close()
-	}
-}
-
 // DialContext 实现 Proxy 接口的 DialContext 方法，参考 xray-core 连接复用机制
 func (v *VLESS) DialContext(ctx context.Context, metadata *M.Metadata) (net.Conn, error) {
 	v.mu.RLock()
 	defer v.mu.RUnlock()
 
-	fmt.Printf("DEBUG: 创建新连接到 %s:%d\n", metadata.HostName, metadata.DstPort)
 	conn, err := v.establishNewConnection(ctx, metadata)
 	if err != nil {
 		return nil, err
@@ -273,7 +208,7 @@ func (v *VLESS) DialContext(ctx context.Context, metadata *M.Metadata) (net.Conn
 // establishNewConnection 建立新连接并准备握手数据，参考 xray-core 连接建立流程
 func (v *VLESS) establishNewConnection(ctx context.Context, metadata *M.Metadata) (net.Conn, error) {
 	// 连接到 VLESS 服务器，使用默认 dialer
-	fmt.Printf("DEBUG: 连接到 VLESS 服务器 %s\n", v.Addr())
+	logger.Debug(fmt.Sprintf("DEBUG: 连接到 VLESS 服务器 %s\n", v.Addr()))
 	conn, err := dialer.DialContext(ctx, "tcp", v.Addr())
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to VLESS server: %w", err)
@@ -281,7 +216,7 @@ func (v *VLESS) establishNewConnection(ctx context.Context, metadata *M.Metadata
 
 	// 如果启用了 REALITY，进行 REALITY 握手
 	if v.reality != nil && v.reality.Enabled {
-		fmt.Printf("DEBUG: 开始 REALITY 握手，SNI: %s\n", v.sni)
+		logger.Debug(fmt.Sprintf("DEBUG: 开始 REALITY 握手，SNI: %s\n", v.sni))
 
 		// 使用自动生成的 TLS 配置
 		defaultOptions := v.GetDefaultTLSOptions()
@@ -292,7 +227,7 @@ func (v *VLESS) establishNewConnection(ctx context.Context, metadata *M.Metadata
 			serverAddr = serverAddr[:idx]
 		}
 
-		fmt.Printf("DEBUG: TLS ServerAddr: %s, SNI: %s\n", serverAddr, defaultOptions.ServerName)
+		logger.Debug(fmt.Sprintf("DEBUG: TLS ServerAddr: %s, SNI: %s\n", serverAddr, defaultOptions.ServerName))
 		tlsConf, err := stls.NewClient(ctx, serverAddr, common.PtrValueOrDefault(defaultOptions))
 		if err != nil {
 			return nil, fmt.Errorf("failed to create TLS client: %w", err)
@@ -302,7 +237,7 @@ func (v *VLESS) establishNewConnection(ctx context.Context, metadata *M.Metadata
 		if err != nil {
 			return nil, fmt.Errorf("failed to handshake with VLESS server: %w", err)
 		}
-		fmt.Printf("DEBUG: REALITY TLS 握手完成\n")
+		logger.Debug("DEBUG: REALITY TLS 握手完成")
 
 		// 创建目标地址
 		// 重要：如果有域名，优先使用域名而不是IP，这样目标服务器才能正确处理TLS SNI
@@ -313,10 +248,10 @@ func (v *VLESS) establishNewConnection(ctx context.Context, metadata *M.Metadata
 		// 优先使用 Fqdn（域名）
 		if metadata.HostName != "" {
 			destination.Fqdn = metadata.HostName
-			fmt.Printf("DEBUG: VLESS 目标（使用域名）: %s:%d\n", metadata.HostName, metadata.DstPort)
+			logger.Debug(fmt.Sprintf("DEBUG: VLESS 目标（使用域名）: %s:%d\n", metadata.HostName, metadata.DstPort))
 		} else {
 			destination.Addr = metadata.DstIP
-			fmt.Printf("DEBUG: VLESS 目标（使用IP）: %s:%d\n", metadata.DstIP, metadata.DstPort)
+			logger.Debug(fmt.Sprintf("DEBUG: VLESS 目标（使用IP）: %s:%d\n", metadata.DstIP, metadata.DstPort))
 		}
 
 		visionConn, err := v.client.DialEarlyConn(tlsConn, destination)
@@ -324,7 +259,7 @@ func (v *VLESS) establishNewConnection(ctx context.Context, metadata *M.Metadata
 			return nil, fmt.Errorf("failed to dial early connection: %w", err)
 		}
 
-		fmt.Printf("DEBUG: VLESS 连接建立成功，类型: %T\n", visionConn)
+		logger.Debug(fmt.Sprintf("DEBUG: VLESS 连接建立成功，类型: %T\n", visionConn))
 		return visionConn, nil
 	}
 
