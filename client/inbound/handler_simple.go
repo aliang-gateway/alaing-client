@@ -82,7 +82,7 @@ func HandleTLSConnectionSimpleWithoutDecrypt(conn net.Conn, sni string, ip strin
 	if resolver == nil {
 		// 如果没有默认解析器，创建一个直连的解析器
 		directDialer := proxy.NewDirect()
-		resolver = tunnel.NewDNSResolver("8.8.8.8:53", directDialer, 5*time.Second, 5*time.Minute)
+		resolver = tunnel.NewDNSResolver("223.5.5.5:53", directDialer, 5*time.Second, 5*time.Minute)
 	}
 
 	ips, err := resolver.LookupA(ctx, targetHost)
@@ -101,7 +101,7 @@ func HandleTLSConnectionSimpleWithoutDecrypt(conn net.Conn, sni string, ip strin
 	logger.Info("Resolved", targetHost, "to", targetIP.String())
 
 	outboundVless, err := proxy.NewVLESSWithReality(
-		"103.255.209.43:443",
+		"node1.nursor.org:443",
 		"d9868dc7-3547-4195-95f1-5455748e7706",
 		"www.microsoft.com",
 		"h1h7T-tqXyGaI0teh7i7kHu1qRLTT5HibTZcu30YtSs",

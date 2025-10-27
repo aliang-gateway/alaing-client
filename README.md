@@ -82,19 +82,19 @@ decoding error: invalid indexed representation index 77
 export CGO_ENABLED=1
 export GOOS=darwin
 export GOARCH=arm64
-go build -ldflags="-s -w" -buildmode=c-shared -o nursor-core-arm64.dylib
+go build -ldflags="-s -w" -tags=with_utls -buildmode=c-shared -o nursor-core-arm64.dylib
 
 # Cgo for darwin/amd64  
 export CGO_ENABLED=1
 export GOOS=darwin
 export GOARCH=amd64
-go build -ldflags="-s -w" -buildmode=c-shared -o nursor-core-amd64.dylib
+go build -ldflags="-s -w" -tags=with_utls -buildmode=c-shared -o nursor-core-amd64.dylib
 
 # Cgo for linux/amd64
 export CGO_ENABLED=1
 export GOOS=linux
 export GOARCH=amd64
-go build -ldflags="-s -w" -buildmode=c-shared -o nursor-core-amd64.so
+go build -ldflags="-s -w" -tags=with_utls -buildmode=c-shared -o nursor-core-amd64.so
 
 # Cgo for linux/arm64
 export CGO_ENABLED=1
@@ -106,7 +106,7 @@ go build -ldflags="-s -w" -buildmode=c-shared -o nursor-core-arm64.so
 export CGO_ENABLED=1
 export GOOS=windows
 export GOARCH=amd64
-go build -ldflags="-s -w -X 'nursor.org/nursorgate/common/logger.LogSilent=true'" -buildmode=c-shared -o nursor-core-amd64.dll
+go build -ldflags="-s -w -X 'nursor.org/nursorgate/common/logger.LogSilent=true'" -tags=with_utls -buildmode=c-shared -o nursor-core-amd64.dll
 
 
 
@@ -114,7 +114,7 @@ go build -ldflags="-s -w -X 'nursor.org/nursorgate/common/logger.LogSilent=true'
 
 export GOOS=darwin
 export GOARCH=arm64
-go build -ldflags="-s -w"  -o core-darwin-arm
+go build -ldflags="-s -w" -tags=with_utls -o core-darwin-arm
 
 export CGO_ENABLED=1
 export GOOS=darwin

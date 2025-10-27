@@ -191,7 +191,7 @@ func handleStop(w http.ResponseWriter, r *http.Request) {
 
 func handleRunUserInfo(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		UserToken  string `json:"user_token"`
+		UserUUID   string `json:"user_uuid"`
 		InnerToken string `json:"inner_token"`
 		Username   string `json:"username"`
 		Password   string `json:"password"`
@@ -203,6 +203,7 @@ func handleRunUserInfo(w http.ResponseWriter, r *http.Request) {
 	logger.SetUserInfo(req.InnerToken)
 	user.SetUsername(req.Username)
 	user.SetPassword(req.Password)
+	user.SetUserUUID(req.UserUUID)
 	logger.Info("set user info tag")
 	sendResponse(w, map[string]string{
 		"status":  "success",

@@ -130,13 +130,6 @@ func (t *Tunnel) handleTCPConn(originConn adapter.TCPConn) {
 		}
 
 		if nursorRouter.IsAllowToAnyDoor(serverName) {
-			// ips, err := defaultResolver.LookupA(ctx, serverName)
-			// if err != nil {
-			// 	logger.Error(fmt.Sprintf("%s failure in lookup dns %v", serverName, err))
-			// } else {
-			// 	metadata.DstIP = toNetip(ips[0])
-			// 	metadata.DstPort = 443
-			// }
 			remoteConn, err = (*GetDoorProxy()).DialContext(ctx, metadata)
 			if err != nil {
 				logger.Error(fmt.Sprintf("%s failure in connenct to anydoor %v", serverName, err))
