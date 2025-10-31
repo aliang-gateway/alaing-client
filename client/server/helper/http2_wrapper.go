@@ -152,6 +152,7 @@ func (w *WatcherWrapConn) processHttp2RequestFrame(preBuff *bytes.Buffer) error 
 					ctype := continueFrame[3]
 					cflags := continueFrame[4]
 					cstreamID := binary.BigEndian.Uint32(continueFrame[5:9]) & 0x7FFFFFFF
+					// HTTP的帧有时候是乱序的
 					if ctype != frameTypeContinuation || cstreamID != streamID {
 						// 这里break，可以跳出这次stream的处理，出去再进来，就是处理另外一个stream的逻辑了
 						break
@@ -295,8 +296,8 @@ func (w *WatcherWrapConn) processHttp2ResponseFrame(frame []byte) {
 	default:
 		logger.Debug(fmt.Sprintf("⚠️ HTTP/2 Request Unknown frame type: %d (stream=%d)", ftype, streamID))
 	}
-
 }
+
 func decodeHPACKInteger(r *bytes.Reader, prefixBits uint8) (uint64, error) {
 	firstByte, err := r.ReadByte()
 	if err != nil {
@@ -482,41 +483,59 @@ func (w *WatcherWrapConn) decodeHeaderBlock(block []byte, isRequest bool) (map[s
 	return headers, err
 }
 
+// extractHeaderBlockFromHeaderFrame 从 HTTP/2 HEADERS/CONTINUATION 帧中提取 Header Block Fragment
+//
+// HTTP/2 HEADERS 帧的 Payload 结构（按顺序）：
+//  1. Pad Length (1 byte) - 可选，当 PADDED flag 设置时存在
+//  2. Priority (5 bytes) - 可选，当 PRIORITY flag 设置时存在
+//     - Stream Dependency (31 bits, 4 bytes)
+//     - E flag (1 bit) + Weight (1 byte)
+//  3. Header Block Fragment (可变长度) - 必需，HPACK 编码的头部数据
+//  4. Padding (Pad Length 字节) - 可选，当 PADDED flag 设置时存在
+//
+// 返回值：Header Block Fragment（去除 Padding 和 Priority 后的纯净 HPACK 数据）
 func extractHeaderBlockFromHeaderFrame(frame []byte, flags byte) ([]byte, error) {
+	// 提取 payload（跳过 9 字节的 frame header）
 	payload := frame[frameHeaderLen:]
 	offset := 0
+	var padLength int
 
-	// PADDED 先读1字节
+	// Step 1: 如果设置了 PADDED flag，读取 Pad Length（1 字节）
 	if flags&flagPadded != 0 {
-		if len(payload) < offset+1 {
-			return nil, fmt.Errorf("PADDED flag set but payload too short")
+		if len(payload) < 1 {
+			return nil, fmt.Errorf("PADDED flag set but payload too short to read pad length")
 		}
-		padLength := int(payload[offset])
-		offset += 1
+		padLength = int(payload[offset])
+		offset++
 
+		// 验证：payload 必须至少包含 padLength + header block + padding
 		if len(payload) < offset+padLength {
-			return nil, fmt.Errorf("padding length invalid: payload=%d pad=%d", len(payload), padLength)
+			return nil, fmt.Errorf("invalid padding: declared pad length %d exceeds remaining payload %d",
+				padLength, len(payload)-offset)
 		}
-		// 先暂时不处理 padLength，后面再裁剪
 	}
 
-	// PRIORITY 读取 5 字节
+	// Step 2: 如果设置了 PRIORITY flag，跳过 Priority 字段（5 字节）
 	if flags&flagPriority != 0 {
 		if len(payload) < offset+5 {
-			return nil, fmt.Errorf("PRIORITY flag set but payload too short")
+			return nil, fmt.Errorf("PRIORITY flag set but payload too short (need 5 bytes, have %d)",
+				len(payload)-offset)
 		}
 		offset += 5
 	}
 
+	// Step 3: 提取 Header Block Fragment
+	// Header Block Fragment 位于 offset 之后，padding 之前
 	if flags&flagPadded != 0 {
-		padLength := int(frame[frameHeaderLen]) // 第一个字节始终是 pad length
+		// 有 padding：从 offset 开始，到 (len(payload) - padLength) 结束
 		if len(payload) < offset+padLength {
-			return nil, fmt.Errorf("final payload cut error: payload=%d offset=%d pad=%d", len(payload), offset, padLength)
+			return nil, fmt.Errorf("payload too short: need %d bytes for header block, have %d",
+				offset+padLength, len(payload))
 		}
 		return payload[offset : len(payload)-padLength], nil
 	}
 
-	// 正常情况
+	// 无 padding：从 offset 开始到 payload 末尾
 	return payload[offset:], nil
 }
 

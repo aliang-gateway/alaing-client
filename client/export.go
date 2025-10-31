@@ -96,13 +96,15 @@ func runGate(innerToken *C.char) *C.char {
 }
 
 //export setUserInfo
-func setUserInfo(innerToken *C.char, username *C.char, password *C.char) {
+func setUserInfo(innerToken *C.char, username *C.char, password *C.char, userUUID *C.char) {
 	innerTokenStr := C.GoString(innerToken)
 	usernameStr := C.GoString(username)
 	passwordStr := C.GoString(password)
+	userUUIDStr := C.GoString(userUUID)
 	user.SetUsername(usernameStr)
 	user.SetPassword(passwordStr)
 	user.SetInnerToken(innerTokenStr)
+	user.SetUserUUID(userUUIDStr)
 	logger.SetUserInfo(innerTokenStr)
 }
 

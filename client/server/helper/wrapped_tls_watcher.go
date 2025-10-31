@@ -195,11 +195,12 @@ func (w *WatcherWrapConn) parseHttp2Req() ([]byte, error) {
 	err := w.processHttp2RequestFrame(preBuff)
 	if err != nil {
 		logger.Error(fmt.Sprintf("Error processing HTTP/2 request frame: %v", err))
-		// 直接丢弃
+		// 直接丢弃，用原来最原始的buf
 		result := append(preBuff.Bytes(), w.reqBuf.Bytes()...)
 		return result, err
 	}
 
+	// 因为读一点处理一点，业务逻辑处理完了，后边的req没有必要处理，只需要加回去即可
 	result := append(preBuff.Bytes(), w.reqBuf.Bytes()...)
 	return result, nil
 }

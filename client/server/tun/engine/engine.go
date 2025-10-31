@@ -15,6 +15,7 @@ import (
 	"nursor.org/nursorgate/client/server/tun/dialer"
 	"nursor.org/nursorgate/client/server/tun/proxy"
 	"nursor.org/nursorgate/client/server/tun/tunnel"
+	"nursor.org/nursorgate/client/user"
 	"nursor.org/nursorgate/client/utils"
 	"nursor.org/nursorgate/common/logger"
 
@@ -163,10 +164,13 @@ func netstack(k *Key) (err error) {
 		return
 	}
 	tunnel.SetDefaultProxy(_defaultProxy)
-
+	uuid := user.GetUserUUID()
+	if uuid == "" {
+		uuid = "d9868dc7-3547-4195-95f1-5455748e7706"
+	}
 	doorProxy, err := proxy.NewVLESSWithReality(
 		"node1.nursor.org:443",
-		"d9868dc7-3547-4195-95f1-5455748e7706",
+		uuid,
 		"www.microsoft.com",
 		"h1h7T-tqXyGaI0teh7i7kHu1qRLTT5HibTZcu30YtSs",
 	)

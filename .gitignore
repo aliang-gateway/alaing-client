@@ -27,3 +27,4 @@ client/core-darwin-amd
 client/core-darwin-arm
 client/nursor-core-amd64.dll
 *_bin.exe*
+client/core-darwin-universal

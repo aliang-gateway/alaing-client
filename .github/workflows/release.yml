@@ -1,0 +1,166 @@
+name: Release builds (macOS universal, Linux .so, Windows .dll)
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+env:
+  GO_VERSION: '1.22.x'
+  # Change this if your executable/lib builds from another module path
+  WORKING_DIR: ./client
+  BIN_NAME: core
+  LIB_NAME: nursor
+
+jobs:
+  macos:
+    name: macOS universal binary
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Use latest master (build from master as requested)
+        run: |
+          git fetch origin master --prune
+          git checkout origin/master
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Build macOS arm64
+        working-directory: ${{ env.WORKING_DIR }}
+        run: |
+          GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 \
+          go build -ldflags="-s -w" -o core-darwin-arm64 .
+
+      - name: Build macOS amd64
+        working-directory: ${{ env.WORKING_DIR }}
+        run: |
+          GOOS=darwin GOARCH=amd64 CGO_ENABLED=0 \
+          go build -ldflags="-s -w" -o core-darwin-amd64 .
+
+      - name: Create universal binary
+        working-directory: ${{ env.WORKING_DIR }}
+        run: |
+          lipo -create -output core-darwin-universal core-darwin-arm64 core-darwin-amd64
+          file core-darwin-universal
+
+      - name: Prepare artifacts
+        run: |
+          mkdir -p dist
+          mv ${WORKING_DIR}/core-darwin-arm64 dist/${BIN_NAME}-darwin-arm64
+          mv ${WORKING_DIR}/core-darwin-amd64 dist/${BIN_NAME}-darwin-amd64
+          mv ${WORKING_DIR}/core-darwin-universal dist/${BIN_NAME}-darwin-universal
+
+      - name: Upload release assets (macOS)
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/${{ env.BIN_NAME }}-darwin-*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  linux_so:
+    name: Linux .so (c-shared)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Use latest master (build from master as requested)
+        run: |
+          git fetch origin master --prune
+          git checkout origin/master
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Install build tools (gcc)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential
+
+      - name: Build Linux .so with header (CGO)
+        working-directory: ${{ env.WORKING_DIR }}
+        env:
+          CGO_ENABLED: '1'
+        run: |
+          go build -buildmode=c-shared -ldflags="-s -w" -o lib${LIB_NAME}.so .
+          ls -lah lib${LIB_NAME}.*
+
+      - name: Prepare artifacts
+        run: |
+          mkdir -p dist/linux
+          mv ${WORKING_DIR}/lib${LIB_NAME}.so dist/linux/
+          mv ${WORKING_DIR}/*.h dist/linux/
+
+      - name: Upload release assets (Linux .so)
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/linux/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  windows_dll:
+    name: Windows .dll (c-shared)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Use latest master (build from master as requested)
+        run: |
+          git fetch origin master --prune
+          git checkout origin/master
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Install MinGW for cross-compiling
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y mingw-w64
+
+      - name: Build Windows .dll with header (CGO)
+        working-directory: ${{ env.WORKING_DIR }}
+        env:
+          CGO_ENABLED: '1'
+          GOOS: windows
+          GOARCH: amd64
+          CC: x86_64-w64-mingw32-gcc
+        run: |
+          go build -buildmode=c-shared -ldflags="-s -w" -o ${LIB_NAME}.dll .
+          ls -lah ${LIB_NAME}.*
+
+      - name: Prepare artifacts
+        run: |
+          mkdir -p dist/windows
+          mv ${WORKING_DIR}/${LIB_NAME}.dll dist/windows/
+          mv ${WORKING_DIR}/*.h dist/windows/
+
+      - name: Upload release assets (Windows .dll)
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/windows/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+
