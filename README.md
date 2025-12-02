@@ -142,3 +142,8 @@ go build -ldflags="-s -w"  -o core-win-amd64
 3. envoy也可能会将http强行转换成h2，所以这里也要注意
 
 
+
+
+# 开发日记：
+
+runner中config和转换的部分需要区分开
