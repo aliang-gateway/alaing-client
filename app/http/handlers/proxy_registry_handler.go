@@ -8,8 +8,8 @@ import (
 	proxyRegistry "nursor.org/nursorgate/processor/proxy"
 )
 
-// handleProxyRegistryList 列出所有已注册的代理
-func handleProxyRegistryList(w http.ResponseWriter, r *http.Request) {
+// HandleProxyRegistryList 列出所有已注册的代理
+func HandleProxyRegistryList(w http.ResponseWriter, r *http.Request) {
 	info := proxyRegistry.GetRegistry().ListWithInfo()
 	common.SendResponse(w, map[string]interface{}{
 		"proxies": info,
@@ -17,8 +17,8 @@ func handleProxyRegistryList(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// handleProxyRegistryGet 获取指定代理
-func handleProxyRegistryGet(w http.ResponseWriter, r *http.Request) {
+// HandleProxyRegistryGet 获取指定代理
+func HandleProxyRegistryGet(w http.ResponseWriter, r *http.Request) {
 	name := r.URL.Query().Get("name")
 	if name == "" {
 		common.SendError(w, "name parameter is required", http.StatusBadRequest, nil)
@@ -35,8 +35,8 @@ func handleProxyRegistryGet(w http.ResponseWriter, r *http.Request) {
 	common.SendResponse(w, proxyInfo)
 }
 
-// handleProxyRegistryRegister 注册新代理
-func handleProxyRegistryRegister(w http.ResponseWriter, r *http.Request) {
+// HandleProxyRegistryRegister 注册新代理
+func HandleProxyRegistryRegister(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Name   string                   `json:"name"`
 		Config *proxyConfig.ProxyConfig `json:"config"`
@@ -65,8 +65,8 @@ func handleProxyRegistryRegister(w http.ResponseWriter, r *http.Request) {
 	common.SendResponse(w, map[string]string{"status": "success", "name": req.Name})
 }
 
-// handleProxyRegistryUnregister 注销代理
-func handleProxyRegistryUnregister(w http.ResponseWriter, r *http.Request) {
+// HandleProxyRegistryUnregister 注销代理
+func HandleProxyRegistryUnregister(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Name string `json:"name"`
 	}
@@ -84,8 +84,8 @@ func handleProxyRegistryUnregister(w http.ResponseWriter, r *http.Request) {
 	common.SendResponse(w, map[string]string{"status": "success"})
 }
 
-// handleProxyRegistrySetDefault 设置默认代理
-func handleProxyRegistrySetDefault(w http.ResponseWriter, r *http.Request) {
+// HandleProxyRegistrySetDefault 设置默认代理
+func HandleProxyRegistrySetDefault(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Name string `json:"name"`
 	}
@@ -103,8 +103,8 @@ func handleProxyRegistrySetDefault(w http.ResponseWriter, r *http.Request) {
 	common.SendResponse(w, map[string]string{"status": "success", "default": req.Name})
 }
 
-// handleProxyRegistrySetDoor 设置门代理
-func handleProxyRegistrySetDoor(w http.ResponseWriter, r *http.Request) {
+// HandleProxyRegistrySetDoor 设置门代理
+func HandleProxyRegistrySetDoor(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Name string `json:"name"`
 	}
@@ -122,8 +122,8 @@ func handleProxyRegistrySetDoor(w http.ResponseWriter, r *http.Request) {
 	common.SendResponse(w, map[string]string{"status": "success", "door": req.Name})
 }
 
-// handleProxyRegistrySwitch 切换代理（设置默认代理并更新 tunnel）
-func handleProxyRegistrySwitch(w http.ResponseWriter, r *http.Request) {
+// HandleProxyRegistrySwitch 切换代理（设置默认代理并更新 tunnel）
+func HandleProxyRegistrySwitch(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Name string `json:"name"`
 	}
@@ -160,11 +160,11 @@ func handleProxyRegistrySwitch(w http.ResponseWriter, r *http.Request) {
 
 // RegisterProxyRegistryRoutes 注册ProxyRegistry相关路由
 func RegisterProxyRegistryRoutes() {
-	http.HandleFunc("/proxy/registry/list", handleProxyRegistryList)
-	http.HandleFunc("/proxy/registry/get", handleProxyRegistryGet)
-	http.HandleFunc("/proxy/registry/register", handleProxyRegistryRegister)
-	http.HandleFunc("/proxy/registry/unregister", handleProxyRegistryUnregister)
-	http.HandleFunc("/proxy/registry/set-default", handleProxyRegistrySetDefault)
-	http.HandleFunc("/proxy/registry/set-door", handleProxyRegistrySetDoor)
-	http.HandleFunc("/proxy/registry/switch", handleProxyRegistrySwitch)
+	http.HandleFunc("/proxy/registry/list", HandleProxyRegistryList)
+	http.HandleFunc("/proxy/registry/get", HandleProxyRegistryGet)
+	http.HandleFunc("/proxy/registry/register", HandleProxyRegistryRegister)
+	http.HandleFunc("/proxy/registry/unregister", HandleProxyRegistryUnregister)
+	http.HandleFunc("/proxy/registry/set-default", HandleProxyRegistrySetDefault)
+	http.HandleFunc("/proxy/registry/set-door", HandleProxyRegistrySetDoor)
+	http.HandleFunc("/proxy/registry/switch", HandleProxyRegistrySwitch)
 }

@@ -7,8 +7,8 @@ import (
 	proxyRegistry "nursor.org/nursorgate/processor/proxy"
 )
 
-// handleGetCurrentProxy 获取当前使用的代理
-func handleGetCurrentProxy(w http.ResponseWriter, r *http.Request) {
+// HandleGetCurrentProxy 获取当前使用的代理
+func HandleGetCurrentProxy(w http.ResponseWriter, r *http.Request) {
 	registry := proxyRegistry.GetRegistry()
 	currentName := registry.GetDefaultName()
 	proxy, err := registry.GetDefault()
@@ -25,8 +25,8 @@ func handleGetCurrentProxy(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// handleSetCurrentProxy 设置当前使用的代理
-func handleSetCurrentProxy(w http.ResponseWriter, r *http.Request) {
+// HandleSetCurrentProxy 设置当前使用的代理
+func HandleSetCurrentProxy(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Name string `json:"name"`
 	}
@@ -57,6 +57,6 @@ func handleSetCurrentProxy(w http.ResponseWriter, r *http.Request) {
 
 // RegisterProxyRoutes 注册Proxy(当前代理)相关路由
 func RegisterProxyRoutes() {
-	http.HandleFunc("/proxy/current/get", handleGetCurrentProxy)
-	http.HandleFunc("/proxy/current/set", handleSetCurrentProxy)
+	http.HandleFunc("/proxy/current/get", HandleGetCurrentProxy)
+	http.HandleFunc("/proxy/current/set", HandleSetCurrentProxy)
 }

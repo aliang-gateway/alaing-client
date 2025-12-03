@@ -19,21 +19,51 @@ type RunMode string
 const (
 	ModeHTTP RunMode = "http"
 	ModeTUN  RunMode = "tun"
-	ModeIdle RunMode = "idle"
 )
 
 // Global state for managing run modes
 var (
-	currentMode     RunMode = ModeIdle
+	currentMode     RunMode = ModeHTTP // 默认为HTTP模式
 	tunRunning      bool
 	modeChangeMutex sync.RWMutex
 )
 
-// handleRun 处理 /run/start
+// ============================================================================
+// FFI State Management Functions - Exposed for direct API access
+// ============================================================================
+
+// GetCurrentMode returns the current operating mode
+func GetCurrentMode() string {
+	modeChangeMutex.RLock()
+	defer modeChangeMutex.RUnlock()
+	return string(currentMode)
+}
+
+// SetCurrentMode sets the operating mode
+func SetCurrentMode(mode string) {
+	modeChangeMutex.Lock()
+	defer modeChangeMutex.Unlock()
+	currentMode = RunMode(mode)
+}
+
+// IsTunRunning returns whether a service is currently running
+func IsTunRunning() bool {
+	modeChangeMutex.RLock()
+	defer modeChangeMutex.RUnlock()
+	return tunRunning
+}
+
+// SetTunRunning sets the running state
+func SetTunRunning(running bool) {
+	modeChangeMutex.Lock()
+	defer modeChangeMutex.Unlock()
+	tunRunning = running
+}
+
+// HandleRunStart 处理 /run/start
 // 根据当前模式启动相应的服务
-func handleRun(w http.ResponseWriter, r *http.Request) {
+func HandleRunStart(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		// UserToken  string `json:"user_token"`
 		InnerToken string `json:"inner_token"`
 	}
 	if err := common.DecodeRequest(r, &req); err != nil {
@@ -44,13 +74,6 @@ func handleRun(w http.ResponseWriter, r *http.Request) {
 	user.SetInnerToken(req.InnerToken)
 
 	modeChangeMutex.Lock()
-	// 检查当前模式是否为idle
-	if currentMode == ModeIdle {
-		modeChangeMutex.Unlock()
-		common.SendError(w, "No mode selected. Please use /run/swift to select HTTP or TUN mode first", http.StatusBadRequest, nil)
-		return
-	}
-
 	// 不能在已经有服务运行时再启动
 	if tunRunning {
 		modeChangeMutex.Unlock()
@@ -66,7 +89,7 @@ func handleRun(w http.ResponseWriter, r *http.Request) {
 	// 根据运行模式启动对应的服务
 	switch startMode {
 	case ModeTUN:
-		handleRunTUN(w, req.InnerToken)
+		HandleRunTUN(w, req.InnerToken)
 
 	case ModeHTTP:
 		// HTTP模式不需要额外启动（已在swift中启动）
@@ -82,8 +105,8 @@ func handleRun(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// handleRunTUN 处理TUN模式的启动
-func handleRunTUN(w http.ResponseWriter, innerToken string) {
+// HandleRunTUN 处理TUN模式的启动
+func HandleRunTUN(w http.ResponseWriter, innerToken string) {
 	modeChangeMutex.Lock()
 	tunRunning = true
 	modeChangeMutex.Unlock()
@@ -94,7 +117,6 @@ func handleRunTUN(w http.ResponseWriter, innerToken string) {
 	// Update mode based on result
 	modeChangeMutex.Lock()
 	if status, ok := res["status"]; ok && status == "failed" {
-		currentMode = ModeIdle
 		tunRunning = false
 	}
 	modeChangeMutex.Unlock()
@@ -102,17 +124,16 @@ func handleRunTUN(w http.ResponseWriter, innerToken string) {
 	common.SendResponse(w, res)
 }
 
-// handleStop 处理 /run/stop
-func handleStop(w http.ResponseWriter, r *http.Request) {
+// HandleRunStop 处理 /run/stop
+func HandleRunStop(w http.ResponseWriter, r *http.Request) {
 	modeChangeMutex.Lock()
-	if currentMode == ModeIdle {
+	if !tunRunning {
 		modeChangeMutex.Unlock()
 		common.SendError(w, "No service is currently running", http.StatusBadRequest, nil)
 		return
 	}
 
 	stoppedMode := currentMode
-	currentMode = ModeIdle
 	tunRunning = false
 	modeChangeMutex.Unlock()
 
@@ -140,8 +161,8 @@ func handleStop(w http.ResponseWriter, r *http.Request) {
 	common.SendResponse(w, response)
 }
 
-// handleRunUserInfo 处理 /run/userInfo
-func handleRunUserInfo(w http.ResponseWriter, r *http.Request) {
+// HandleRunUserInfo 处理 /run/userInfo
+func HandleRunUserInfo(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		UserUUID   string `json:"user_uuid"`
 		InnerToken string `json:"inner_token"`
@@ -163,8 +184,8 @@ func handleRunUserInfo(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// handleStatus 处理 /run/status - 查询当前运行状态
-func handleStatus(w http.ResponseWriter, r *http.Request) {
+// HandleRunStatus 处理 /run/status - 查询当前运行状态
+func HandleRunStatus(w http.ResponseWriter, r *http.Request) {
 	modeChangeMutex.RLock()
 	defer modeChangeMutex.RUnlock()
 
@@ -180,23 +201,30 @@ func handleStatus(w http.ResponseWriter, r *http.Request) {
 	// Add detailed status based on current mode
 	switch currentMode {
 	case ModeTUN:
-		response["status"] = "TUN service is running"
-		response["description"] = "Transparent proxy mode via TUN interface"
+		if tunRunning {
+			response["status"] = "TUN service is running"
+			response["description"] = "Transparent proxy mode via TUN interface"
+		} else {
+			response["status"] = "TUN mode selected, service not running"
+			response["description"] = "TUN mode is ready, call /run/start to activate"
+		}
 	case ModeHTTP:
-		response["status"] = "HTTP proxy server is running"
-		response["description"] = "HTTP CONNECT proxy mode on port 56432"
-	case ModeIdle:
-		response["status"] = "No service is currently running"
-		response["description"] = "Ready to start TUN or HTTP proxy service"
+		if tunRunning {
+			response["status"] = "HTTP proxy server is running"
+			response["description"] = "HTTP CONNECT proxy mode on port 56432"
+		} else {
+			response["status"] = "HTTP mode selected, service not running"
+			response["description"] = "HTTP mode is ready, service will start automatically"
+		}
 	}
 
 	common.SendResponse(w, response)
 }
 
-// handleSwift 处理 /run/swift - 切换运行模式
+// HandleRunSwift 处理 /run/swift - 切换运行模式
 // 请求体: { "target_mode": "http" 或 "tun" }
 // 逻辑: 先停止当前服务（如果有），再启动新模式的服务
-func handleSwift(w http.ResponseWriter, r *http.Request) {
+func HandleRunSwift(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		TargetMode string `json:"target_mode"`
 	}
@@ -230,7 +258,7 @@ func handleSwift(w http.ResponseWriter, r *http.Request) {
 	// If switching from a different mode, stop the current service first
 	previousMode := currentMode
 
-	if currentMode != ModeIdle && currentMode != targetMode {
+	if currentMode != targetMode && tunRunning {
 		logger.Info(fmt.Sprintf("Stopping %s service before switching to %s mode...", previousMode, targetMode))
 		tunRunning = false
 		modeChangeMutex.Unlock()
@@ -300,17 +328,14 @@ func stopService(mode RunMode) {
 		logger.Info("Stopping TUN service...")
 		tun.Stop()
 		logger.Info("TUN service stopped")
-
-	case ModeIdle:
-		// Nothing to stop
 	}
 }
 
 // RegisterRunRoutes 注册Run相关路由
 func RegisterRunRoutes() {
-	http.HandleFunc("/run/start", handleRun)
-	http.HandleFunc("/run/stop", handleStop)
-	http.HandleFunc("/run/userInfo", handleRunUserInfo)
-	http.HandleFunc("/run/status", handleStatus)
-	http.HandleFunc("/run/swift", handleSwift)
+	http.HandleFunc("/run/start", HandleRunStart)
+	http.HandleFunc("/run/stop", HandleRunStop)
+	http.HandleFunc("/run/userInfo", HandleRunUserInfo)
+	http.HandleFunc("/run/status", HandleRunStatus)
+	http.HandleFunc("/run/swift", HandleRunSwift)
 }

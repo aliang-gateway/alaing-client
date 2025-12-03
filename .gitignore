@@ -28,3 +28,6 @@ client/core-darwin-arm
 client/nursor-core-amd64.dll
 *_bin.exe*
 client/core-darwin-universal
+admin-dasboard/node_modules
+admin-dasboard/dist
+admin-dasboard/*

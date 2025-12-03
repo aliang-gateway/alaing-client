@@ -10,9 +10,12 @@ import (
 	"encoding/json"
 	"time"
 
+	"nursor.org/nursorgate/app/http/handlers"
 	"nursor.org/nursorgate/common/logger"
 	"nursor.org/nursorgate/common/model"
 	"nursor.org/nursorgate/inbound/http"
+	httpServer "nursor.org/nursorgate/inbound/http"
+	tun "nursor.org/nursorgate/inbound/tun/engine"
 	runner2 "nursor.org/nursorgate/inbound/tun/runner"
 	"nursor.org/nursorgate/inbound/tun/runner/utils"
 	"nursor.org/nursorgate/outbound"
@@ -504,6 +507,224 @@ func maskSensitiveDataFFI(data string) string {
 		return "***"
 	}
 	return data[:8] + "***"
+}
+
+// ============================================================================
+// Run Control FFI Exports - Core functionality exposed directly
+// ============================================================================
+
+//export runStart
+func runStart(innerToken *C.char) *C.char {
+	innerTokenStr := C.GoString(innerToken)
+	user.SetInnerToken(innerTokenStr)
+
+	// 根据当前模式启动对应的服务
+	// 这里实现核心逻辑，不通过HTTP
+	result := make(map[string]interface{})
+
+	switch handlers.GetCurrentMode() {
+	case "http":
+		result["status"] = "success"
+		result["message"] = "HTTP proxy server is already running"
+		result["details"] = "HTTP proxy was started when you switched to HTTP mode"
+		result["port"] = "127.0.0.1:56432"
+
+	case "tun":
+		// 启动TUN服务
+		go runner2.Start()
+		res := <-runner2.RunStatusChan
+		result = map[string]interface{}{
+			"status":  res["status"],
+			"message": res["message"],
+			"details": res["details"],
+		}
+
+	default:
+		result["status"] = "error"
+		result["message"] = "No mode selected"
+	}
+
+	resultJSON, _ := json.Marshal(result)
+	return C.CString(string(resultJSON))
+}
+
+//export runStop
+func runStop() *C.char {
+	// 停止当前运行的服务
+	result := make(map[string]interface{})
+
+	currentMode := handlers.GetCurrentMode()
+	if !handlers.IsTunRunning() {
+		result["status"] = "error"
+		result["message"] = "No service is currently running"
+	} else {
+		handlers.SetTunRunning(false)
+
+		switch currentMode {
+		case "http":
+			logger.Info("Stopping HTTP proxy server...")
+			httpServer.StopHttpProxy()
+			result["status"] = "success"
+			result["message"] = "http service stopped successfully"
+			result["stopped_mode"] = "http"
+			result["details"] = "HTTP proxy server on 127.0.0.1:56432 has been stopped"
+
+		case "tun":
+			logger.Info("Stopping TUN service...")
+			tun.Stop()
+			result["status"] = "success"
+			result["message"] = "tun service stopped successfully"
+			result["stopped_mode"] = "tun"
+			result["details"] = "TUN interface service has been stopped"
+
+		default:
+			result["status"] = "error"
+			result["message"] = "Unknown mode"
+		}
+	}
+
+	resultJSON, _ := json.Marshal(result)
+	return C.CString(string(resultJSON))
+}
+
+//export runStatus
+func runStatus() *C.char {
+	response := make(map[string]interface{})
+	currentMode := handlers.GetCurrentMode()
+	tunRunning := handlers.IsTunRunning()
+
+	response["current_mode"] = currentMode
+	response["tun_running"] = tunRunning
+	response["available_modes"] = []string{"http", "tun"}
+
+	// Add detailed status based on current mode
+	switch currentMode {
+	case "tun":
+		if tunRunning {
+			response["status"] = "TUN service is running"
+			response["description"] = "Transparent proxy mode via TUN interface"
+		} else {
+			response["status"] = "TUN mode selected, service not running"
+			response["description"] = "TUN mode is ready, call runStart to activate"
+		}
+	case "http":
+		if tunRunning {
+			response["status"] = "HTTP proxy server is running"
+			response["description"] = "HTTP CONNECT proxy mode on port 56432"
+		} else {
+			response["status"] = "HTTP mode selected, service not running"
+			response["description"] = "HTTP mode is ready, service will start automatically"
+		}
+	}
+
+	resultJSON, _ := json.Marshal(response)
+	return C.CString(string(resultJSON))
+}
+
+//export runSwift
+func runSwift(targetMode *C.char) *C.char {
+	targetModeStr := C.GoString(targetMode)
+
+	// Validate target mode
+	if targetModeStr != "http" && targetModeStr != "tun" {
+		errResp := map[string]interface{}{
+			"status":  "error",
+			"message": "Invalid target mode: " + targetModeStr + ". Must be 'http' or 'tun'",
+		}
+		errJSON, _ := json.Marshal(errResp)
+		return C.CString(string(errJSON))
+	}
+
+	response := make(map[string]interface{})
+	currentMode := handlers.GetCurrentMode()
+
+	// Check if already in target mode and running
+	if currentMode == targetModeStr && handlers.IsTunRunning() {
+		response["status"] = "already_running"
+		response["current_mode"] = currentMode
+		response["message"] = "Already running in " + currentMode + " mode"
+	} else {
+		// If switching from a different mode, stop the current service first
+		if currentMode != targetModeStr && handlers.IsTunRunning() {
+			logger.Info("Stopping " + currentMode + " service before switching to " + targetModeStr + " mode...")
+			handlers.SetTunRunning(false)
+
+			// Stop the previous service
+			stopServiceCore(currentMode)
+		}
+
+		// Set new mode
+		handlers.SetCurrentMode(targetModeStr)
+
+		logger.Info("Switching to " + targetModeStr + " mode")
+
+		response["status"] = "switched"
+		response["target_mode"] = targetModeStr
+
+		// Start the appropriate service based on target mode
+		if targetModeStr == "http" {
+			// Start HTTP proxy server in a goroutine
+			go func() {
+				logger.Info("Starting HTTP proxy server...")
+				handlers.SetTunRunning(true)
+
+				httpServer.StartMitmHttp()
+
+				// If HTTP server exits, reset state
+				handlers.SetTunRunning(false)
+			}()
+			response["message"] = "Switched to HTTP proxy mode. Server is starting on 127.0.0.1:56432"
+			response["usage"] = "curl -x http://127.0.0.1:56432 https://example.com"
+			response["details"] = "HTTP proxy server will be ready in a moment"
+			response["next_action"] = "HTTP service starts automatically, you can begin using it after 1 second"
+
+		} else if targetModeStr == "tun" {
+			// For TUN mode, we don't start automatically - user must call runStart
+			response["message"] = "Switched to TUN mode. Use runStart to activate the TUN service"
+			response["usage"] = "Call runStart with innerToken"
+			response["next_step"] = "Call runStart to initialize and start the TUN interface"
+		}
+	}
+
+	resultJSON, _ := json.Marshal(response)
+	return C.CString(string(resultJSON))
+}
+
+//export runSetUserInfo
+func runSetUserInfo(innerToken *C.char, username *C.char, password *C.char, userUUID *C.char) *C.char {
+	innerTokenStr := C.GoString(innerToken)
+	usernameStr := C.GoString(username)
+	passwordStr := C.GoString(password)
+	userUUIDStr := C.GoString(userUUID)
+
+	user.SetUsername(usernameStr)
+	user.SetPassword(passwordStr)
+	user.SetInnerToken(innerTokenStr)
+	user.SetUserUUID(userUUIDStr)
+	logger.SetUserInfo(innerTokenStr)
+
+	result := map[string]interface{}{
+		"status":  "success",
+		"user_id": user.GetUserId(),
+	}
+
+	resultJSON, _ := json.Marshal(result)
+	return C.CString(string(resultJSON))
+}
+
+// Helper function to stop a service
+func stopServiceCore(mode string) {
+	switch mode {
+	case "http":
+		logger.Info("Stopping HTTP proxy server...")
+		httpServer.StopHttpProxy()
+		logger.Info("HTTP proxy server stopped")
+
+	case "tun":
+		logger.Info("Stopping TUN service...")
+		tun.Stop()
+		logger.Info("TUN service stopped")
+	}
 }
 
 // main 函数仅用于测试，实际使用时应该通过 FFI 调用导出的函数
