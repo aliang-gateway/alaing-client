@@ -4,9 +4,9 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
+	httpServer "nursor.org/nursorgate/app/http"
 	"nursor.org/nursorgate/common/logger"
 	"nursor.org/nursorgate/runner"
-	"nursor.org/nursorgate/server"
 )
 
 var (
@@ -74,7 +74,7 @@ func runStart(cmd *cobra.Command, args []string) error {
 	logger.Info("Starting nursor server...")
 
 	// 启动 HTTP 服务器（包含代理注册中心初始化）
-	go server.StartHttpServer()
+	go httpServer.StartHttpServer()
 
 	// 启动 TUN 服务
 	go func() {

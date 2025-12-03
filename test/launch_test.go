@@ -3,8 +3,8 @@ package test
 import (
 	"testing"
 
+	httpServer "nursor.org/nursorgate/app/http"
 	"nursor.org/nursorgate/runner"
-	"nursor.org/nursorgate/server"
 )
 
 func TestLaunch(t *testing.T) {
@@ -12,5 +12,5 @@ func TestLaunch(t *testing.T) {
 }
 
 func TestServer(t *testing.T) {
-	server.StartHttpServer()
+	httpServer.StartHttpServer()
 }
