@@ -15,6 +15,7 @@ import (
 	"nursor.org/nursorgate/outbound"
 	user "nursor.org/nursorgate/processor/auth"
 	"nursor.org/nursorgate/processor/cert/client"
+	proxyConfig "nursor.org/nursorgate/processor/config"
 	"nursor.org/nursorgate/processor/http2"
 	"nursor.org/nursorgate/runner"
 	"nursor.org/nursorgate/runner/utils"
@@ -97,6 +98,96 @@ func setCursorGateMode(enableCursorGate *C.bool) {
 //export stopGate
 func stopGate() {
 	runner.Stop()
+}
+
+//export setVLESSProxy
+func setVLESSProxy(server *C.char, uuid *C.char, sni *C.char, publicKey *C.char, isDefault *C.bool, isDoorProxy *C.bool) {
+	cfg := &proxyConfig.VLESSConfig{
+		Server:         C.GoString(server),
+		UUID:           C.GoString(uuid),
+		SNI:            C.GoString(sni),
+		PublicKey:      C.GoString(publicKey),
+		RealityEnabled: len(C.GoString(publicKey)) > 0,
+		TLSEnabled:     len(C.GoString(sni)) > 0,
+	}
+
+	proxyCfg := &proxyConfig.ProxyConfig{
+		Type:        "vless",
+		VLESS:       cfg,
+		IsDefault:   *isDefault != C.bool(false),
+		IsDoorProxy: *isDoorProxy != C.bool(false),
+	}
+
+	if err := proxyConfig.SetProxyConfig(proxyCfg); err != nil {
+		logger.Error(err.Error())
+	}
+}
+
+//export setShadowsocksProxy
+func setShadowsocksProxy(server *C.char, method *C.char, password *C.char, obfsMode *C.char, obfsHost *C.char, isDefault *C.bool, isDoorProxy *C.bool) {
+	cfg := &proxyConfig.ShadowsocksConfig{
+		Server:   C.GoString(server),
+		Method:   C.GoString(method),
+		Password: C.GoString(password),
+		ObfsMode: C.GoString(obfsMode),
+		ObfsHost: C.GoString(obfsHost),
+	}
+
+	proxyCfg := &proxyConfig.ProxyConfig{
+		Type:        "shadowsocks",
+		Shadowsocks: cfg,
+		IsDefault:   *isDefault != C.bool(false),
+		IsDoorProxy: *isDoorProxy != C.bool(false),
+	}
+
+	if err := proxyConfig.SetProxyConfig(proxyCfg); err != nil {
+		logger.Error(err.Error())
+	}
+}
+
+//export registerProxy
+func registerProxy(name *C.char, proxyType *C.char, server *C.char, uuid *C.char, sni *C.char, publicKey *C.char) {
+	nameStr := C.GoString(name)
+	typeStr := C.GoString(proxyType)
+
+	var cfg *proxyConfig.ProxyConfig
+
+	switch typeStr {
+	case "vless":
+		cfg = &proxyConfig.ProxyConfig{
+			Type: "vless",
+			VLESS: &proxyConfig.VLESSConfig{
+				Server:         C.GoString(server),
+				UUID:           C.GoString(uuid),
+				SNI:            C.GoString(sni),
+				PublicKey:      C.GoString(publicKey),
+				RealityEnabled: len(C.GoString(publicKey)) > 0,
+				TLSEnabled:     len(C.GoString(sni)) > 0,
+			},
+		}
+	default:
+		logger.Error("Unsupported proxy type: " + typeStr)
+		return
+	}
+
+	if err := proxyRegistry.GetRegistry().RegisterFromConfig(nameStr, cfg); err != nil {
+		logger.Error(err.Error())
+	}
+}
+
+//export switchProxy
+func switchProxy(name *C.char) {
+	nameStr := C.GoString(name)
+	if err := proxyRegistry.SetDefault(nameStr); err != nil {
+		logger.Error(err.Error())
+	}
+}
+
+//export listProxies
+func listProxies() *C.char {
+	info := proxyRegistry.GetRegistry().ListWithInfo()
+	jsonStr, _ := json.Marshal(info)
+	return C.CString(string(jsonStr))
 }
 
 func main() {

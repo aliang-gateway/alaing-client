@@ -4,11 +4,11 @@ import (
 	"fmt"
 
 	"nursor.org/nursorgate/common/logger"
-	"nursor.org/nursorgate/inbound/tun/engine"
+	"nursor.org/nursorgate/processor/config"
 	"nursor.org/nursorgate/runner/utils"
 )
 
-func GetDefaultDeviceConfiguration() engine.Key {
+func GetDefaultDeviceConfiguration() config.EngineConf {
 	// 获取默认网络接口
 	defaultInterface, err := utils.GetDefaultInterface()
 	if err != nil {
@@ -16,13 +16,11 @@ func GetDefaultDeviceConfiguration() engine.Key {
 		defaultInterface = "en0" // 设置一个默认值
 	}
 
-	defaultKey := engine.Key{
-		Proxy:       "direct://",
-		NursorProxy: "https://ai-gateway.nursor.org:8888",
-		MTU:         0,
-		Mark:        0,
-		Device:      utils.GetDefaultTunName(),
-		Interface:   defaultInterface,
+	defaultEngineConf := config.EngineConf{
+		MTU:       0,
+		Mark:      0,
+		Device:    utils.GetDefaultTunName(),
+		Interface: defaultInterface,
 	}
-	return defaultKey
+	return defaultEngineConf
 }

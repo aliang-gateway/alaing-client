@@ -1,0 +1,51 @@
+{
+  "engine": {
+    "mtu": 0,
+    "fwmark": 0,
+    "restapi": "",
+    "device": "utun0",
+    "loglevel": "info",
+    "interface": "en0",
+    "tcp-moderate-receive-buffer": false,
+    "tcp-send-buffer-size": "",
+    "tcp-receive-buffer-size": "",
+    "multicast-groups": "",
+    "tun-pre-up": "",
+    "tun-post-up": "",
+    "udp-timeout": "60s"
+  },
+  "currentProxy": "door",
+  "coreServer": "ai-gateway.nursor.org",
+  "proxies": {
+    "door": {
+      "type": "vless",
+      "is_default": true,
+      "is_door_proxy": true,
+      "vless": {
+        "server": "node1.nursor.org:35001",
+        "uuid": "74cddcdd-6d48-41cf-8e62-902e7c943fe7",
+        "flow": "",
+        "tls_enabled": true,
+        "sni": "www.microsoft.com",
+        "reality_enabled": true,
+        "public_key": "sAtJcW2xLIUWRE-_7KHGEAtvHx-P1sDbjrrgrt4_XCo",
+        "short_id": "",
+        "short_id_list": "ef,b79e62,7d87a3,f4bfb2,ecdc,048cc1,be,872a9cb601,4e642a,d0a4cc,6a37c85b4d,facf,e2e46bb5,5fe83d984b7c,884c,f2e4c3af,7b79c5,b7a05d,b6920fa248,0975,95,4d3bd40917,57d89cd6ed9a"
+      },
+      "shadowsocks": null
+    },
+    "direct": {
+      "type": "shadowsocks",
+      "is_default": false,
+      "is_door_proxy": false,
+      "shadowsocks": {
+        "server": "example.com:443",
+        "method": "aes-256-gcm",
+        "password": "your-password-here",
+        "obfs_mode": "tls",
+        "obfs_host": "example.com"
+      },
+      "vless": null
+    }
+  }
+}

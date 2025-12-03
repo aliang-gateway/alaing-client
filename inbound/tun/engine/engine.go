@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net"
 	"net/netip"
-	"sync"
 	"time"
 
 	"github.com/sagernet/gvisor/pkg/tcpip/stack"
@@ -18,7 +17,11 @@ import (
 	"nursor.org/nursorgate/inbound/tun/dialer"
 	"nursor.org/nursorgate/inbound/tun/option"
 	"nursor.org/nursorgate/inbound/tun/tunnel"
+	"nursor.org/nursorgate/outbound/proxy/direct"
 	user "nursor.org/nursorgate/processor/auth"
+	config "nursor.org/nursorgate/processor/config"
+	proxyConfig "nursor.org/nursorgate/processor/config"
+	proxyRegistry "nursor.org/nursorgate/processor/proxy"
 	"nursor.org/nursorgate/runner/utils"
 
 	"github.com/docker/go-units"
@@ -26,10 +29,6 @@ import (
 )
 
 var (
-	_engineMu sync.Mutex
-
-	// _defaultKey holds the default key for the engine.
-	_defaultKey *Key
 
 	// _defaultProxy holds the default proxy for the engine.
 	_defaultProxy proxy.Proxy
@@ -57,26 +56,16 @@ func Stop() {
 	}
 }
 
-// Insert loads *Key to the default engine.
-func Insert(k *Key) {
-	_engineMu.Lock()
-	_defaultKey = k
-	_engineMu.Unlock()
-}
-
 func start() error {
-	_engineMu.Lock()
-	defer _engineMu.Unlock()
-
-	if _defaultKey == nil {
+	if config.GetDefaultEngineConf() == nil {
 		return errors.New("empty key")
 	}
 
-	for _, f := range []func(*Key) error{
+	for _, f := range []func(*config.EngineConf) error{
 		general,
 		netstack,
 	} {
-		if err := f(_defaultKey); err != nil {
+		if err := f(config.GetDefaultEngineConf()); err != nil {
 			return err
 		}
 	}
@@ -84,7 +73,6 @@ func start() error {
 }
 
 func stop() (err error) {
-	_engineMu.Lock()
 	if _defaultDevice != nil {
 		_defaultDevice.Close()
 	}
@@ -92,7 +80,6 @@ func stop() (err error) {
 		_defaultStack.Close()
 		_defaultStack.Wait()
 	}
-	_engineMu.Unlock()
 	return nil
 }
 
@@ -113,7 +100,7 @@ func execCommand(cmd string) error {
 	return err
 }
 
-func general(k *Key) error {
+func general(k *config.EngineConf) error {
 	//TODO: Auto here
 	if k.Interface != "" {
 		iface, err := net.InterfaceByName(k.Interface)
@@ -138,10 +125,7 @@ func general(k *Key) error {
 	return nil
 }
 
-func netstack(k *Key) (err error) {
-	if k.Proxy == "" {
-		return errors.New("empty proxy")
-	}
+func netstack(k *config.EngineConf) (err error) {
 	if k.Device == "" {
 		return errors.New("empty device")
 	}
@@ -162,26 +146,58 @@ func netstack(k *Key) (err error) {
 			logger.Info(fmt.Sprintf("[TUN] failed to post-execute: %s: %v", k.TUNPostUp, postUpErr))
 		}
 	}()
-	if _defaultProxy, err = parseProxy(k.Proxy); err != nil {
-		return
-	}
-	tunnel.SetDefaultProxy(_defaultProxy)
-	uuid := user.GetUserUUID()
-	if uuid == "" {
-		uuid = "74cddcdd-6d48-41cf-8e62-902e7c943fe7"
-	}
-	doorProxy, err := vless.NewVLESSWithReality(
-		"node1.nursor.org:35001",
-		uuid,
-		"www.microsoft.com",
-		"sAtJcW2xLIUWRE-_7KHGEAtvHx-P1sDbjrrgrt4_XCo",
-	)
+
+	// 优先从注册中心获取默认代理
+	_defaultProxy, err = proxyRegistry.GetRegistry().GetDefault()
 	if err != nil {
-		logger.Error(err)
+		// 如果注册中心没有，尝试从配置管理器获取
+		if defaultProxyFromConfig := proxyConfig.GetDirectProxy(); defaultProxyFromConfig != nil {
+			_defaultProxy = defaultProxyFromConfig
+		} else {
+			// 最后使用直连代理作为后备
+			_defaultProxy = direct.NewDirect()
+			logger.Warn("No proxy configured, using direct connection")
+		}
 	}
-	tunnel.SetDoorProxy(doorProxy)
-	defaultResolver := tunnel.NewDNSResolver("8.8.8.8:53", doorProxy, 5*time.Second, 5*time.Minute)
-	tunnel.SetDefaultResolver(defaultResolver)
+	// 优先使用配置管理器中的代理
+	if defaultProxyFromConfig := proxyConfig.GetDirectProxy(); defaultProxyFromConfig != nil {
+		tunnel.SetDefaultProxy(defaultProxyFromConfig)
+	} else {
+		tunnel.SetDefaultProxy(_defaultProxy)
+	}
+
+	// 优先使用配置管理器中的门代理
+	var doorProxy proxy.Proxy
+	if doorProxyFromConfig := proxyConfig.GetDoorProxy(); doorProxyFromConfig != nil {
+		doorProxy = doorProxyFromConfig
+		tunnel.SetDoorProxy(doorProxyFromConfig)
+	} else {
+		// 如果没有配置，使用默认的 VLESS 配置（向后兼容）
+		uuid := user.GetUserUUID()
+		if uuid == "" {
+			uuid = "74cddcdd-6d48-41cf-8e62-902e7c943fe7"
+		}
+		var err error
+		doorProxy, err = vless.NewVLESSWithReality(
+			"node1.nursor.org:35001",
+			uuid,
+			"www.microsoft.com",
+			"sAtJcW2xLIUWRE-_7KHGEAtvHx-P1sDbjrrgrt4_XCo",
+		)
+		if err != nil {
+			logger.Error(err)
+		} else {
+			tunnel.SetDoorProxy(doorProxy)
+		}
+	}
+
+	// 确保 doorProxy 不为 nil 再创建 DNS resolver
+	if doorProxy != nil {
+		defaultResolver := tunnel.NewDNSResolver("8.8.8.8:53", doorProxy, 5*time.Second, 5*time.Minute)
+		tunnel.SetDefaultResolver(defaultResolver)
+	} else {
+		logger.Warn("Door proxy is nil, DNS resolver not created")
+	}
 
 	tunnel.T().SetDialer(_defaultProxy)
 

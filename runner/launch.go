@@ -9,11 +9,11 @@ import (
 	"time"
 
 	"nursor.org/nursorgate/common/logger"
-	"nursor.org/nursorgate/inbound/tun/engine"
+	"nursor.org/nursorgate/processor/config"
 	"nursor.org/nursorgate/runner/utils"
 )
 
-var defaultConfig engine.Key
+var defaultConfig config.EngineConf
 var defaultGateway = "192.168.1.1"
 
 type PSNetItem struct {

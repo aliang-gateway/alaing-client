@@ -51,6 +51,8 @@ type VLESSConfig struct {
 	Flow       string         `json:"flow"`
 	TLS        *TLSConfig     `json:"tls,omitempty"`
 	Reality    *RealityConfig `json:"reality,omitempty"`
+	PublicKey  string         `json:"public_key"`
+	ShortID    string         `json:"short_id"`
 }
 
 // TLSConfig TLS 配置
@@ -132,9 +134,17 @@ func NewVLESSWithVision(server, uuid, sni string) (*VLESS, error) {
 
 // NewVLESSWithReality 创建带 REALITY 的 VLESS 客户端
 func NewVLESSWithReality(server, uuid, sni, publicKey string) (*VLESS, error) {
-	shortIDStr := "ef,b79e62,7d87a3,f4bfb2,ecdc,048cc1,be,872a9cb601,4e642a,d0a4cc,6a37c85b4d,facf,e2e46bb5,5fe83d984b7c,884c,f2e4c3af,7b79c5,b7a05d,b6920fa248,0975,95,4d3bd40917,57d89cd6ed9a"
-	shortIDSArray := strings.Split(shortIDStr, ",")
-	shortID := shortIDSArray[rand.Intn(len(shortIDSArray))]
+	return NewVLESSWithRealityAndShortID(server, uuid, sni, publicKey, "")
+}
+
+// NewVLESSWithRealityAndShortID 创建带 REALITY 和指定 ShortID 的 VLESS 客户端
+func NewVLESSWithRealityAndShortID(server, uuid, sni, publicKey, shortID string) (*VLESS, error) {
+	// 如果没有提供 shortID，从默认列表随机选择
+	if shortID == "" {
+		shortIDStr := "ef,b79e62,7d87a3,f4bfb2,ecdc,048cc1,be,872a9cb601,4e642a,d0a4cc,6a37c85b4d,facf,e2e46bb5,5fe83d984b7c,884c,f2e4c3af,7b79c5,b7a05d,b6920fa248,0975,95,4d3bd40917,57d89cd6ed9a"
+		shortIDSArray := strings.Split(shortIDStr, ",")
+		shortID = shortIDSArray[rand.Intn(len(shortIDSArray))]
+	}
 	// 解析服务器地址
 	host, port := server, uint16(443)
 	if idx := strings.Index(server, ":"); idx != -1 {

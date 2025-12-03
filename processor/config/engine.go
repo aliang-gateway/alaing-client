@@ -1,12 +1,15 @@
-package engine
+package config
 
-import "time"
+import (
+	"sync"
+	"time"
+)
 
-type Key struct {
+// tun2socks默认的配置，被我提取除去了proxy
+
+type EngineConf struct {
 	MTU                      int           `yaml:"mtu"`
 	Mark                     int           `yaml:"fwmark"`
-	Proxy                    string        `yaml:"proxy"`
-	NursorProxy              string        `yaml:"nursorproxy"`
 	RestAPI                  string        `yaml:"restapi"`
 	Device                   string        `yaml:"device"`
 	LogLevel                 string        `yaml:"loglevel"`
@@ -18,4 +21,21 @@ type Key struct {
 	TUNPreUp                 string        `yaml:"tun-pre-up"`
 	TUNPostUp                string        `yaml:"tun-post-up"`
 	UDPTimeout               time.Duration `yaml:"udp-timeout"`
+}
+
+// _defaultEngineConf holds the default key for the engine.
+var _defaultEngineConf *EngineConf
+var _engineMu sync.Mutex
+
+// Insert loads *Key to the default engine.
+func Insert(k *EngineConf) {
+	_engineMu.Lock()
+	_defaultEngineConf = k
+	_engineMu.Unlock()
+}
+
+func GetDefaultEngineConf() *EngineConf {
+	_engineMu.Lock()
+	defer _engineMu.Unlock()
+	return _defaultEngineConf
 }

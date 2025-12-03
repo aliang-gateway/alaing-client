@@ -10,6 +10,7 @@ import (
 	"nursor.org/nursorgate/common/logger"
 	"nursor.org/nursorgate/common/model"
 	"nursor.org/nursorgate/inbound/tun/engine"
+	"nursor.org/nursorgate/processor/config"
 )
 
 func Start() {
@@ -30,7 +31,7 @@ func Start() {
 	// 添加设备状态监控
 	go monitorTunDevice(defaultConfig.Device)
 
-	engine.Insert(&defaultConfig)
+	config.Insert(&defaultConfig)
 	if err := engine.Start(); err != nil {
 		logger.Error("engine 启动失败")
 		RunStatusChan <- map[string]string{"status": "failed", "message": err.Error()}
