@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"nursor.org/nursorgate/outbound/proxy"
+	"nursor.org/nursorgate/outbound/proxy/direct"
 	"nursor.org/nursorgate/outbound/proxy/shadowsocks"
 	"nursor.org/nursorgate/outbound/proxy/vless"
 )
@@ -21,6 +22,8 @@ func CreateProxyFromConfig(cfg *ProxyConfig) (proxy.Proxy, error) {
 		return createVLESSProxy(cfg.VLESS)
 	case "shadowsocks":
 		return createShadowsocksProxy(cfg.Shadowsocks)
+	case "direct":
+		return direct.NewDirect(), nil
 	default:
 		return nil, fmt.Errorf("unsupported proxy type: %s", cfg.Type)
 	}

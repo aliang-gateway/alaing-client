@@ -54,6 +54,9 @@ func (c *ProxyConfig) Validate() error {
 		if c.Shadowsocks.Server == "" || c.Shadowsocks.Password == "" {
 			return fmt.Errorf("Shadowsocks server and password are required")
 		}
+	case "direct":
+		// Direct proxy doesn't require additional configuration
+		// It connects directly without proxy
 	default:
 		return fmt.Errorf("unsupported proxy type: %s", c.Type)
 	}
