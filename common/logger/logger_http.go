@@ -1,71 +1,47 @@
 package logger
 
-import (
-	"fmt"
-	"io"
-	"log"
-	"os"
-	"path/filepath"
-	"runtime"
-)
-
-var (
-	currentHttpLevel = INFO
-
-	httpLogger      *log.Logger
-	httpLogFile     *os.File
-	httpLogFilePath string
-)
-
+// LogSilent variable for backward compatibility
 var LogSilent = "false"
 
-// 设置日志等级
-func SetHttpLogLevel(level LogLevel) {
-	currentHttpLevel = level
-}
-
-// 初始化日志系统
+// InitHttp initializes the HTTP logger (backward compatibility)
 func InitHttp() error {
-	var home string
-	var err error
-
-	if runtime.GOOS == "darwin" {
-		home = "/Library/Logs/Nursor"
-	} else {
-		home, err = os.UserHomeDir()
-		if err != nil {
-			return err
-		}
-	}
-
-	logDir := filepath.Join(home, ".nursor")
-	if err := os.MkdirAll(logDir, 0755); err != nil {
-		return err
-	}
-
-	httpLogFilePath = filepath.Join(logDir, "nursor_http.log")
-	httpLogFile, err = os.OpenFile(httpLogFilePath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
-	if err != nil {
-		return err
-	}
-	if LogSilent == "true" {
-		httpLogger = log.New(io.Discard, "", log.LstdFlags|log.Lshortfile)
-	} else {
-		httpLogger = log.New(httpLogFile, "", log.LstdFlags|log.Lshortfile)
-	}
-
-	startCleanupRoutine()
-
+	// Logger is now initialized via factory, no-op here
 	return nil
 }
 
-func httpLogf(level LogLevel, prefix string, v ...interface{}) {
-	if level < currentHttpLevel {
-		return
+// SetHttpLogLevel sets the HTTP logger level (backward compatibility)
+func SetHttpLogLevel(level LogLevel) {
+	// Use new unified config
+	cfg := GetLogConfig()
+	switch level {
+	case DEBUG_COMPAT:
+		cfg.Level = DEBUG
+	case INFO_COMPAT:
+		cfg.Level = INFO
+	case WARN_COMPAT:
+		cfg.Level = WARN
+	case ERROR_COMPAT:
+		cfg.Level = ERROR
 	}
-	httpLogger.Output(3, fmt.Sprintf("[%s] %s\n", prefix, fmt.Sprint(v...)))
+	SetLogConfig(cfg)
 }
 
-func HttpDebug(v ...interface{}) { httpLogf(DEBUG, "DEBUG", v...) }
-func HttpInfo(v ...interface{})  { httpLogf(INFO, "INFO", v...) }
-func HttpWarn(v ...interface{})  { httpLogf(WARN, "WARN", v...) }
+// HttpDebug logs debug message to HTTP logger
+func HttpDebug(v ...interface{}) {
+	GetHTTPLogger().Debug(v...)
+}
+
+// HttpInfo logs info message to HTTP logger
+func HttpInfo(v ...interface{}) {
+	GetHTTPLogger().Info(v...)
+}
+
+// HttpWarn logs warn message to HTTP logger
+func HttpWarn(v ...interface{}) {
+	GetHTTPLogger().Warn(v...)
+}
+
+// HttpError logs error message to HTTP logger
+func HttpError(v ...interface{}) {
+	GetHTTPLogger().Error(v...)
+}

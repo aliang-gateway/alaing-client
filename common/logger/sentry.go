@@ -2,21 +2,37 @@ package logger
 
 import (
 	"log"
+	"sync"
 
 	"github.com/getsentry/sentry-go"
 )
 
-func init() {
-	err := sentry.Init(sentry.ClientOptions{
-		Dsn:              "http://4307e08db9bad95bd9f55122cefe2fc3@sentry.nursor.org/6",
-		TracesSampleRate: 0.1,
-	})
-	if err != nil {
-		log.Fatalf("sentry.Init: %s", err)
-	}
+var (
+	sentryInitOnce sync.Once
+)
 
-	// sentry.ConfigureScope(func(scope *sentry.Scope) {
-	// 	scope.SetTag("role", "user")
-	// 	scope.SetTag("user_id", "25")
-	// })
+// InitSentry initializes Sentry with the configured DSN
+func InitSentry() {
+	sentryInitOnce.Do(func() {
+		config := GetLogConfig()
+
+		// Skip Sentry initialization if DSN is not configured or disabled
+		if !config.EnableSentry || config.SentryDSN == "" {
+			return
+		}
+
+		err := sentry.Init(sentry.ClientOptions{
+			Dsn:              config.SentryDSN,
+			TracesSampleRate: 0.1,
+		})
+		if err != nil {
+			log.Printf("sentry.Init: %s", err)
+			// Don't fail fatally - logging should continue without Sentry
+		}
+	})
+}
+
+func init() {
+	// Initialize Sentry from config with safety
+	InitSentry()
 }

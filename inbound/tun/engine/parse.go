@@ -14,9 +14,6 @@ import (
 	"nursor.org/nursorgate/outbound/proxy/direct"
 	"nursor.org/nursorgate/outbound/proxy/http"
 	"nursor.org/nursorgate/outbound/proxy/proto"
-	"nursor.org/nursorgate/outbound/proxy/shadowsocks"
-	"nursor.org/nursorgate/outbound/proxy/vless"
-	proxyConfig "nursor.org/nursorgate/processor/config"
 )
 
 func parseProxy(s string) (proxy.Proxy, error) {
@@ -40,41 +37,12 @@ func parseProxy(s string) (proxy.Proxy, error) {
 		return parseHTTP(u)
 
 	case proto.Shadowsocks.String():
-		// 优先使用配置管理器中的 Shadowsocks 配置
-		if ssCfg := proxyConfig.GetShadowsocksConfig(); ssCfg != nil {
-			return shadowsocks.NewShadowsocks(
-				ssCfg.Server,
-				ssCfg.Method,
-				ssCfg.Password,
-				ssCfg.ObfsMode,
-				ssCfg.ObfsHost,
-			)
-		}
-		// 如果没有配置，尝试从 URL 解析
-		// TODO: 实现从 URL 解析 Shadowsocks 配置
-		return nil, fmt.Errorf("Shadowsocks config not set, please set it via API or FFI")
+		// Shadowsocks proxy should be configured through the API or FFI
+		return nil, fmt.Errorf("Shadowsocks proxy not configured, please register it via API or FFI")
 
 	case proto.VLESS.String():
-		// 优先使用配置管理器中的 VLESS 配置
-		if vlessCfg := proxyConfig.GetVLESSConfig(); vlessCfg != nil {
-			if vlessCfg.RealityEnabled {
-				return vless.NewVLESSWithReality(
-					vlessCfg.Server,
-					vlessCfg.UUID,
-					vlessCfg.SNI,
-					vlessCfg.PublicKey,
-				)
-			} else if vlessCfg.TLSEnabled {
-				if vlessCfg.Flow != "" {
-					return vless.NewVLESSWithVision(vlessCfg.Server, vlessCfg.UUID, vlessCfg.SNI)
-				}
-				return vless.NewVLESSWithTLS(vlessCfg.Server, vlessCfg.UUID, vlessCfg.SNI)
-			} else {
-				return vless.NewVLESS(vlessCfg.Server, vlessCfg.UUID)
-			}
-		}
-		// 向后兼容：如果没有配置，使用默认值
-		return vless.NewVLESS("103.255.209.43:443", "c15c1096-752b-415c-ff54-f560e2e4ea85")
+		// VLESS proxy should be configured through the API or FFI
+		return nil, fmt.Errorf("VLESS proxy not configured, please register it via API or FFI")
 	default:
 		return nil, fmt.Errorf("unsupported protocol: %s", protocol)
 	}

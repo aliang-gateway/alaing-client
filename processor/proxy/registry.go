@@ -6,6 +6,7 @@ import (
 
 	"nursor.org/nursorgate/common/logger"
 	"nursor.org/nursorgate/outbound/proxy"
+	"nursor.org/nursorgate/outbound/proxy/direct"
 	proxyConfig "nursor.org/nursorgate/processor/config"
 )
 
@@ -30,6 +31,24 @@ func GetRegistry() *Registry {
 		}
 	})
 	return globalRegistry
+}
+
+// RegisterDefault 注册默认的 direct 代理
+// 如果已经存在，则不覆盖
+func (r *Registry) RegisterDefault() error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	// 如果已经存在 direct 代理，直接返回
+	if _, exists := r.proxies["direct"]; exists {
+		return nil
+	}
+
+	// 创建并注册 direct 代理
+	directProxy := direct.NewDirect()
+	r.proxies["direct"] = directProxy
+	logger.Info("Default direct proxy registered")
+	return nil
 }
 
 // Register 注册一个代理实例
@@ -92,6 +111,13 @@ func (r *Registry) Get(name string) (proxy.Proxy, error) {
 		return nil, fmt.Errorf("proxy '%s' not found", name)
 	}
 	return p, nil
+}
+
+// GetDefaultName 获取默认代理的名称
+func (r *Registry) GetDefaultName() string {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return r.defaultName
 }
 
 // GetDefault 获取默认代理
@@ -213,91 +239,47 @@ func (r *Registry) Clear() {
 	logger.Warn("All proxies cleared")
 }
 
-// InitializeFromConfig 根据全局配置初始化代理
-// 从 processor/config 包中读取配置并创建代理实例
-func (r *Registry) InitializeFromConfig() error {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-
-	// 初始化 VLESS 代理
-	if vlessCfg := proxyConfig.GetVLESSConfig(); vlessCfg != nil {
-		p, err := proxyConfig.CreateVLESSProxyFromConfig(vlessCfg)
-		if err != nil {
-			logger.Error(fmt.Sprintf("Failed to create VLESS proxy from config: %v", err))
-		} else {
-			r.proxies["vless-default"] = p
-			if r.defaultName == "" {
-				r.defaultName = "vless-default"
-			}
-			if r.doorName == "" {
-				r.doorName = "vless-default"
-			}
-			logger.Info("VLESS proxy initialized from config: vless-default")
-		}
-	}
-
-	// 初始化 Shadowsocks 代理
-	if ssCfg := proxyConfig.GetShadowsocksConfig(); ssCfg != nil {
-		p, err := proxyConfig.CreateShadowsocksProxyFromConfig(ssCfg)
-		if err != nil {
-			logger.Error(fmt.Sprintf("Failed to create Shadowsocks proxy from config: %v", err))
-		} else {
-			r.proxies["shadowsocks-default"] = p
-			if r.defaultName == "" {
-				r.defaultName = "shadowsocks-default"
-			}
-			logger.Info("Shadowsocks proxy initialized from config: shadowsocks-default")
-		}
-	}
-
-	if len(r.proxies) == 0 {
-		return fmt.Errorf("no proxy configuration found, cannot initialize")
-	}
-
-	return nil
-}
-
 // RegisterFromConfig 根据配置注册代理（支持自定义名称）
+// 使用factory模式创建代理实例，并将配置存储在ConfigStore中
 func (r *Registry) RegisterFromConfig(name string, cfg *proxyConfig.ProxyConfig) error {
 	if name == "" {
 		return fmt.Errorf("proxy name cannot be empty")
 	}
-
-	var p proxy.Proxy
-	var err error
-
-	switch cfg.Type {
-	case "vless":
-		if cfg.VLESS == nil {
-			return fmt.Errorf("VLESS config is required")
-		}
-		p, err = proxyConfig.CreateVLESSProxyFromConfig(cfg.VLESS)
-	case "shadowsocks":
-		if cfg.Shadowsocks == nil {
-			return fmt.Errorf("Shadowsocks config is required")
-		}
-		p, err = proxyConfig.CreateShadowsocksProxyFromConfig(cfg.Shadowsocks)
-	default:
-		return fmt.Errorf("unsupported proxy type: %s", cfg.Type)
+	if cfg == nil {
+		return fmt.Errorf("config cannot be nil")
 	}
 
+	// 验证配置
+	if err := cfg.Validate(); err != nil {
+		return fmt.Errorf("invalid config: %w", err)
+	}
+
+	// 使用factory创建代理实例
+	p, err := proxyConfig.CreateProxyFromConfig(cfg)
 	if err != nil {
 		return fmt.Errorf("failed to create proxy: %w", err)
 	}
 
+	// 在Registry中注册实例
 	if err := r.Register(name, p); err != nil {
 		return err
+	}
+
+	// 将配置存储在ConfigStore中
+	if err := proxyConfig.GetConfigStore().Set(name, cfg); err != nil {
+		logger.Warn(fmt.Sprintf("Failed to store config for '%s': %v", name, err))
+		// 不因配置存储失败而中止注册
 	}
 
 	// 根据配置设置默认代理和门代理
 	if cfg.IsDefault {
 		if err := r.SetDefault(name); err != nil {
-			return err
+			return fmt.Errorf("failed to set default proxy: %w", err)
 		}
 	}
 	if cfg.IsDoorProxy {
 		if err := r.SetDoor(name); err != nil {
-			return err
+			return fmt.Errorf("failed to set door proxy: %w", err)
 		}
 	}
 

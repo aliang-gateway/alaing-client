@@ -17,10 +17,10 @@ import (
 
 // Config 完整配置结构
 type Config struct {
-	Engine       *EngineConfig          `json:"engine"`
-	CurrentProxy string                 `json:"currentProxy"`
-	CoreServer   string                 `json:"coreServer"`
-	Proxies      map[string]interface{} `json:"proxies"`
+	Engine       *EngineConfig                      `json:"engine"`
+	CurrentProxy string                             `json:"currentProxy"`
+	CoreServer   string                             `json:"coreServer"`
+	Proxies      map[string]*proxyConfig.ProxyConfig `json:"proxies"`
 }
 
 // EngineConfig 引擎配置（对应 processor/config.EngineConf），以前的tun2socks配置key
@@ -70,18 +70,30 @@ func ApplyConfig(config *Config) error {
 		logger.Info(fmt.Sprintf("Core server set to: %s", config.CoreServer))
 	}
 
-	// 3. 应用代理配置
+	// 3. 注册默认的 direct 代理
+	registry := proxyRegistry.GetRegistry()
+	if err := registry.RegisterDefault(); err != nil {
+		logger.Warn(fmt.Sprintf("Failed to register default direct proxy: %v", err))
+	}
+
+	// 4. 应用代理配置
 	if err := applyProxyConfigs(config.Proxies); err != nil {
 		return fmt.Errorf("failed to apply proxy configs: %w", err)
 	}
 
-	// 4. 设置当前代理
-	if config.CurrentProxy != "" {
-		if err := proxyRegistry.GetRegistry().SetDefault(config.CurrentProxy); err != nil {
-			logger.Warn(fmt.Sprintf("Failed to set current proxy '%s': %v", config.CurrentProxy, err))
-		} else {
-			logger.Info(fmt.Sprintf("Current proxy set to: %s", config.CurrentProxy))
+	// 5. 设置当前代理（如果未设置，使用 direct）
+	currentProxy := config.CurrentProxy
+	if currentProxy == "" {
+		currentProxy = "direct"
+	}
+	if err := registry.SetDefault(currentProxy); err != nil {
+		logger.Warn(fmt.Sprintf("Failed to set current proxy '%s': %v", currentProxy, err))
+		// 如果设置失败，回退到 direct
+		if err := registry.SetDefault("direct"); err != nil {
+			logger.Error(fmt.Sprintf("Failed to fallback to direct proxy: %v", err))
 		}
+	} else {
+		logger.Info(fmt.Sprintf("Current proxy set to: %s", currentProxy))
 	}
 
 	return nil
@@ -120,8 +132,8 @@ func applyEngineConfig(engineCfg *EngineConfig) error {
 	return nil
 }
 
-// applyProxyConfigs 应用代理配置
-func applyProxyConfigs(proxies map[string]interface{}) error {
+// applyProxyConfigs 应用代理配置到注册中心
+func applyProxyConfigs(proxies map[string]*proxyConfig.ProxyConfig) error {
 	if len(proxies) == 0 {
 		logger.Warn("No proxies configured")
 		return nil
@@ -129,23 +141,20 @@ func applyProxyConfigs(proxies map[string]interface{}) error {
 
 	registry := proxyRegistry.GetRegistry()
 
-	for name, proxyData := range proxies {
-		// 将 interface{} 转换为 map[string]interface{}
-		proxyMap, ok := proxyData.(map[string]interface{})
-		if !ok {
-			logger.Warn(fmt.Sprintf("Invalid proxy config for '%s': expected map, got %T", name, proxyData))
+	for name, cfg := range proxies {
+		if cfg == nil {
+			logger.Warn(fmt.Sprintf("Nil proxy config for '%s', skipping", name))
 			continue
 		}
 
-		// 解析代理配置
-		proxyCfg, err := parseProxyConfig(proxyMap)
-		if err != nil {
-			logger.Error(fmt.Sprintf("Failed to parse proxy config for '%s': %v", name, err))
+		// 验证配置
+		if err := cfg.Validate(); err != nil {
+			logger.Error(fmt.Sprintf("Invalid config for proxy '%s': %v", name, err))
 			continue
 		}
 
-		// 注册到注册中心
-		if err := registry.RegisterFromConfig(name, proxyCfg); err != nil {
+		// 注册代理（创建实例 + 存储配置）
+		if err := registry.RegisterFromConfig(name, cfg); err != nil {
 			logger.Error(fmt.Sprintf("Failed to register proxy '%s': %v", name, err))
 			continue
 		}
@@ -156,120 +165,6 @@ func applyProxyConfigs(proxies map[string]interface{}) error {
 	return nil
 }
 
-// parseProxyConfig 从 map[string]interface{} 解析代理配置
-func parseProxyConfig(proxyMap map[string]interface{}) (*proxyConfig.ProxyConfig, error) {
-	cfg := &proxyConfig.ProxyConfig{}
-
-	// 解析 type
-	if typeVal, ok := proxyMap["type"].(string); ok {
-		cfg.Type = typeVal
-	} else {
-		return nil, fmt.Errorf("missing or invalid 'type' field")
-	}
-
-	// 解析 is_default
-	if isDefaultVal, ok := proxyMap["is_default"].(bool); ok {
-		cfg.IsDefault = isDefaultVal
-	}
-
-	// 解析 is_door_proxy
-	if isDoorProxyVal, ok := proxyMap["is_door_proxy"].(bool); ok {
-		cfg.IsDoorProxy = isDoorProxyVal
-	}
-
-	// 根据类型解析具体配置
-	switch cfg.Type {
-	case "vless":
-		if vlessData, ok := proxyMap["vless"].(map[string]interface{}); ok {
-			vlessCfg, err := parseVLESSConfig(vlessData)
-			if err != nil {
-				return nil, fmt.Errorf("failed to parse VLESS config: %w", err)
-			}
-			cfg.VLESS = vlessCfg
-		} else {
-			return nil, fmt.Errorf("missing 'vless' config for vless type")
-		}
-
-	case "shadowsocks":
-		if ssData, ok := proxyMap["shadowsocks"].(map[string]interface{}); ok {
-			ssCfg, err := parseShadowsocksConfig(ssData)
-			if err != nil {
-				return nil, fmt.Errorf("failed to parse Shadowsocks config: %w", err)
-			}
-			cfg.Shadowsocks = ssCfg
-		} else {
-			return nil, fmt.Errorf("missing 'shadowsocks' config for shadowsocks type")
-		}
-
-	default:
-		return nil, fmt.Errorf("unsupported proxy type: %s", cfg.Type)
-	}
-
-	return cfg, nil
-}
-
-// parseVLESSConfig 解析 VLESS 配置
-func parseVLESSConfig(vlessMap map[string]interface{}) (*proxyConfig.VLESSConfig, error) {
-	cfg := &proxyConfig.VLESSConfig{}
-
-	// 解析基础字段
-	if server, ok := vlessMap["server"].(string); ok {
-		cfg.Server = server
-	}
-	if uuid, ok := vlessMap["uuid"].(string); ok {
-		cfg.UUID = uuid
-	}
-	if flow, ok := vlessMap["flow"].(string); ok {
-		cfg.Flow = flow
-	}
-
-	// 解析 TLS 配置
-	if tlsEnabled, ok := vlessMap["tls_enabled"].(bool); ok {
-		cfg.TLSEnabled = tlsEnabled
-	}
-	if sni, ok := vlessMap["sni"].(string); ok {
-		cfg.SNI = sni
-	}
-
-	// 解析 REALITY 配置
-	if realityEnabled, ok := vlessMap["reality_enabled"].(bool); ok {
-		cfg.RealityEnabled = realityEnabled
-	}
-	if publicKey, ok := vlessMap["public_key"].(string); ok {
-		cfg.PublicKey = publicKey
-	}
-	if shortID, ok := vlessMap["short_id"].(string); ok {
-		cfg.ShortID = shortID
-	}
-	if shortIDList, ok := vlessMap["short_id_list"].(string); ok {
-		cfg.ShortIDList = shortIDList
-	}
-
-	return cfg, nil
-}
-
-// parseShadowsocksConfig 解析 Shadowsocks 配置
-func parseShadowsocksConfig(ssMap map[string]interface{}) (*proxyConfig.ShadowsocksConfig, error) {
-	cfg := &proxyConfig.ShadowsocksConfig{}
-
-	if server, ok := ssMap["server"].(string); ok {
-		cfg.Server = server
-	}
-	if method, ok := ssMap["method"].(string); ok {
-		cfg.Method = method
-	}
-	if password, ok := ssMap["password"].(string); ok {
-		cfg.Password = password
-	}
-	if obfsMode, ok := ssMap["obfs_mode"].(string); ok {
-		cfg.ObfsMode = obfsMode
-	}
-	if obfsHost, ok := ssMap["obfs_host"].(string); ok {
-		cfg.ObfsHost = obfsHost
-	}
-
-	return cfg, nil
-}
 
 // LoadAndApplyConfig 加载并应用配置文件
 func LoadAndApplyConfig(configPath string) error {

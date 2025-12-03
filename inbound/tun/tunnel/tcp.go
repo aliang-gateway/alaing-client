@@ -19,6 +19,7 @@ import (
 	"nursor.org/nursorgate/inbound/tun/buffer"
 	M "nursor.org/nursorgate/inbound/tun/metadata"
 	cert_client "nursor.org/nursorgate/processor/cert/client"
+	proxyRegistry "nursor.org/nursorgate/processor/proxy"
 	"nursor.org/nursorgate/processor/statistic"
 	tls_helper "nursor.org/nursorgate/processor/tls"
 	watcher "nursor.org/nursorgate/processor/watcher"
@@ -117,7 +118,12 @@ func (t *Tunnel) handleTCPConn(originConn adapter.TCPConn) {
 				if watcher.IsCursorProxyEnabled {
 					handleTlsConnect(tlsConn, req)
 				} else {
-					remoteConn, err = (*GetDoorProxy()).DialContext(ctx, metadata)
+					doorProxy, err := proxyRegistry.GetRegistry().GetDoor()
+			if err != nil {
+				logger.Error(fmt.Sprintf("door proxy not available: %v", err))
+				return
+			}
+			remoteConn, err = doorProxy.DialContext(ctx, metadata)
 					if err != nil {
 						logger.Error(fmt.Sprintf("failure in connenct to anydoor %v", err))
 						return
@@ -130,7 +136,12 @@ func (t *Tunnel) handleTCPConn(originConn adapter.TCPConn) {
 		}
 
 		if nursorRouter.IsAllowToAnyDoor(serverName) {
-			remoteConn, err = (*GetDoorProxy()).DialContext(ctx, metadata)
+			doorProxy, err := proxyRegistry.GetRegistry().GetDoor()
+			if err != nil {
+				logger.Error(fmt.Sprintf("door proxy not available: %v", err))
+				return
+			}
+			remoteConn, err = doorProxy.DialContext(ctx, metadata)
 			if err != nil {
 				logger.Error(fmt.Sprintf("%s failure in connenct to anydoor %v", serverName, err))
 				return

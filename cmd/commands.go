@@ -5,6 +5,8 @@ import (
 
 	"github.com/spf13/cobra"
 	"nursor.org/nursorgate/common/logger"
+	proxyConfig "nursor.org/nursorgate/processor/config"
+	proxyRegistry "nursor.org/nursorgate/processor/proxy"
 	runnerUtils "nursor.org/nursorgate/runner/utils"
 )
 
@@ -57,11 +59,18 @@ var configSaveCmd = &cobra.Command{
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		// 从系统获取当前配置并保存
+		configs := proxyConfig.GetConfigStore().GetAll()
+		registry := proxyRegistry.GetRegistry()
+		defaultProxy := ""
+		if p, err := registry.GetDefault(); err == nil {
+			defaultProxy = p.Addr()
+		}
+
 		config := &Config{
 			Engine:       nil, // TODO: 从系统获取
-			CurrentProxy: "",  // TODO: 从注册中心获取
+			CurrentProxy: defaultProxy,
 			CoreServer:   runnerUtils.GetServerHost(),
-			Proxies:      make(map[string]interface{}), // TODO: 从注册中心获取
+			Proxies:      configs,
 		}
 		return SaveConfigToFile(config, args[0])
 	},

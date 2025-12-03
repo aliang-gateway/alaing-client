@@ -10,17 +10,14 @@ import (
 	"github.com/sagernet/gvisor/pkg/tcpip/stack"
 	"nursor.org/nursorgate/common/logger"
 	"nursor.org/nursorgate/outbound/proxy"
-	"nursor.org/nursorgate/outbound/proxy/vless"
+	"nursor.org/nursorgate/outbound/proxy/direct"
 
 	"nursor.org/nursorgate/inbound/tun"
 	"nursor.org/nursorgate/inbound/tun/device"
 	"nursor.org/nursorgate/inbound/tun/dialer"
 	"nursor.org/nursorgate/inbound/tun/option"
 	"nursor.org/nursorgate/inbound/tun/tunnel"
-	"nursor.org/nursorgate/outbound/proxy/direct"
-	user "nursor.org/nursorgate/processor/auth"
 	config "nursor.org/nursorgate/processor/config"
-	proxyConfig "nursor.org/nursorgate/processor/config"
 	proxyRegistry "nursor.org/nursorgate/processor/proxy"
 	"nursor.org/nursorgate/runner/utils"
 
@@ -147,59 +144,30 @@ func netstack(k *config.EngineConf) (err error) {
 		}
 	}()
 
-	// 优先从注册中心获取默认代理
+	// 从注册中心获取默认代理
 	_defaultProxy, err = proxyRegistry.GetRegistry().GetDefault()
 	if err != nil {
-		// 如果注册中心没有，尝试从配置管理器获取
-		if defaultProxyFromConfig := proxyConfig.GetDirectProxy(); defaultProxyFromConfig != nil {
-			_defaultProxy = defaultProxyFromConfig
-		} else {
-			// 最后使用直连代理作为后备
-			_defaultProxy = direct.NewDirect()
-			logger.Warn("No proxy configured, using direct connection")
-		}
-	}
-	// 优先使用配置管理器中的代理
-	if defaultProxyFromConfig := proxyConfig.GetDirectProxy(); defaultProxyFromConfig != nil {
-		tunnel.SetDefaultProxy(defaultProxyFromConfig)
-	} else {
-		tunnel.SetDefaultProxy(_defaultProxy)
+		// 如果没有配置，使用直连代理作为后备
+		_defaultProxy = direct.NewDirect()
+		logger.Warn("No default proxy configured, using direct connection")
 	}
 
-	// 优先使用配置管理器中的门代理
-	var doorProxy proxy.Proxy
-	if doorProxyFromConfig := proxyConfig.GetDoorProxy(); doorProxyFromConfig != nil {
-		doorProxy = doorProxyFromConfig
-		tunnel.SetDoorProxy(doorProxyFromConfig)
-	} else {
-		// 如果没有配置，使用默认的 VLESS 配置（向后兼容）
-		uuid := user.GetUserUUID()
-		if uuid == "" {
-			uuid = "74cddcdd-6d48-41cf-8e62-902e7c943fe7"
-		}
-		var err error
-		doorProxy, err = vless.NewVLESSWithReality(
-			"node1.nursor.org:35001",
-			uuid,
-			"www.microsoft.com",
-			"sAtJcW2xLIUWRE-_7KHGEAtvHx-P1sDbjrrgrt4_XCo",
-		)
-		if err != nil {
-			logger.Error(err)
-		} else {
-			tunnel.SetDoorProxy(doorProxy)
-		}
+	// 设置代理到 tunnel 的 dialer（用于 direct dialing）
+	tunnel.T().SetDialer(_defaultProxy)
+
+	// 从注册中心获取门代理（可选，用于 DNS 和特殊路由）
+	doorProxy, err := proxyRegistry.GetRegistry().GetDoor()
+	if err != nil {
+		logger.Debug(fmt.Sprintf("No door proxy configured: %v", err))
+		doorProxy = nil
 	}
 
-	// 确保 doorProxy 不为 nil 再创建 DNS resolver
+	// 如果有门代理，创建 DNS resolver
 	if doorProxy != nil {
 		defaultResolver := tunnel.NewDNSResolver("8.8.8.8:53", doorProxy, 5*time.Second, 5*time.Minute)
 		tunnel.SetDefaultResolver(defaultResolver)
-	} else {
-		logger.Warn("Door proxy is nil, DNS resolver not created")
+		logger.Info(fmt.Sprintf("DNS resolver configured with door proxy: %s", doorProxy.Addr()))
 	}
-
-	tunnel.T().SetDialer(_defaultProxy)
 
 	if _defaultDevice, err = parseDevice(k.Device, uint32(k.MTU)); err != nil {
 		return err
