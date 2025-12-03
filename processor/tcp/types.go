@@ -1,0 +1,107 @@
+package tcp
+
+import (
+	"net"
+	"net/netip"
+)
+
+// Metadata contains connection metadata for TCP handlers.
+// It flows through the entire connection lifecycle and is used for:
+// - Routing decisions (domain-based, IP-based)
+// - Statistics tracking
+// - Logging and debugging
+// - Context propagation
+type Metadata struct {
+	// Connection identification
+	Network  string       // "tcp"
+	SrcIP    netip.Addr   // Source IP (client)
+	SrcPort  uint16       // Source port (client)
+	DstIP    netip.Addr   // Destination IP (target server)
+	DstPort  uint16       // Destination port (target server)
+	MidIP    netip.Addr   // Middle IP (our local address when connecting out)
+	MidPort  uint16       // Middle port (our local port when connecting out)
+	HostName string       // Extracted domain name (from SNI or HTTP headers)
+}
+
+// SourceAddress returns the source IP and port as a string
+func (m *Metadata) SourceAddress() string {
+	if m.SrcPort == 0 {
+		return m.SrcIP.String()
+	}
+	return net.JoinHostPort(m.SrcIP.String(), string(rune(m.SrcPort)))
+}
+
+// DestinationAddress returns the destination IP and port as a string
+func (m *Metadata) DestinationAddress() string {
+	if m.DstPort == 0 {
+		return m.DstIP.String()
+	}
+	return net.JoinHostPort(m.DstIP.String(), string(rune(m.DstPort)))
+}
+
+// DestinationAddrPort returns destination as netip.AddrPort
+func (m *Metadata) DestinationAddrPort() netip.AddrPort {
+	return netip.AddrPortFrom(m.DstIP, m.DstPort)
+}
+
+// SourceAddrPort returns source as netip.AddrPort
+func (m *Metadata) SourceAddrPort() netip.AddrPort {
+	return netip.AddrPortFrom(m.SrcIP, m.SrcPort)
+}
+
+// TCPAddr returns destination as *net.TCPAddr for net.Dialer compatibility
+func (m *Metadata) TCPAddr() *net.TCPAddr {
+	return &net.TCPAddr{
+		IP:   m.DstIP.AsSlice(),
+		Port: int(m.DstPort),
+	}
+}
+
+// WrappedConn preserves the TLS ClientHello buffer when SNI extraction
+// requires pre-reading data from the connection. This is necessary because
+// SNI extraction reads the TLS ClientHello from the connection, but we need
+// to provide that same data to the TLS server during handshake.
+type WrappedConn struct {
+	net.Conn
+	Buf        []byte // Buffered data from initial read (TLS ClientHello)
+	readOffset int    // Current position in buffer
+}
+
+// Read implements net.Conn.Read with buffer support.
+// If there's buffered data from initial read, return that first.
+// Once buffered data is exhausted, read from underlying connection.
+func (w *WrappedConn) Read(p []byte) (int, error) {
+	// If we have buffered data, serve that first
+	if len(w.Buf) > w.readOffset {
+		n := copy(p, w.Buf[w.readOffset:])
+		w.readOffset += n
+		return n, nil
+	}
+	// All buffered data consumed, read from underlying connection
+	return w.Conn.Read(p)
+}
+
+// String representation for logging
+func (w *WrappedConn) String() string {
+	return w.Conn.RemoteAddr().String()
+}
+
+// Constants for error detection and handling
+const (
+	// DoH (DNS-over-HTTPS) provider domains
+	DoHProviderGoogle       = "dns.google"
+	DoHProviderCloudflare   = "cloudflare-dns.com"
+	DoHProviderOpenDNS      = "doh.opendns.com"
+	DoHProviderQuad9        = "doh.quad9.net"
+	DoHProviderCleanBrowse  = "doh.cleanbrowsing.org"
+	DoHProviderGoogle8      = "8.8.8.8"
+	DoHProviderGoogle9      = "8.8.4.4"
+	DoHProviderCloudflare1  = "1.1.1.1"
+	DoHProviderCloudflare2  = "1.0.0.1"
+	DoHProviderQuad9ip      = "9.9.9.9"
+
+	// Common ports
+	PortHTTP  = 80
+	PortHTTPS = 443
+	PortSOCKS = 1080
+)

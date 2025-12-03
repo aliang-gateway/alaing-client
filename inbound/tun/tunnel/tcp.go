@@ -21,9 +21,20 @@ import (
 	cert_client "nursor.org/nursorgate/processor/cert/client"
 	proxyRegistry "nursor.org/nursorgate/processor/proxy"
 	"nursor.org/nursorgate/processor/statistic"
+	tcphandler "nursor.org/nursorgate/processor/tcp"
 	tls_helper "nursor.org/nursorgate/processor/tls"
 	watcher "nursor.org/nursorgate/processor/watcher"
 )
+
+// getTCPHandler safely gets the TCP handler, with error recovery
+func getTCPHandler() tcphandler.TCPConnHandler {
+	defer func() {
+		if r := recover(); r != nil {
+			logger.Error(fmt.Sprintf("Panic in getTCPHandler: %v", r))
+		}
+	}()
+	return tcphandler.GetHandler()
+}
 
 func detectDoH(tlsConn *tls.Conn) bool {
 	// 读取HTTP请求头
@@ -72,6 +83,19 @@ func (t *Tunnel) handleTCPConn(originConn adapter.TCPConn) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), tcpConnectTimeout)
 	defer cancel()
+
+	// Use unified TCP handler from processor/tcp
+	handler := getTCPHandler()
+	if handler != nil {
+		err := handler.Handle(ctx, originConn, metadata)
+		if err != nil {
+			logger.Debug(fmt.Sprintf("TCP handler error: %v", err))
+		}
+		return
+	}
+
+	// Fallback to legacy implementation if handler not available
+	logger.Debug("TCP handler not available, using legacy implementation")
 
 	var remoteConn net.Conn
 	var err error

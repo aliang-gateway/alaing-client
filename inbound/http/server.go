@@ -2,7 +2,7 @@ package http
 
 import (
 	"bufio"
-	"crypto/tls"
+	"fmt"
 	"io"
 	"log"
 	"net"
@@ -10,8 +10,6 @@ import (
 	"strings"
 
 	"nursor.org/nursorgate/common/logger"
-	"nursor.org/nursorgate/inbound/http/in"
-	"nursor.org/nursorgate/processor/cert/client"
 )
 
 // 全局 CA 证书
@@ -49,33 +47,45 @@ func handleRawConnection(conn net.Conn) {
 	}
 
 	if req.Method == "CONNECT" {
-		log.Printf("Received CONNECT request for %s", req.Host)
-		resp := http.Response{
-			Status:        "200 Connection Established",
-			StatusCode:    http.StatusOK,
-			Proto:         "HTTP/1.1",
-			ProtoMajor:    1,
-			ProtoMinor:    1,
-			Body:          io.NopCloser(strings.NewReader("")),
-			ContentLength: 0,
-		}
-		if err := resp.Write(conn); err != nil {
-			log.Printf("Failed to send 200 OK: %v", err)
+		logger.Debug("Received CONNECT request for " + req.Host)
+
+		// Extract metadata from CONNECT request
+		metadata, err := ExtractMetadataFromCONNECT(req, conn)
+		if err != nil {
+			logger.Error("Failed to extract metadata from CONNECT: " + err.Error())
+			resp := &http.Response{
+				Status:        "400 Bad Request",
+				StatusCode:    http.StatusBadRequest,
+				Proto:         "HTTP/1.1",
+				ProtoMajor:    1,
+				ProtoMinor:    1,
+				Body:          io.NopCloser(strings.NewReader("")),
+				ContentLength: 0,
+			}
+			resp.Write(conn)
 			return
 		}
-		tlsConf := client.CreateTlsConfigForHost(req.Host)
-		tlsConn := tls.Server(conn, tlsConf)
-		if err := tlsConn.Handshake(); err != nil {
-			logger.Warn("TLS handshake with client failed:", req.Host, err)
+
+		logger.Debug(fmt.Sprintf("CONNECT metadata: host=%s, port=%d, srcIP=%s, dstIP=%s",
+			metadata.HostName, metadata.DstPort, metadata.SrcIP, metadata.DstIP))
+
+		// Send 200 Connection Established
+		// IMPORTANT: Use raw write instead of http.Response for proper formatting
+		response200 := "HTTP/1.1 200 Connection Established\r\n\r\n"
+		if _, err := conn.Write([]byte(response200)); err != nil {
+			logger.Error("Failed to send 200 OK: " + err.Error())
 			return
 		}
-		// 处理 TLS 后的请求
-		if strings.Contains(req.Host, "api42.cursor") || strings.Contains(req.Host, "repo42.cursor") {
-			state := tlsConn.ConnectionState()
-			logger.Info("TLS handshake succeeded for", req.Host, "Version:", state.Version, "CipherSuite:", state.CipherSuite)
+		logger.Debug("Sent 200 Connection Established")
+
+		// Handle CONNECT tunnel - establishes direct tunnel between client and target
+		logger.Debug(fmt.Sprintf("Starting CONNECT tunnel for %s:%d", metadata.HostName, metadata.DstPort))
+		if err := HandleCONNECTTunnel(conn, metadata); err != nil {
+			logger.Error(fmt.Sprintf("CONNECT tunnel error for %s: %v", metadata.HostName, err))
 		}
-		in.HandleTLSConnection(tlsConn, req)
+		logger.Debug("CONNECT tunnel closed for " + req.Host)
 	} else {
-		in.HandleHttpConnection(conn, req)
+		// 透明代理，基本不存在
+		HandleHttpConnection(conn, req)
 	}
 }
