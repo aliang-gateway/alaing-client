@@ -10,16 +10,16 @@ import (
 	"time"
 
 	"nursor.org/nursorgate/common/logger"
+	runnerUtils "nursor.org/nursorgate/inbound/tun/runner/utils"
 	proxyConfig "nursor.org/nursorgate/processor/config"
 	proxyRegistry "nursor.org/nursorgate/processor/proxy"
-	runnerUtils "nursor.org/nursorgate/runner/utils"
 )
 
 // Config 完整配置结构
 type Config struct {
-	Engine       *EngineConfig                      `json:"engine"`
-	CurrentProxy string                             `json:"currentProxy"`
-	CoreServer   string                             `json:"coreServer"`
+	Engine       *EngineConfig                       `json:"engine"`
+	CurrentProxy string                              `json:"currentProxy"`
+	CoreServer   string                              `json:"coreServer"`
 	Proxies      map[string]*proxyConfig.ProxyConfig `json:"proxies"`
 }
 
@@ -164,7 +164,6 @@ func applyProxyConfigs(proxies map[string]*proxyConfig.ProxyConfig) error {
 
 	return nil
 }
-
 
 // LoadAndApplyConfig 加载并应用配置文件
 func LoadAndApplyConfig(configPath string) error {

@@ -9,9 +9,12 @@ import (
 
 	"github.com/sagernet/gvisor/pkg/tcpip/stack"
 	"nursor.org/nursorgate/common/logger"
+	"nursor.org/nursorgate/inbound/tun/runner/utils"
 	"nursor.org/nursorgate/outbound/proxy"
 	"nursor.org/nursorgate/outbound/proxy/direct"
 
+	"github.com/docker/go-units"
+	"github.com/google/shlex"
 	"nursor.org/nursorgate/inbound/tun"
 	"nursor.org/nursorgate/inbound/tun/device"
 	"nursor.org/nursorgate/inbound/tun/dialer"
@@ -19,10 +22,6 @@ import (
 	"nursor.org/nursorgate/inbound/tun/tunnel"
 	config "nursor.org/nursorgate/processor/config"
 	proxyRegistry "nursor.org/nursorgate/processor/proxy"
-	"nursor.org/nursorgate/runner/utils"
-
-	"github.com/docker/go-units"
-	"github.com/google/shlex"
 )
 
 var (

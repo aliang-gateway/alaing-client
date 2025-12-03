@@ -14,9 +14,9 @@ import (
 	"golang.org/x/net/http2"
 	"nursor.org/nursorgate/common/logger"
 	"nursor.org/nursorgate/inbound/tun/dialer"
+	"nursor.org/nursorgate/inbound/tun/runner/utils"
 	cert_server "nursor.org/nursorgate/processor/cert/server"
 	watcher "nursor.org/nursorgate/processor/watcher"
-	"nursor.org/nursorgate/runner/utils"
 )
 
 type OutboundClient2 struct {

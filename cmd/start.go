@@ -6,7 +6,7 @@ import (
 	"github.com/spf13/cobra"
 	httpServer "nursor.org/nursorgate/app/http"
 	"nursor.org/nursorgate/common/logger"
-	"nursor.org/nursorgate/runner"
+	"nursor.org/nursorgate/inbound/tun/runner"
 )
 
 var (

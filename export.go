@@ -13,14 +13,14 @@ import (
 	"nursor.org/nursorgate/common/logger"
 	"nursor.org/nursorgate/common/model"
 	"nursor.org/nursorgate/inbound/http"
+	runner2 "nursor.org/nursorgate/inbound/tun/runner"
+	"nursor.org/nursorgate/inbound/tun/runner/utils"
 	"nursor.org/nursorgate/outbound"
 	user "nursor.org/nursorgate/processor/auth"
 	"nursor.org/nursorgate/processor/cert/client"
 	proxyConfig "nursor.org/nursorgate/processor/config"
 	"nursor.org/nursorgate/processor/http2"
 	proxyRegistry "nursor.org/nursorgate/processor/proxy"
-	"nursor.org/nursorgate/runner"
-	"nursor.org/nursorgate/runner/utils"
 )
 
 //export startClient
@@ -62,8 +62,8 @@ func runGate(innerToken *C.char) *C.char {
 	logger.SetUserInfo(innerTokenStr)
 	model.NewAllowProxyDomain()
 	utils.SetServerHost("api2.nursor.org:12235")
-	go runner.Start()
-	res := <-runner.RunStatusChan
+	go runner2.Start()
+	res := <-runner2.RunStatusChan
 	logger.Info(res)
 	resStr, _ := json.Marshal(res)
 	return C.CString(string(resStr))
@@ -99,7 +99,7 @@ func setCursorGateMode(enableCursorGate *C.bool) {
 
 //export stopGate
 func stopGate() {
-	runner.Stop()
+	runner2.Stop()
 }
 
 //export registerProxy
@@ -319,16 +319,16 @@ func getLogConfigJSON() *C.char {
 	config := logger.GetLogConfig()
 
 	configData := map[string]interface{}{
-		"level":                levelToStringFFI(config.Level),
-		"errorWindow":          config.ErrorWindow.String(),
-		"maxErrorCount":        config.MaxErrorCount,
-		"cleanupInterval":      config.CleanupInterval.String(),
-		"fileLogPath":          config.FileLogPath,
-		"enableFileRotation":   config.EnableFileRotation,
-		"maxLogSize":           config.MaxLogSize,
-		"maxLogBackups":        config.MaxLogBackups,
-		"sentryDSN":            maskSensitiveDataFFI(config.SentryDSN),
-		"enableSentry":         config.EnableSentry,
+		"level":              levelToStringFFI(config.Level),
+		"errorWindow":        config.ErrorWindow.String(),
+		"maxErrorCount":      config.MaxErrorCount,
+		"cleanupInterval":    config.CleanupInterval.String(),
+		"fileLogPath":        config.FileLogPath,
+		"enableFileRotation": config.EnableFileRotation,
+		"maxLogSize":         config.MaxLogSize,
+		"maxLogBackups":      config.MaxLogBackups,
+		"sentryDSN":          maskSensitiveDataFFI(config.SentryDSN),
+		"enableSentry":       config.EnableSentry,
 	}
 
 	response := map[string]interface{}{
@@ -506,6 +506,8 @@ func maskSensitiveDataFFI(data string) string {
 	return data[:8] + "***"
 }
 
+// main 函数仅用于测试，实际使用时应该通过 FFI 调用导出的函数
+// 如果要编译命令行工具，请使用: go build ./cmd/nursor
 func main() {
 	panic("test")
 }

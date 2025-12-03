@@ -2,36 +2,122 @@ package http
 
 import (
 	"bufio"
+	"context"
 	"fmt"
 	"io"
 	"log"
 	"net"
 	"net/http"
 	"strings"
+	"sync"
+	"time"
 
 	"nursor.org/nursorgate/common/logger"
 )
 
-// 全局 CA 证书
+// HTTP server state management
+var (
+	httpListener net.Listener
+	httpCtx      context.Context
+	httpCancel   context.CancelFunc
+	httpMutex    sync.Mutex
+	isHttpRunning bool
+)
+
+// StartHttpProxy starts the HTTP CONNECT proxy server
+// This is a blocking function that runs until stopped
 func StartMitmHttp() {
-	// 加载或生成 CA 证书
-	// 启动代理服务器
+	httpMutex.Lock()
+	if isHttpRunning {
+		httpMutex.Unlock()
+		logger.Warn("HTTP proxy is already running")
+		return
+	}
+
+	// Create a cancellable context for shutdown
+	httpCtx, httpCancel = context.WithCancel(context.Background())
+	isHttpRunning = true
+	httpMutex.Unlock()
+
+	// Create listener
 	listener, err := net.Listen("tcp", "127.0.0.1:56432")
 	if err != nil {
-		log.Fatalf("Failed to listen: %v", err)
+		httpMutex.Lock()
+		isHttpRunning = false
+		httpMutex.Unlock()
+		log.Fatalf("Failed to listen on 127.0.0.1:56432: %v", err)
 	}
-	defer listener.Close()
 
-	log.Println("Starting MITM proxy on :56432")
+	httpMutex.Lock()
+	httpListener = listener
+	httpMutex.Unlock()
+
+	logger.Info("HTTP CONNECT proxy server starting on 127.0.0.1:56432")
+
+	// Accept connections in a loop
 	for {
+		// Check if we should stop
+		select {
+		case <-httpCtx.Done():
+			logger.Info("HTTP proxy server shutting down")
+			httpMutex.Lock()
+			isHttpRunning = false
+			httpMutex.Unlock()
+			return
+		default:
+		}
+
+		// Set a read deadline to allow periodic checks for shutdown
+		listener.(*net.TCPListener).SetDeadline(getDeadlineTime())
+
 		conn, err := listener.Accept()
 		if err != nil {
-			log.Printf("Accept error: %v", err)
+			if opErr, ok := err.(*net.OpError); ok && opErr.Timeout() {
+				// Timeout is expected, just continue to check for shutdown signal
+				continue
+			}
+			logger.Debug(fmt.Sprintf("Accept error: %v", err))
 			continue
 		}
+
 		go handleRawConnection(conn)
 	}
+}
 
+// getDeadlineTime returns a deadline time for socket operations
+func getDeadlineTime() time.Time {
+	return time.Now().Add(1 * time.Second)
+}
+
+// StopHttpProxy stops the HTTP proxy server gracefully
+func StopHttpProxy() {
+	httpMutex.Lock()
+	defer httpMutex.Unlock()
+
+	if !isHttpRunning {
+		logger.Warn("HTTP proxy is not running")
+		return
+	}
+
+	logger.Info("Stopping HTTP proxy server...")
+
+	if httpCancel != nil {
+		httpCancel()
+	}
+
+	if httpListener != nil {
+		httpListener.Close()
+	}
+
+	isHttpRunning = false
+	logger.Info("HTTP proxy server stopped")
+}
+
+// IsHttpRunning returns the current state of HTTP proxy
+func IsHttpRunning() bool {
+	httpMutex.Lock()
+	defer httpMutex.Unlock()
+	return isHttpRunning
 }
 
 // 处理客户端连接

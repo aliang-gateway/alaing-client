@@ -5,7 +5,7 @@ import (
 
 	httpServer "nursor.org/nursorgate/app/http"
 	"nursor.org/nursorgate/inbound/http"
-	"nursor.org/nursorgate/runner"
+	"nursor.org/nursorgate/inbound/tun/runner"
 )
 
 func TestLaunch(t *testing.T) {
