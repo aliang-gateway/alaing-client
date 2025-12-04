@@ -76,12 +76,29 @@ func ApplyConfig(config *Config) error {
 		logger.Warn(fmt.Sprintf("Failed to register default direct proxy: %v", err))
 	}
 
-	// 4. 应用代理配置
+	// 4. 注册默认的 nonelane 代理
+	// 使用 CoreServer 作为 nonelane 服务器地址（如果配置了的话）
+	nonelaneAddr := config.CoreServer
+	if nonelaneAddr != "" {
+		// 如果 CoreServer 是 URL 格式，提取主机名和端口
+		if strings.HasPrefix(nonelaneAddr, "http://") || strings.HasPrefix(nonelaneAddr, "https://") {
+			// 简单处理：移除协议前缀，默认使用 443 端口
+			nonelaneAddr = strings.TrimPrefix(strings.TrimPrefix(nonelaneAddr, "https://"), "http://")
+			if !strings.Contains(nonelaneAddr, ":") {
+				nonelaneAddr += ":443"
+			}
+		}
+	}
+	if err := registry.RegisterNonelane(nonelaneAddr); err != nil {
+		logger.Warn(fmt.Sprintf("Failed to register default nonelane proxy: %v", err))
+	}
+
+	// 5. 应用代理配置
 	if err := applyProxyConfigs(config.Proxies); err != nil {
 		return fmt.Errorf("failed to apply proxy configs: %w", err)
 	}
 
-	// 5. 设置当前代理（如果未设置，使用 direct）
+	// 6. 设置当前代理（如果未设置，使用 direct）
 	currentProxy := config.CurrentProxy
 	if currentProxy == "" {
 		currentProxy = "direct"

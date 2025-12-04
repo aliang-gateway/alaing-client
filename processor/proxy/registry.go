@@ -7,6 +7,7 @@ import (
 	"nursor.org/nursorgate/common/logger"
 	"nursor.org/nursorgate/outbound/proxy"
 	"nursor.org/nursorgate/outbound/proxy/direct"
+	"nursor.org/nursorgate/outbound/proxy/nonelane"
 	proxyConfig "nursor.org/nursorgate/processor/config"
 )
 
@@ -48,6 +49,38 @@ func (r *Registry) RegisterDefault() error {
 	directProxy := direct.NewDirect()
 	r.proxies["direct"] = directProxy
 	logger.Info("Default direct proxy registered")
+	return nil
+}
+
+// RegisterNonelane 注册默认的 nonelane 代理
+// 如果已经存在，则不覆盖
+// serverAddr: nonelane 服务器地址，如果为空则使用默认值
+func (r *Registry) RegisterNonelane(serverAddr string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	// 如果已经存在 nonelane 代理，直接返回
+	if _, exists := r.proxies["nonelane"]; exists {
+		return nil
+	}
+
+	// 如果没有提供地址，使用默认值
+	if serverAddr == "" {
+		serverAddr = "ai-gateway.nursor.org:443"
+		logger.Debug("Using default nonelane server address")
+	}
+
+	// 创建 nonelane 配置
+	config := nonelane.DefaultConfig(serverAddr)
+
+	// 创建并注册 nonelane 代理
+	nonelaneProxy, err := nonelane.NewNonelane(config)
+	if err != nil {
+		return fmt.Errorf("failed to create nonelane proxy: %w", err)
+	}
+
+	r.proxies["nonelane"] = nonelaneProxy
+	logger.Info(fmt.Sprintf("Default nonelane proxy registered (server: %s)", serverAddr))
 	return nil
 }
 
@@ -152,6 +185,19 @@ func (r *Registry) GetDoor() (proxy.Proxy, error) {
 	return p, nil
 }
 
+// GetNonelane 获取 nonelane 代理
+// 如果 nonelane 代理未注册，返回错误
+func (r *Registry) GetNonelane() (proxy.Proxy, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	p, exists := r.proxies["nonelane"]
+	if !exists {
+		return nil, fmt.Errorf("nonelane proxy not found, please register it first")
+	}
+	return p, nil
+}
+
 // SetDefault 设置默认代理
 func (r *Registry) SetDefault(name string) error {
 	r.mu.Lock()
@@ -207,6 +253,7 @@ func (r *Registry) ListWithInfo() map[string]ProxyInfo {
 			Addr:        p.Addr(),
 			IsDefault:   name == r.defaultName,
 			IsDoorProxy: name == r.doorName,
+			IsNonelane:  name == "nonelane",
 		}
 	}
 	return info
@@ -219,6 +266,7 @@ type ProxyInfo struct {
 	Addr        string `json:"addr"`
 	IsDefault   bool   `json:"is_default"`
 	IsDoorProxy bool   `json:"is_door_proxy"`
+	IsNonelane  bool   `json:"is_nonelane"`
 }
 
 // Count 返回已注册的代理数量
