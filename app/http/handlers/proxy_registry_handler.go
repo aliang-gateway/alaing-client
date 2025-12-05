@@ -4,8 +4,8 @@ import (
 	"net/http"
 
 	"nursor.org/nursorgate/app/http/common"
+	proxyRegistry "nursor.org/nursorgate/outbound"
 	proxyConfig "nursor.org/nursorgate/processor/config"
-	proxyRegistry "nursor.org/nursorgate/processor/proxy"
 )
 
 // HandleProxyRegistryList 列出所有已注册的代理

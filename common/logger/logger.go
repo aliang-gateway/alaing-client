@@ -68,9 +68,11 @@ func (ml *mainLogger) initLoggers() {
 
 	// Add file writer if path is specified
 	if ml.config.FileLogPath != "" {
-		file, err := os.OpenFile(ml.config.FileLogPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+		file, err := os.OpenFile(ml.config.FileLogPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
 		if err == nil {
 			writers = append(writers, file)
+			// Ensure file has 0666 permissions for all users
+			os.Chmod(ml.config.FileLogPath, 0666)
 		}
 	}
 

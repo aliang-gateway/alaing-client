@@ -143,7 +143,7 @@ func (h *TCPConnectionHandler) handleTLS(
 		}
 
 		// Connect through door proxy
-		doorProxy, err := registry.GetRegistry().GetDoor()
+		doorProxy, err := registry.GetRegistry().GetNonelane()
 		if err != nil {
 			return nil, nil, err
 		}
@@ -157,7 +157,7 @@ func (h *TCPConnectionHandler) handleTLS(
 
 	case RouteToDoor:
 		// Route through door proxy
-		doorProxy, err := registry.GetRegistry().GetNonelane()
+		doorProxy, err := registry.GetRegistry().GetDoor()
 		if err != nil {
 			return nil, nil, err
 		}

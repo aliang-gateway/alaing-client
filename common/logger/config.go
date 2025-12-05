@@ -3,9 +3,10 @@ package logger
 import (
 	"os"
 	"path/filepath"
-	"runtime"
 	"sync"
 	"time"
+
+	"nursor.org/nursorgate/common/cache"
 )
 
 // LogLevel represents logging level
@@ -46,9 +47,13 @@ type LogConfig struct {
 }
 
 // DefaultLogConfig returns default configuration
+// Logs are stored in ~/.nonelane/logs/ (or NURSOR_CACHE_DIR if set)
 func DefaultLogConfig() *LogConfig {
-	homeDir := getHomeDir()
-	logDir := filepath.Join(homeDir, ".nursor")
+	logDir, err := cache.GetCacheSubdir("logs")
+	if err != nil {
+		// Fallback to temp directory if cache system unavailable
+		logDir = filepath.Join(os.TempDir(), "nursor", "logs")
+	}
 
 	return &LogConfig{
 		Level:              WARN,
@@ -65,34 +70,23 @@ func DefaultLogConfig() *LogConfig {
 }
 
 // HTTPLogConfig returns HTTP logger configuration
+// Logs are stored in ~/.nonelane/logs/ (or NURSOR_CACHE_DIR if set)
 func HTTPLogConfig() *LogConfig {
-	homeDir := getHomeDir()
-	var logPath string
-	if runtime.GOOS == "darwin" {
-		logPath = filepath.Join("/Library/Logs/Nursor", "nursor_http.log")
-	} else {
-		logPath = filepath.Join(homeDir, ".nursor", "nursor_http.log")
+	logDir, err := cache.GetCacheSubdir("logs")
+	if err != nil {
+		// Fallback to temp directory if cache system unavailable
+		logDir = filepath.Join(os.TempDir(), "nursor", "logs")
 	}
 
 	return &LogConfig{
 		Level:              INFO,
-		FileLogPath:        logPath,
+		FileLogPath:        filepath.Join(logDir, "nursor_http.log"),
 		EnableFileRotation: true,
 		MaxLogSize:         50 * 1024 * 1024, // 50MB
 		MaxLogBackups:      3,
 	}
 }
 
-func getHomeDir() string {
-	if runtime.GOOS == "darwin" {
-		return "/Library/Logs/Nursor"
-	}
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return "/tmp"
-	}
-	return home
-}
 
 // Global configuration instance
 var (

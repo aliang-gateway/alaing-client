@@ -6,6 +6,7 @@ import (
 	"github.com/spf13/cobra"
 	httpServer "nursor.org/nursorgate/app/http"
 	"nursor.org/nursorgate/common/logger"
+	"nursor.org/nursorgate/inbound/http"
 	"nursor.org/nursorgate/inbound/tun/runner"
 )
 
@@ -13,6 +14,8 @@ var (
 	configPath string
 	token      string
 	serverURL  string
+	startTun   bool
+	startHttp  bool
 )
 
 var startCmd = &cobra.Command{
@@ -46,6 +49,10 @@ func init() {
 
 	// 互斥：config 和 token 不能同时使用
 	startCmd.MarkFlagsMutuallyExclusive("config", "token")
+
+	startCmd.Flags().BoolVarP(&startTun, "tun", "u", false, "Start TUN service")
+
+	startCmd.Flags().BoolVarP(&startHttp, "http", "m", false, "Start MitmHttp service")
 }
 
 func runStart(cmd *cobra.Command, args []string) error {
@@ -77,9 +84,15 @@ func runStart(cmd *cobra.Command, args []string) error {
 	go httpServer.StartHttpServer()
 
 	// 启动 TUN 服务
-	go func() {
-		runner.Start()
-	}()
+	if startTun {
+		go func() {
+			runner.Start()
+		}()
+	} else if startHttp {
+		go func() {
+			http.StartMitmHttp()
+		}()
+	}
 
 	// 等待信号
 	logger.Info("Server started successfully. Press Ctrl+C to stop.")

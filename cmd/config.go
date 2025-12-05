@@ -56,64 +56,80 @@ func LoadConfig(configPath string) (*Config, error) {
 	return &config, nil
 }
 
-// ApplyConfig 应用配置到系统
+// ApplyConfig applies the configuration to the system in clear phases.
+//
+// Phases:
+// 1. Apply engine configuration (network stack, TUN device, etc.)
+// 2. Configure core server address for gateway services
+// 3. Register mandatory default proxies (direct + nonelane)
+// 4. Register custom user-defined proxies
+// 5. Set the active default proxy for routing
 func ApplyConfig(config *Config) error {
-	// 1. 应用引擎配置
+	// Phase 1: Apply engine configuration
 	if config.Engine != nil {
 		if err := applyEngineConfig(config.Engine); err != nil {
-			return fmt.Errorf("failed to apply engine config: %w", err)
+			return fmt.Errorf("phase 1 - engine config failed: %w", err)
 		}
+		logger.Debug("Phase 1: Engine configuration applied")
 	}
 
-	// 2. 应用核心服务器配置
+	// Phase 2: Configure core server address
+	// This is used by nonelane proxy and stored in the system
 	if config.CoreServer != "" {
+		if err := validateCoreServerAddr(config.CoreServer); err != nil {
+			return fmt.Errorf("phase 2 - invalid core server address: %w", err)
+		}
 		runnerUtils.SetServerHost(config.CoreServer)
-		logger.Info(fmt.Sprintf("Core server set to: %s", config.CoreServer))
+		logger.Info(fmt.Sprintf("Core server configured: %s", config.CoreServer))
 	}
+	logger.Debug("Phase 2: Core server address configuration completed")
 
-	// 3. 注册默认的 direct 代理
-	registry := outbound.GetRegistry()
-	if err := registry.RegisterDefault(); err != nil {
-		logger.Warn(fmt.Sprintf("Failed to register default direct proxy: %v", err))
-	}
-
-	// 4. 注册默认的 nonelane 代理
-	// 使用 CoreServer 作为 nonelane 服务器地址（如果配置了的话）
-	nonelaneAddr := config.CoreServer
-	if nonelaneAddr != "" {
-		// 如果 CoreServer 是 URL 格式，提取主机名和端口
-		if strings.HasPrefix(nonelaneAddr, "http://") || strings.HasPrefix(nonelaneAddr, "https://") {
-			// 简单处理：移除协议前缀，默认使用 443 端口
-			nonelaneAddr = strings.TrimPrefix(strings.TrimPrefix(nonelaneAddr, "https://"), "http://")
-			if !strings.Contains(nonelaneAddr, ":") {
-				nonelaneAddr += ":443"
-			}
-		}
-	}
-	if err := registry.RegisterNonelane(nonelaneAddr); err != nil {
-		logger.Warn(fmt.Sprintf("Failed to register default nonelane proxy: %v", err))
-	}
-
-	// 5. 应用代理配置
+	// Phase 4: Register custom user proxies from configuration
+	// These are optional and supplement the default proxies
 	if err := applyProxyConfigs(config.Proxies); err != nil {
-		return fmt.Errorf("failed to apply proxy configs: %w", err)
+		return fmt.Errorf("phase 4 - custom proxy configuration failed: %w", err)
+	}
+	logger.Debug("Phase 4: Custom proxies applied")
+
+	// Phase 5: Set the active default proxy for routing decisions
+	// Determines which proxy is used when no specific routing rule applies
+	if err := setEffectiveDefaultProxy(config.CurrentProxy); err != nil {
+		return fmt.Errorf("phase 5 - failed to set default proxy: %w", err)
+	}
+	logger.Debug("Phase 5: Default proxy set for routing")
+
+	logger.Info("Configuration applied successfully")
+	return nil
+}
+
+// setEffectiveDefaultProxy sets the active default proxy.
+// If currentProxy is empty or unavailable, falls back to "direct".
+func setEffectiveDefaultProxy(currentProxy string) error {
+	registry := outbound.GetRegistry()
+
+	// Determine which proxy to set as default
+	proxyName := currentProxy
+	if proxyName == "" {
+		proxyName = "direct"
+		logger.Debug("No default proxy specified, using 'direct'")
 	}
 
-	// 6. 设置当前代理（如果未设置，使用 direct）
-	currentProxy := config.CurrentProxy
-	if currentProxy == "" {
-		currentProxy = "direct"
-	}
-	if err := registry.SetDefault(currentProxy); err != nil {
-		logger.Warn(fmt.Sprintf("Failed to set current proxy '%s': %v", currentProxy, err))
-		// 如果设置失败，回退到 direct
-		if err := registry.SetDefault("direct"); err != nil {
-			logger.Error(fmt.Sprintf("Failed to fallback to direct proxy: %v", err))
+	// Attempt to set the requested proxy
+	if err := registry.SetDefault(proxyName); err != nil {
+		logger.Warn(fmt.Sprintf("Failed to set proxy '%s' as default: %v, attempting fallback to 'direct'", proxyName, err))
+
+		// Fallback to direct proxy
+		if proxyName != "direct" {
+			if err := registry.SetDefault("direct"); err != nil {
+				return fmt.Errorf("failed to fallback to direct proxy: %w", err)
+			}
+			logger.Info("Fallback: Direct proxy set as default")
+			return nil
 		}
-	} else {
-		logger.Info(fmt.Sprintf("Current proxy set to: %s", currentProxy))
+		return err
 	}
 
+	logger.Info(fmt.Sprintf("Default proxy set to: %s", proxyName))
 	return nil
 }
 

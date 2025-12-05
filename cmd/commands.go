@@ -6,8 +6,8 @@ import (
 	"github.com/spf13/cobra"
 	"nursor.org/nursorgate/common/logger"
 	runnerUtils "nursor.org/nursorgate/inbound/tun/runner/utils"
+	proxyRegistry "nursor.org/nursorgate/outbound"
 	proxyConfig "nursor.org/nursorgate/processor/config"
-	proxyRegistry "nursor.org/nursorgate/processor/proxy"
 )
 
 // 添加其他有用的命令

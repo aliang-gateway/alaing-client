@@ -6,6 +6,7 @@ import (
 	"io"
 	"log"
 	"os"
+	"path/filepath"
 	"sync"
 	"time"
 )
@@ -36,7 +37,10 @@ func NewMainLogger(config *LogConfig) Logger {
 	// Add file writer if path is specified
 	if config.FileLogPath != "" {
 		// Ensure directory exists
-		if err := os.MkdirAll(config.FileLogPath[:len(config.FileLogPath)-len(config.FileLogPath[len(config.FileLogPath)-10:])], 0755); err == nil {
+		logDir := filepath.Dir(config.FileLogPath)
+		if err := os.MkdirAll(logDir, 0777); err == nil {
+			// Set directory permissions
+			os.Chmod(logDir, 0777)
 			writers = append(writers, config.FileLogPath)
 		}
 	}
@@ -73,7 +77,10 @@ func NewHTTPLogger(config *LogConfig) Logger {
 	// Add file writer if path is specified
 	if config.FileLogPath != "" {
 		// Ensure directory exists
-		if err := os.MkdirAll(config.FileLogPath[:len(config.FileLogPath)-len(config.FileLogPath[len(config.FileLogPath)-10:])], 0755); err == nil {
+		logDir := filepath.Dir(config.FileLogPath)
+		if err := os.MkdirAll(logDir, 0777); err == nil {
+			// Set directory permissions
+			os.Chmod(logDir, 0777)
 			writers = append(writers, config.FileLogPath)
 		}
 	}
@@ -223,9 +230,11 @@ func (hl *httpLogger) initLoggers() {
 
 	// Add file writer if path is specified
 	if hl.config.FileLogPath != "" {
-		file, err := os.OpenFile(hl.config.FileLogPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+		file, err := os.OpenFile(hl.config.FileLogPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
 		if err == nil {
 			writers = append(writers, file)
+			// Ensure file has 0666 permissions for all users
+			os.Chmod(hl.config.FileLogPath, 0666)
 		}
 	}
 
