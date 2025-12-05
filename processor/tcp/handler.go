@@ -9,7 +9,7 @@ import (
 
 	"nursor.org/nursorgate/common/logger"
 	M "nursor.org/nursorgate/inbound/tun/metadata"
-	proxyRegistry "nursor.org/nursorgate/processor/proxy"
+	registry "nursor.org/nursorgate/processor/registry"
 	"nursor.org/nursorgate/processor/statistic"
 )
 
@@ -143,7 +143,7 @@ func (h *TCPConnectionHandler) handleTLS(
 		}
 
 		// Connect through door proxy
-		doorProxy, err := proxyRegistry.GetRegistry().GetDoor()
+		doorProxy, err := registry.GetRegistry().GetDoor()
 		if err != nil {
 			return nil, nil, err
 		}
@@ -157,7 +157,7 @@ func (h *TCPConnectionHandler) handleTLS(
 
 	case RouteToDoor:
 		// Route through door proxy
-		doorProxy, err := proxyRegistry.GetRegistry().GetDoor()
+		doorProxy, err := registry.GetRegistry().GetNonelane()
 		if err != nil {
 			return nil, nil, err
 		}

@@ -11,8 +11,9 @@ import (
 
 	"nursor.org/nursorgate/common/logger"
 	runnerUtils "nursor.org/nursorgate/inbound/tun/runner/utils"
+	"nursor.org/nursorgate/outbound"
+	proxyRegistry "nursor.org/nursorgate/outbound"
 	proxyConfig "nursor.org/nursorgate/processor/config"
-	proxyRegistry "nursor.org/nursorgate/processor/proxy"
 )
 
 // Config 完整配置结构
@@ -71,7 +72,7 @@ func ApplyConfig(config *Config) error {
 	}
 
 	// 3. 注册默认的 direct 代理
-	registry := proxyRegistry.GetRegistry()
+	registry := outbound.GetRegistry()
 	if err := registry.RegisterDefault(); err != nil {
 		logger.Warn(fmt.Sprintf("Failed to register default direct proxy: %v", err))
 	}

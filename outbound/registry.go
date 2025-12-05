@@ -1,4 +1,4 @@
-package proxy
+package outbound
 
 import (
 	"fmt"
@@ -40,7 +40,7 @@ func (r *Registry) RegisterDefault() error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	// 如果已经存在 direct 代理，直接返回
+	// ��果已经存在 direct 代理，直接返回
 	if _, exists := r.proxies["direct"]; exists {
 		return nil
 	}
