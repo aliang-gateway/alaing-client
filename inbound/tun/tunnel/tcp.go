@@ -18,8 +18,8 @@ import (
 	"nursor.org/nursorgate/inbound/tun/adapter"
 	"nursor.org/nursorgate/inbound/tun/buffer"
 	M "nursor.org/nursorgate/inbound/tun/metadata"
+	proxyRegistry "nursor.org/nursorgate/outbound"
 	cert_client "nursor.org/nursorgate/processor/cert/client"
-	proxyRegistry "nursor.org/nursorgate/processor/proxy"
 	"nursor.org/nursorgate/processor/statistic"
 	tcphandler "nursor.org/nursorgate/processor/tcp"
 	tls_helper "nursor.org/nursorgate/processor/tls"
@@ -143,11 +143,11 @@ func (t *Tunnel) handleTCPConn(originConn adapter.TCPConn) {
 					handleTlsConnect(tlsConn, req)
 				} else {
 					doorProxy, err := proxyRegistry.GetRegistry().GetDoor()
-			if err != nil {
-				logger.Error(fmt.Sprintf("door proxy not available: %v", err))
-				return
-			}
-			remoteConn, err = doorProxy.DialContext(ctx, metadata)
+					if err != nil {
+						logger.Error(fmt.Sprintf("door proxy not available: %v", err))
+						return
+					}
+					remoteConn, err = doorProxy.DialContext(ctx, metadata)
 					if err != nil {
 						logger.Error(fmt.Sprintf("failure in connenct to anydoor %v", err))
 						return

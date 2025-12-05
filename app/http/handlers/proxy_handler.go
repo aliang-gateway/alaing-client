@@ -4,7 +4,7 @@ import (
 	"net/http"
 
 	"nursor.org/nursorgate/app/http/common"
-	proxyRegistry "nursor.org/nursorgate/processor/proxy"
+	proxyRegistry "nursor.org/nursorgate/outbound"
 )
 
 // HandleGetCurrentProxy 获取当前使用的代理

@@ -20,8 +20,8 @@ import (
 	"nursor.org/nursorgate/inbound/tun/dialer"
 	"nursor.org/nursorgate/inbound/tun/option"
 	"nursor.org/nursorgate/inbound/tun/tunnel"
+	proxyRegistry "nursor.org/nursorgate/outbound"
 	config "nursor.org/nursorgate/processor/config"
-	proxyRegistry "nursor.org/nursorgate/processor/proxy"
 )
 
 var (
