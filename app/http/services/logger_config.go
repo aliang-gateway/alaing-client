@@ -1,8 +1,9 @@
-package handlers
+package services
 
 import (
 	"time"
 
+	"nursor.org/nursorgate/app/http/models"
 	"nursor.org/nursorgate/common/logger"
 )
 
@@ -34,7 +35,7 @@ func (lcs *LogConfigService) GetConfig() map[string]interface{} {
 
 // UpdateConfig updates the logger configuration with provided values
 // Only updates fields that are provided in the request
-func (lcs *LogConfigService) UpdateConfig(req LogConfigRequest) error {
+func (lcs *LogConfigService) UpdateConfig(req models.LogConfigRequest) error {
 	config := logger.GetLogConfig()
 	updated := false
 

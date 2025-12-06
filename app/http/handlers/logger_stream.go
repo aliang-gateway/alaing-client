@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"net/http"
+	"strings"
 
 	"github.com/gorilla/websocket"
 )
@@ -11,7 +12,8 @@ var logUpgrader = websocket.Upgrader{
 	ReadBufferSize:  1024,
 	WriteBufferSize: 1024,
 	CheckOrigin: func(r *http.Request) bool {
-		return true // Allow all origins for local development
+		host := strings.Split(r.Host, ":")[0]
+		return host == "localhost" || host == "127.0.0.1"
 	},
 }
 

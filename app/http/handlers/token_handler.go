@@ -4,29 +4,36 @@ import (
 	"net/http"
 
 	"nursor.org/nursorgate/app/http/common"
-	"nursor.org/nursorgate/outbound"
+	"nursor.org/nursorgate/app/http/services"
 )
 
-// HandleTokenSet 处理 /token/set
-func HandleTokenSet(w http.ResponseWriter, r *http.Request) {
+// TokenHandler handles HTTP requests for token operations
+type TokenHandler struct {
+	tokenService *services.TokenService
+}
+
+// NewTokenHandler creates a new token handler instance with dependency injection
+func NewTokenHandler(tokenService *services.TokenService) *TokenHandler {
+	return &TokenHandler{
+		tokenService: tokenService,
+	}
+}
+
+// HandleTokenSet handles POST /api/token/set
+func (th *TokenHandler) HandleTokenSet(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Token string `json:"token"`
 	}
 	if err := common.DecodeRequest(r, &req); err != nil {
-		common.SendError(w, "Invalid request body", http.StatusBadRequest, nil)
+		common.ErrorBadRequest(w, "Invalid request body", nil)
 		return
 	}
-	outbound.SetOutboundToken(req.Token)
-	common.SendResponse(w, map[string]string{"token": req.Token})
+	th.tokenService.SetToken(req.Token)
+	common.Success(w, map[string]string{"token": req.Token})
 }
 
-// HandleTokenGet 处理 /token/get
-func HandleTokenGet(w http.ResponseWriter, r *http.Request) {
-	common.SendResponse(w, map[string]string{"token": outbound.GetOutboundToken()})
-}
-
-// RegisterTokenRoutes 注册Token相关路由
-func RegisterTokenRoutes() {
-	http.HandleFunc("/token/set", HandleTokenSet)
-	http.HandleFunc("/token/get", HandleTokenGet)
+// HandleTokenGet handles GET /api/token/get
+func (th *TokenHandler) HandleTokenGet(w http.ResponseWriter, r *http.Request) {
+	token := th.tokenService.GetToken()
+	common.Success(w, map[string]string{"token": token})
 }

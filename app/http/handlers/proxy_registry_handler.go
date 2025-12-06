@@ -4,167 +4,158 @@ import (
 	"net/http"
 
 	"nursor.org/nursorgate/app/http/common"
-	proxyRegistry "nursor.org/nursorgate/outbound"
-	proxyConfig "nursor.org/nursorgate/processor/config"
+	"nursor.org/nursorgate/app/http/repositories"
+	"nursor.org/nursorgate/processor/config"
 )
 
-// HandleProxyRegistryList 列出所有已注册的代理
-func HandleProxyRegistryList(w http.ResponseWriter, r *http.Request) {
-	info := proxyRegistry.GetRegistry().ListWithInfo()
-	common.SendResponse(w, map[string]interface{}{
-		"proxies": info,
-		"count":   len(info),
-	})
+// ProxyRegistryHandler handles HTTP requests for proxy registry operations
+type ProxyRegistryHandler struct {
+	proxyRepository *repositories.ProxyRepositoryImpl
 }
 
-// HandleProxyRegistryGet 获取指定代理
-func HandleProxyRegistryGet(w http.ResponseWriter, r *http.Request) {
-	name := r.URL.Query().Get("name")
+// NewProxyRegistryHandler creates a new proxy registry handler instance with dependency injection
+func NewProxyRegistryHandler(proxyRepository *repositories.ProxyRepositoryImpl) *ProxyRegistryHandler {
+	return &ProxyRegistryHandler{
+		proxyRepository: proxyRepository,
+	}
+}
+
+// HandleProxyRegistryList handles GET /api/proxy/registry/list
+func (prh *ProxyRegistryHandler) HandleProxyRegistryList(w http.ResponseWriter, r *http.Request) {
+	result, err := prh.proxyRepository.ListProxies()
+	if err != nil {
+		common.ErrorInternalServer(w, "Failed to list proxies", nil)
+		return
+	}
+
+	common.Success(w, result)
+}
+
+// HandleProxyRegistryGet handles GET /api/proxy/registry/get
+func (prh *ProxyRegistryHandler) HandleProxyRegistryGet(w http.ResponseWriter, r *http.Request) {
+	name := common.GetQueryParamString(r, "name", "")
 	if name == "" {
-		common.SendError(w, "name parameter is required", http.StatusBadRequest, nil)
+		common.ErrorBadRequest(w, "name parameter is required", nil)
 		return
 	}
 
-	info := proxyRegistry.GetRegistry().ListWithInfo()
-	proxyInfo, exists := info[name]
-	if !exists {
-		common.SendError(w, "proxy info not found", http.StatusNotFound, nil)
+	proxyInfo, err := prh.proxyRepository.GetProxy(name)
+	if err != nil {
+		common.ErrorNotFound(w, "proxy info not found")
 		return
 	}
 
-	common.SendResponse(w, proxyInfo)
+	common.Success(w, proxyInfo)
 }
 
-// HandleProxyRegistryRegister 注册新代理
-func HandleProxyRegistryRegister(w http.ResponseWriter, r *http.Request) {
+// HandleProxyRegistryRegister handles POST /api/proxy/registry/register
+func (prh *ProxyRegistryHandler) HandleProxyRegistryRegister(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		Name   string                   `json:"name"`
-		Config *proxyConfig.ProxyConfig `json:"config"`
+		Name   string                 `json:"name"`
+		Config *config.ProxyConfig `json:"config"`
 	}
 
 	if err := common.DecodeRequest(r, &req); err != nil {
-		common.SendError(w, "Invalid request body", http.StatusBadRequest, nil)
+		common.ErrorBadRequest(w, "Invalid request body", nil)
 		return
 	}
 
 	if req.Name == "" {
-		common.SendError(w, "name is required", http.StatusBadRequest, nil)
+		common.ErrorBadRequest(w, "name is required", nil)
 		return
 	}
 
 	if req.Config == nil {
-		common.SendError(w, "config is required", http.StatusBadRequest, nil)
+		common.ErrorBadRequest(w, "config is required", nil)
 		return
 	}
 
-	if err := proxyRegistry.GetRegistry().RegisterFromConfig(req.Name, req.Config); err != nil {
-		common.SendError(w, err.Error(), http.StatusBadRequest, nil)
+	if err := prh.proxyRepository.RegisterProxy(req.Name, req.Config); err != nil {
+		common.ErrorBadRequest(w, err.Error(), nil)
 		return
 	}
 
-	common.SendResponse(w, map[string]string{"status": "success", "name": req.Name})
+	common.Success(w, map[string]string{"status": "success", "name": req.Name})
 }
 
-// HandleProxyRegistryUnregister 注销代理
-func HandleProxyRegistryUnregister(w http.ResponseWriter, r *http.Request) {
+// HandleProxyRegistryUnregister handles POST /api/proxy/registry/unregister
+func (prh *ProxyRegistryHandler) HandleProxyRegistryUnregister(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Name string `json:"name"`
 	}
 
 	if err := common.DecodeRequest(r, &req); err != nil {
-		common.SendError(w, "Invalid request body", http.StatusBadRequest, nil)
+		common.ErrorBadRequest(w, "Invalid request body", nil)
 		return
 	}
 
-	if err := proxyRegistry.GetRegistry().Unregister(req.Name); err != nil {
-		common.SendError(w, err.Error(), http.StatusBadRequest, nil)
+	if err := prh.proxyRepository.UnregisterProxy(req.Name); err != nil {
+		common.ErrorBadRequest(w, err.Error(), nil)
 		return
 	}
 
-	common.SendResponse(w, map[string]string{"status": "success"})
+	common.Success(w, map[string]string{"status": "success"})
 }
 
-// HandleProxyRegistrySetDefault 设置默认代理
-func HandleProxyRegistrySetDefault(w http.ResponseWriter, r *http.Request) {
+// HandleProxyRegistrySetDefault handles POST /api/proxy/registry/set-default
+func (prh *ProxyRegistryHandler) HandleProxyRegistrySetDefault(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Name string `json:"name"`
 	}
 
 	if err := common.DecodeRequest(r, &req); err != nil {
-		common.SendError(w, "Invalid request body", http.StatusBadRequest, nil)
+		common.ErrorBadRequest(w, "Invalid request body", nil)
 		return
 	}
 
-	if err := proxyRegistry.GetRegistry().SetDefault(req.Name); err != nil {
-		common.SendError(w, err.Error(), http.StatusBadRequest, nil)
+	if err := prh.proxyRepository.SetDefaultProxy(req.Name); err != nil {
+		common.ErrorBadRequest(w, err.Error(), nil)
 		return
 	}
 
-	common.SendResponse(w, map[string]string{"status": "success", "default": req.Name})
+	common.Success(w, map[string]string{"status": "success", "default": req.Name})
 }
 
-// HandleProxyRegistrySetDoor 设置门代理
-func HandleProxyRegistrySetDoor(w http.ResponseWriter, r *http.Request) {
+// HandleProxyRegistrySetDoor handles POST /api/proxy/registry/set-door
+func (prh *ProxyRegistryHandler) HandleProxyRegistrySetDoor(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Name string `json:"name"`
 	}
 
 	if err := common.DecodeRequest(r, &req); err != nil {
-		common.SendError(w, "Invalid request body", http.StatusBadRequest, nil)
+		common.ErrorBadRequest(w, "Invalid request body", nil)
 		return
 	}
 
-	if err := proxyRegistry.GetRegistry().SetDoor(req.Name); err != nil {
-		common.SendError(w, err.Error(), http.StatusBadRequest, nil)
+	if err := prh.proxyRepository.SetDoorProxy(req.Name); err != nil {
+		common.ErrorBadRequest(w, err.Error(), nil)
 		return
 	}
 
-	common.SendResponse(w, map[string]string{"status": "success", "door": req.Name})
+	common.Success(w, map[string]string{"status": "success", "door": req.Name})
 }
 
-// HandleProxyRegistrySwitch 切换代理（设置默认代理并更新 tunnel）
-func HandleProxyRegistrySwitch(w http.ResponseWriter, r *http.Request) {
+// HandleProxyRegistrySwitch handles POST /api/proxy/registry/switch
+func (prh *ProxyRegistryHandler) HandleProxyRegistrySwitch(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Name string `json:"name"`
 	}
 
 	if err := common.DecodeRequest(r, &req); err != nil {
-		common.SendError(w, "Invalid request body", http.StatusBadRequest, nil)
+		common.ErrorBadRequest(w, "Invalid request body", nil)
 		return
 	}
 
-	// 设置默认代理
-	if err := proxyRegistry.GetRegistry().SetDefault(req.Name); err != nil {
-		common.SendError(w, err.Error(), http.StatusBadRequest, nil)
+	if err := prh.proxyRepository.SwitchProxy(req.Name); err != nil {
+		common.ErrorBadRequest(w, err.Error(), nil)
 		return
 	}
 
-	// 获取代理实例并更新 tunnel
-	p, err := proxyRegistry.GetRegistry().Get(req.Name)
+	proxyInfo, err := prh.proxyRepository.GetProxy(req.Name)
 	if err != nil {
-		common.SendError(w, err.Error(), http.StatusBadRequest, nil)
+		common.ErrorNotFound(w, "proxy not found after switch")
 		return
 	}
 
-	// 更新 tunnel 的默认代理
-	// 注意：这里需要导入 tunnel 包
-	// tunnel.SetDefaultProxy(p)
-
-	common.SendResponse(w, map[string]string{
-		"status": "success",
-		"name":   req.Name,
-		"addr":   p.Addr(),
-		"type":   p.Proto().String(),
-	})
-}
-
-// RegisterProxyRegistryRoutes 注册ProxyRegistry相关路由
-func RegisterProxyRegistryRoutes() {
-	http.HandleFunc("/proxy/registry/list", HandleProxyRegistryList)
-	http.HandleFunc("/proxy/registry/get", HandleProxyRegistryGet)
-	http.HandleFunc("/proxy/registry/register", HandleProxyRegistryRegister)
-	http.HandleFunc("/proxy/registry/unregister", HandleProxyRegistryUnregister)
-	http.HandleFunc("/proxy/registry/set-default", HandleProxyRegistrySetDefault)
-	http.HandleFunc("/proxy/registry/set-door", HandleProxyRegistrySetDoor)
-	http.HandleFunc("/proxy/registry/switch", HandleProxyRegistrySwitch)
+	common.Success(w, proxyInfo)
 }

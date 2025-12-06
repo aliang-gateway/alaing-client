@@ -1,7 +1,6 @@
 package http
 
 import (
-	"io/ioutil"
 	"os"
 	"path/filepath"
 )
@@ -13,9 +12,9 @@ func WritePortToFile(port string) error {
 		return err
 	}
 	filePath := filepath.Join(homeDir, ".cursor", "nursor")
-	err = os.MkdirAll(filepath.Dir(filePath), 0755)
+	err = os.MkdirAll(filepath.Dir(filePath), 0700)
 	if err != nil {
 		return err
 	}
-	return ioutil.WriteFile(filePath, []byte(port[1:]), 0644) // 去掉冒号，只写 56431
+	return os.WriteFile(filePath, []byte(port[1:]), 0600) // 去掉冒号，只写 56431
 }
