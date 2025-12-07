@@ -53,16 +53,76 @@ func LoadConfig(configPath string) (*Config, error) {
 		return nil, fmt.Errorf("failed to parse config file: %w", err)
 	}
 
+	// 自动迁移旧配置到新格式
+	if err := migrateOldConfig(&config); err != nil {
+		return nil, fmt.Errorf("failed to migrate config: %w", err)
+	}
+
 	return &config, nil
+}
+
+// migrateOldConfig 迁移旧配置格式到新格式
+func migrateOldConfig(config *Config) error {
+	// 1. coreServer 从顶层迁移到 nonelane 配置中
+	if config.CoreServer != "" {
+		if config.Proxies == nil {
+			config.Proxies = make(map[string]*proxyConfig.ProxyConfig)
+		}
+
+		// 如果 nonelane 不存在，创建并迁移 coreServer
+		if _, exists := config.Proxies["nonelane"]; !exists {
+			config.Proxies["nonelane"] = &proxyConfig.ProxyConfig{
+				Type:       "nonelane",
+				CoreServer: config.CoreServer,
+			}
+			logger.Info("Migrated coreServer to nonelane proxy config")
+		} else if config.Proxies["nonelane"].CoreServer == "" {
+			// nonelane 存在但没有 CoreServer，设置它
+			config.Proxies["nonelane"].CoreServer = config.CoreServer
+			logger.Info("Set CoreServer for existing nonelane proxy")
+		}
+	}
+
+	// 2. 确保 direct 代理存在
+	if config.Proxies == nil {
+		config.Proxies = make(map[string]*proxyConfig.ProxyConfig)
+	}
+	if _, exists := config.Proxies["direct"]; !exists {
+		config.Proxies["direct"] = &proxyConfig.ProxyConfig{Type: "direct"}
+		logger.Debug("Added default direct proxy to config")
+	}
+
+	// 3. 旧 door 格式转换（单个代理 -> members 数组）
+	if doorCfg, exists := config.Proxies["door"]; exists {
+		// 如果 door 的 type 不是 "door" 且没有 members，说明是旧格式
+		if doorCfg.Type != "door" && len(doorCfg.Members) == 0 {
+			// 转换为 members 格式
+			member := proxyConfig.DoorProxyMember{
+				ShowName:    "Default Node",
+				Type:        doorCfg.Type,
+				Latency:     999, // 默认延迟
+				VLESS:       doorCfg.VLESS,
+				Shadowsocks: doorCfg.Shadowsocks,
+			}
+			doorCfg.Members = []proxyConfig.DoorProxyMember{member}
+			doorCfg.Type = "door"
+			// 清除单个代理配置字段
+			doorCfg.VLESS = nil
+			doorCfg.Shadowsocks = nil
+			logger.Info("Migrated old door format to new door collection format")
+		}
+	}
+
+	return nil
 }
 
 // ApplyConfig applies the configuration to the system in clear phases.
 //
 // Phases:
 // 1. Apply engine configuration (network stack, TUN device, etc.)
-// 2. Configure core server address for gateway services
-// 3. Register mandatory default proxies (direct + nonelane)
-// 4. Register custom user-defined proxies
+// 2. Register built-in proxies (direct + nonelane) - always available
+// 3. Register door proxy collection if configured
+// 4. Register other custom user-defined proxies
 // 5. Set the active default proxy for routing
 func ApplyConfig(config *Config) error {
 	// Phase 1: Apply engine configuration
@@ -73,23 +133,25 @@ func ApplyConfig(config *Config) error {
 		logger.Debug("Phase 1: Engine configuration applied")
 	}
 
-	// Phase 2: Configure core server address
-	// This is used by nonelane proxy and stored in the system
-	if config.CoreServer != "" {
-		if err := validateCoreServerAddr(config.CoreServer); err != nil {
-			return fmt.Errorf("phase 2 - invalid core server address: %w", err)
-		}
-		runnerUtils.SetServerHost(config.CoreServer)
-		logger.Info(fmt.Sprintf("Core server configured: %s", config.CoreServer))
+	// Phase 2: Register built-in proxies (direct + nonelane)
+	// These are mandatory and always available
+	if err := registerBuiltinProxies(config); err != nil {
+		return fmt.Errorf("phase 2 - builtin proxies registration failed: %w", err)
 	}
-	logger.Debug("Phase 2: Core server address configuration completed")
+	logger.Debug("Phase 2: Built-in proxies registered")
+
+	// Phase 3: Register door proxy collection if configured
+	if err := registerDoorProxy(config.Proxies); err != nil {
+		return fmt.Errorf("phase 3 - door proxy registration failed: %w", err)
+	}
+	logger.Debug("Phase 3: Door proxy collection registered")
 
 	// Phase 4: Register custom user proxies from configuration
-	// These are optional and supplement the default proxies
-	if err := applyProxyConfigs(config.Proxies); err != nil {
-		return fmt.Errorf("phase 4 - custom proxy configuration failed: %w", err)
+	// These are optional and supplement the built-in proxies
+	if err := registerCustomProxies(config.Proxies); err != nil {
+		return fmt.Errorf("phase 4 - custom proxy registration failed: %w", err)
 	}
-	logger.Debug("Phase 4: Custom proxies applied")
+	logger.Debug("Phase 4: Custom proxies registered")
 
 	// Phase 5: Set the active default proxy for routing decisions
 	// Determines which proxy is used when no specific routing rule applies
@@ -103,6 +165,7 @@ func ApplyConfig(config *Config) error {
 }
 
 // setEffectiveDefaultProxy sets the active default proxy.
+// Supports "door:showname" format to select specific door member.
 // If currentProxy is empty or unavailable, falls back to "direct".
 func setEffectiveDefaultProxy(currentProxy string) error {
 	registry := outbound.GetRegistry()
@@ -112,6 +175,27 @@ func setEffectiveDefaultProxy(currentProxy string) error {
 	if proxyName == "" {
 		proxyName = "direct"
 		logger.Debug("No default proxy specified, using 'direct'")
+	}
+
+	// Check if it's a door member specification (format: "door:memberName")
+	if strings.HasPrefix(proxyName, "door:") {
+		memberName := strings.TrimPrefix(proxyName, "door:")
+		if err := registry.SetDoorMember(memberName); err != nil {
+			logger.Warn(fmt.Sprintf("Failed to set door member '%s': %v, using auto-select", memberName, err))
+			registry.EnableDoorAutoSelect()
+		} else {
+			logger.Info(fmt.Sprintf("Door member set to: %s", memberName))
+		}
+		// Don't set door as default in registry, door is accessed via GetDoor()
+		return nil
+	}
+
+	// For "door" without member specification, enable auto-select
+	if proxyName == "door" {
+		registry.EnableDoorAutoSelect()
+		logger.Info("Door auto-select enabled")
+		// Don't set door as default in registry
+		return nil
 	}
 
 	// Attempt to set the requested proxy
@@ -166,16 +250,81 @@ func applyEngineConfig(engineCfg *EngineConfig) error {
 	return nil
 }
 
-// applyProxyConfigs 应用代理配置到注册中心
-func applyProxyConfigs(proxies map[string]*proxyConfig.ProxyConfig) error {
+// registerBuiltinProxies 注册内置代理（direct 和 nonelane）
+func registerBuiltinProxies(config *Config) error {
+	registry := proxyRegistry.GetRegistry()
+
+	// 1. 注册 direct 代理
+	if err := registry.RegisterDefault(); err != nil {
+		return fmt.Errorf("failed to register direct proxy: %w", err)
+	}
+
+	// 2. 注册 nonelane 代理
+	coreServer := ""
+	if config.Proxies != nil {
+		if nonelaneConfig, exists := config.Proxies["nonelane"]; exists && nonelaneConfig != nil {
+			coreServer = nonelaneConfig.CoreServer
+		}
+	}
+	// 如果配置中没有指定，使用顶层的 CoreServer（向后兼容）
+	if coreServer == "" && config.CoreServer != "" {
+		coreServer = config.CoreServer
+	}
+
+	if err := registry.RegisterNonelane(coreServer); err != nil {
+		return fmt.Errorf("failed to register nonelane proxy: %w", err)
+	}
+
+	// 设置全局 ServerHost（用于其他功能）
+	if coreServer != "" {
+		runnerUtils.SetServerHost(coreServer)
+	}
+
+	return nil
+}
+
+// registerDoorProxy 注册 door 代理集合
+func registerDoorProxy(proxies map[string]*proxyConfig.ProxyConfig) error {
+	if proxies == nil {
+		return nil
+	}
+
+	doorConfig, exists := proxies["door"]
+	if !exists || doorConfig == nil {
+		logger.Debug("No door proxy configured")
+		return nil
+	}
+
+	// 验证 door 配置
+	if err := doorConfig.Validate(); err != nil {
+		return fmt.Errorf("invalid door proxy config: %w", err)
+	}
+
+	// 注册 door 代理集合
+	registry := proxyRegistry.GetRegistry()
+	if err := registry.RegisterDoorFromConfig(doorConfig); err != nil {
+		return fmt.Errorf("failed to register door proxy: %w", err)
+	}
+
+	logger.Info("Door proxy collection registered successfully")
+	return nil
+}
+
+// registerCustomProxies 注册自定义代理（除 direct, nonelane, door 外的其他代理）
+func registerCustomProxies(proxies map[string]*proxyConfig.ProxyConfig) error {
 	if len(proxies) == 0 {
-		logger.Warn("No proxies configured")
+		logger.Debug("No custom proxies to register")
 		return nil
 	}
 
 	registry := proxyRegistry.GetRegistry()
 
 	for name, cfg := range proxies {
+		// 跳过内置代理和 door 代理
+		if name == "direct" || name == "nonelane" || name == "door" {
+			continue
+		}
+
 		if cfg == nil {
 			logger.Warn(fmt.Sprintf("Nil proxy config for '%s', skipping", name))
 			continue
@@ -193,7 +342,7 @@ func applyProxyConfigs(proxies map[string]*proxyConfig.ProxyConfig) error {
 			continue
 		}
 
-		logger.Info(fmt.Sprintf("Proxy '%s' registered successfully", name))
+		logger.Info(fmt.Sprintf("Custom proxy '%s' registered successfully", name))
 	}
 
 	return nil

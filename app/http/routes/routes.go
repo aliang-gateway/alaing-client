@@ -10,13 +10,13 @@ import (
 
 // Handlers holds all HTTP handler instances
 type Handlers struct {
-	Logger         *handlers.LogHandler
-	Proxy          *handlers.ProxyHandler
-	ProxyRegistry  *handlers.ProxyRegistryHandler
-	Config         *handlers.ConfigHandler
-	Token          *handlers.TokenHandler
-	Run            *handlers.RunHandler
-	LogStream      *handlers.LogStreamHandler
+	Logger        *handlers.LogHandler
+	Proxy         *handlers.ProxyHandler
+	ProxyRegistry *handlers.ProxyRegistryHandler
+	Token         *handlers.TokenHandler
+	Run           *handlers.RunHandler
+	LogStream     *handlers.LogStreamHandler
+	Door          *handlers.DoorHandler
 }
 
 // NewHandlers creates and initializes all handlers with their dependencies
@@ -30,17 +30,16 @@ func NewHandlers() *Handlers {
 
 	// Initialize repositories
 	proxyRepository := repositories.NewProxyRepository()
-	configRepository := repositories.NewConfigRepository()
 
 	// Create handlers with dependency injection
 	return &Handlers{
 		Logger:        handlers.NewLogHandler(logService, logConfigService),
 		Proxy:         handlers.NewProxyHandler(proxyService),
 		ProxyRegistry: handlers.NewProxyRegistryHandler(proxyRepository),
-		Config:        handlers.NewConfigHandler(configRepository),
 		Token:         handlers.NewTokenHandler(tokenService),
 		Run:           handlers.NewRunHandler(runService),
 		LogStream:     handlers.NewLogStreamHandler(),
+		Door:          handlers.NewDoorHandler(),
 	}
 }
 
@@ -60,15 +59,11 @@ func RegisterRoutes(h *Handlers) {
 	// Proxy registry routes (/api/proxy/registry/*)
 	http.HandleFunc("/api/proxy/registry/list", h.ProxyRegistry.HandleProxyRegistryList)
 	http.HandleFunc("/api/proxy/registry/get", h.ProxyRegistry.HandleProxyRegistryGet)
-	http.HandleFunc("/api/proxy/registry/register", h.ProxyRegistry.HandleProxyRegistryRegister)
-	http.HandleFunc("/api/proxy/registry/unregister", h.ProxyRegistry.HandleProxyRegistryUnregister)
-	http.HandleFunc("/api/proxy/registry/set-default", h.ProxyRegistry.HandleProxyRegistrySetDefault)
-	http.HandleFunc("/api/proxy/registry/set-door", h.ProxyRegistry.HandleProxyRegistrySetDoor)
-	http.HandleFunc("/api/proxy/registry/switch", h.ProxyRegistry.HandleProxyRegistrySwitch)
 
-	// Config routes (/api/config/*)
-	http.HandleFunc("/api/config/get", h.Config.HandleConfigGet)
-	http.HandleFunc("/api/config/list", h.Config.HandleConfigList)
+	// Door proxy routes (/api/proxy/door/*)
+	http.HandleFunc("/api/proxy/door/members", h.Door.HandleDoorMemberList)
+	http.HandleFunc("/api/proxy/door/switch", h.Door.HandleDoorMemberSwitch)
+	http.HandleFunc("/api/proxy/door/auto", h.Door.HandleDoorAutoSelect)
 
 	// Token routes (/api/token/*)
 	http.HandleFunc("/api/token/get", h.Token.HandleTokenGet)
@@ -87,13 +82,6 @@ func RegisterRoutes(h *Handlers) {
 	http.HandleFunc("/proxy/current/set", h.Proxy.HandleSetCurrentProxy)
 	http.HandleFunc("/proxy/registry/list", h.ProxyRegistry.HandleProxyRegistryList)
 	http.HandleFunc("/proxy/registry/get", h.ProxyRegistry.HandleProxyRegistryGet)
-	http.HandleFunc("/proxy/registry/register", h.ProxyRegistry.HandleProxyRegistryRegister)
-	http.HandleFunc("/proxy/registry/unregister", h.ProxyRegistry.HandleProxyRegistryUnregister)
-	http.HandleFunc("/proxy/registry/set-default", h.ProxyRegistry.HandleProxyRegistrySetDefault)
-	http.HandleFunc("/proxy/registry/set-door", h.ProxyRegistry.HandleProxyRegistrySetDoor)
-	http.HandleFunc("/proxy/registry/switch", h.ProxyRegistry.HandleProxyRegistrySwitch)
-	http.HandleFunc("/config/get", h.Config.HandleConfigGet)
-	http.HandleFunc("/config/list", h.Config.HandleConfigList)
 	http.HandleFunc("/token/get", h.Token.HandleTokenGet)
 	http.HandleFunc("/token/set", h.Token.HandleTokenSet)
 	http.HandleFunc("/run/start", h.Run.HandleRunStart)
