@@ -22,8 +22,6 @@ import (
 	user "nursor.org/nursorgate/processor/auth"
 	"nursor.org/nursorgate/processor/cert/client"
 	proxyConfig "nursor.org/nursorgate/processor/config"
-	"nursor.org/nursorgate/processor/http2"
-	proxyRegistry "nursor.org/nursorgate/processor/proxy"
 )
 
 //export startClient
@@ -87,8 +85,8 @@ func setUserInfo(innerToken *C.char, username *C.char, password *C.char, userUUI
 
 //export setLogWatchMode
 func setLogWatchMode(enableWatch *C.bool, level *C.int) {
-	watchMode := *enableWatch != C.bool(false)
-	http2.IsWatcherAllowed = watchMode
+	// watchMode := *enableWatch != C.bool(false)
+	// TODO: http2 package was removed, need to implement this differently
 	logLevel := int(*level)
 	logger.SetHttpLogLevel(logger.LogLevel(logLevel))
 	logger.SetLogLevel(logger.LogLevel(logLevel))
@@ -96,8 +94,8 @@ func setLogWatchMode(enableWatch *C.bool, level *C.int) {
 
 //export setCursorGateMode
 func setCursorGateMode(enableCursorGate *C.bool) {
-	cursorMode := *enableCursorGate != C.bool(false)
-	http2.IsCursorProxyEnabled = cursorMode
+	// cursorMode := *enableCursorGate != C.bool(false)
+	// TODO: http2 package was removed, need to implement this differently
 }
 
 //export stopGate
@@ -126,7 +124,7 @@ func registerProxy(name *C.char, configJSON *C.char) *C.char {
 	}
 
 	// Register proxy
-	if err := proxyRegistry.GetRegistry().RegisterFromConfig(nameStr, &cfg); err != nil {
+	if err := outbound.GetRegistry().RegisterFromConfig(nameStr, &cfg); err != nil {
 		errMsg := "Failed to register proxy: " + err.Error()
 		logger.Error(errMsg)
 		return C.CString("{\"error\": \"" + errMsg + "\"}")
@@ -140,7 +138,7 @@ func switchProxy(name *C.char) *C.char {
 	nameStr := C.GoString(name)
 
 	// Set as default proxy
-	if err := proxyRegistry.GetRegistry().SetDefault(nameStr); err != nil {
+	if err := outbound.GetRegistry().SetDefault(nameStr); err != nil {
 		errMsg := "Failed to switch proxy: " + err.Error()
 		logger.Error(errMsg)
 		return C.CString("{\"error\": \"" + errMsg + "\"}")
@@ -151,14 +149,14 @@ func switchProxy(name *C.char) *C.char {
 
 //export listProxies
 func listProxies() *C.char {
-	info := proxyRegistry.GetRegistry().ListWithInfo()
+	info := outbound.GetRegistry().ListWithInfo()
 	jsonStr, _ := json.Marshal(info)
 	return C.CString(string(jsonStr))
 }
 
 //export getCurrentProxy
 func getCurrentProxy() *C.char {
-	registry := proxyRegistry.GetRegistry()
+	registry := outbound.GetRegistry()
 	currentName := registry.GetDefaultName()
 	proxy, err := registry.GetDefault()
 
@@ -183,7 +181,7 @@ func setCurrentProxy(name *C.char) *C.char {
 		return C.CString("{\"error\": \"name is required\"}")
 	}
 
-	registry := proxyRegistry.GetRegistry()
+	registry := outbound.GetRegistry()
 	if err := registry.SetDefault(nameStr); err != nil {
 		errMsg := "Failed to set proxy: " + err.Error()
 		return C.CString("{\"error\": \"" + errMsg + "\"}")

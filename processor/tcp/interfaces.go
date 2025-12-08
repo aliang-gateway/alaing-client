@@ -52,7 +52,7 @@ type ProtocolDetector interface {
 // TLSHandler manages TLS-specific operations:
 // - SNI extraction from ClientHello
 // - MITM certificate generation and TLS handshake
-// - Domain-based routing decisions
+// - Domain-based routing decisions (both legacy and rule engine)
 type TLSHandler interface {
 	// ExtractSNI reads the Server Name Indication from a TLS ClientHello.
 	// Returns:
@@ -71,7 +71,20 @@ type TLSHandler interface {
 
 	// DetermineRoute checks if domain should be routed to cursor proxy, door proxy, or direct.
 	// Uses domain allowlist/blocklist from model.AllowProxyDomain.
+	// This is the legacy method without rule engine context.
 	DetermineRoute(serverName string) ProxyRoute
+
+	// DetermineRouteWithContext uses the rule engine to make intelligent routing decisions.
+	// This method leverages:
+	// 1. Bypass rules (user-configured direct routes)
+	// 2. IP-Domain cache (avoid repeated SNI extraction)
+	// 3. Nacos rules (Cursor MITM and Door acceleration)
+	// 4. GeoIP routing (country-based decisions)
+	//
+	// Returns:
+	// - proxyRoute: The routing decision (RouteToCursor, RouteToDoor, RouteDirect)
+	// - requiresSNI: Whether SNI extraction is needed for final decision
+	DetermineRouteWithContext(metadata *M.Metadata) (ProxyRoute, bool)
 }
 
 // StatisticsTracker wraps connections to track upload/download statistics.

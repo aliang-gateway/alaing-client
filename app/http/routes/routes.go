@@ -17,6 +17,7 @@ type Handlers struct {
 	Run           *handlers.RunHandler
 	LogStream     *handlers.LogStreamHandler
 	Door          *handlers.DoorHandler
+	Rules         *handlers.RulesHandler
 }
 
 // NewHandlers creates and initializes all handlers with their dependencies
@@ -40,6 +41,7 @@ func NewHandlers() *Handlers {
 		Run:           handlers.NewRunHandler(runService),
 		LogStream:     handlers.NewLogStreamHandler(),
 		Door:          handlers.NewDoorHandler(),
+		Rules:         handlers.NewRulesHandler(),
 	}
 }
 

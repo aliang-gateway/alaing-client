@@ -111,28 +111,44 @@ func (h *TCPConnectionHandler) handleTLS(
 	originConn net.Conn,
 	metadata *M.Metadata,
 ) (remoteConn net.Conn, newOriginConn net.Conn, err error) {
-	// Extract SNI
-	sni, sniBuf, err := h.tlsHandler.ExtractSNI(ctx, originConn)
-	metadata.HostName = sni
+	// Step 1: Pre-evaluate routing WITHOUT SNI (using IP, cache, bypass rules, GeoIP)
+	route, requiresSNI := h.tlsHandler.DetermineRouteWithContext(metadata)
 
-	// Wrap connection to preserve SNI buffer
-	wrapped := &WrappedConn{
-		Conn: originConn,
-		Buf:  sniBuf,
-	}
+	var sni string
+	var sniBuf []byte
+	var wrapped *WrappedConn
 
-	if err != nil {
-		logger.Debug(fmt.Sprintf("SNI extraction error: %v", err))
-		// Check for DoH
-		if IsDoHProvider(sni) {
-			logger.Info(fmt.Sprintf("[DoH] Detected DoH for %s", sni))
-			return nil, nil, nil
+	// Step 2: Only extract SNI if the rule engine says it's necessary
+	if requiresSNI {
+		logger.Debug("Rule engine requires SNI extraction")
+		sni, sniBuf, err = h.tlsHandler.ExtractSNI(ctx, originConn)
+		metadata.HostName = sni
+
+		wrapped = &WrappedConn{
+			Conn: originConn,
+			Buf:  sniBuf,
 		}
-		sni = ""
-	}
 
-	// Determine routing
-	route := h.tlsHandler.DetermineRoute(sni)
+		if err != nil {
+			logger.Debug(fmt.Sprintf("SNI extraction error: %v", err))
+			// Check for DoH
+			if IsDoHProvider(sni) {
+				logger.Info(fmt.Sprintf("[DoH] Detected DoH for %s", sni))
+				return nil, nil, nil
+			}
+			sni = ""
+		}
+
+		// Re-evaluate routing with SNI now available
+		route, _ = h.tlsHandler.DetermineRouteWithContext(metadata)
+	} else {
+		// SNI extraction skipped - use original connection without buffering
+		logger.Debug(fmt.Sprintf("SNI extraction skipped (route decided by rule engine: %v)", route))
+		wrapped = &WrappedConn{
+			Conn: originConn,
+			Buf:  nil,
+		}
+	}
 
 	switch route {
 	case RouteToCursor:

@@ -14,8 +14,8 @@ import (
 	"golang.org/x/net/http2"
 	"nursor.org/nursorgate/common/logger"
 	"nursor.org/nursorgate/inbound/tun/dialer"
-	"nursor.org/nursorgate/inbound/tun/runner/utils"
 	cert_server "nursor.org/nursorgate/processor/cert/server"
+	"nursor.org/nursorgate/processor/config"
 	watcher "nursor.org/nursorgate/processor/watcher"
 )
 
@@ -65,7 +65,7 @@ func (c *OutboundClient2) Forward(localConn *tls.Conn, req *http.Request) error 
 }
 
 func handleTlsConnect(conn *tls.Conn, req *http.Request) {
-	outboundClient, err := NewHttp2ProxyClient(utils.GetServerHost(), req.Host)
+	outboundClient, err := NewHttp2ProxyClient(config.GetCursorAiGatewayHost(), req.Host)
 	if err != nil {
 		logger.Error(err)
 		return

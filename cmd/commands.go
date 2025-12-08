@@ -5,8 +5,8 @@ import (
 
 	"github.com/spf13/cobra"
 	"nursor.org/nursorgate/common/logger"
-	runnerUtils "nursor.org/nursorgate/inbound/tun/runner/utils"
 	proxyRegistry "nursor.org/nursorgate/outbound"
+	"nursor.org/nursorgate/processor/config"
 	proxyConfig "nursor.org/nursorgate/processor/config"
 )
 
@@ -69,7 +69,7 @@ var configSaveCmd = &cobra.Command{
 		config := &Config{
 			Engine:       nil, // TODO: 从系统获取
 			CurrentProxy: defaultProxy,
-			CoreServer:   runnerUtils.GetServerHost(),
+			CoreServer:   config.GetCursorAiGatewayHost(),
 			Proxies:      configs,
 		}
 		return SaveConfigToFile(config, args[0])

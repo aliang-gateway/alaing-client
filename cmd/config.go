@@ -10,36 +10,16 @@ import (
 	"time"
 
 	"nursor.org/nursorgate/common/logger"
-	runnerUtils "nursor.org/nursorgate/inbound/tun/runner/utils"
 	"nursor.org/nursorgate/outbound"
 	proxyRegistry "nursor.org/nursorgate/outbound"
-	proxyConfig "nursor.org/nursorgate/processor/config"
+	"nursor.org/nursorgate/processor/config"
+	geoip "nursor.org/nursorgate/processor/geoip"
+	rules "nursor.org/nursorgate/processor/rules"
 )
 
-// Config 完整配置结构
-type Config struct {
-	Engine       *EngineConfig                       `json:"engine"`
-	CurrentProxy string                              `json:"currentProxy"`
-	CoreServer   string                              `json:"coreServer"`
-	Proxies      map[string]*proxyConfig.ProxyConfig `json:"proxies"`
-}
-
-// EngineConfig 引擎配置（对应 processor/config.EngineConf），以前的tun2socks配置key
-type EngineConfig struct {
-	MTU                      int    `json:"mtu"`
-	Mark                     int    `json:"fwmark"`
-	RestAPI                  string `json:"restapi"`
-	Device                   string `json:"device"`
-	LogLevel                 string `json:"loglevel"`
-	Interface                string `json:"interface"`
-	TCPModerateReceiveBuffer bool   `json:"tcp-moderate-receive-buffer"`
-	TCPSendBufferSize        string `json:"tcp-send-buffer-size"`
-	TCPReceiveBufferSize     string `json:"tcp-receive-buffer-size"`
-	MulticastGroups          string `json:"multicast-groups"`
-	TUNPreUp                 string `json:"tun-pre-up"`
-	TUNPostUp                string `json:"tun-post-up"`
-	UDPTimeout               string `json:"udp-timeout"` // 字符串格式，需要解析为 time.Duration
-}
+// Re-export config types for backward compatibility
+type Config = config.Config
+type EngineConfig = config.EngineConfig
 
 // LoadConfig 从文件加载配置
 func LoadConfig(configPath string) (*Config, error) {
@@ -62,49 +42,49 @@ func LoadConfig(configPath string) (*Config, error) {
 }
 
 // migrateOldConfig 迁移旧配置格式到新格式
-func migrateOldConfig(config *Config) error {
+func migrateOldConfig(cfg *Config) error {
 	// 1. coreServer 从顶层迁移到 nonelane 配置中
-	if config.CoreServer != "" {
-		if config.Proxies == nil {
-			config.Proxies = make(map[string]*proxyConfig.ProxyConfig)
+	if cfg.CoreServer != "" {
+		if cfg.Proxies == nil {
+			cfg.Proxies = make(map[string]*config.ProxyConfig)
 		}
 
 		// 如果 nonelane 不存在，创建并迁移 coreServer
-		if _, exists := config.Proxies["nonelane"]; !exists {
-			config.Proxies["nonelane"] = &proxyConfig.ProxyConfig{
+		if _, exists := cfg.Proxies["nonelane"]; !exists {
+			cfg.Proxies["nonelane"] = &config.ProxyConfig{
 				Type:       "nonelane",
-				CoreServer: config.CoreServer,
+				CoreServer: cfg.CoreServer,
 			}
 			logger.Info("Migrated coreServer to nonelane proxy config")
-		} else if config.Proxies["nonelane"].CoreServer == "" {
+		} else if cfg.Proxies["nonelane"].CoreServer == "" {
 			// nonelane 存在但没有 CoreServer，设置它
-			config.Proxies["nonelane"].CoreServer = config.CoreServer
+			cfg.Proxies["nonelane"].CoreServer = cfg.CoreServer
 			logger.Info("Set CoreServer for existing nonelane proxy")
 		}
 	}
 
 	// 2. 确保 direct 代理存在
-	if config.Proxies == nil {
-		config.Proxies = make(map[string]*proxyConfig.ProxyConfig)
+	if cfg.Proxies == nil {
+		cfg.Proxies = make(map[string]*config.ProxyConfig)
 	}
-	if _, exists := config.Proxies["direct"]; !exists {
-		config.Proxies["direct"] = &proxyConfig.ProxyConfig{Type: "direct"}
+	if _, exists := cfg.Proxies["direct"]; !exists {
+		cfg.Proxies["direct"] = &config.ProxyConfig{Type: "direct"}
 		logger.Debug("Added default direct proxy to config")
 	}
 
 	// 3. 旧 door 格式转换（单个代理 -> members 数组）
-	if doorCfg, exists := config.Proxies["door"]; exists {
+	if doorCfg, exists := cfg.Proxies["door"]; exists {
 		// 如果 door 的 type 不是 "door" 且没有 members，说明是旧格式
 		if doorCfg.Type != "door" && len(doorCfg.Members) == 0 {
 			// 转换为 members 格式
-			member := proxyConfig.DoorProxyMember{
+			member := config.DoorProxyMember{
 				ShowName:    "Default Node",
 				Type:        doorCfg.Type,
 				Latency:     999, // 默认延迟
 				VLESS:       doorCfg.VLESS,
 				Shadowsocks: doorCfg.Shadowsocks,
 			}
-			doorCfg.Members = []proxyConfig.DoorProxyMember{member}
+			doorCfg.Members = []config.DoorProxyMember{member}
 			doorCfg.Type = "door"
 			// 清除单个代理配置字段
 			doorCfg.VLESS = nil
@@ -159,6 +139,20 @@ func ApplyConfig(config *Config) error {
 		return fmt.Errorf("phase 5 - failed to set default proxy: %w", err)
 	}
 	logger.Debug("Phase 5: Default proxy set for routing")
+
+	// Phase 6: Initialize GeoIP service if configured
+	if err := initializeGeoIP(config.RoutingRules); err != nil {
+		logger.Warn(fmt.Sprintf("Phase 6 - GeoIP initialization failed (non-fatal): %v", err))
+	} else {
+		logger.Debug("Phase 6: GeoIP service initialized")
+	}
+
+	// Phase 7: Initialize routing rule engine
+	if err := initializeRuleEngine(config.RoutingRules); err != nil {
+		logger.Warn(fmt.Sprintf("Phase 7 - Rule engine initialization failed (non-fatal): %v", err))
+	} else {
+		logger.Debug("Phase 7: Rule engine initialized")
+	}
 
 	logger.Info("Configuration applied successfully")
 	return nil
@@ -218,7 +212,7 @@ func setEffectiveDefaultProxy(currentProxy string) error {
 }
 
 // applyEngineConfig 应用引擎配置
-func applyEngineConfig(engineCfg *EngineConfig) error {
+func applyEngineConfig(engineCfg *config.EngineConfig) error {
 	// 解析 UDP 超时时间
 	udpTimeout, err := time.ParseDuration(engineCfg.UDPTimeout)
 	if err != nil {
@@ -228,7 +222,7 @@ func applyEngineConfig(engineCfg *EngineConfig) error {
 	}
 
 	// 转换为 processor/config.EngineConf
-	engineConf := &proxyConfig.EngineConf{
+	engineConf := &config.EngineConf{
 		MTU:                      engineCfg.MTU,
 		Mark:                     engineCfg.Mark,
 		RestAPI:                  engineCfg.RestAPI,
@@ -245,13 +239,13 @@ func applyEngineConfig(engineCfg *EngineConfig) error {
 	}
 
 	// 插入到配置系统
-	proxyConfig.Insert(engineConf)
+	config.Insert(engineConf)
 	logger.Info("Engine config applied successfully")
 	return nil
 }
 
 // registerBuiltinProxies 注册内置代理（direct 和 nonelane）
-func registerBuiltinProxies(config *Config) error {
+func registerBuiltinProxies(cfg *Config) error {
 	registry := proxyRegistry.GetRegistry()
 
 	// 1. 注册 direct 代理
@@ -261,14 +255,14 @@ func registerBuiltinProxies(config *Config) error {
 
 	// 2. 注册 nonelane 代理
 	coreServer := ""
-	if config.Proxies != nil {
-		if nonelaneConfig, exists := config.Proxies["nonelane"]; exists && nonelaneConfig != nil {
+	if cfg.Proxies != nil {
+		if nonelaneConfig, exists := cfg.Proxies["nonelane"]; exists && nonelaneConfig != nil {
 			coreServer = nonelaneConfig.CoreServer
 		}
 	}
 	// 如果配置中没有指定，使用顶层的 CoreServer（向后兼容）
-	if coreServer == "" && config.CoreServer != "" {
-		coreServer = config.CoreServer
+	if coreServer == "" && cfg.CoreServer != "" {
+		coreServer = cfg.CoreServer
 	}
 
 	if err := registry.RegisterNonelane(coreServer); err != nil {
@@ -277,14 +271,14 @@ func registerBuiltinProxies(config *Config) error {
 
 	// 设置全局 ServerHost（用于其他功能）
 	if coreServer != "" {
-		runnerUtils.SetServerHost(coreServer)
+		config.SetCursorAiGatewayHost(coreServer)
 	}
 
 	return nil
 }
 
 // registerDoorProxy 注册 door 代理集合
-func registerDoorProxy(proxies map[string]*proxyConfig.ProxyConfig) error {
+func registerDoorProxy(proxies map[string]*config.ProxyConfig) error {
 	if proxies == nil {
 		return nil
 	}
@@ -311,7 +305,7 @@ func registerDoorProxy(proxies map[string]*proxyConfig.ProxyConfig) error {
 }
 
 // registerCustomProxies 注册自定义代理（除 direct, nonelane, door 外的其他代理）
-func registerCustomProxies(proxies map[string]*proxyConfig.ProxyConfig) error {
+func registerCustomProxies(proxies map[string]*config.ProxyConfig) error {
 	if len(proxies) == 0 {
 		logger.Debug("No custom proxies to register")
 		return nil
@@ -375,7 +369,7 @@ func LoadAndApplyConfig(configPath string) error {
 func FetchConfigFromRemote(token string, serverURL string) (*Config, error) {
 	if serverURL == "" {
 		// 使用默认服务器地址
-		serverURL = runnerUtils.GetServerHost()
+		serverURL = config.GetCursorAiGatewayHost()
 		if serverURL == "" {
 			serverURL = "https://api2.nursor.org:12235" // 默认服务器
 		}
@@ -465,6 +459,71 @@ func SaveConfigToFile(config *Config, filePath string) error {
 
 	if err := ioutil.WriteFile(filePath, data, 0644); err != nil {
 		return fmt.Errorf("failed to write config file: %w", err)
+	}
+
+	return nil
+}
+
+// initializeGeoIP 初始化 GeoIP 服务
+func initializeGeoIP(routingRules *config.RoutingRulesConfig) error {
+	if routingRules == nil || routingRules.GeoIP == nil {
+		logger.Info("GeoIP routing not configured, service disabled")
+		return nil
+	}
+
+	geoipCfg := routingRules.GeoIP
+	if !geoipCfg.Enabled {
+		logger.Info("GeoIP service disabled in config")
+		return nil
+	}
+
+	if geoipCfg.DatabasePath == "" {
+		return fmt.Errorf("GeoIP enabled but database path not specified")
+	}
+
+	// 加载 GeoIP 数据库
+	service := geoip.GetService()
+	if err := service.LoadDatabase(geoipCfg.DatabasePath); err != nil {
+		return fmt.Errorf("failed to load GeoIP database: %w", err)
+	}
+
+	logger.Info(fmt.Sprintf("GeoIP service initialized successfully (database: %s, chinaDirect: %v)",
+		geoipCfg.DatabasePath, geoipCfg.ChinaDirect))
+
+	return nil
+}
+
+// initializeRuleEngine 初始化路由规则引擎
+func initializeRuleEngine(routingRules *config.RoutingRulesConfig) error {
+	if routingRules == nil {
+		logger.Info("Routing rules not configured, rule engine disabled")
+		return nil
+	}
+
+	// 获取规则引擎实例
+	engine := rules.GetEngine()
+
+	// 初始化规则引擎
+	if err := engine.Initialize(routingRules); err != nil {
+		return fmt.Errorf("failed to initialize rule engine: %w", err)
+	}
+
+	logger.Info("Routing rule engine initialized successfully")
+
+	// 打印配置摘要
+	if routingRules.GeoIP != nil && routingRules.GeoIP.Enabled {
+		logger.Info(fmt.Sprintf("  - GeoIP routing: enabled (chinaDirect=%v)", routingRules.GeoIP.ChinaDirect))
+	}
+	if routingRules.BypassRules != nil && routingRules.BypassRules.Enabled {
+		logger.Info(fmt.Sprintf("  - Bypass rules: enabled (%d domains, %d suffixes, %d IP ranges)",
+			len(routingRules.BypassRules.Domains),
+			len(routingRules.BypassRules.DomainSuffixes),
+			len(routingRules.BypassRules.IPRanges)))
+	}
+	if routingRules.IPDomainCache != nil && routingRules.IPDomainCache.Enabled {
+		logger.Info(fmt.Sprintf("  - IP-Domain cache: enabled (max=%d, TTL=%s)",
+			routingRules.IPDomainCache.MaxEntries,
+			routingRules.IPDomainCache.TTL))
 	}
 
 	return nil

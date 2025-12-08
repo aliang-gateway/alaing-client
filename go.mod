@@ -4,8 +4,6 @@ go 1.25.1
 
 replace github.com/elazarl/goproxy v1.7.2 => ../goproxy
 
-replace gvisor.dev/gvisor => github.com/sagernet/gvisor v0.0.0-20250325023245-7a9c0f5725fb
-
 require (
 	github.com/docker/go-units v0.5.0
 	github.com/getsentry/sentry-go v0.40.0
@@ -15,6 +13,8 @@ require (
 	github.com/gorilla/websocket v1.5.3
 	github.com/miekg/dns v1.1.68
 	github.com/nacos-group/nacos-sdk-go v1.1.6
+	github.com/oschwald/geoip2-golang v1.9.0
+	github.com/sagernet/gvisor v0.0.0-20250325023245-7a9c0f5725fb
 	github.com/sagernet/sing v0.7.13
 	github.com/sagernet/sing-box v1.12.12
 	github.com/sagernet/sing-vmess v0.2.7
@@ -50,6 +50,7 @@ require (
 	github.com/metacubex/tfo-go v0.0.0-20250921095601-b102db4216c0 // indirect
 	github.com/metacubex/utls v1.8.3 // indirect
 	github.com/mholt/acmez/v3 v3.1.2 // indirect
+	github.com/oschwald/maxminddb-golang v1.13.1 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/rogpeppe/go-internal v1.12.0 // indirect
 	github.com/sagernet/fswatch v0.1.1 // indirect
@@ -82,7 +83,6 @@ require (
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.2 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
-	github.com/sagernet/gvisor v0.0.0-20250325023245-7a9c0f5725fb
 	github.com/spf13/pflag v1.0.9 // indirect
 	go.uber.org/atomic v1.11.0
 	go.uber.org/multierr v1.11.0 // indirect

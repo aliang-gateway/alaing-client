@@ -1,11 +1,11 @@
 package utils
 
-var serverHost string
+// var serverHost string
 
-func SetServerHost(host string) {
-	serverHost = host
-}
+// func SetServerHost(host string) {
+// 	serverHost = host
+// }
 
-func GetServerHost() string {
-	return serverHost
-}
+// func GetServerHost() string {
+// 	return serverHost
+// }

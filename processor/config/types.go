@@ -114,3 +114,58 @@ func (c *ProxyConfig) Validate() error {
 
 	return nil
 }
+
+// RoutingRulesConfig 路由规则总配置
+type RoutingRulesConfig struct {
+	GeoIP         *GeoIPConfig       `json:"geoip,omitempty"`         // GeoIP 路由配置
+	BypassRules   *BypassRulesConfig `json:"bypassRules,omitempty"`   // 旁路规则配置
+	IPDomainCache *CacheConfig       `json:"ipDomainCache,omitempty"` // IP-域名缓存配置
+}
+
+// GeoIPConfig GeoIP 路由配置
+type GeoIPConfig struct {
+	Enabled      bool   `json:"enabled"`      // 是否启用 GeoIP 路由
+	DatabasePath string `json:"databasePath"` // GeoLite2 数据库路径
+	ChinaDirect  bool   `json:"chinaDirect"`  // 中国 IP 是否直连（true=直连，false=加速）
+}
+
+// BypassRulesConfig 旁路规则配置
+type BypassRulesConfig struct {
+	Enabled        bool     `json:"enabled"`                  // 是否启用旁路规则
+	Domains        []string `json:"domains,omitempty"`        // 域名列表（支持通配符，如 *.apple.com）
+	DomainSuffixes []string `json:"domainSuffixes,omitempty"` // 域名后缀列表（如 .cn, .gov.cn）
+	IPRanges       []string `json:"ipRanges,omitempty"`       // IP 段列表（CIDR 格式，如 192.168.0.0/16）
+}
+
+// CacheConfig IP-域名缓存配置
+type CacheConfig struct {
+	Enabled    bool   `json:"enabled"`    // 是否启用缓存
+	MaxEntries int    `json:"maxEntries"` // 最大缓存条目数
+	TTL        string `json:"ttl"`        // 缓存 TTL（如 "5m", "1h"）
+}
+
+// EngineConfig 引擎配置（对应 processor/config.EngineConf），以前的tun2socks配置key
+type EngineConfig struct {
+	MTU                      int    `json:"mtu"`
+	Mark                     int    `json:"fwmark"`
+	RestAPI                  string `json:"restapi"`
+	Device                   string `json:"device"`
+	LogLevel                 string `json:"loglevel"`
+	Interface                string `json:"interface"`
+	TCPModerateReceiveBuffer bool   `json:"tcp-moderate-receive-buffer"`
+	TCPSendBufferSize        string `json:"tcp-send-buffer-size"`
+	TCPReceiveBufferSize     string `json:"tcp-receive-buffer-size"`
+	MulticastGroups          string `json:"multicast-groups"`
+	TUNPreUp                 string `json:"tun-pre-up"`
+	TUNPostUp                string `json:"tun-post-up"`
+	UDPTimeout               string `json:"udp-timeout"` // 字符串格式，需要解析为 time.Duration
+}
+
+// Config 完整配置结构
+type Config struct {
+	Engine       *EngineConfig           `json:"engine"`
+	CurrentProxy string                  `json:"currentProxy"`
+	CoreServer   string                  `json:"coreServer"`
+	Proxies      map[string]*ProxyConfig `json:"proxies"`
+	RoutingRules *RoutingRulesConfig     `json:"routingRules,omitempty"` // 路由规则配置
+}

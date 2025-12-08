@@ -73,5 +73,38 @@
         }
       ]
     }
+  },
+  "routingRules": {
+    "geoip": {
+      "enabled": true,
+      "databasePath": "/usr/local/share/GeoIP/GeoLite2-Country.mmdb",
+      "chinaDirect": true
+    },
+    "bypassRules": {
+      "enabled": true,
+      "domains": [
+        "*.apple.com",
+        "*.icloud.com",
+        "*.microsoft.com",
+        "*.windowsupdate.com"
+      ],
+      "domainSuffixes": [
+        ".cn",
+        ".gov.cn",
+        ".edu.cn"
+      ],
+      "ipRanges": [
+        "192.168.0.0/16",
+        "10.0.0.0/8",
+        "172.16.0.0/12",
+        "127.0.0.0/8",
+        "169.254.0.0/16"
+      ]
+    },
+    "ipDomainCache": {
+      "enabled": true,
+      "maxEntries": 10000,
+      "ttl": "5m"
+    }
   }
 }

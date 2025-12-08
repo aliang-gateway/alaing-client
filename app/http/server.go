@@ -86,4 +86,13 @@ func registerRoutesWithMux(h *routes.Handlers) {
 	mux.HandleFunc("/api/run/status", h.Run.HandleRunStatus)
 	mux.HandleFunc("/api/run/swift", h.Run.HandleRunSwift)
 
+	// Routing Rules API (/api/rules/*)
+	mux.HandleFunc("/api/rules/geoip/status", h.Rules.HandleGetGeoIPStatus)
+	mux.HandleFunc("/api/rules/geoip/lookup", h.Rules.HandleGeoIPLookup)
+	mux.HandleFunc("/api/rules/cache/stats", h.Rules.HandleGetCacheStats)
+	mux.HandleFunc("/api/rules/cache/clear", h.Rules.HandleClearCache)
+	mux.HandleFunc("/api/rules/engine/status", h.Rules.HandleGetRuleEngineStatus)
+	mux.HandleFunc("/api/rules/engine/enable", h.Rules.HandleEnableRuleEngine)
+	mux.HandleFunc("/api/rules/engine/disable", h.Rules.HandleDisableRuleEngine)
+
 }

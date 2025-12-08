@@ -9,7 +9,10 @@ import (
 
 	"nursor.org/nursorgate/common/logger"
 	"nursor.org/nursorgate/common/model"
+	M "nursor.org/nursorgate/inbound/tun/metadata"
+	"nursor.org/nursorgate/processor/cache"
 	cert_client "nursor.org/nursorgate/processor/cert/client"
+	"nursor.org/nursorgate/processor/rules"
 	tls_helper "nursor.org/nursorgate/processor/tls"
 	watcher "nursor.org/nursorgate/processor/watcher"
 )
@@ -184,4 +187,54 @@ type WrappedConnWithTLS struct {
 	net.Conn
 	SNI    string // Extracted Server Name Indication
 	Buffer []byte // Preserved TLS ClientHello
+}
+
+// DetermineRouteWithContext uses the rule engine to make intelligent routing decisions.
+// This method leverages:
+// 1. Bypass rules (user-configured direct routes)
+// 2. IP-Domain cache (avoid repeated SNI extraction)
+// 3. Nacos rules (Cursor MITM and Door acceleration)
+// 4. GeoIP routing (country-based decisions)
+//
+// Returns both the routing decision and whether SNI extraction is required.
+func (h *DefaultTLSHandler) DetermineRouteWithContext(metadata *M.Metadata) (ProxyRoute, bool) {
+	engine := rules.GetEngine()
+
+	// If rule engine is disabled or not initialized, fallback to old logic
+	if engine == nil || !engine.IsEnabled() {
+		return h.DetermineRoute(metadata.HostName), true
+	}
+
+	// Build evaluation context
+	ctx := &rules.EvaluationContext{
+		DstIP:    metadata.DstIP,
+		DstPort:  metadata.DstPort,
+		SrcIP:    metadata.SrcIP,
+		Domain:   metadata.HostName,
+		Protocol: "tcp",
+	}
+
+	// Evaluate routing rules
+	result, err := engine.EvaluateRoute(ctx)
+	if err != nil {
+		logger.Warn(fmt.Sprintf("Rule engine error: %v, fallback to old logic", err))
+		return h.DetermineRoute(metadata.HostName), true
+	}
+
+	// Log decision for debugging
+	logger.Debug(fmt.Sprintf("Route decision: %s (rule: %s, reason: %s, requiresSNI: %v)",
+		result.Route, result.MatchedRule, result.Reason, result.RequiresSNI))
+
+	// Convert cache.RouteDecision to ProxyRoute
+	var proxyRoute ProxyRoute
+	switch result.Route {
+	case cache.RouteToCursor:
+		proxyRoute = RouteToCursor
+	case cache.RouteToDoor:
+		proxyRoute = RouteToDoor
+	default:
+		proxyRoute = RouteDirect
+	}
+
+	return proxyRoute, result.RequiresSNI
 }

@@ -3,6 +3,7 @@ package common
 import (
 	"encoding/json"
 	"io"
+	"net"
 	"net/http"
 	"strconv"
 	"strings"
@@ -64,4 +65,15 @@ func ValidateLogLevel(level string) error {
 		return nil // 允许任何级别传递，具体验证由logger模块处理
 	}
 	return nil
+}
+
+// DecodeJSON 解析JSON请求体（别名函数）
+func DecodeJSON(body io.Reader, v interface{}) error {
+	decoder := json.NewDecoder(body)
+	return decoder.Decode(v)
+}
+
+// ParseIP 解析IP地址字符串
+func ParseIP(ipStr string) net.IP {
+	return net.ParseIP(ipStr)
 }
