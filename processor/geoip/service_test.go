@@ -18,7 +18,7 @@ func TestService_LoadDatabase(t *testing.T) {
 	service := &Service{}
 
 	// Test with non-existent file
-	err := service.LoadDatabase("/nonexistent/path/GeoLite2-Country.mmdb")
+	err := service.LoadDatabase("~/.nonelane/GeoLite2-Country.mmdb")
 	assert.Error(t, err, "Should fail with non-existent database path")
 	assert.False(t, service.IsEnabled(), "Service should not be enabled after failed load")
 
@@ -84,7 +84,7 @@ func TestService_Integration(t *testing.T) {
 	service := GetService()
 
 	// Update this path to your actual test database location
-	testDBPath := "/usr/local/share/GeoIP/GeoLite2-Country.mmdb"
+	testDBPath := "~/.nonelane/GeoLite2-Country.mmdb"
 
 	err := service.LoadDatabase(testDBPath)
 	require.NoError(t, err)

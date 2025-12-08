@@ -1,53 +1,110 @@
 {
   "engine": {
-    "mtu": 1500,
+    "mtu": 0,
     "fwmark": 0,
-    "restapi": "127.0.0.1:56431",
+    "restapi": "",
     "device": "utun0",
-    "loglevel": "debug",
-    "interface": "127.0.0.1",
+    "loglevel": "info",
+    "interface": "en0",
     "tcp-moderate-receive-buffer": false,
-    "tcp-send-buffer-size": "2097152",
-    "tcp-receive-buffer-size": "2097152",
+    "tcp-send-buffer-size": "",
+    "tcp-receive-buffer-size": "",
     "multicast-groups": "",
     "tun-pre-up": "",
     "tun-post-up": "",
     "udp-timeout": "60s"
   },
-  "currentProxy": "direct",
-  "coreServer": "https://ai-gateway.nursor.org",
+  "currentProxy": "door",
   "proxies": {
     "direct": {
-      "type": "direct",
-      "settings": {}
+      "type": "direct"
+    },
+    "nonelane": {
+      "type": "nonelane",
+      "core_server": "ai-gateway.nursor.org:443"
     },
     "door": {
-      "type": "vless",
+      "type": "door",
       "is_default": true,
-      "is_door_proxy": true,
-      "vless": {
-        "server": "node1.nursor.org:35001",
-        "uuid": "74cddcdd-6d48-41cf-8e62-902e7c943fe7",
-        "flow": "xtls-rprx-vision",
-        "tls_enabled": true,
-        "sni": "www.microsoft.com",
-        "reality_enabled": true,
-        "public_key": "sAtJcW2xLIUWRE-_7KHGEAtvHx-P1sDbjrrgrt4_XCo",
-        "short_id": "95",
-        "short_id_list": "ef,b79e62,7d87a3,f4bfb2,ecdc,048cc1,be,872a9cb601,4e642a,d0a4cc,6a37c85b4d,facf,e2e46bb5,5fe83d984b7c,884c,f2e4c3af,7b79c5,b7a05d,b6920fa248,0975,95,4d3bd40917,57d89cd6ed9a"
-      },
-      "shadowsocks": null
+      "members": [
+        {
+          "showname": "Hong Kong Node 01",
+          "type": "vless",
+          "latency": 45,
+          "vless": {
+            "server": "hk1.example.com:443",
+            "uuid": "74cddcdd-6d48-41cf-8e62-902e7c943fe7",
+            "flow": "",
+            "tls_enabled": true,
+            "sni": "www.microsoft.com",
+            "reality_enabled": true,
+            "public_key": "sAtJcW2xLIUWRE-_7KHGEAtvHx-P1sDbjrrgrt4_XCo",
+            "short_id": "",
+            "short_id_list": "ef,b79e62,7d87a3,f4bfb2,ecdc,048cc1,be,872a9cb601,4e642a,d0a4cc,6a37c85b4d,facf,e2e46bb5,5fe83d984b7c,884c,f2e4c3af,7b79c5,b7a05d,b6920fa248,0975,95,4d3bd40917,57d89cd6ed9a"
+          }
+        },
+        {
+          "showname": "Japan Node 01",
+          "type": "vless",
+          "latency": 68,
+          "vless": {
+            "server": "jp1.example.com:443",
+            "uuid": "your-uuid-here",
+            "flow": "",
+            "tls_enabled": true,
+            "sni": "www.google.com",
+            "reality_enabled": false,
+            "public_key": "",
+            "short_id": "",
+            "short_id_list": ""
+          }
+        },
+        {
+          "showname": "US Node 01",
+          "type": "shadowsocks",
+          "latency": 185,
+          "shadowsocks": {
+            "server": "us1.example.com:443",
+            "method": "aes-256-gcm",
+            "password": "your-password-here",
+            "obfs_mode": "tls",
+            "obfs_host": "cloudflare.com"
+          }
+        }
+      ]
+    }
+  },
+  "routingRules": {
+    "geoip": {
+      "enabled": true,
+      "databasePath": "~/.nonelane/GeoLite2-Country.mmdb",
+      "chinaDirect": true
     },
-    "shadow": {
-      "type": "shadowsocks",
-      "is_default": false,
-      "is_door_proxy": false,
-      "shadowsocks": {
-        "server": "node1.nursor.org:35002",
-        "method": "aes-256-gcm",
-        "password": "pLogv4/KvQsRra3pDmjPWj8+cKmZOp+ykYNGXyd2GYY="
-      },
-      "vless": null
+    "bypassRules": {
+      "enabled": true,
+      "domains": [
+        "*.apple.com",
+        "*.icloud.com",
+        "*.microsoft.com",
+        "*.windowsupdate.com"
+      ],
+      "domainSuffixes": [
+        ".cn",
+        ".gov.cn",
+        ".edu.cn"
+      ],
+      "ipRanges": [
+        "192.168.0.0/16",
+        "10.0.0.0/8",
+        "172.16.0.0/12",
+        "127.0.0.0/8",
+        "169.254.0.0/16"
+      ]
+    },
+    "ipDomainCache": {
+      "enabled": true,
+      "maxEntries": 10000,
+      "ttl": "5m"
     }
   }
 }

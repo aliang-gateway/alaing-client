@@ -77,7 +77,7 @@
   "routingRules": {
     "geoip": {
       "enabled": true,
-      "databasePath": "/usr/local/share/GeoIP/GeoLite2-Country.mmdb",
+      "databasePath": "~/.nonelane/GeoLite2-Country.mmdb",
       "chinaDirect": true
     },
     "bypassRules": {
