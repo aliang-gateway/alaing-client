@@ -242,15 +242,24 @@ func (r *Registry) ListWithInfo() map[string]ProxyInfo {
 		}
 	}
 
-	// 添加 door 代理组的信息
+	// 展开 door 代理组的成员
 	if r.doorGroup != nil && r.doorGroup.Count() > 0 {
-		info["door"] = ProxyInfo{
-			Name:        "door",
-			Type:        "door_collection",
-			Addr:        fmt.Sprintf("%d members", r.doorGroup.Count()),
-			IsDefault:   false,
-			IsDoorProxy: true,
-			IsNonelane:  false,
+		members := r.doorGroup.ListMembers()
+		currentMember := r.doorGroup.GetCurrentMemberName()
+
+		for _, member := range members {
+			// 使用 "door:成员名" 作为键，以区分不同的 door 成员
+			memberKey := fmt.Sprintf("door:%s", member.ShowName)
+			info[memberKey] = ProxyInfo{
+				Name:        memberKey,
+				Type:        member.Proxy.Proto().String(),
+				Addr:        member.Proxy.Addr(),
+				IsDefault:   memberKey == r.defaultName || (r.defaultName == "door" && member.ShowName == currentMember),
+				IsDoorProxy: true,
+				IsNonelane:  false,
+				Latency:     member.Latency,
+				ShowName:    member.ShowName,
+			}
 		}
 	}
 
@@ -265,6 +274,8 @@ type ProxyInfo struct {
 	IsDefault   bool   `json:"is_default"`
 	IsDoorProxy bool   `json:"is_door_proxy"`
 	IsNonelane  bool   `json:"is_nonelane"`
+	Latency     int64  `json:"latency,omitempty"`     // 延迟（毫秒），仅用于 door 成员
+	ShowName    string `json:"show_name,omitempty"`   // 显示名称，仅用于 door 成员
 }
 
 // Count 返回已注册的代理数量
