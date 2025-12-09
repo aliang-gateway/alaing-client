@@ -333,15 +333,32 @@
                     <div class="card mb-4">
                         <div class="card-header">引擎状态</div>
                         <div class="card-body">
-                            <div class="row mb-3">
-                                <div class="col-md-4">
-                                    <strong>状态:</strong> <span id="rulesStatus">-</span>
+                            <div class="row g-3 mb-3">
+                                <div class="col-md-6">
+                                    <div class="d-flex align-items-center">
+                                        <span class="me-2">引擎状态:</span>
+                                        <span id="rules-status-badge" class="badge bg-secondary">
+                                            <span id="rules-status-text">未知</span>
+                                        </span>
+                                    </div>
                                 </div>
-                                <div class="col-md-4">
-                                    <strong>最后更新:</strong> <span id="rulesLastUpdate">-</span>
+                                <div class="col-md-6">
+                                    <div class="d-flex align-items-center">
+                                        <span class="me-2">缓存命中率:</span>
+                                        <strong id="cache-hit-rate">-</strong>
+                                    </div>
                                 </div>
-                                <div class="col-md-4">
-                                    <strong>GeoIP:</strong> <span id="rulesGeoipStatus">-</span>
+                                <div class="col-md-6">
+                                    <div class="d-flex align-items-center">
+                                        <span class="me-2">总查询次数:</span>
+                                        <strong id="total-cache">-</strong>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="d-flex align-items-center">
+                                        <span class="me-2">最后更新:</span>
+                                        <strong id="cache-last-update">-</strong>
+                                    </div>
                                 </div>
                             </div>
                             <div class="btn-group">
@@ -351,7 +368,7 @@
                                 <button type="button" class="btn btn-warning" id="rulesDisableBtn">
                                     <i class="bi bi-toggle-off"></i> 禁用
                                 </button>
-                                <button type="button" class="btn btn-primary" id="rulesReloadBtn">
+                                <button type="button" class="btn btn-primary" id="rulesReloadBtn" disabled title="功能暂未实现">
                                     <i class="bi bi-arrow-clockwise"></i> 重新加载
                                 </button>
                             </div>
@@ -380,7 +397,8 @@
                         <div class="card-body">
                             <div class="mb-3">
                                 <div class="input-group">
-                                    <input type="text" class="form-control" id="rulesLookupDomain" placeholder="输入域名或IP">
+                                    <span class="input-group-text">IP地址:</span>
+                                    <input type="text" class="form-control" id="rulesLookupDomain" placeholder="输入要查询的IP地址">
                                     <button class="btn btn-primary" type="button" id="rulesLookupBtn">
                                         <i class="bi bi-search"></i> 查询
                                     </button>
@@ -394,6 +412,55 @@
                 <!-- 日志页面 -->
                 <div id="logs-page" class="content-section">
                     <h2 class="mb-4"><i class="bi bi-journal-text"></i> 日志</h2>
+
+                    <!-- 日志配置卡片 -->
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            <i class="bi bi-gear me-2"></i> 日志配置
+                        </div>
+                        <div class="card-body">
+                            <div class="row g-3">
+                                <div class="col-md-4">
+                                    <label for="logLevelSelect" class="form-label">日志级别</label>
+                                    <select class="form-select form-select-sm" id="logLevelSelect">
+                                        <option value="TRACE">TRACE</option>
+                                        <option value="DEBUG">DEBUG</option>
+                                        <option value="INFO" selected>INFO</option>
+                                        <option value="WARN">WARN</option>
+                                        <option value="ERROR">ERROR</option>
+                                        <option value="FATAL">FATAL</option>
+                                        <option value="PANIC">PANIC</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-4">
+                                    <label for="logSourceSelect" class="form-label">日志来源过滤</label>
+                                    <select class="form-select form-select-sm" id="logSourceSelect">
+                                        <option value="">全部</option>
+                                        <option value="main">主程序</option>
+                                        <option value="http">HTTP服务</option>
+                                        <option value="proxy">代理</option>
+                                        <option value="rules">规则引擎</option>
+                                        <option value="door">Door</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-4">
+                                    <label for="logAutoScroll" class="form-label">自动滚动</label>
+                                    <div class="form-check form-switch mt-2">
+                                        <input class="form-check-input" type="checkbox" id="logAutoScroll" checked>
+                                        <label class="form-check-label" for="logAutoScroll">启用</label>
+                                    </div>
+                                </div>
+                                <div class="col-12 mt-2">
+                                    <button type="button" class="btn btn-primary btn-sm me-2" id="logConfigSaveBtn">
+                                        <i class="bi bi-save"></i> 保存日志级别
+                                    </button>
+                                    <button type="button" class="btn btn-secondary btn-sm" id="logFilterBtn">
+                                        <i class="bi bi-funnel"></i> 应用过滤
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
 
                     <div class="card">
                         <div class="card-header d-flex justify-content-between align-items-center">

@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"sync/atomic"
 	"nursor.org/nursorgate/common/logger"
 )
 
@@ -64,20 +65,45 @@ func (ls *LogService) UpdateLogLevel(levelStr string) (logger.LogLevelType, erro
 // Returns a channel that receives log entries
 func (ls *LogService) SubscribeLogStream() (<-chan *logger.LogEntry, func()) {
 	logChan := make(chan *logger.LogEntry, 100)
+	closed := int32(0) // Use atomic operations for thread safety
 
 	observer := func(entry *logger.LogEntry) {
+		// Check if channel is closed before sending
+		if atomic.LoadInt32(&closed) == 1 {
+			return
+		}
+
+		// Try to send without blocking
 		select {
 		case logChan <- entry:
+			// Message sent successfully
 		default:
-			// Channel full, drop the entry
+			// Channel full, drop the entry to avoid blocking
+			// This is acceptable for log streaming
 		}
 	}
 
+	// Register observer
 	logger.GetGlobalBuffer().Subscribe(observer)
 
 	// Return channel and cleanup function
 	cleanup := func() {
-		close(logChan)
+		// Mark as closed atomically first
+		atomic.StoreInt32(&closed, 1)
+
+		// Drain any remaining messages to prevent blocking
+		go func() {
+			for {
+				select {
+				case <-logChan:
+					// Drain remaining messages
+				default:
+					// No more messages, close the channel
+					close(logChan)
+					return
+				}
+			}
+		}()
 	}
 
 	return logChan, cleanup

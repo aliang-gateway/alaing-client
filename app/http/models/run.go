@@ -21,7 +21,7 @@ type RunUserInfoRequest struct {
 // RunStatusResponse is the response body for getting run status
 type RunStatusResponse struct {
 	CurrentMode    string   `json:"current_mode"`
-	TunRunning     bool     `json:"tun_running"`
+	IsRunning      bool     `json:"is_running"`
 	AvailableModes []string `json:"available_modes"`
 	Status         string   `json:"status,omitempty"`
 	Description    string   `json:"description,omitempty"`

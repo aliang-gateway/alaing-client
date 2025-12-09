@@ -77,11 +77,16 @@ func (rs *RunService) StartService() map[string]interface{} {
 	case models.ModeTUN:
 		return rs.startTUN()
 	case models.ModeHTTP:
+		// HTTP 模式启动时，设置运行状态为 true
+		rs.modeChangeMutex.Lock()
+		rs.tunRunning = true
+		rs.modeChangeMutex.Unlock()
+
 		go httpServer.StartMitmHttp()
 		return map[string]interface{}{
 			"status":  "success",
-			"message": "HTTP proxy server is already running",
-			"details": "HTTP proxy was started when you switched to HTTP mode",
+			"message": "HTTP proxy server is starting",
+			"details": "HTTP proxy server is starting on port 56432",
 			"port":    "56432",
 		}
 	default:
@@ -176,9 +181,12 @@ func (rs *RunService) GetStatus() map[string]interface{} {
 	rs.modeChangeMutex.RLock()
 	defer rs.modeChangeMutex.RUnlock()
 
+	// is_running: true if service is running (either HTTP or TUN mode)
+	isRunning := rs.tunRunning
+
 	response := map[string]interface{}{
 		"current_mode": string(rs.currentMode),
-		"tun_running":  rs.tunRunning,
+		"is_running":   isRunning,
 		"available_modes": []string{
 			string(models.ModeHTTP),
 			string(models.ModeTUN),
@@ -187,7 +195,7 @@ func (rs *RunService) GetStatus() map[string]interface{} {
 
 	switch rs.currentMode {
 	case models.ModeTUN:
-		if rs.tunRunning {
+		if isRunning {
 			response["status"] = "TUN service is running"
 			response["description"] = "Transparent proxy mode via TUN interface"
 		} else {
@@ -195,7 +203,7 @@ func (rs *RunService) GetStatus() map[string]interface{} {
 			response["description"] = "TUN mode is ready, call start to activate"
 		}
 	case models.ModeHTTP:
-		if rs.tunRunning {
+		if isRunning {
 			response["status"] = "HTTP proxy server is running"
 			response["description"] = "HTTP CONNECT proxy mode on port 56432"
 		} else {

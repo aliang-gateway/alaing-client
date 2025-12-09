@@ -4,7 +4,23 @@ const appState = {
     proxies: [],
     currentProxy: null,
     doorMembers: [],
-    loading: false
+    loading: false,
+    // 新增状态属性
+    runStatus: {
+        isRunning: false,
+        currentMode: null,
+        lastUpdated: null
+    },
+    ruleEngineStatus: {
+        isEnabled: false,
+        lastUpdated: null
+    },
+    logConfig: {
+        level: 'info',
+        source: '',
+        autoScroll: true
+    },
+    statusPollingInterval: null
 };
 
 // ============ API 客户端 ============
@@ -42,6 +58,165 @@ async function apiPost(endpoint, data) {
         method: 'POST',
         body: JSON.stringify(data)
     });
+}
+
+// ============ 全局状态管理 ============
+// 每秒更新一次全局状态
+async function updateGlobalStatus() {
+    try {
+        // 并行调用API提高效率
+        const [runStatus, rulesStatus] = await Promise.all([
+            apiGet('/run/status').catch(() => ({ is_running: false, current_mode: 'unknown' })),
+            apiGet('/rules/engine/status').catch(() => ({ engineEnabled: false }))
+        ]);
+
+        // 更新全局状态
+        const oldRunningState = appState.runStatus.isRunning;
+        const oldRuleEngineState = appState.ruleEngineStatus.isEnabled;
+
+        // 判断服务是否运行：使用 is_running 字段
+        const isRunning = runStatus.is_running || false;
+        
+        appState.runStatus = {
+            isRunning: isRunning,
+            currentMode: runStatus.current_mode || 'unknown',
+            lastUpdated: Date.now()
+        };
+
+        appState.ruleEngineStatus = {
+            isEnabled: rulesStatus.engineEnabled || false,
+            lastUpdated: Date.now()
+        };
+
+        // 更新UI
+        updateStatusIndicator();
+
+        // 只有状态改变时才更新按钮
+        if (oldRunningState !== appState.runStatus.isRunning ||
+            oldRuleEngineState !== appState.ruleEngineStatus.isEnabled) {
+            updateButtonStates();
+        }
+
+    } catch (error) {
+        console.error('Status update failed:', error);
+    }
+}
+
+// 更新状态指示器
+function updateStatusIndicator() {
+    const statusText = document.getElementById('statusText');
+    const indicator = document.getElementById('statusIndicator');
+
+    if (statusText) {
+        const runningStatus = appState.runStatus.isRunning ? '运行中' : '已停止';
+        statusText.textContent = `Nursorgate2 - ${runningStatus}`;
+    }
+
+    if (indicator) {
+        if (appState.runStatus.isRunning) {
+            indicator.className = 'status-indicator running';
+        } else {
+            indicator.className = 'status-indicator stopped';
+        }
+    }
+
+    // 更新模式选择按钮状态
+    updateModeRadioButtons();
+}
+
+// 更新模式选择按钮状态
+function updateModeRadioButtons() {
+    const tunRadio = document.getElementById('runModeTun');
+    const httpRadio = document.getElementById('runModeHttp');
+
+    if (tunRadio && httpRadio && appState.runStatus.currentMode) {
+        // 根据当前模式设置选中状态
+        if (appState.runStatus.currentMode.toLowerCase() === 'tun') {
+            tunRadio.checked = true;
+            httpRadio.checked = false;
+            tunRadio.parentElement.classList.add('active');
+            httpRadio.parentElement.classList.remove('active');
+        } else if (appState.runStatus.currentMode.toLowerCase() === 'http') {
+            tunRadio.checked = false;
+            httpRadio.checked = true;
+            tunRadio.parentElement.classList.remove('active');
+            httpRadio.parentElement.classList.add('active');
+        }
+    }
+}
+
+// 更新所有按钮状态
+function updateButtonStates() {
+    updateDashboardButtonStates();
+    updateRulesButtonStates();
+}
+
+// 更新仪表板按钮状态
+function updateDashboardButtonStates() {
+    const dashStartBtn = document.getElementById('dashStartBtn');
+    const dashStopBtn = document.getElementById('dashStopBtn');
+    const runStartBtn = document.getElementById('runStartBtn');
+    const runStopBtn = document.getElementById('runStopBtn');
+
+    if (appState.runStatus.isRunning) {
+        // 运行中：禁用启动按钮，启用停止按钮
+        if (dashStartBtn) {
+            dashStartBtn.disabled = true;
+            dashStartBtn.classList.add('disabled');
+        }
+        if (dashStopBtn) {
+            dashStopBtn.disabled = false;
+            dashStopBtn.classList.remove('disabled');
+        }
+        if (runStartBtn) {
+            runStartBtn.disabled = true;
+            runStartBtn.classList.add('disabled');
+        }
+        if (runStopBtn) {
+            runStopBtn.disabled = false;
+            runStopBtn.classList.remove('disabled');
+        }
+    } else {
+        // 已停止：启用启动按钮，禁用停止按钮
+        if (dashStartBtn) {
+            dashStartBtn.disabled = false;
+            dashStartBtn.classList.remove('disabled');
+        }
+        if (dashStopBtn) {
+            dashStopBtn.disabled = true;
+            dashStopBtn.classList.add('disabled');
+        }
+        if (runStartBtn) {
+            runStartBtn.disabled = false;
+            runStartBtn.classList.remove('disabled');
+        }
+        if (runStopBtn) {
+            runStopBtn.disabled = true;
+            runStopBtn.classList.add('disabled');
+        }
+    }
+}
+
+// 更新规则引擎按钮状态
+function updateRulesButtonStates() {
+    const rulesEnableBtn = document.getElementById('rulesEnableBtn');
+    const rulesDisableBtn = document.getElementById('rulesDisableBtn');
+
+    if (rulesEnableBtn && rulesDisableBtn) {
+        if (appState.ruleEngineStatus.isEnabled) {
+            // 已启用：禁用启用按钮，启用禁用按钮
+            rulesEnableBtn.disabled = true;
+            rulesEnableBtn.classList.add('disabled');
+            rulesDisableBtn.disabled = false;
+            rulesDisableBtn.classList.remove('disabled');
+        } else {
+            // 已禁用：启用启用按钮，禁用禁用按钮
+            rulesEnableBtn.disabled = false;
+            rulesEnableBtn.classList.remove('disabled');
+            rulesDisableBtn.disabled = true;
+            rulesDisableBtn.classList.add('disabled');
+        }
+    }
 }
 
 // ============ 通知功能 ============
@@ -106,28 +281,51 @@ async function loadDashboard() {
             console.log('当前代理未设置:', error.message);
         }
 
+        // 判断服务是否运行：使用 is_running 字段
+        const isRunning = runStatus.is_running || false;
+        
+        // 更新全局状态
+        appState.runStatus.isRunning = isRunning;
+        appState.runStatus.currentMode = runStatus.current_mode || 'unknown';
+        appState.runStatus.lastUpdated = Date.now();
+
         // 更新仪表板
-        const runningStatus = runStatus.tun_running ? 'TUN 运行中' : 'HTTP 模式';
-        document.getElementById('dashRunStatus').textContent = runningStatus;
+        let runningStatusText = '';
+        if (isRunning) {
+            if (runStatus.current_mode === 'tun') {
+                runningStatusText = 'TUN 运行中';
+            } else if (runStatus.current_mode === 'http') {
+                runningStatusText = 'HTTP 运行中';
+            } else {
+                runningStatusText = '运行中';
+            }
+        } else {
+            runningStatusText = runStatus.current_mode === 'tun' ? 'TUN 模式（未启动）' : 'HTTP 模式（未启动）';
+        }
+        
+        document.getElementById('dashRunStatus').textContent = runningStatusText;
         document.getElementById('dashCurrentProxy').textContent = currentProxyDisplay;
         document.getElementById('dashRunMode').textContent = runStatus.current_mode || '-';
-        document.getElementById('dashRuleStatus').textContent = rulesStatus?.status === 'enabled' ? '启用' : '禁用';
+        document.getElementById('dashRuleStatus').textContent = rulesStatus?.engineEnabled ? '启用' : '禁用';
         // proxyList 返回格式是 { proxies: {...}, count: ... }
         const proxyCount = proxyList?.proxies ? Object.keys(proxyList.proxies).length : (proxyList?.count || 0);
         document.getElementById('dashProxyCount').textContent = proxyCount;
         document.getElementById('dashDoorCount').textContent = doorMembers?.members?.length || 0;
         document.getElementById('dashLastUpdate').textContent = new Date().toLocaleTimeString();
 
-        // 更新顶部状态
+        // 更新顶部状态指示器
         const indicator = document.getElementById('statusIndicator');
         const statusText = document.getElementById('statusText');
-        if (runStatus.tun_running) {
+        if (isRunning) {
             indicator.className = 'status-indicator running';
-            statusText.textContent = '运行中';
+            statusText.textContent = 'Nursorgate2 - 运行中';
         } else {
             indicator.className = 'status-indicator stopped';
-            statusText.textContent = '已停止';
+            statusText.textContent = 'Nursorgate2 - 已停止';
         }
+        
+        // 更新按钮状态
+        updateButtonStates();
     } catch (error) {
         console.error('加载仪表板数据失败:', error);
     }
@@ -137,10 +335,22 @@ document.getElementById('dashStartBtn').addEventListener('click', () => {
     const btn = event.target.closest('button');
     showLoading(btn);
     apiPost('/run/start')
-        .then(() => {
-            showSuccess('服务启动成功');
-            loadDashboard();
-            loadRunStatus();
+        .then((result) => {
+            // 如果返回成功，立即更新状态
+            if (result && (result.status === 'success' || result.status === 'already_running')) {
+                // 根据返回结果判断服务已启动
+                appState.runStatus.isRunning = true;
+                updateStatusIndicator();
+                updateButtonStates();
+                showSuccess(result.message || '服务启动成功');
+            } else {
+                showSuccess('服务启动成功');
+            }
+            // 延迟一点再刷新，确保后端状态已更新
+            setTimeout(() => {
+                loadDashboard();
+                loadRunStatus();
+            }, 500);
         })
         .catch(error => {
             showError('启动失败: ' + error.message);
@@ -154,10 +364,21 @@ document.getElementById('dashStopBtn').addEventListener('click', () => {
     const btn = event.target.closest('button');
     showLoading(btn);
     apiPost('/run/stop')
-        .then(() => {
-            showSuccess('服务停止成功');
-            loadDashboard();
-            loadRunStatus();
+        .then((result) => {
+            // 如果返回成功，立即更新状态
+            if (result && result.status === 'success') {
+                appState.runStatus.isRunning = false;
+                updateStatusIndicator();
+                updateButtonStates();
+                showSuccess(result.message || '服务停止成功');
+            } else {
+                showSuccess('服务停止成功');
+            }
+            // 延迟一点再刷新，确保后端状态已更新
+            setTimeout(() => {
+                loadDashboard();
+                loadRunStatus();
+            }, 500);
         })
         .catch(error => {
             showError('停止失败: ' + error.message);
@@ -348,10 +569,21 @@ document.getElementById('switchProxyBtn').addEventListener('click', () => {
 async function loadRunStatus() {
     try {
         const status = await apiGet('/run/status');
+        
+        // 判断服务是否运行：使用 is_running 字段
+        const isRunning = status.is_running || false;
+        
         document.getElementById('runCurrentMode').textContent = status.current_mode || '-';
-        document.getElementById('runServiceStatus').textContent = status.tun_running ? '运行中' : '已停止';
+        document.getElementById('runServiceStatus').textContent = isRunning ? '运行中' : '已停止';
         document.getElementById('runAvailableModes').textContent = status.available_modes?.join(' / ') || '-';
-        document.getElementById('runStatusInfo').textContent = status.status || '-';
+        document.getElementById('runStatusInfo').textContent = status.status || status.description || '-';
+        
+        // 更新全局状态
+        appState.runStatus.isRunning = isRunning;
+        appState.runStatus.currentMode = status.current_mode || 'unknown';
+        
+        // 更新按钮状态
+        updateButtonStates();
     } catch (error) {
         console.error('加载运行状态失败:', error);
     }
@@ -440,21 +672,107 @@ document.getElementById('runUserInfoBtn').addEventListener('click', () => {
 // ============ 规则引擎功能 ============
 async function loadRulesData() {
     try {
-        const [status, cacheInfo] = await Promise.all([
-            apiGet('/rules/engine/status'),
-            apiGet('/rules/cache/info').catch(() => null)
-        ]);
+        // 1. 获取规则引擎状态（包含缓存统计）
+        const statusData = await apiGet('/rules/engine/status');
 
-        document.getElementById('rulesStatus').textContent = status.status === 'enabled' ? '启用' : '禁用';
-        document.getElementById('rulesLastUpdate').textContent = status.last_update || '-';
-        document.getElementById('rulesGeoipStatus').textContent = status.geoip_enabled ? '已加载' : '未加载';
+        // 使用后端返回的字段名 engineEnabled 和 geoipEnabled
+        const isEnabled = statusData.engineEnabled || false;
+        const geoipEnabled = statusData.geoipEnabled || false;
 
-        if (cacheInfo) {
-            document.getElementById('rulesCacheSize').textContent = cacheInfo.size || 0;
-            document.getElementById('rulesCacheCount').textContent = cacheInfo.count || 0;
+        // 更新全局状态
+        appState.ruleEngineStatus.isEnabled = isEnabled;
+        appState.ruleEngineStatus.lastUpdated = Date.now();
+
+        // 更新规则引擎状态显示
+        const statusBadge = document.getElementById('rules-status-badge');
+        const statusText = document.getElementById('rules-status-text');
+
+        if (statusBadge && statusText) {
+            if (isEnabled) {
+                statusBadge.className = 'badge bg-success';
+                statusText.textContent = '启用';
+            } else {
+                statusBadge.className = 'badge bg-danger';
+                statusText.textContent = '禁用';
+            }
         }
+
+        // GeoIP 状态信息已包含在 statusData 中，可在需要时使用
+
+        // 2. 更新缓存统计信息（优先使用 statusData 中的 cache，如果没有则单独请求）
+        const cacheData = statusData.cache || null;
+        if (cacheData) {
+            updateRulesStatistics(cacheData);
+        } else {
+            // 如果 statusData 中没有 cache，尝试单独获取
+            try {
+                const cacheStats = await apiGet('/rules/cache/stats');
+                if (cacheStats) {
+                    updateRulesStatistics(cacheStats);
+                }
+            } catch (error) {
+                console.warn('获取缓存统计失败:', error);
+            }
+        }
+
+        // 3. 更新按钮状态
+        updateRulesButtonStates();
+
     } catch (error) {
         console.error('加载规则数据失败:', error);
+        showError('加载规则引擎数据失败: ' + error.message);
+
+        // 错误状态下也显示基本信息
+        const statusElement = document.getElementById('rulesStatus');
+        const statusBadge = document.getElementById('rules-status-badge');
+        const statusText = document.getElementById('rules-status-text');
+
+        if (statusElement) {
+            statusElement.textContent = '未知';
+        }
+
+        if (statusBadge && statusText) {
+            statusBadge.className = 'badge bg-secondary';
+            statusText.textContent = '未知';
+        }
+    }
+}
+
+// 更新规则引擎统计信息
+function updateRulesStatistics(cacheData) {
+    // 更新缓存命中率
+    const cacheHitRateElement = document.getElementById('cache-hit-rate');
+    const totalCacheElement = document.getElementById('total-cache');
+    const cacheSizeElement = document.getElementById('rulesCacheSize');
+    const cacheCountElement = document.getElementById('rulesCacheCount');
+    const lastUpdateElement = document.getElementById('cache-last-update');
+
+    if (cacheData) {
+        const cacheHits = cacheData.cache_hits || 0;
+        const cacheMisses = cacheData.cache_misses || 0;
+        const totalHits = cacheHits + cacheMisses;
+        const hitRate = totalHits > 0 ? (cacheHits / totalHits * 100).toFixed(2) : 0;
+
+        if (cacheHitRateElement) {
+            cacheHitRateElement.textContent = hitRate + '%';
+        }
+
+        if (totalCacheElement) {
+            totalCacheElement.textContent = totalHits.toLocaleString();
+        }
+
+        // 兼容旧的缓存显示
+        if (cacheSizeElement) {
+            cacheSizeElement.textContent = cacheData.size || 0;
+        }
+
+        if (cacheCountElement) {
+            cacheCountElement.textContent = cacheData.count || 0;
+        }
+
+        if (lastUpdateElement) {
+            lastUpdateElement.textContent = new Date().toLocaleTimeString();
+        }
     }
 }
 
@@ -493,17 +811,22 @@ document.getElementById('rulesDisableBtn').addEventListener('click', () => {
 document.getElementById('rulesReloadBtn').addEventListener('click', () => {
     const btn = event.target.closest('button');
     showLoading(btn);
-    apiPost('/rules/rules/reload')
-        .then(() => {
-            showSuccess('规则已重新加载');
-            loadRulesData();
-        })
-        .catch(error => {
-            showError('重新加载失败: ' + error.message);
-        })
-        .finally(() => {
-            hideLoading(btn);
-        });
+    // 注意：routes.go 中没有 reload 路由，暂时禁用此功能或提示用户
+    showError('重新加载功能暂未实现');
+    hideLoading(btn);
+
+    // 如果将来后端添加了 reload 路由，可以使用：
+    // apiPost('/api/rules/reload')
+    //     .then(() => {
+    //         showSuccess('规则已重新加载');
+    //         loadRulesData();
+    //     })
+    //     .catch(error => {
+    //         showError('重新加载失败: ' + error.message);
+    //     })
+    //     .finally(() => {
+    //         hideLoading(btn);
+    //     });
 });
 
 document.getElementById('rulesClearCacheBtn').addEventListener('click', () => {
@@ -524,17 +847,19 @@ document.getElementById('rulesClearCacheBtn').addEventListener('click', () => {
 
 document.getElementById('rulesLookupBtn').addEventListener('click', () => {
     const btn = event.target.closest('button');
-    const domain = document.getElementById('rulesLookupDomain').value;
+    const ip = document.getElementById('rulesLookupDomain').value.trim();
 
-    if (!domain) {
-        showError('请输入域名');
+    if (!ip) {
+        showError('请输入IP地址');
         return;
     }
 
     showLoading(btn);
-    apiPost('/rules/geoip/lookup', { domain: domain })
+    // 使用POST请求，发送JSON body
+    apiPost('/rules/geoip/lookup', { ip: ip })
         .then(result => {
             const output = document.getElementById('rulesLookupResult');
+            // result 已经是 data 字段的内容，直接格式化显示
             output.value = JSON.stringify(result, null, 2);
             showSuccess('查询完成');
         })
@@ -790,12 +1115,46 @@ const logWebSocket = {
 // ============ 日志功能 ============
 async function loadLogs() {
     try {
-        const logs = await apiGet('/logs/get');
+        // 获取当前过滤条件
+        const level = appState.logConfig.level || '';
+        const source = appState.logConfig.source || '';
+        
+        // 构建查询参数
+        const params = new URLSearchParams();
+        if (level) params.append('level', level);
+        if (source) params.append('source', source);
+        params.append('limit', '1000'); // 限制返回数量
+        
+        const queryString = params.toString();
+        const endpoint = queryString ? `/logs?${queryString}` : '/logs';
+        
+        const response = await apiGet(endpoint);
         const output = document.getElementById('logsOutput');
-        output.value = logs.logs || '';
-        output.scrollTop = output.scrollHeight;
+        
+        // 格式化日志条目
+        if (response.entries && Array.isArray(response.entries)) {
+            const logText = response.entries.map(entry => {
+                const level = entry.level || 'INFO';
+                const timestamp = entry.timestamp || '';
+                const source = entry.source ? `[${entry.source}]` : '';
+                const message = entry.message || '';
+                return `${timestamp} ${level} ${source} ${message}`;
+            }).join('\n');
+            output.value = logText;
+        } else {
+            output.value = '';
+        }
+        
+        // 如果启用自动滚动，滚动到底部
+        if (appState.logConfig.autoScroll) {
+            output.scrollTop = output.scrollHeight;
+        }
     } catch (error) {
         console.error('加载日志失败:', error);
+        const output = document.getElementById('logsOutput');
+        if (output) {
+            output.value = `加载日志失败: ${error.message}`;
+        }
     }
 }
 
@@ -840,6 +1199,87 @@ document.getElementById('logsClearBtn').addEventListener('click', () => {
             hideLoading(btn);
         });
 });
+
+// 日志配置功能
+async function loadLogConfig() {
+    try {
+        const config = await apiGet('/logs/config');
+        
+        // 后端返回的 level 是大写，需要转换为大写匹配
+        const level = (config.level || 'INFO').toUpperCase();
+        
+        // 更新全局状态（只保存后端支持的配置）
+        appState.logConfig = {
+            level: level,
+            source: appState.logConfig?.source || '', // source 是前端过滤，不从后端加载
+            autoScroll: appState.logConfig?.autoScroll !== false // autoScroll 是前端功能
+        };
+
+        // 更新UI
+        const levelSelect = document.getElementById('logLevelSelect');
+        if (levelSelect) {
+            levelSelect.value = level;
+        }
+        
+        const sourceSelect = document.getElementById('logSourceSelect');
+        if (sourceSelect && appState.logConfig.source) {
+            sourceSelect.value = appState.logConfig.source;
+        }
+        
+        const autoScroll = document.getElementById('logAutoScroll');
+        if (autoScroll) {
+            autoScroll.checked = appState.logConfig.autoScroll;
+        }
+    } catch (error) {
+        console.error('加载日志配置失败:', error);
+        // 使用默认值
+        appState.logConfig = {
+            level: 'INFO',
+            source: '',
+            autoScroll: true
+        };
+    }
+}
+
+// 保存日志级别配置（只保存后端支持的配置项）
+async function saveLogConfig() {
+    const btn = event.target.closest('button');
+    showLoading(btn);
+
+    const level = document.getElementById('logLevelSelect').value.toUpperCase();
+    
+    // 只发送后端支持的配置项
+    const configData = {
+        level: level
+    };
+
+    try {
+        await apiPost('/logs/config', configData);
+        appState.logConfig.level = level;
+        showSuccess('日志级别已更新');
+        // 重新加载日志以应用新级别
+        loadLogs();
+    } catch (error) {
+        showError('保存失败: ' + error.message);
+    } finally {
+        hideLoading(btn);
+    }
+}
+
+// 应用日志过滤（不保存到后端，只用于前端显示）
+function applyLogFilter() {
+    const source = document.getElementById('logSourceSelect').value;
+    appState.logConfig.source = source;
+    appState.logConfig.autoScroll = document.getElementById('logAutoScroll').checked;
+    
+    // 重新加载日志以应用过滤
+    loadLogs();
+    showSuccess('过滤已应用');
+}
+
+// 日志配置事件监听
+document.getElementById('logConfigSaveBtn').addEventListener('click', saveLogConfig);
+document.getElementById('logFilterBtn').addEventListener('click', applyLogFilter);
 
 // WebSocket 连接/断开按钮事件
 document.getElementById('wsConnectBtn').addEventListener('click', () => {
@@ -955,6 +1395,8 @@ function switchPage(page) {
         logWebSocket.connect();
         // 加载历史日志
         loadLogs();
+        // 加载日志配置
+        loadLogConfig();
     } else if (page === 'tokens') {
         loadToken();
     }
@@ -993,10 +1435,24 @@ document.addEventListener('DOMContentLoaded', () => {
     // 初始化按钮状态
     logWebSocket.updateConnectionStatus('disconnected');
 
-    // 设置定时刷新
+    // 初始化全局状态
+    updateGlobalStatus();
+
+    // 启动全局状态轮询（每1秒）
+    appState.statusPollingInterval = setInterval(updateGlobalStatus, 1000);
+
+    // 设置仪表板数据定时刷新（每5秒）
     setInterval(() => {
         if (appState.currentPage === 'dashboard') {
             loadDashboard();
         }
     }, 5000);
+
+    // 页面卸载时清理轮询
+    window.addEventListener('beforeunload', () => {
+        if (appState.statusPollingInterval) {
+            clearInterval(appState.statusPollingInterval);
+            appState.statusPollingInterval = null;
+        }
+    });
 });
