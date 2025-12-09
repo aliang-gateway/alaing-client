@@ -143,12 +143,12 @@ func netstack(k *config.EngineConf) (err error) {
 		}
 	}()
 
-	// 从注册中心获取默认代理
-	_defaultProxy, err = proxyRegistry.GetRegistry().GetDefault()
+	// 使用硬编码的 direct 代理作为默认代理
+	_defaultProxy, err = proxyRegistry.GetRegistry().Get("direct")
 	if err != nil {
-		// 如果没有配置，使用直连代理作为后备
+		// 如果 direct 代理未注册，创建一个新的
 		_defaultProxy = direct.NewDirect()
-		logger.Warn("No default proxy configured, using direct connection")
+		logger.Warn("Direct proxy not registered, creating new instance")
 	}
 
 	// 设置代理到 tunnel 的 dialer（用于 direct dialing）

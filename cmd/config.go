@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"math/rand"
 	"net/http"
 	"os"
 	"strings"
@@ -11,7 +12,6 @@ import (
 
 	"nursor.org/nursorgate/common/logger"
 	"nursor.org/nursorgate/outbound"
-	proxyRegistry "nursor.org/nursorgate/outbound"
 	"nursor.org/nursorgate/processor/config"
 	geoip "nursor.org/nursorgate/processor/geoip"
 	rules "nursor.org/nursorgate/processor/rules"
@@ -104,22 +104,9 @@ func ApplyConfig(config *Config) error {
 func setEffectiveDefaultProxy(currentProxy string) error {
 	registry := outbound.GetRegistry()
 
-	// Determine which proxy to set as default
-	proxyName := currentProxy
-	if proxyName == "" {
-		// 尝试获取第一个 door 成员
-		if firstDoorMember := getFirstDoorMember(registry); firstDoorMember != "" {
-			proxyName = "door:" + firstDoorMember
-			logger.Debug(fmt.Sprintf("No default proxy specified, using first door member: %s", firstDoorMember))
-		} else {
-			proxyName = "direct"
-			logger.Debug("No default proxy specified and no door members found, using 'direct'")
-		}
-	}
-
 	// Check if it's a door member specification (format: "door:memberName")
-	if strings.HasPrefix(proxyName, "door:") {
-		memberName := strings.TrimPrefix(proxyName, "door:")
+	if strings.HasPrefix(currentProxy, "door:") {
+		memberName := strings.TrimPrefix(currentProxy, "door:")
 		if err := registry.SetDoorMember(memberName); err != nil {
 			logger.Warn(fmt.Sprintf("Failed to set door member '%s': %v, using auto-select", memberName, err))
 			registry.EnableDoorAutoSelect()
@@ -130,50 +117,79 @@ func setEffectiveDefaultProxy(currentProxy string) error {
 		return nil
 	}
 
-	// For "door" without member specification, enable auto-select
-	if proxyName == "door" {
+	// Handle specific proxy names
+	switch currentProxy {
+	case "":
+		// When empty, select door member with lowest latency or random if no latency data
+		if bestMember := getBestOrRandomDoorMember(registry); bestMember != "" {
+			proxyName := "door:" + bestMember
+			logger.Debug(fmt.Sprintf("No default proxy specified, using best/random door member: %s", bestMember))
+			return setEffectiveDefaultProxy(proxyName) // Recursively handle door:member
+		}
+		currentProxy = "direct"
+		logger.Debug("No default proxy specified and no door members found, using 'direct'")
+
+	case "auto":
+		// When "auto", enable door auto-select
+		registry.EnableDoorAutoSelect()
+		logger.Debug("CurrentProxy is 'auto', enabling door auto-select")
+		logger.Info("Door auto-select enabled")
+		return nil
+
+	case "door":
+		// For "door" without member specification, enable auto-select
 		registry.EnableDoorAutoSelect()
 		logger.Info("Door auto-select enabled")
 		// Don't set door as default in registry
 		return nil
 	}
 
-	// Attempt to set the requested proxy
-	if err := registry.SetDefault(proxyName); err != nil {
-		logger.Warn(fmt.Sprintf("Failed to set proxy '%s' as default: %v, attempting fallback to 'direct'", proxyName, err))
-
-		// Fallback to direct proxy
-		if proxyName != "direct" {
-			if err := registry.SetDefault("direct"); err != nil {
-				return fmt.Errorf("failed to fallback to direct proxy: %w", err)
-			}
-			logger.Info("Fallback: Direct proxy set as default")
-			return nil
-		}
-		return err
+	// Log the proxy selection
+	if currentProxy != "direct" {
+		logger.Info(fmt.Sprintf("Proxy selection: '%s' (routing will always use 'direct')", currentProxy))
+	} else {
+		logger.Info("Using direct proxy for routing")
 	}
-
-	logger.Info(fmt.Sprintf("Default proxy set to: %s", proxyName))
 	return nil
 }
 
-// getFirstDoorMember 获取 door 代理的第一个成员
-// 如果没有 door 代理或没有成员，返回空字符串
-func getFirstDoorMember(registry *outbound.Registry) string {
-	// 获取 door 组
+// getBestOrRandomDoorMember returns the door member with lowest latency,
+// or a random member if all latencies are 0 or unavailable
+func getBestOrRandomDoorMember(registry *outbound.Registry) string {
+	// Get the door group
 	doorGroup := registry.GetDoorGroup()
 	if doorGroup == nil {
 		return ""
 	}
 
-	// 获取所有成员
+	// Get all members
 	members := doorGroup.ListMembers()
 	if len(members) == 0 {
 		return ""
 	}
 
-	// 返回第一个成员的名称
-	return members[0].ShowName
+	// Check if any member has latency > 0
+	var bestMember *outbound.DoorProxyMemberInfo
+	hasLatencyData := false
+
+	for i := range members {
+		member := &members[i]
+		if member.Latency > 0 {
+			if !hasLatencyData || member.Latency < bestMember.Latency {
+				bestMember = member
+				hasLatencyData = true
+			}
+		}
+	}
+
+	// If we have latency data, return the best member
+	if hasLatencyData && bestMember != nil {
+		return bestMember.ShowName
+	}
+
+	// If no latency data, return a random member
+	randomIndex := rand.Intn(len(members))
+	return members[randomIndex].ShowName
 }
 
 // applyEngineConfig 应用引擎配置
@@ -211,7 +227,7 @@ func applyEngineConfig(engineCfg *config.EngineConfig) error {
 
 // registerBuiltinProxies 注册内置代理（direct 和 nonelane）
 func registerBuiltinProxies(cfg *Config) error {
-	registry := proxyRegistry.GetRegistry()
+	registry := outbound.GetRegistry()
 
 	// 1. 注册 direct 代理
 	if err := registry.RegisterDefault(); err != nil {
@@ -219,10 +235,21 @@ func registerBuiltinProxies(cfg *Config) error {
 	}
 
 	// 2. 注册 nonelane 代理
-	if err := registry.RegisterNonelane(cfg.BaseProxies["nonelane"].CoreServer); err != nil {
+	coreServer := ""
+	if cfg.BaseProxies != nil {
+		if nonelaneConfig, exists := cfg.BaseProxies["nonelane"]; exists && nonelaneConfig != nil {
+			coreServer = nonelaneConfig.CoreServer
+		}
+	}
+	// 如果配置中没有指定，使用默认值
+	if coreServer == "" {
+		coreServer = "ai-gateway.nursor.org:443"
+	}
+
+	if err := registry.RegisterNonelane(coreServer); err != nil {
 		return fmt.Errorf("failed to register nonelane proxy: %w", err)
 	} else {
-		config.SetCursorAiGatewayHost(cfg.BaseProxies["nonelane"].CoreServer)
+		config.SetCursorAiGatewayHost(coreServer)
 	}
 
 	return nil
@@ -246,7 +273,7 @@ func registerDoorProxy(cfg *config.Config) error {
 	}
 
 	// 注册 door 代理集合
-	registry := proxyRegistry.GetRegistry()
+	registry := outbound.GetRegistry()
 	if err := registry.RegisterDoorFromConfig(doorConfig); err != nil {
 		return fmt.Errorf("failed to register door proxy: %w", err)
 	}
@@ -262,7 +289,7 @@ func registerCustomProxies(proxies map[string]*config.BaseProxyConfig) error {
 		return nil
 	}
 
-	registry := proxyRegistry.GetRegistry()
+	registry := outbound.GetRegistry()
 
 	for name, cfg := range proxies {
 		// 跳过内置代理

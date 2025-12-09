@@ -17,10 +17,9 @@ import (
 
 // Registry 代理注册中心，线程安全
 type Registry struct {
-	mu          sync.RWMutex
-	proxies     map[string]proxy.Proxy // 代理实例映射，key 为代理名称
-	defaultName string                 // 默认代理名称
-	doorGroup   *DoorProxyGroup        // 门代理集合
+	mu        sync.RWMutex
+	proxies   map[string]proxy.Proxy // 代理实例映射，key 为代理名称
+	doorGroup *DoorProxyGroup        // 门代理集合
 }
 
 var (
@@ -124,12 +123,7 @@ func (r *Registry) Unregister(name string) error {
 
 	delete(r.proxies, name)
 
-	// 如果注销的是默认代理，清除标记
-	if r.defaultName == name {
-		r.defaultName = ""
-		logger.Warn(fmt.Sprintf("Default proxy '%s' was unregistered", name))
-	}
-
+	
 	logger.Info(fmt.Sprintf("Proxy '%s' unregistered", name))
 	return nil
 }
@@ -171,27 +165,10 @@ func (r *Registry) Get(name string) (proxy.Proxy, error) {
 	return nil, fmt.Errorf("proxy '%s' not found", name)
 }
 
-// GetDefaultName 获取默认代理的名称
-func (r *Registry) GetDefaultName() string {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-	return r.defaultName
-}
 
-// GetDefault 获取默认代理
-func (r *Registry) GetDefault() (proxy.Proxy, error) {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-
-	if r.defaultName == "" {
-		return nil, fmt.Errorf("no default proxy set")
-	}
-
-	p, exists := r.proxies[r.defaultName]
-	if !exists {
-		return nil, fmt.Errorf("default proxy '%s' not found", r.defaultName)
-	}
-	return p, nil
+// GetHardcodedDefault 始终返回 direct 代理作为硬编码的默认值
+func (r *Registry) GetHardcodedDefault() (proxy.Proxy, error) {
+	return r.Get("direct")
 }
 
 // GetDoor 获取门代理
@@ -228,20 +205,6 @@ func (r *Registry) GetNonelane() (proxy.Proxy, error) {
 	return p, nil
 }
 
-// SetDefault 设置默认代理
-func (r *Registry) SetDefault(name string) error {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-
-	if _, exists := r.proxies[name]; !exists {
-		return fmt.Errorf("proxy '%s' not found, cannot set as default", name)
-	}
-
-	oldName := r.defaultName
-	r.defaultName = name
-	logger.Info(fmt.Sprintf("Default proxy changed from '%s' to '%s'", oldName, name))
-	return nil
-}
 
 // List 列出所有已注册的代理名称
 func (r *Registry) List() []string {
@@ -263,31 +226,23 @@ func (r *Registry) ListWithInfo() map[string]ProxyInfo {
 	info := make(map[string]ProxyInfo)
 	for name, p := range r.proxies {
 		info[name] = ProxyInfo{
-			Name:       name,
-			Type:       p.Proto().String(),
-			Addr:       p.Addr(),
-			IsDefault:  name == r.defaultName,
-			IsNonelane: name == "nonelane",
+			Name: name,
+			Type: p.Proto().String(),
+			Addr: p.Addr(),
 		}
 	}
 
 	// 展开 door 代理组的成员
 	if r.doorGroup != nil && r.doorGroup.Count() > 0 {
 		members := r.doorGroup.ListMembers()
-		currentMember := r.doorGroup.GetCurrentMemberName()
 
 		for _, member := range members {
 			// 使用 "door:成员名" 作为键，以区分不同的 door 成员
 			memberKey := fmt.Sprintf("door:%s", member.ShowName)
 			info[memberKey] = ProxyInfo{
-				Name:        memberKey,
-				Type:        member.Proxy.Proto().String(),
-				Addr:        member.Proxy.Addr(),
-				IsDefault:   memberKey == r.defaultName || (r.defaultName == "door" && member.ShowName == currentMember),
-				IsDoorProxy: true,
-				IsNonelane:  false,
-				Latency:     member.Latency,
-				ShowName:    member.ShowName,
+				Name: memberKey,
+				Type: member.Proxy.Proto().String(),
+				Addr: member.Proxy.Addr(),
 			}
 		}
 	}
@@ -297,14 +252,9 @@ func (r *Registry) ListWithInfo() map[string]ProxyInfo {
 
 // ProxyInfo 代理信息
 type ProxyInfo struct {
-	Name        string `json:"name"`
-	Type        string `json:"type"`
-	Addr        string `json:"addr"`
-	IsDefault   bool   `json:"is_default"`
-	IsDoorProxy bool   `json:"is_door_proxy"`
-	IsNonelane  bool   `json:"is_nonelane"`
-	Latency     int64  `json:"latency,omitempty"`   // 延迟（毫秒），仅用于 door 成员
-	ShowName    string `json:"show_name,omitempty"` // 显示名称，仅用于 door 成员
+	Name string `json:"name"`
+	Type string `json:"type"`
+	Addr string `json:"addr"`
 }
 
 // Count 返回已注册的代理数量
@@ -320,7 +270,6 @@ func (r *Registry) Clear() {
 	defer r.mu.Unlock()
 
 	r.proxies = make(map[string]proxy.Proxy)
-	r.defaultName = ""
 	r.doorGroup = nil
 	logger.Warn("All proxies cleared")
 }

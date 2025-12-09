@@ -61,7 +61,8 @@ var configSaveCmd = &cobra.Command{
 		configs := proxyConfig.GetConfigStore().GetAll()
 		registry := proxyRegistry.GetRegistry()
 		defaultProxy := ""
-		if p, err := registry.GetDefault(); err == nil {
+		// Default proxy is always direct
+		if p, err := registry.Get("direct"); err == nil {
 			defaultProxy = p.Addr()
 		}
 

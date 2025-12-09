@@ -20,10 +20,17 @@ func NewProxyHandler(proxyService *services.ProxyService) *ProxyHandler {
 }
 
 // HandleGetCurrentProxy handles GET /api/proxy/current/get
+// Returns the current door proxy member information
 func (ph *ProxyHandler) HandleGetCurrentProxy(w http.ResponseWriter, r *http.Request) {
 	proxyInfo, err := ph.proxyService.GetCurrentProxy()
 	if err != nil {
-		common.ErrorNotFound(w, "No proxy set")
+		common.ErrorInternalServer(w, "Failed to get current proxy", err)
+		return
+	}
+
+	// Check if proxyInfo contains an error (service returns error info in the map)
+	if errorMsg, exists := proxyInfo["error"]; exists {
+		common.ErrorNotFound(w, errorMsg.(string))
 		return
 	}
 
