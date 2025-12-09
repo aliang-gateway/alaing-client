@@ -67,6 +67,8 @@ func (pr *ProxyRepositoryImpl) Unregister(name string) error {
 }
 
 // GetByName gets a specific proxy by name
+// Supports both regular proxies (direct, nonelane, custom names) and door proxy members
+// Door proxy members use format: "door:ShowName" (e.g., "door:日本 Tokyo")
 func (pr *ProxyRepositoryImpl) GetByName(name string) (interface{}, error) {
 	if name == "" {
 		return nil, errors.New("proxy name cannot be empty")

@@ -55,7 +55,7 @@ func (rs *RunService) SetTunRunning(running bool) {
 }
 
 // StartService starts the service for the current mode
-func (rs *RunService) StartService(innerToken string) map[string]interface{} {
+func (rs *RunService) StartService() map[string]interface{} {
 	rs.modeChangeMutex.Lock()
 
 	// Check if already running
@@ -70,8 +70,6 @@ func (rs *RunService) StartService(innerToken string) map[string]interface{} {
 
 	startMode := rs.currentMode
 	rs.modeChangeMutex.Unlock()
-
-	user.SetInnerToken(innerToken)
 
 	logger.Info("Starting " + string(startMode) + " service...")
 

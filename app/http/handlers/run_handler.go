@@ -20,16 +20,9 @@ func NewRunHandler(runService *services.RunService) *RunHandler {
 }
 
 // HandleRunStart handles POST /api/run/start
+// No authentication required - starts the service for the current mode
 func (rh *RunHandler) HandleRunStart(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		InnerToken string `json:"inner_token"`
-	}
-	if err := common.DecodeRequest(r, &req); err != nil {
-		common.ErrorBadRequest(w, "Invalid request body", nil)
-		return
-	}
-
-	result := rh.runService.StartService(req.InnerToken)
+	result := rh.runService.StartService()
 	common.Success(w, result)
 }
 

@@ -2,6 +2,7 @@ package outbound
 
 import (
 	"fmt"
+	"strings"
 	"sync"
 
 	"nursor.org/nursorgate/common/logger"
@@ -131,15 +132,40 @@ func (r *Registry) Unregister(name string) error {
 }
 
 // Get 根据名称获取代理实例
+// 支持两种查询方式：
+// 1. 普通代理: "direct", "nonelane", 或其他自定义代理名称
+// 2. Door 代理成员: "door:ShowName" 格式，例如 "door:日本 Tokyo"
 func (r *Registry) Get(name string) (proxy.Proxy, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
+	// 第一级: 尝试在普通 proxies 中查找
 	p, exists := r.proxies[name]
-	if !exists {
-		return nil, fmt.Errorf("proxy '%s' not found", name)
+	if exists {
+		return p, nil
 	}
-	return p, nil
+
+	// 第二级: 检查是否为 door 代理成员格式 "door:ShowName"
+	if strings.HasPrefix(name, "door:") {
+		// 处理 door 成员查询
+		showName := strings.TrimPrefix(name, "door:")
+
+		// 检查 ShowName 是否为空
+		if showName == "" {
+			return nil, fmt.Errorf("invalid door proxy name '%s' - empty show name", name)
+		}
+
+		// 检查 doorGroup 是否存在
+		if r.doorGroup == nil {
+			return nil, fmt.Errorf("no door proxy group configured")
+		}
+
+		// 从 doorGroup 获取成员
+		return r.doorGroup.GetMember(showName)
+	}
+
+	// 都未找到，返回错误
+	return nil, fmt.Errorf("proxy '%s' not found", name)
 }
 
 // GetDefaultName 获取默认代理的名称

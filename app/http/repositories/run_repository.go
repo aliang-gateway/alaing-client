@@ -37,8 +37,8 @@ func (rr *RunRepositoryImpl) SetTunRunning(running bool) {
 }
 
 // StartService starts the service for the current mode
-func (rr *RunRepositoryImpl) StartService(innerToken string) map[string]interface{} {
-	return rr.runService.StartService(innerToken)
+func (rr *RunRepositoryImpl) StartService() map[string]interface{} {
+	return rr.runService.StartService()
 }
 
 // StopService stops the current running service

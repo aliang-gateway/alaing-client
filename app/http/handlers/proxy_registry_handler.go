@@ -32,6 +32,11 @@ func (prh *ProxyRegistryHandler) HandleProxyRegistryList(w http.ResponseWriter, 
 
 // HandleProxyRegistryGet handles GET /api/proxy/registry/get
 // Query parameter: name (required) - get specific proxy by name
+// Supported formats:
+//   - "direct" - direct proxy
+//   - "nonelane" - nonelane proxy
+//   - "custom_name" - custom proxy
+//   - "door:ShowName" - door proxy member (e.g., "door:日本 Tokyo")
 func (prh *ProxyRegistryHandler) HandleProxyRegistryGet(w http.ResponseWriter, r *http.Request) {
 	name := common.GetQueryParamString(r, "name", "")
 	if name == "" {
