@@ -64,7 +64,6 @@ func RegisterRoutes(h *Handlers, mux *http.ServeMux) {
 
 	// Door proxy routes (/api/proxy/door/*)
 	mux.HandleFunc("/api/proxy/door/members", h.Door.HandleDoorMemberList)
-	mux.HandleFunc("/api/proxy/door/switch", h.Door.HandleDoorMemberSwitch)
 	mux.HandleFunc("/api/proxy/door/auto", h.Door.HandleDoorAutoSelect)
 
 	// Token routes (/api/token/*)
@@ -77,6 +76,7 @@ func RegisterRoutes(h *Handlers, mux *http.ServeMux) {
 	mux.HandleFunc("/api/run/userInfo", h.Run.HandleRunUserInfo)
 	mux.HandleFunc("/api/run/status", h.Run.HandleRunStatus)
 	mux.HandleFunc("/api/run/swift", h.Run.HandleRunSwift)
+	mux.HandleFunc("/api/run/mode", h.Run.HandleRunSwift) // Alias for /api/run/swift
 
 	// Routing Rules API (/api/rules/*)
 	mux.HandleFunc("/api/rules/geoip/status", h.Rules.HandleGetGeoIPStatus)

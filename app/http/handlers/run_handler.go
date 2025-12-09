@@ -58,7 +58,7 @@ func (rh *RunHandler) HandleRunStatus(w http.ResponseWriter, r *http.Request) {
 // HandleRunSwift handles POST /api/run/swift
 func (rh *RunHandler) HandleRunSwift(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		TargetMode string `json:"target_mode"`
+		TargetMode string `json:"mode"`
 	}
 
 	if err := common.DecodeRequest(r, &req); err != nil {

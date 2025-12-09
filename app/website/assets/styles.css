@@ -143,6 +143,50 @@ body {
     animation: fadeIn 0.3s ease-in-out;
 }
 
+/* 日志页面铺满高度 */
+#logs-page {
+    display: flex;
+    flex-direction: column;
+    height: calc(100vh - 67px - 4rem); /* 100vh - 顶部导航栏 - content padding */
+}
+
+#logs-page.active {
+    display: flex;
+}
+
+#logs-page > h2 {
+    flex-shrink: 0; /* 标题不缩小 */
+    margin-bottom: 1.5rem;
+}
+
+#logs-page .card {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    margin-bottom: 0;
+    min-height: 0; /* 允许 flex 子元素缩小 */
+}
+
+#logs-page .card-header {
+    flex-shrink: 0; /* 头部不缩小 */
+}
+
+#logs-page .card-body {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    padding: 1.5rem;
+    overflow: hidden; /* 防止内容溢出 */
+}
+
+#logs-page #logsOutput {
+    flex: 1;
+    min-height: 0;
+    resize: none;
+    width: 100%;
+}
+
 @keyframes fadeIn {
     from {
         opacity: 0;
@@ -544,4 +588,82 @@ body {
 .navbar-brand {
     font-weight: 600;
     letter-spacing: -0.02em;
+}
+
+/* WebSocket 连接状态样式 */
+#wsConnectionStatus {
+    font-size: 0.75rem;
+    margin-left: 0.5rem;
+    transition: all 0.3s ease;
+    animation: none;
+}
+
+#wsConnectionStatus.bg-success {
+    animation: pulse-success 2s infinite;
+}
+
+/* 实时日志模式视觉反馈 */
+#logsOutput.realtime-mode {
+    border-color: var(--bs-success);
+    box-shadow: 0 0 10px rgba(242, 70, 70, 0.2);
+}
+
+/* 连接状态动画 */
+@keyframes pulse-success {
+    0% {
+        box-shadow: 0 0 0 0 rgba(242, 70, 70, 0.7);
+    }
+    70% {
+        box-shadow: 0 0 0 6px rgba(242, 70, 70, 0);
+    }
+    100% {
+        box-shadow: 0 0 0 0 rgba(242, 70, 70, 0);
+    }
+}
+
+/* WebSocket 控制按钮组样式 */
+.ws-controls {
+    display: flex;
+    gap: 0.5rem;
+}
+
+/* 日志输出区域增强样式 */
+#logsOutput {
+    font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
+    font-size: 0.875rem;
+    background-color: #282c34;
+    color: #abb2bf;
+    border: 1px solid #3e4451;
+    line-height: 1.5;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+}
+
+#logsOutput:focus {
+    background-color: #282c34;
+    color: #abb2bf;
+    border-color: #3e4451;
+    outline: none;
+    box-shadow: none;
+}
+
+/* 连接状态时的特殊样式 */
+#logsOutput.ws-connected {
+    border-color: var(--bs-success);
+    background-color: #1e2127;
+}
+
+/* 禁用按钮样式 */
+.btn:disabled,
+.btn.disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none !important;
+    box-shadow: none !important;
+}
+
+.btn:disabled:hover,
+.btn.disabled:hover {
+    transform: none !important;
+    box-shadow: none !important;
 }

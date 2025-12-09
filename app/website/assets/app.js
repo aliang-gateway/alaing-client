@@ -95,9 +95,13 @@ async function loadDashboard() {
         ]);
 
         // 获取当前代理，如果失败则为 null
-        let currentProxy = null;
+        let currentProxyDisplay = '-';
         try {
-            currentProxy = await apiGet('/proxy/current/get');
+            const currentProxy = await apiGet('/proxy/current/get');
+            if (currentProxy && currentProxy.name && !currentProxy.error) {
+                // 如果有 show_name，使用它，否则使用 name
+                currentProxyDisplay = currentProxy.show_name || currentProxy.name;
+            }
         } catch (error) {
             console.log('当前代理未设置:', error.message);
         }
@@ -105,7 +109,7 @@ async function loadDashboard() {
         // 更新仪表板
         const runningStatus = runStatus.tun_running ? 'TUN 运行中' : 'HTTP 模式';
         document.getElementById('dashRunStatus').textContent = runningStatus;
-        document.getElementById('dashCurrentProxy').textContent = currentProxy || '-';
+        document.getElementById('dashCurrentProxy').textContent = currentProxyDisplay;
         document.getElementById('dashRunMode').textContent = runStatus.current_mode || '-';
         document.getElementById('dashRuleStatus').textContent = rulesStatus?.status === 'enabled' ? '启用' : '禁用';
         // proxyList 返回格式是 { proxies: {...}, count: ... }
@@ -174,7 +178,11 @@ async function loadProxyData() {
         // 获取当前代理，如果失败则为 null
         let currentProxy = null;
         try {
-            currentProxy = await apiGet('/proxy/current/get');
+            const currentProxyData = await apiGet('/proxy/current/get');
+            // 如果API返回了有效的代理信息且没有错误，提取name字段
+            if (currentProxyData && currentProxyData.name && !currentProxyData.error) {
+                currentProxy = currentProxyData.name;
+            }
         } catch (error) {
             console.log('当前代理未设置:', error.message);
         }
@@ -300,20 +308,11 @@ async function loadProxyData() {
 
 async function switchProxy(proxyName) {
     try {
-        console.log('正在切换代理到:', proxyName);
+        console.log('正在切换��理到:', proxyName);
 
-        // 检查是否是虚拟的 door 成员（door:xxx 格式）
-        if (proxyName && proxyName.startsWith('door:')) {
-            // 虚拟的 door 成员，需要调用 door/switch 来切换
-            const memberName = proxyName.substring(5); // 提取 "door:" 之后的部分
-            console.log('切换 door 成员到:', memberName);
-            await apiPost('/proxy/door/switch', { member_name: memberName });
-            showSuccess(`已切换到 ${proxyName}`);
-        } else {
-            // ���实的代理，直接设置为当前代理
-            await apiPost('/proxy/current/set', { name: proxyName });
-            showSuccess(`已切换到 ${proxyName}`);
-        }
+        // 所有代理切换都使用 current/set API
+        await apiPost('/proxy/current/set', { name: proxyName });
+        showSuccess(`已切换到 ${proxyName}`);
 
         appState.currentProxy = proxyName;
         loadProxyData();
@@ -327,7 +326,8 @@ async function switchProxy(proxyName) {
 async function switchDoorMember(memberName) {
     try {
         console.log('正在切换 Door 成员到:', memberName);
-        await apiPost('/proxy/door/switch', { member_name: memberName });
+        // 使用 door:memberName 格式调用 current/set API
+        await apiPost('/proxy/current/set', { name: `door:${memberName}` });
         showSuccess(`已切换到 ${memberName}`);
         loadProxyData();
         loadDashboard();
@@ -532,7 +532,7 @@ document.getElementById('rulesLookupBtn').addEventListener('click', () => {
     }
 
     showLoading(btn);
-    apiPost('/rules/cache/lookup', { domain: domain })
+    apiPost('/rules/geoip/lookup', { domain: domain })
         .then(result => {
             const output = document.getElementById('rulesLookupResult');
             output.value = JSON.stringify(result, null, 2);
@@ -545,6 +545,247 @@ document.getElementById('rulesLookupBtn').addEventListener('click', () => {
             hideLoading(btn);
         });
 });
+
+// ============ WebSocket 日志流管理 ============
+const logWebSocket = {
+    ws: null,
+    isConnected: false,
+    reconnectAttempts: 0,
+    maxReconnectAttempts: 5,
+    reconnectInterval: 3000,
+    isManualDisconnect: false,
+
+    // WebSocket URL - 使用相对路径以自动适应当前协议和主机
+    url: function() {
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        return `${protocol}//${window.location.host}/api/logs/stream`;
+    },
+
+    // 连接 WebSocket
+    connect: function() {
+        if (this.ws && (this.ws.readyState === WebSocket.CONNECTING ||
+                       this.ws.readyState === WebSocket.OPEN)) {
+            return;
+        }
+
+        this.updateConnectionStatus('connecting');
+
+        try {
+            this.ws = new WebSocket(this.url());
+
+            this.ws.onopen = () => {
+                this.isConnected = true;
+                this.reconnectAttempts = 0;
+                this.updateConnectionStatus('connected');
+                console.log('WebSocket 日志连接已建立');
+                showSuccess('实时日志连接已建立');
+            };
+
+            this.ws.onmessage = (event) => {
+                this.handleLogMessage(event);
+            };
+
+            this.ws.onerror = (error) => {
+                console.error('WebSocket 错误:', error);
+                this.updateConnectionStatus('error');
+                showError('WebSocket 连接错误');
+            };
+
+            this.ws.onclose = (event) => {
+                this.isConnected = false;
+                this.updateConnectionStatus('disconnected');
+
+                // 自动重连（除非是手动断开）
+                if (!this.isManualDisconnect &&
+                    event.code !== 1000 &&
+                    this.reconnectAttempts < this.maxReconnectAttempts) {
+                    console.log(`WebSocket 连接断开，${this.reconnectInterval/1000}秒后重试 (${this.reconnectAttempts + 1}/${this.maxReconnectAttempts})`);
+                    setTimeout(() => {
+                        this.reconnectAttempts++;
+                        this.connect();
+                    }, this.reconnectInterval);
+                } else if (this.reconnectAttempts >= this.maxReconnectAttempts) {
+                    showError('WebSocket 连接失败，请检查网络连接或手动刷新页面');
+                }
+            };
+        } catch (error) {
+            console.error('创建 WebSocket 连接失败:', error);
+            this.updateConnectionStatus('error');
+            showError('创建 WebSocket 连接失败');
+        }
+    },
+
+    // 断开连接
+    disconnect: function() {
+        this.isManualDisconnect = true;
+        if (this.ws) {
+            this.ws.close(1000, 'Client disconnect');
+            this.ws = null;
+        }
+        this.isConnected = false;
+        this.updateConnectionStatus('disconnected');
+        console.log('WebSocket 连接已断开');
+    },
+
+    // 处理日志消息
+    handleLogMessage: function(event) {
+        try {
+            const logEntry = JSON.parse(event.data);
+            this.appendLogToOutput(logEntry);
+        } catch (error) {
+            console.error('解析日志消息失败:', error);
+        }
+    },
+
+    // 将日志添加到输出区域
+    appendLogToOutput: function(logEntry) {
+        const output = document.getElementById('logsOutput');
+        if (!output) return;
+
+        // 格式化日志行
+        const timestamp = logEntry.timestamp || new Date().toLocaleString();
+        const level = logEntry.level || 'INFO';
+        const message = logEntry.message || '';
+        const source = logEntry.source || '';
+
+        // 根据日志级别设置颜色
+        let levelColor = '#abb2bf'; // 默认颜色
+        switch (level.toUpperCase()) {
+            case 'ERROR':
+            case 'FATAL':
+                levelColor = '#ff6b6b';
+                break;
+            case 'WARN':
+            case 'WARNING':
+                levelColor = '#feca57';
+                break;
+            case 'INFO':
+                levelColor = '#48cae4';
+                break;
+            case 'DEBUG':
+                levelColor = '#868e96';
+                break;
+            default:
+                levelColor = '#abb2bf';
+        }
+
+        const formattedLog = `[${timestamp}] [${level}]`;
+        const sourcePart = source ? ` [${source}]` : '';
+        const fullLogLine = `${formattedLog}${sourcePart} ${message}\n`;
+
+        // 滚动到底部
+        const shouldScroll = output.scrollTop + output.clientHeight >= output.scrollHeight - 10;
+
+        // 添加新日志
+        output.value += fullLogLine;
+
+        // 限制日志行数以避免内存问题
+        const lines = output.value.split('\n');
+        if (lines.length > 1000) {
+            output.value = lines.slice(-1000).join('\n');
+        }
+
+        // 自动滚动到底部
+        if (shouldScroll) {
+            output.scrollTop = output.scrollHeight;
+        }
+    },
+
+    // 更新连接状态显示
+    updateConnectionStatus: function(status) {
+        const statusElement = document.getElementById('wsConnectionStatus');
+        const connectBtn = document.getElementById('wsConnectBtn');
+        const disconnectBtn = document.getElementById('wsDisconnectBtn');
+        const logOutput = document.getElementById('logsOutput');
+
+        if (!statusElement) return;
+
+        let statusText = '';
+        let statusClass = '';
+
+        switch (status) {
+            case 'connected':
+                statusText = '实时连接';
+                statusClass = 'badge bg-success';
+                // 禁用连接按钮，启用断开按钮
+                if (connectBtn) {
+                    connectBtn.disabled = true;
+                    connectBtn.classList.add('disabled');
+                }
+                if (disconnectBtn) {
+                    disconnectBtn.disabled = false;
+                    disconnectBtn.classList.remove('disabled');
+                }
+                // 添加连接状态样式到日志输出区
+                if (logOutput) {
+                    logOutput.classList.add('ws-connected');
+                }
+                break;
+            case 'connecting':
+                statusText = '连接中...';
+                statusClass = 'badge bg-warning';
+                // 禁用两个按钮
+                if (connectBtn) {
+                    connectBtn.disabled = true;
+                    connectBtn.classList.add('disabled');
+                }
+                if (disconnectBtn) {
+                    disconnectBtn.disabled = true;
+                    disconnectBtn.classList.add('disabled');
+                }
+                break;
+            case 'disconnected':
+                statusText = '已断开';
+                statusClass = 'badge bg-secondary';
+                // 启用连接按钮，禁用断开按钮
+                if (connectBtn) {
+                    connectBtn.disabled = false;
+                    connectBtn.classList.remove('disabled');
+                }
+                if (disconnectBtn) {
+                    disconnectBtn.disabled = true;
+                    disconnectBtn.classList.add('disabled');
+                }
+                // 移除连接状态样式
+                if (logOutput) {
+                    logOutput.classList.remove('ws-connected');
+                }
+                break;
+            case 'error':
+                statusText = '连接错误';
+                statusClass = 'badge bg-danger';
+                // 启用连接按钮，禁用断开按钮
+                if (connectBtn) {
+                    connectBtn.disabled = false;
+                    connectBtn.classList.remove('disabled');
+                }
+                if (disconnectBtn) {
+                    disconnectBtn.disabled = true;
+                    disconnectBtn.classList.add('disabled');
+                }
+                // 移除连接状态样式
+                if (logOutput) {
+                    logOutput.classList.remove('ws-connected');
+                }
+                break;
+            default:
+                statusText = '未知状态';
+                statusClass = 'badge bg-dark';
+                // 默认状态：启用连接，禁用断开
+                if (connectBtn) {
+                    connectBtn.disabled = false;
+                    connectBtn.classList.remove('disabled');
+                }
+                if (disconnectBtn) {
+                    disconnectBtn.disabled = true;
+                    disconnectBtn.classList.add('disabled');
+                }
+        }
+
+        statusElement.className = statusClass;
+        statusElement.textContent = statusText;
+    }
+};
 
 // ============ 日志功能 ============
 async function loadLogs() {
@@ -579,9 +820,17 @@ document.getElementById('logsClearBtn').addEventListener('click', () => {
         return;
     }
     showLoading(btn);
+
+    // 先清空当前显示的日志
+    const output = document.getElementById('logsOutput');
+    if (output) {
+        output.value = '';
+    }
+
     apiPost('/logs/clear')
         .then(() => {
             showSuccess('日志已清空');
+            // 重新加载日志（应该是空的）
             loadLogs();
         })
         .catch(error => {
@@ -590,6 +839,22 @@ document.getElementById('logsClearBtn').addEventListener('click', () => {
         .finally(() => {
             hideLoading(btn);
         });
+});
+
+// WebSocket 连接/断开按钮事件
+document.getElementById('wsConnectBtn').addEventListener('click', () => {
+    const btn = event.target.closest('button');
+    showLoading(btn);
+    logWebSocket.connect();
+    hideLoading(btn);
+});
+
+document.getElementById('wsDisconnectBtn').addEventListener('click', () => {
+    const btn = event.target.closest('button');
+    showLoading(btn);
+    logWebSocket.disconnect();
+    showSuccess('实时日志连接已断开');
+    hideLoading(btn);
 });
 
 // ============ Token 管理 ============
@@ -686,9 +951,23 @@ function switchPage(page) {
     } else if (page === 'rules') {
         loadRulesData();
     } else if (page === 'logs') {
+        // 连接 WebSocket 进行实时日志
+        logWebSocket.connect();
+        // 加载历史日志
         loadLogs();
     } else if (page === 'tokens') {
         loadToken();
+    }
+
+    // 更新当前页面状态
+    appState.currentPage = page;
+}
+
+// 页面清理函数
+function cleanupCurrentPage() {
+    if (appState.currentPage === 'logs') {
+        // 断开 WebSocket 连接
+        logWebSocket.disconnect();
     }
 }
 
@@ -697,6 +976,11 @@ document.querySelectorAll('.sidebar .nav-link').forEach(link => {
     link.addEventListener('click', (e) => {
         e.preventDefault();
         const page = link.dataset.page;
+
+        // 清理当前页面
+        cleanupCurrentPage();
+
+        // 切换到新页面
         switchPage(page);
     });
 });
@@ -705,6 +989,9 @@ document.querySelectorAll('.sidebar .nav-link').forEach(link => {
 document.addEventListener('DOMContentLoaded', () => {
     // 加载仪表板数据
     loadDashboard();
+
+    // 初始化按钮状态
+    logWebSocket.updateConnectionStatus('disconnected');
 
     // 设置定时刷新
     setInterval(() => {

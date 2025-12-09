@@ -50,33 +50,6 @@ func (dh *DoorHandler) HandleDoorMemberList(w http.ResponseWriter, r *http.Reque
 	})
 }
 
-// HandleDoorMemberSwitch handles POST /api/proxy/door/switch
-func (dh *DoorHandler) HandleDoorMemberSwitch(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		ShowName string `json:"showname"`
-	}
-
-	if err := common.DecodeRequest(r, &req); err != nil {
-		common.ErrorBadRequest(w, "Invalid request body", nil)
-		return
-	}
-
-	if req.ShowName == "" {
-		common.ErrorBadRequest(w, "showname is required", nil)
-		return
-	}
-
-	registry := outbound.GetRegistry()
-	if err := registry.SetDoorMember(req.ShowName); err != nil {
-		common.ErrorBadRequest(w, err.Error(), nil)
-		return
-	}
-
-	common.Success(w, map[string]interface{}{
-		"status": "success",
-		"member": req.ShowName,
-	})
-}
 
 // HandleDoorAutoSelect handles POST /api/proxy/door/auto
 func (dh *DoorHandler) HandleDoorAutoSelect(w http.ResponseWriter, r *http.Request) {

@@ -397,8 +397,17 @@
 
                     <div class="card">
                         <div class="card-header d-flex justify-content-between align-items-center">
-                            <span><i class="bi bi-terminal"></i> 系统日志</span>
+                            <span>
+                                <i class="bi bi-terminal"></i> 系统日志
+                                <span id="wsConnectionStatus" class="badge bg-secondary ms-2">未连接</span>
+                            </span>
                             <div>
+                                <button type="button" class="btn btn-sm btn-success me-2" id="wsConnectBtn">
+                                    <i class="bi bi-plug"></i> 连接
+                                </button>
+                                <button type="button" class="btn btn-sm btn-warning me-2" id="wsDisconnectBtn">
+                                    <i class="bi bi-plug-fill"></i> 断开
+                                </button>
                                 <button type="button" class="btn btn-sm btn-primary me-2" id="logsRefreshBtn">
                                     <i class="bi bi-arrow-clockwise"></i> 刷新
                                 </button>
@@ -408,7 +417,7 @@
                             </div>
                         </div>
                         <div class="card-body">
-                            <textarea class="form-control" id="logsOutput" rows="20" placeholder="日志内容..." readonly></textarea>
+                            <textarea class="form-control" id="logsOutput" placeholder="日志内容..." readonly></textarea>
                         </div>
                     </div>
                 </div>
