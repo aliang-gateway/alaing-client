@@ -15,14 +15,14 @@ import (
 type RunService struct {
 	modeChangeMutex sync.RWMutex
 	currentMode     models.RunMode
-	tunRunning      bool
+	isRunning       bool // 统一使用 isRunning 字段
 }
 
 // NewRunService creates a new run service instance
 func NewRunService() *RunService {
 	return &RunService{
 		currentMode: models.ModeHTTP,
-		tunRunning:  false,
+		isRunning:   false,
 	}
 }
 
@@ -40,18 +40,18 @@ func (rs *RunService) SetCurrentMode(mode string) {
 	rs.currentMode = models.RunMode(mode)
 }
 
-// IsTunRunning returns whether a service is currently running
-func (rs *RunService) IsTunRunning() bool {
+// IsRunning returns whether a service is currently running
+func (rs *RunService) IsRunning() bool {
 	rs.modeChangeMutex.RLock()
 	defer rs.modeChangeMutex.RUnlock()
-	return rs.tunRunning
+	return rs.isRunning
 }
 
-// SetTunRunning sets the running state
-func (rs *RunService) SetTunRunning(running bool) {
+// SetRunning sets the running state
+func (rs *RunService) SetRunning(running bool) {
 	rs.modeChangeMutex.Lock()
 	defer rs.modeChangeMutex.Unlock()
-	rs.tunRunning = running
+	rs.isRunning = running
 }
 
 // StartService starts the service for the current mode
@@ -59,7 +59,7 @@ func (rs *RunService) StartService() map[string]interface{} {
 	rs.modeChangeMutex.Lock()
 
 	// Check if already running
-	if rs.tunRunning {
+	if rs.isRunning {
 		rs.modeChangeMutex.Unlock()
 		return map[string]interface{}{
 			"error":  "already_running",
@@ -69,6 +69,7 @@ func (rs *RunService) StartService() map[string]interface{} {
 	}
 
 	startMode := rs.currentMode
+	rs.isRunning = true // 先设置运行状态，避免并发启动
 	rs.modeChangeMutex.Unlock()
 
 	logger.Info("Starting " + string(startMode) + " service...")
@@ -77,12 +78,12 @@ func (rs *RunService) StartService() map[string]interface{} {
 	case models.ModeTUN:
 		return rs.startTUN()
 	case models.ModeHTTP:
-		// HTTP 模式启动时，设置运行状态为 true
-		rs.modeChangeMutex.Lock()
-		rs.tunRunning = true
-		rs.modeChangeMutex.Unlock()
-
-		go httpServer.StartMitmHttp()
+		// HTTP 服务内部也有检查，但我们需要先设置状态
+		go func() {
+			httpServer.StartMitmHttp()
+			// 如果启动失败，HTTP 服务内部会处理，但我们需要确保状态同步
+			// 注意：StartMitmHttp 是阻塞的，只有在停止时才会返回
+		}()
 		return map[string]interface{}{
 			"status":  "success",
 			"message": "HTTP proxy server is starting",
@@ -90,6 +91,10 @@ func (rs *RunService) StartService() map[string]interface{} {
 			"port":    "56432",
 		}
 	default:
+		// 未知模式，回滚状态
+		rs.modeChangeMutex.Lock()
+		rs.isRunning = false
+		rs.modeChangeMutex.Unlock()
 		return map[string]interface{}{
 			"error":  "unknown_mode",
 			"status": "failed",
@@ -100,17 +105,14 @@ func (rs *RunService) StartService() map[string]interface{} {
 
 // startTUN handles TUN mode startup
 func (rs *RunService) startTUN() map[string]interface{} {
-	rs.modeChangeMutex.Lock()
-	rs.tunRunning = true
-	rs.modeChangeMutex.Unlock()
-
+	// 状态已在 StartService 中设置
 	go runner2.Start()
 	res := <-runner2.RunStatusChan
 
 	// Update mode based on result
 	rs.modeChangeMutex.Lock()
 	if status, ok := res["status"]; ok && status == "failed" {
-		rs.tunRunning = false
+		rs.isRunning = false // 启动失败，回滚状态
 	}
 	rs.modeChangeMutex.Unlock()
 
@@ -126,7 +128,7 @@ func (rs *RunService) startTUN() map[string]interface{} {
 func (rs *RunService) StopService() map[string]interface{} {
 	rs.modeChangeMutex.Lock()
 
-	if !rs.tunRunning {
+	if !rs.isRunning {
 		rs.modeChangeMutex.Unlock()
 		return map[string]interface{}{
 			"error":  "not_running",
@@ -136,7 +138,7 @@ func (rs *RunService) StopService() map[string]interface{} {
 	}
 
 	stoppedMode := rs.currentMode
-	rs.tunRunning = false
+	rs.isRunning = false
 	rs.modeChangeMutex.Unlock()
 
 	logger.Info("Stopping " + string(stoppedMode) + " service...")
@@ -181,12 +183,9 @@ func (rs *RunService) GetStatus() map[string]interface{} {
 	rs.modeChangeMutex.RLock()
 	defer rs.modeChangeMutex.RUnlock()
 
-	// is_running: true if service is running (either HTTP or TUN mode)
-	isRunning := rs.tunRunning
-
 	response := map[string]interface{}{
 		"current_mode": string(rs.currentMode),
-		"is_running":   isRunning,
+		"is_running":   rs.isRunning,
 		"available_modes": []string{
 			string(models.ModeHTTP),
 			string(models.ModeTUN),
@@ -195,7 +194,7 @@ func (rs *RunService) GetStatus() map[string]interface{} {
 
 	switch rs.currentMode {
 	case models.ModeTUN:
-		if isRunning {
+		if rs.isRunning {
 			response["status"] = "TUN service is running"
 			response["description"] = "Transparent proxy mode via TUN interface"
 		} else {
@@ -203,7 +202,7 @@ func (rs *RunService) GetStatus() map[string]interface{} {
 			response["description"] = "TUN mode is ready, call start to activate"
 		}
 	case models.ModeHTTP:
-		if isRunning {
+		if rs.isRunning {
 			response["status"] = "HTTP proxy server is running"
 			response["description"] = "HTTP CONNECT proxy mode on port 56432"
 		} else {
@@ -232,7 +231,7 @@ func (rs *RunService) SwitchMode(targetMode string) map[string]interface{} {
 	}
 
 	// Check if already in target mode and running
-	if rs.currentMode == targetModeEnum && rs.tunRunning {
+	if rs.currentMode == targetModeEnum && rs.isRunning {
 		return map[string]interface{}{
 			"status":       "already_running",
 			"current_mode": string(rs.currentMode),
@@ -242,9 +241,9 @@ func (rs *RunService) SwitchMode(targetMode string) map[string]interface{} {
 
 	// Perform the mode transition
 	previousMode := rs.currentMode
-	if previousMode != targetModeEnum && rs.tunRunning {
+	if previousMode != targetModeEnum && rs.isRunning {
 		logger.Info("Stopping " + string(previousMode) + " service before switching to " + string(targetModeEnum) + " mode...")
-		rs.tunRunning = false
+		rs.isRunning = false
 		rs.stopServiceSync(previousMode)
 	}
 
@@ -259,23 +258,25 @@ func (rs *RunService) SwitchMode(targetMode string) map[string]interface{} {
 
 	switch targetModeEnum {
 	case models.ModeHTTP:
+		// 检查是否已经在运行 HTTP 服务
+		if rs.isRunning && previousMode == models.ModeHTTP {
+			response["message"] = "Already running in HTTP proxy mode"
+			response["status"] = "already_running"
+			return response
+		}
+
 		response["message"] = "Switched to HTTP proxy mode. Server is starting on 127.0.0.1:56432"
 		response["usage"] = "curl -x http://127.0.0.1:56432 https://example.com"
 		response["details"] = "HTTP proxy server will be ready in a moment"
 		response["next_action"] = "HTTP service starts automatically, you can begin using it after 1 second"
 
 		// Start HTTP service in background
+		rs.isRunning = true // 设置运行状态
 		go func() {
 			logger.Info("Starting HTTP proxy server...")
-			rs.modeChangeMutex.Lock()
-			rs.tunRunning = true
-			rs.modeChangeMutex.Unlock()
-
+			// HTTP 服务内部会检查是否已经在运行，避免重复启动
 			httpServer.StartMitmHttp()
-
-			rs.modeChangeMutex.Lock()
-			rs.tunRunning = false
-			rs.modeChangeMutex.Unlock()
+			// 服务停止时，状态会在 StopService 中更新
 		}()
 
 	case models.ModeTUN:

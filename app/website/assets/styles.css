@@ -132,6 +132,7 @@ body {
 /* 内容区域 */
 .content {
     padding: 2rem;
+    min-height: calc(100vh - 67px); /* 确保内容区域至少铺满视口 */
 }
 
 .content-section {
@@ -143,11 +144,12 @@ body {
     animation: fadeIn 0.3s ease-in-out;
 }
 
-/* 日志页面 - 改为自适应高度 */
+/* 日志页面 - 铺满高度 */
 #logs-page {
     /* 默认隐藏，继承 .content-section 的 display: none */
     flex-direction: column;
-    height: auto; /* 改为自动高度 */
+    height: calc(100vh - 67px - 4rem); /* 100vh - 顶部导航栏 - content padding (2rem * 2) */
+    min-height: 600px; /* 最小高度保证 */
 }
 
 #logs-page.active {
@@ -163,15 +165,34 @@ body {
 #logs-page .card {
     display: flex;
     flex-direction: column;
-    margin-bottom: 1.5rem; /* 恢复原有边距 */
     min-height: 0; /* 允许 flex 子元素缩小 */
+}
+
+/* 日志配置卡片 - 紧凑高度，不拉伸 */
+#logs-page .card:first-of-type {
+    flex-shrink: 0;
+    margin-bottom: 1.5rem;
+}
+
+#logs-page .card:first-of-type .card-body {
+    padding: 1rem;
+    flex: none; /* 不允许拉伸 */
+}
+
+/* 日志显示卡片 - 铺满剩余空间 */
+#logs-page .card:last-of-type {
+    flex: 1;
+    margin-bottom: 0;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
 }
 
 #logs-page .card-header {
     flex-shrink: 0; /* 头部不缩小 */
 }
 
-#logs-page .card-body {
+#logs-page .card:last-of-type .card-body {
     flex: 1;
     display: flex;
     flex-direction: column;
@@ -180,19 +201,11 @@ body {
     overflow: hidden; /* 防止内容溢出 */
 }
 
-/* 日志配置卡片 - 紧凑高度 */
-#logs-page .card:nth-child(2) .card-body {
-    padding: 1rem;
-    flex: none; /* 不允许拉伸 */
-}
-
 #logs-page #logsOutput {
     flex: 1;
     min-height: 0;
     resize: none;
     width: 100%;
-    /* 给输出区域一个合理的高度 */
-    height: 400px;
 }
 
 @keyframes fadeIn {

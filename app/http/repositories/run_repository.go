@@ -26,14 +26,14 @@ func (rr *RunRepositoryImpl) SetCurrentMode(mode string) {
 	rr.runService.SetCurrentMode(mode)
 }
 
-// IsTunRunning checks if TUN service is running
-func (rr *RunRepositoryImpl) IsTunRunning() bool {
-	return rr.runService.IsTunRunning()
+// IsRunning checks if service is running
+func (rr *RunRepositoryImpl) IsRunning() bool {
+	return rr.runService.IsRunning()
 }
 
-// SetTunRunning sets the TUN running state
-func (rr *RunRepositoryImpl) SetTunRunning(running bool) {
-	rr.runService.SetTunRunning(running)
+// SetRunning sets the running state
+func (rr *RunRepositoryImpl) SetRunning(running bool) {
+	rr.runService.SetRunning(running)
 }
 
 // StartService starts the service for the current mode
