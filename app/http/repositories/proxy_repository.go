@@ -54,7 +54,7 @@ func (pr *ProxyRepositoryImpl) GetProxy(name string) (interface{}, error) {
 // Register registers a new proxy instance
 func (pr *ProxyRepositoryImpl) Register(name string, config interface{}) error {
 	registry := proxyRegistry.GetRegistry()
-	if cfg, ok := config.(*proxyConfig.ProxyConfig); ok {
+	if cfg, ok := config.(*proxyConfig.BaseProxyConfig); ok {
 		return registry.RegisterFromConfig(name, cfg)
 	}
 	return errors.New("invalid config type")
@@ -77,4 +77,3 @@ func (pr *ProxyRepositoryImpl) GetByName(name string) (interface{}, error) {
 	registry := proxyRegistry.GetRegistry()
 	return registry.Get(name)
 }
-

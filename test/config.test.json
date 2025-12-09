@@ -14,65 +14,60 @@
     "tun-post-up": "",
     "udp-timeout": "60s"
   },
-  "currentProxy": "door",
-  "proxies": {
-    "direct": {
-      "type": "direct"
-    },
+  "baseProxies": {
     "nonelane": {
       "type": "nonelane",
       "core_server": "ai-gateway.nursor.org:443"
-    },
-    "door": {
-      "type": "door",
-      "is_default": true,
-      "members": [
-        {
-          "showname": "Hong Kong Node 01",
-          "type": "vless",
-          "latency": 45,
-          "vless": {
-            "server": "node1.nursor.org:35001",
-            "uuid": "74cddcdd-6d48-41cf-8e62-902e7c943fe7",
-            "flow": "xtls-rprx-vision",
-            "tls_enabled": true,
-            "sni": "www.microsoft.com",
-            "reality_enabled": true,
-            "public_key": "sAtJcW2xLIUWRE-_7KHGEAtvHx-P1sDbjrrgrt4_XCo",
-            "short_id": "",
-            "short_id_list": ",ef,b79e62,7d87a3,f4bfb2,ecdc,048cc1,be,872a9cb601,4e642a,d0a4cc,6a37c85b4d,facf,e2e46bb5,5fe83d984b7c,884c,f2e4c3af,7b79c5,b7a05d,b6920fa248,0975,95,4d3bd40917,57d89cd6ed9a"
-          }
-        },
-        {
-          "showname": "Japan Node 01",
-          "type": "vless",
-          "latency": 68,
-          "vless": {
-            "server": "jp1.example.com:443",
-            "uuid": "your-uuid-here",
-            "flow": "",
-            "tls_enabled": true,
-            "sni": "www.google.com",
-            "reality_enabled": false,
-            "public_key": "",
-            "short_id": "",
-            "short_id_list": ""
-          }
-        },
-        {
-          "showname": "US Node 01",
-          "type": "shadowsocks",
-          "latency": 185,
-          "shadowsocks": {
-            "server": "us1.example.com:443",
-            "method": "aes-256-gcm",
-            "password": "your-password-here",
-            "obfs_mode": "tls",
-            "obfs_host": "cloudflare.com"
-          }
-        }
-      ]
     }
+  },
+  "doorProxy": {
+    "type": "door",
+    "members": [
+      {
+        "showname": "Hong Kong Node 01",
+        "type": "vless",
+        "latency": 45,
+        "vless": {
+          "server": "node1.nursor.org:35001",
+          "uuid": "74cddcdd-6d48-41cf-8e62-902e7c943fe7",
+          "flow": "xtls-rprx-vision",
+          "tls_enabled": true,
+          "sni": "www.microsoft.com",
+          "reality_enabled": true,
+          "public_key": "sAtJcW2xLIUWRE-_7KHGEAtvHx-P1sDbjrrgrt4_XCo",
+          "short_id": "",
+          "short_id_list": ",ef,b79e62,7d87a3,f4bfb2,ecdc,048cc1,be,872a9cb601,4e642a,d0a4cc,6a37c85b4d,facf,e2e46bb5,5fe83d984b7c,884c,f2e4c3af,7b79c5,b7a05d,b6920fa248,0975,95,4d3bd40917,57d89cd6ed9a"
+        }
+      },
+      {
+        "showname": "Japan Node 01",
+        "type": "vless",
+        "latency": 68,
+        "vless": {
+          "server": "jp1.example.com:443",
+          "uuid": "your-uuid-here",
+          "flow": "",
+          "tls_enabled": true,
+          "sni": "www.google.com",
+          "reality_enabled": false,
+          "public_key": "",
+          "short_id": "",
+          "short_id_list": ""
+        }
+      },
+      {
+        "showname": "US Node 01",
+        "type": "shadowsocks",
+        "latency": 185,
+        "shadowsocks": {
+          "server": "us1.example.com:443",
+          "method": "aes-256-gcm",
+          "password": "your-password-here",
+          "obfs_mode": "tls",
+          "obfs_host": "cloudflare.com"
+        }
+      }
+    ]
   },
   "routingRules": {
     "geoip": {

@@ -2,26 +2,18 @@ package config
 
 import "fmt"
 
-// ProxyConfig represents a proxy configuration
-type ProxyConfig struct {
-	Type        string             `json:"type"`
-	IsDefault   bool               `json:"is_default"`
-	IsDoorProxy bool               `json:"is_door_proxy"`
-	VLESS       *VLESSConfig       `json:"vless,omitempty"`
-	Shadowsocks *ShadowsocksConfig `json:"shadowsocks,omitempty"`
-
-	// Door 代理集合专用
-	Members     []DoorProxyMember  `json:"members,omitempty"`
-
+// BaseProxyConfig represents a proxy configuration
+type BaseProxyConfig struct {
+	Type string `json:"type"`
 	// Nonelane 代理专用
-	CoreServer  string             `json:"core_server,omitempty"`
+	CoreServer string `json:"core_server,omitempty"`
 }
 
 // DoorProxyMember represents a member in a door proxy collection
 type DoorProxyMember struct {
-	ShowName    string             `json:"showname"`     // 显示名称
-	Type        string             `json:"type"`         // vless/shadowsocks
-	Latency     int64              `json:"latency"`      // 延迟（毫秒）
+	ShowName    string             `json:"showname"` // 显示名称
+	Type        string             `json:"type"`     // vless/shadowsocks
+	Latency     int64              `json:"latency"`  // 延迟（毫秒）
 	VLESS       *VLESSConfig       `json:"vless,omitempty"`
 	Shadowsocks *ShadowsocksConfig `json:"shadowsocks,omitempty"`
 }
@@ -49,26 +41,12 @@ type ShadowsocksConfig struct {
 }
 
 // Validate validates the proxy configuration
-func (c *ProxyConfig) Validate() error {
+func (c *BaseProxyConfig) Validate() error {
 	if c.Type == "" {
 		return fmt.Errorf("proxy type is required")
 	}
 
 	switch c.Type {
-	case "vless":
-		if c.VLESS == nil {
-			return fmt.Errorf("VLESS config is required for vless type")
-		}
-		if c.VLESS.Server == "" || c.VLESS.UUID == "" {
-			return fmt.Errorf("VLESS server and UUID are required")
-		}
-	case "shadowsocks":
-		if c.Shadowsocks == nil {
-			return fmt.Errorf("Shadowsocks config is required for shadowsocks type")
-		}
-		if c.Shadowsocks.Server == "" || c.Shadowsocks.Password == "" {
-			return fmt.Errorf("Shadowsocks server and password are required")
-		}
 	case "direct":
 		// Direct proxy doesn't require additional configuration
 		// It connects directly without proxy
@@ -76,38 +54,11 @@ func (c *ProxyConfig) Validate() error {
 		// Nonelane (mTLS) proxy - CoreServer is optional with default value
 		// If not provided, default will be used in registry
 	case "door":
-		// Door proxy collection - must have at least one member
-		if len(c.Members) == 0 {
-			return fmt.Errorf("door proxy must have at least one member")
-		}
-		// Validate each member
-		for i, member := range c.Members {
-			if member.ShowName == "" {
-				return fmt.Errorf("door member %d: showname is required", i)
-			}
-			if member.Type == "" {
-				return fmt.Errorf("door member %d (%s): type is required", i, member.ShowName)
-			}
-			// Validate member config based on type
-			switch member.Type {
-			case "vless":
-				if member.VLESS == nil {
-					return fmt.Errorf("door member %d (%s): VLESS config is required", i, member.ShowName)
-				}
-				if member.VLESS.Server == "" || member.VLESS.UUID == "" {
-					return fmt.Errorf("door member %d (%s): VLESS server and UUID are required", i, member.ShowName)
-				}
-			case "shadowsocks":
-				if member.Shadowsocks == nil {
-					return fmt.Errorf("door member %d (%s): Shadowsocks config is required", i, member.ShowName)
-				}
-				if member.Shadowsocks.Server == "" || member.Shadowsocks.Password == "" {
-					return fmt.Errorf("door member %d (%s): Shadowsocks server and password are required", i, member.ShowName)
-				}
-			default:
-				return fmt.Errorf("door member %d (%s): unsupported type %s", i, member.ShowName, member.Type)
-			}
-		}
+		// Door proxy type - validation will be done during registration process
+		// The actual members are stored separately in the door proxy config
+	case "vless", "shadowsocks":
+		// These types are only valid as door proxy members
+		return fmt.Errorf("type '%s' is only valid as a door proxy member", c.Type)
 	default:
 		return fmt.Errorf("unsupported proxy type: %s", c.Type)
 	}
@@ -161,11 +112,17 @@ type EngineConfig struct {
 	UDPTimeout               string `json:"udp-timeout"` // 字符串格式，需要解析为 time.Duration
 }
 
+// DoorProxyConfig Door 代理集合专用配置
+type DoorProxyConfig struct {
+	Type    string            `json:"type"`
+	Members []DoorProxyMember `json:"members,omitempty"`
+}
+
 // Config 完整配置结构
 type Config struct {
-	Engine       *EngineConfig           `json:"engine"`
-	CurrentProxy string                  `json:"currentProxy"`
-	CoreServer   string                  `json:"coreServer"`
-	Proxies      map[string]*ProxyConfig `json:"proxies"`
-	RoutingRules *RoutingRulesConfig     `json:"routingRules,omitempty"` // 路由规则配置
+	Engine       *EngineConfig               `json:"engine"`
+	CurrentProxy string                      `json:"currentProxy"`
+	BaseProxies  map[string]*BaseProxyConfig `json:"baseProxies"`
+	DoorProxy    *DoorProxyConfig            `json:"doorProxy,omitempty"`    // Door 代理集合配置
+	RoutingRules *RoutingRulesConfig         `json:"routingRules,omitempty"` // 路由规则配置
 }

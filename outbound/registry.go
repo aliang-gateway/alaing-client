@@ -2,6 +2,7 @@ package outbound
 
 import (
 	"fmt"
+	"math/rand"
 	"strings"
 	"sync"
 
@@ -9,6 +10,8 @@ import (
 	"nursor.org/nursorgate/outbound/proxy"
 	"nursor.org/nursorgate/outbound/proxy/direct"
 	"nursor.org/nursorgate/outbound/proxy/nonelane"
+	"nursor.org/nursorgate/outbound/proxy/shadowsocks"
+	"nursor.org/nursorgate/outbound/proxy/vless"
 	proxyConfig "nursor.org/nursorgate/processor/config"
 )
 
@@ -300,8 +303,8 @@ type ProxyInfo struct {
 	IsDefault   bool   `json:"is_default"`
 	IsDoorProxy bool   `json:"is_door_proxy"`
 	IsNonelane  bool   `json:"is_nonelane"`
-	Latency     int64  `json:"latency,omitempty"`     // 延迟（毫秒），仅用于 door 成员
-	ShowName    string `json:"show_name,omitempty"`   // 显示名称，仅用于 door 成员
+	Latency     int64  `json:"latency,omitempty"`   // 延迟（毫秒），仅用于 door 成员
+	ShowName    string `json:"show_name,omitempty"` // 显示名称，仅用于 door 成员
 }
 
 // Count 返回已注册的代理数量
@@ -324,7 +327,7 @@ func (r *Registry) Clear() {
 
 // RegisterFromConfig 根据配置注册代理（支持自定义名称）
 // 使用factory模式创建代理实例，并将配置存储在ConfigStore中
-func (r *Registry) RegisterFromConfig(name string, cfg *proxyConfig.ProxyConfig) error {
+func (r *Registry) RegisterFromConfig(name string, cfg *proxyConfig.BaseProxyConfig) error {
 	if name == "" {
 		return fmt.Errorf("proxy name cannot be empty")
 	}
@@ -354,25 +357,18 @@ func (r *Registry) RegisterFromConfig(name string, cfg *proxyConfig.ProxyConfig)
 		// 不因配置存储失败而中止注册
 	}
 
-	// 根据配置设置默认代理
-	if cfg.IsDefault {
-		if err := r.SetDefault(name); err != nil {
-			return fmt.Errorf("failed to set default proxy: %w", err)
-		}
-	}
-
 	return nil
 }
 
 // RegisterDoorFromConfig 从配置注册 door 代理集合
-func (r *Registry) RegisterDoorFromConfig(cfg *proxyConfig.ProxyConfig) error {
-	if cfg == nil {
-		return fmt.Errorf("config cannot be nil")
+func (r *Registry) RegisterDoorFromConfig(doorCfg *proxyConfig.DoorProxyConfig) error {
+	if doorCfg == nil {
+		return fmt.Errorf("door config cannot be nil")
 	}
-	if cfg.Type != "door" {
-		return fmt.Errorf("config type must be 'door', got '%s'", cfg.Type)
+	if doorCfg.Type != "door" {
+		return fmt.Errorf("config type must be 'door', got '%s'", doorCfg.Type)
 	}
-	if len(cfg.Members) == 0 {
+	if len(doorCfg.Members) == 0 {
 		return fmt.Errorf("door proxy must have at least one member")
 	}
 
@@ -383,21 +379,21 @@ func (r *Registry) RegisterDoorFromConfig(cfg *proxyConfig.ProxyConfig) error {
 	doorGroup := NewDoorProxyGroup()
 
 	// 注册每个成员
-	for _, member := range cfg.Members {
-		// 创建成员的代理配置
-		memberCfg := &proxyConfig.ProxyConfig{
-			Type:        member.Type,
-			VLESS:       member.VLESS,
-			Shadowsocks: member.Shadowsocks,
-		}
-
-		// 验证成员配置
-		if err := memberCfg.Validate(); err != nil {
-			return fmt.Errorf("invalid config for member '%s': %w", member.ShowName, err)
-		}
+	for _, member := range doorCfg.Members {
 
 		// 创建代理实例
-		p, err := proxyConfig.CreateProxyFromConfig(memberCfg)
+		var p proxy.Proxy
+		var err error
+
+		switch member.Type {
+		case "vless":
+			p, err = createVLESSProxy(member.VLESS)
+		case "shadowsocks":
+			p, err = createShadowsocksProxy(member.Shadowsocks)
+		default:
+			return fmt.Errorf("unsupported member type '%s' for member '%s'", member.Type, member.ShowName)
+		}
+
 		if err != nil {
 			return fmt.Errorf("failed to create proxy for member '%s': %w", member.ShowName, err)
 		}
@@ -497,4 +493,57 @@ func (r *Registry) GetDoorGroup() *DoorProxyGroup {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	return r.doorGroup
+}
+
+// createVLESSProxy creates VLESS proxy instance from door member config
+func createVLESSProxy(cfg *proxyConfig.VLESSConfig) (proxy.Proxy, error) {
+	if cfg == nil {
+		return nil, fmt.Errorf("VLESS config cannot be nil")
+	}
+
+	// Handle REALITY
+	if cfg.RealityEnabled {
+		shortID := cfg.ShortID
+		if shortID == "" && cfg.ShortIDList != "" {
+			// Random selection from ShortIDList
+			shortIDArray := strings.Split(cfg.ShortIDList, ",")
+			if len(shortIDArray) > 0 {
+				shortID = strings.TrimSpace(shortIDArray[rand.Intn(len(shortIDArray))])
+			}
+		}
+		return vless.NewVLESSWithReality(
+			cfg.Server,
+			cfg.UUID,
+			cfg.SNI,
+			cfg.PublicKey,
+		)
+	}
+
+	// Handle TLS
+	if cfg.TLSEnabled {
+		if cfg.Flow != "" {
+			// VLESS with Vision flow
+			return vless.NewVLESSWithVision(cfg.Server, cfg.UUID, cfg.SNI)
+		}
+		// VLESS with TLS only
+		return vless.NewVLESSWithTLS(cfg.Server, cfg.UUID, cfg.SNI)
+	}
+
+	// Basic VLESS
+	return vless.NewVLESS(cfg.Server, cfg.UUID)
+}
+
+// createShadowsocksProxy creates Shadowsocks proxy instance from door member config
+func createShadowsocksProxy(cfg *proxyConfig.ShadowsocksConfig) (proxy.Proxy, error) {
+	if cfg == nil {
+		return nil, fmt.Errorf("Shadowsocks config cannot be nil")
+	}
+
+	return shadowsocks.NewShadowsocks(
+		cfg.Server,
+		cfg.Method,
+		cfg.Password,
+		cfg.ObfsMode,
+		cfg.ObfsHost,
+	)
 }

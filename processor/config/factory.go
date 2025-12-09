@@ -12,18 +12,20 @@ import (
 )
 
 // CreateProxyFromConfig creates a proxy instance from configuration
-func CreateProxyFromConfig(cfg *ProxyConfig) (proxy.Proxy, error) {
+func CreateProxyFromConfig(cfg *BaseProxyConfig) (proxy.Proxy, error) {
 	if err := cfg.Validate(); err != nil {
 		return nil, fmt.Errorf("invalid config: %w", err)
 	}
 
 	switch cfg.Type {
-	case "vless":
-		return createVLESSProxy(cfg.VLESS)
-	case "shadowsocks":
-		return createShadowsocksProxy(cfg.Shadowsocks)
 	case "direct":
 		return direct.NewDirect(), nil
+	case "nonelane":
+		// Nonelane proxy will be handled separately in registry
+		return nil, fmt.Errorf("nonelane proxy should be created by registry")
+	case "door":
+		// Door proxy will be handled separately in registry
+		return nil, fmt.Errorf("door proxy should be created by registry")
 	default:
 		return nil, fmt.Errorf("unsupported proxy type: %s", cfg.Type)
 	}

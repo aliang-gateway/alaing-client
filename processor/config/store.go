@@ -8,7 +8,7 @@ import (
 // ConfigStore stores proxy configurations (not instances)
 type ConfigStore struct {
 	mu      sync.RWMutex
-	configs map[string]*ProxyConfig
+	configs map[string]*BaseProxyConfig
 }
 
 var (
@@ -20,14 +20,14 @@ var (
 func GetConfigStore() *ConfigStore {
 	configStoreOnce.Do(func() {
 		globalConfigStore = &ConfigStore{
-			configs: make(map[string]*ProxyConfig),
+			configs: make(map[string]*BaseProxyConfig),
 		}
 	})
 	return globalConfigStore
 }
 
 // Set stores a proxy configuration
-func (s *ConfigStore) Set(name string, cfg *ProxyConfig) error {
+func (s *ConfigStore) Set(name string, cfg *BaseProxyConfig) error {
 	if name == "" {
 		return fmt.Errorf("proxy name cannot be empty")
 	}
@@ -45,21 +45,13 @@ func (s *ConfigStore) Set(name string, cfg *ProxyConfig) error {
 
 	// Create a deep copy to prevent external modification
 	cfgCopy := *cfg
-	if cfg.VLESS != nil {
-		vlessCopy := *cfg.VLESS
-		cfgCopy.VLESS = &vlessCopy
-	}
-	if cfg.Shadowsocks != nil {
-		ssCopy := *cfg.Shadowsocks
-		cfgCopy.Shadowsocks = &ssCopy
-	}
 
 	s.configs[name] = &cfgCopy
 	return nil
 }
 
 // Get retrieves a proxy configuration
-func (s *ConfigStore) Get(name string) (*ProxyConfig, error) {
+func (s *ConfigStore) Get(name string) (*BaseProxyConfig, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
@@ -70,14 +62,6 @@ func (s *ConfigStore) Get(name string) (*ProxyConfig, error) {
 
 	// Return a copy to prevent external modification
 	cfgCopy := *cfg
-	if cfg.VLESS != nil {
-		vlessCopy := *cfg.VLESS
-		cfgCopy.VLESS = &vlessCopy
-	}
-	if cfg.Shadowsocks != nil {
-		ssCopy := *cfg.Shadowsocks
-		cfgCopy.Shadowsocks = &ssCopy
-	}
 
 	return &cfgCopy, nil
 }
@@ -112,26 +96,18 @@ func (s *ConfigStore) Clear() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	s.configs = make(map[string]*ProxyConfig)
+	s.configs = make(map[string]*BaseProxyConfig)
 }
 
 // GetAll returns all configs (for debugging/listing)
-func (s *ConfigStore) GetAll() map[string]*ProxyConfig {
+func (s *ConfigStore) GetAll() map[string]*BaseProxyConfig {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	result := make(map[string]*ProxyConfig, len(s.configs))
+	result := make(map[string]*BaseProxyConfig, len(s.configs))
 	for name, cfg := range s.configs {
 		// Deep copy
 		cfgCopy := *cfg
-		if cfg.VLESS != nil {
-			vlessCopy := *cfg.VLESS
-			cfgCopy.VLESS = &vlessCopy
-		}
-		if cfg.Shadowsocks != nil {
-			ssCopy := *cfg.Shadowsocks
-			cfgCopy.Shadowsocks = &ssCopy
-		}
 		result[name] = &cfgCopy
 	}
 	return result
