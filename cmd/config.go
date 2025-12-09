@@ -160,15 +160,21 @@ func ApplyConfig(config *Config) error {
 
 // setEffectiveDefaultProxy sets the active default proxy.
 // Supports "door:showname" format to select specific door member.
-// If currentProxy is empty or unavailable, falls back to "direct".
+// If currentProxy is empty or unavailable, falls back to first door member or "direct".
 func setEffectiveDefaultProxy(currentProxy string) error {
 	registry := outbound.GetRegistry()
 
 	// Determine which proxy to set as default
 	proxyName := currentProxy
 	if proxyName == "" {
-		proxyName = "direct"
-		logger.Debug("No default proxy specified, using 'direct'")
+		// 尝试获取第一个 door 成员
+		if firstDoorMember := getFirstDoorMember(registry); firstDoorMember != "" {
+			proxyName = "door:" + firstDoorMember
+			logger.Debug(fmt.Sprintf("No default proxy specified, using first door member: %s", firstDoorMember))
+		} else {
+			proxyName = "direct"
+			logger.Debug("No default proxy specified and no door members found, using 'direct'")
+		}
 	}
 
 	// Check if it's a door member specification (format: "door:memberName")
@@ -209,6 +215,25 @@ func setEffectiveDefaultProxy(currentProxy string) error {
 
 	logger.Info(fmt.Sprintf("Default proxy set to: %s", proxyName))
 	return nil
+}
+
+// getFirstDoorMember 获取 door 代理的第一个成员
+// 如果没有 door 代理或没有成员，返回空字符串
+func getFirstDoorMember(registry *outbound.Registry) string {
+	// 获取 door 组
+	doorGroup := registry.GetDoorGroup()
+	if doorGroup == nil {
+		return ""
+	}
+
+	// 获取所有成员
+	members := doorGroup.ListMembers()
+	if len(members) == 0 {
+		return ""
+	}
+
+	// 返回第一个成员的名称
+	return members[0].ShowName
 }
 
 // applyEngineConfig 应用引擎配置

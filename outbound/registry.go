@@ -491,3 +491,10 @@ func (r *Registry) IsDoorAutoSelect() bool {
 
 	return r.doorGroup.IsAutoSelect()
 }
+
+// GetDoorGroup 获取 door 代理组
+func (r *Registry) GetDoorGroup() *DoorProxyGroup {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return r.doorGroup
+}

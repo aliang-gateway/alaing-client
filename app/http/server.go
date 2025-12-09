@@ -90,32 +90,20 @@ func registerStaticFiles() {
 		return
 	}
 
-	// 注册根路径处理器，支持 SPA 路由
-	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		// 清理路径
-		path := r.URL.Path
-		if path == "/" {
-			path = "/index.html"
+	// 注册 assets 路径处理器
+	mux.HandleFunc("/assets/", func(w http.ResponseWriter, r *http.Request) {
+		// 移除前导 /assets/
+		filePath := strings.TrimPrefix(r.URL.Path, "/assets/")
+
+		// 安全检查：确保没有目录遍历
+		if strings.Contains(filePath, "..") {
+			http.Error(w, "Invalid path", http.StatusBadRequest)
+			return
 		}
 
-		// 移除前导斜杠以匹配 embed 文件系统
-		filePath := strings.TrimPrefix(path, "/")
-
 		// 尝试打开文件
-		file, err := websiteRoot.Open(filePath)
+		file, err := websiteRoot.Open("assets/" + filePath)
 		if err != nil {
-			// 如果文件不存在，尝试返回 index.html（SPA 路由支持）
-			if filePath != "index.html" {
-				indexFile, err := websiteRoot.Open("index.html")
-				if err == nil {
-					defer indexFile.Close()
-					w.Header().Set("Content-Type", "text/html; charset=utf-8")
-
-					// 读取并写入文件内容
-					io.Copy(w, indexFile)
-					return
-				}
-			}
 			http.NotFound(w, r)
 			return
 		}
@@ -129,15 +117,54 @@ func registerStaticFiles() {
 		}
 
 		// 设置 Content-Type
-		setContentType(w, path)
+		setContentType(w, filePath)
 
-		// 如果文件实现了 io.ReadSeeker，使用 ServeContent（支持 Range 请求）
+		// 使用 ServeContent（支持 Range 请求和缓存）
 		if rs, ok := file.(io.ReadSeeker); ok {
-			http.ServeContent(w, r, filepath.Base(path), info.ModTime(), rs)
+			http.ServeContent(w, r, filepath.Base(filePath), info.ModTime(), rs)
 		} else {
-			// 否则直接复制内容
 			w.Header().Set("Content-Length", fmt.Sprintf("%d", info.Size()))
 			io.Copy(w, file)
+		}
+	})
+
+	// 注册根路径处理器，支持 SPA 路由
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		// 处理根路径
+		if r.URL.Path == "/" {
+			path := "/index.html"
+			filePath := strings.TrimPrefix(path, "/")
+			file, err := websiteRoot.Open(filePath)
+			if err != nil {
+				http.NotFound(w, r)
+				return
+			}
+			defer file.Close()
+
+			info, err := file.Stat()
+			if err != nil {
+				http.NotFound(w, r)
+				return
+			}
+
+			w.Header().Set("Content-Type", "text/html; charset=utf-8")
+			if rs, ok := file.(io.ReadSeeker); ok {
+				http.ServeContent(w, r, filepath.Base(path), info.ModTime(), rs)
+			} else {
+				w.Header().Set("Content-Length", fmt.Sprintf("%d", info.Size()))
+				io.Copy(w, file)
+			}
+			return
+		}
+
+		// 对于其他路径，如果是非 assets 路径，返回 index.html（SPA 路由支持）
+		indexFile, err := websiteRoot.Open("index.html")
+		if err == nil {
+			defer indexFile.Close()
+			w.Header().Set("Content-Type", "text/html; charset=utf-8")
+			io.Copy(w, indexFile)
+		} else {
+			http.NotFound(w, r)
 		}
 	})
 
