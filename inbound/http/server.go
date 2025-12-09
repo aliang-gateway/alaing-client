@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"nursor.org/nursorgate/common/logger"
@@ -17,11 +18,12 @@ import (
 
 // HTTP server state management
 var (
-	httpListener net.Listener
-	httpCtx      context.Context
-	httpCancel   context.CancelFunc
-	httpMutex    sync.Mutex
+	httpListener  net.Listener
+	httpCtx       context.Context
+	httpCancel    context.CancelFunc
+	httpMutex     sync.Mutex
 	isHttpRunning bool
+	connIDCounter int64
 )
 
 // StartHttpProxy starts the HTTP CONNECT proxy server
@@ -124,21 +126,25 @@ func IsHttpRunning() bool {
 func handleRawConnection(conn net.Conn) {
 	defer conn.Close()
 
+	// 为每个连接分配唯一ID
+	connID := atomic.AddInt64(&connIDCounter, 1)
+	logger.Info(fmt.Sprintf("[CONN#%d] 新连接建立 - %s → 127.0.0.1:56432", connID, conn.RemoteAddr()))
+
 	// 读取客户端初始数据，检查是否为 CONNECT 请求
 	reader := bufio.NewReader(conn)
 	req, err := http.ReadRequest(reader)
 	if err != nil {
-		log.Printf("Failed to read initial request: %v", err)
+		logger.Error(fmt.Sprintf("[CONN#%d] 读取请求失败: %v", connID, err))
 		return
 	}
 
 	if req.Method == "CONNECT" {
-		logger.Debug("Received CONNECT request for " + req.Host)
+		logger.Info(fmt.Sprintf("[CONN#%d] CONNECT请求: %s", connID, req.Host))
 
 		// Extract metadata from CONNECT request
 		metadata, err := ExtractMetadataFromCONNECT(req, conn)
 		if err != nil {
-			logger.Error("Failed to extract metadata from CONNECT: " + err.Error())
+			logger.Error(fmt.Sprintf("[CONN#%d] 提取元数据失败: %v", connID, err))
 			resp := &http.Response{
 				Status:        "400 Bad Request",
 				StatusCode:    http.StatusBadRequest,
@@ -152,24 +158,24 @@ func handleRawConnection(conn net.Conn) {
 			return
 		}
 
-		logger.Debug(fmt.Sprintf("CONNECT metadata: host=%s, port=%d, srcIP=%s, dstIP=%s",
-			metadata.HostName, metadata.DstPort, metadata.SrcIP, metadata.DstIP))
+		logger.Debug(fmt.Sprintf("[CONN#%d] 目标信息: %s:%d (IP:%s)", connID, metadata.HostName, metadata.DstPort, metadata.DstIP))
 
 		// Send 200 Connection Established
 		// IMPORTANT: Use raw write instead of http.Response for proper formatting
 		response200 := "HTTP/1.1 200 Connection Established\r\n\r\n"
 		if _, err := conn.Write([]byte(response200)); err != nil {
-			logger.Error("Failed to send 200 OK: " + err.Error())
+			logger.Error(fmt.Sprintf("[CONN#%d] 发送200应答失败: %v", connID, err))
 			return
 		}
-		logger.Debug("Sent 200 Connection Established")
+		logger.Info(fmt.Sprintf("[CONN#%d] ✓ 已发送200 Connection Established", connID))
 
 		// Handle CONNECT tunnel - establishes direct tunnel between client and target
-		logger.Debug(fmt.Sprintf("Starting CONNECT tunnel for %s:%d", metadata.HostName, metadata.DstPort))
-		if err := HandleCONNECTTunnel(conn, metadata); err != nil {
-			logger.Error(fmt.Sprintf("CONNECT tunnel error for %s: %v", metadata.HostName, err))
+		logger.Debug(fmt.Sprintf("[CONN#%d] 开始建立隧道...", connID))
+		if err := HandleRawConnect(conn, metadata); err != nil {
+			logger.Error(fmt.Sprintf("[CONN#%d] ❌ 隧道建立失败: %v", connID, err))
+		} else {
+			logger.Info(fmt.Sprintf("[CONN#%d] ✓ 隧道建立成功并已关闭", connID))
 		}
-		logger.Debug("CONNECT tunnel closed for " + req.Host)
 	} else {
 		// 透明代理，基本不存在
 		HandleHttpConnection(conn, req)

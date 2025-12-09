@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"nursor.org/nursorgate/common/logger"
+	"nursor.org/nursorgate/inbound/tun/dialer"
 	M "nursor.org/nursorgate/inbound/tun/metadata"
 	registry "nursor.org/nursorgate/processor/registry"
 	"nursor.org/nursorgate/processor/statistic"
@@ -78,7 +79,7 @@ func (h *TCPConnectionHandler) Handle(ctx context.Context, originConn net.Conn, 
 	}
 
 	if err != nil {
-		logger.Error(fmt.Sprintf("TCP handler failed: %v", err))
+		logger.Error(fmt.Sprintf("[TCP HANDLER] ❌ 处理失败 - 域名:%s, 端口:%d, 错误:%v", metadata.HostName, metadata.DstPort, err))
 		return err
 	}
 
@@ -196,14 +197,10 @@ func (h *TCPConnectionHandler) handleTLS(
 	}
 }
 
-// dialDirect dials a direct connection to the target
+// dialDirect dials a direct connection to the target using tun dialer
 func (h *TCPConnectionHandler) dialDirect(ctx context.Context, metadata *M.Metadata) (net.Conn, error) {
-	d := net.Dialer{
-		Timeout: time.Duration(DefaultTCPConnectTimeout) * time.Second,
-	}
-
 	addr := net.JoinHostPort(metadata.DstIP.String(), fmt.Sprintf("%d", metadata.DstPort))
-	conn, err := d.DialContext(ctx, "tcp", addr)
+	conn, err := dialer.DialContext(ctx, "tcp", addr)
 	if err != nil {
 		logger.Debug(fmt.Sprintf("Dial failed: %v", err))
 		return nil, err

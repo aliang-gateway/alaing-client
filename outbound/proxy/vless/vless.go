@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
+	"io"
 	"math/rand"
 	"net"
 	"strconv"
@@ -246,9 +247,10 @@ func (v *VLESS) establishNewConnection(ctx context.Context, metadata *M.Metadata
 
 		tlsConn, err := stls.ClientHandshake(ctx, conn, tlsConf)
 		if err != nil {
+			logger.Error(fmt.Sprintf("[VLESS] TLS握手失败 目标: %s:%d, 错误: %v", metadata.HostName, metadata.DstPort, err))
 			return nil, fmt.Errorf("failed to handshake with VLESS server: %w", err)
 		}
-		logger.Debug("DEBUG: REALITY TLS 握手完成")
+		logger.Info(fmt.Sprintf("[VLESS] ✓ TLS握手成功 SNI: %s, 目标: %s:%d", v.sni, metadata.HostName, metadata.DstPort))
 
 		// 创建目标地址
 		// 重要：如果有域名，优先使用域名而不是IP，这样目标服务器才能正确处理TLS SNI
@@ -267,10 +269,20 @@ func (v *VLESS) establishNewConnection(ctx context.Context, metadata *M.Metadata
 
 		visionConn, err := v.client.DialEarlyConn(tlsConn, destination)
 		if err != nil {
+			// 关键诊断：记录错误的具体类型
+			errMsg := fmt.Sprintf("[VLESS] ❌ Early Dial失败 目标: %s:%d, 错误: %v", metadata.HostName, metadata.DstPort, err)
+
+			if err == io.EOF {
+				errMsg += " [EOF - 可能原因: 服务器不支持0-RTT或握手失败]"
+			} else if err.Error() == "context canceled" {
+				errMsg += " [Context取消]"
+			}
+
+			logger.Error(errMsg)
 			return nil, fmt.Errorf("failed to dial early connection: %w", err)
 		}
 
-		logger.Debug(fmt.Sprintf("DEBUG: VLESS 连接建立成功，类型: %T\n", visionConn))
+		logger.Info(fmt.Sprintf("[VLESS] ✓ Early Dial成功 目标: %s:%d, 连接类型: %T", metadata.HostName, metadata.DstPort, visionConn))
 		return visionConn, nil
 	}
 

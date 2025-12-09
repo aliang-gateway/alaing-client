@@ -10,11 +10,21 @@ import (
 	"nursor.org/nursorgate/processor/tcp"
 )
 
-// HandleCONNECTTunnel handles HTTP CONNECT tunneling
+// HandleRawConnect handles HTTP CONNECT tunneling
 // It delegates to processor/tcp for unified TCP handling with routing decisions
-func HandleCONNECTTunnel(clientConn net.Conn, metadata *M.Metadata) error {
-	logger.Debug(fmt.Sprintf("CONNECT tunnel: hostname=%s, port=%d, dstIP=%s, srcIP=%s",
-		metadata.HostName, metadata.DstPort, metadata.DstIP.String(), metadata.SrcIP.String()))
+func HandleRawConnect(clientConn net.Conn, metadata *M.Metadata) error {
+	// 从连接信息中提取ClientAddr以便与server.go日志关联
+	clientAddr := "unknown"
+	if tcpConn, ok := clientConn.(*net.TCPConn); ok {
+		if addr := tcpConn.RemoteAddr(); addr != nil {
+			clientAddr = addr.String()
+		}
+	} else if addr := clientConn.RemoteAddr(); addr != nil {
+		clientAddr = addr.String()
+	}
+
+	logger.Debug(fmt.Sprintf("[TUNNEL] 隧道参数 - 客户端:%s, 目标:%s:%d",
+		clientAddr, metadata.HostName, metadata.DstPort))
 
 	// Create context for the handler
 	ctx := context.Background()
@@ -28,12 +38,13 @@ func HandleCONNECTTunnel(clientConn net.Conn, metadata *M.Metadata) error {
 	// 2. Route based on domain rules (cursor proxy, door proxy, or direct)
 	// 3. Handle SNI extraction if TLS
 	// 4. Perform bidirectional relay with statistics
-	logger.Debug(fmt.Sprintf("Routing CONNECT through TCP handler for %s:%d", metadata.HostName, metadata.DstPort))
+	logger.Debug(fmt.Sprintf("[TUNNEL] 调用TCP Handler处理 %s:%d", metadata.HostName, metadata.DstPort))
 	if err := handler.Handle(ctx, clientConn, metadata); err != nil {
-		logger.Error(fmt.Sprintf("TCP handler failed for %s: %v", metadata.HostName, err))
+		logger.Error(fmt.Sprintf("[TUNNEL] TCP Handler失败: 客户端:%s, 目标:%s, 错误:%v",
+			clientAddr, metadata.HostName, err))
 		return err
 	}
 
-	logger.Debug(fmt.Sprintf("CONNECT tunnel closed: %s:%d", metadata.HostName, metadata.DstPort))
+	logger.Debug(fmt.Sprintf("[TUNNEL] 隧道已关闭: %s:%d", metadata.HostName, metadata.DstPort))
 	return nil
 }

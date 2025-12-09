@@ -77,11 +77,12 @@ func (rs *RunService) StartService() map[string]interface{} {
 	case models.ModeTUN:
 		return rs.startTUN()
 	case models.ModeHTTP:
+		go httpServer.StartMitmHttp()
 		return map[string]interface{}{
 			"status":  "success",
 			"message": "HTTP proxy server is already running",
 			"details": "HTTP proxy was started when you switched to HTTP mode",
-			"port":    "127.0.0.1:56432",
+			"port":    "56432",
 		}
 	default:
 		return map[string]interface{}{
