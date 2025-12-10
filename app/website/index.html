@@ -74,6 +74,12 @@
                             </a>
                         </li>
                         <li class="nav-item">
+                            <a class="nav-link" href="#" data-page="stats">
+                                <i class="bi bi-graph-up"></i>
+                                代理统计
+                            </a>
+                        </li>
+                        <li class="nav-item">
                             <a class="nav-link" href="#" data-page="dnscache">
                                 <i class="bi bi-globe2"></i>
                                 DNS 缓存
@@ -518,6 +524,120 @@
                                 </button>
                             </div>
                         </div>
+                    </div>
+                </div>
+
+                <!-- 代理统计页面 -->
+                <div id="stats-page" class="content-section">
+                    <h2 class="mb-4"><i class="bi bi-graph-up"></i> 代理统计</h2>
+                    <p class="text-muted">实时监控各代理的流量、连接数和负载分布</p>
+
+                    <!-- 全局统计卡片 -->
+                    <div class="row mb-4">
+                        <div class="col-xl-3 col-md-6 mb-4">
+                            <div class="card border-left-primary shadow h-100 py-2">
+                                <div class="card-body">
+                                    <div class="row no-gutters align-items-center">
+                                        <div class="col mr-2">
+                                            <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">
+                                                总上传流量
+                                            </div>
+                                            <div class="h5 mb-0 font-weight-bold text-gray-800" id="statsUploadTotal">-</div>
+                                        </div>
+                                        <div class="col-auto">
+                                            <i class="bi bi-cloud-upload fa-2x text-gray-300"></i>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-xl-3 col-md-6 mb-4">
+                            <div class="card border-left-success shadow h-100 py-2">
+                                <div class="card-body">
+                                    <div class="row no-gutters align-items-center">
+                                        <div class="col mr-2">
+                                            <div class="text-xs font-weight-bold text-success text-uppercase mb-1">
+                                                总下载流量
+                                            </div>
+                                            <div class="h5 mb-0 font-weight-bold text-gray-800" id="statsDownloadTotal">-</div>
+                                        </div>
+                                        <div class="col-auto">
+                                            <i class="bi bi-cloud-download fa-2x text-gray-300"></i>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-xl-3 col-md-6 mb-4">
+                            <div class="card border-left-info shadow h-100 py-2">
+                                <div class="card-body">
+                                    <div class="row no-gutters align-items-center">
+                                        <div class="col mr-2">
+                                            <div class="text-xs font-weight-bold text-info text-uppercase mb-1">
+                                                活跃连接数
+                                            </div>
+                                            <div class="h5 mb-0 font-weight-bold text-gray-800" id="statsConnectionCount">-</div>
+                                        </div>
+                                        <div class="col-auto">
+                                            <i class="bi bi-link-45deg fa-2x text-gray-300"></i>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-xl-3 col-md-6 mb-4">
+                            <div class="card border-left-warning shadow h-100 py-2">
+                                <div class="card-body">
+                                    <div class="row no-gutters align-items-center">
+                                        <div class="col mr-2">
+                                            <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">
+                                                总流量
+                                            </div>
+                                            <div class="h5 mb-0 font-weight-bold text-gray-800" id="statsTotalTraffic">-</div>
+                                        </div>
+                                        <div class="col-auto">
+                                            <i class="bi bi-arrow-left-right fa-2x text-gray-300"></i>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 代理类型分布表格 -->
+                    <div class="card shadow mb-4">
+                        <div class="card-header py-3">
+                            <h6 class="m-0 font-weight-bold text-primary"><i class="bi bi-table"></i> 代理类型分布</h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="table-responsive">
+                                <table class="table table-striped table-hover">
+                                    <thead class="table-dark">
+                                        <tr>
+                                            <th>代理类型</th>
+                                            <th class="text-right">连接数</th>
+                                            <th class="text-right">上传流量</th>
+                                            <th class="text-right">下载流量</th>
+                                            <th class="text-right">平均上传</th>
+                                            <th class="text-right">平均下载</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="statsTableBody">
+                                        <tr>
+                                            <td colspan="6" class="text-center text-muted">加载中...</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 自动刷新提示 -->
+                    <div class="alert alert-info" role="alert">
+                        <i class="bi bi-info-circle"></i> 数据每1.5秒自动刷新一次
                     </div>
                 </div>
 

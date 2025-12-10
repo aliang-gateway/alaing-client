@@ -36,7 +36,6 @@ func ExtractMetadataFromCONNECT(req *http.Request, conn net.Conn) (*M.Metadata, 
 			CacheTTL:      10 * time.Minute,
 			ShouldCache:   true,
 		}
-		metadata.IsFromCONNECT = true
 	}
 
 	// Try to parse host as IP address

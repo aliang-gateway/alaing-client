@@ -35,6 +35,9 @@ func (t *Tunnel) handleUDPConn(uc adapter.UDPConn) {
 	}
 	metadata.MidIP, metadata.MidPort = parseNetAddr(pc.LocalAddr())
 
+	// UDP connections are always direct (no MitM/proxy support)
+	metadata.Route = "RouteDirect"
+
 	pc = statistic.NewUDPTracker(pc, metadata, t.manager)
 	defer pc.Close()
 

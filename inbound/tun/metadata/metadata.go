@@ -30,17 +30,16 @@ type DNSInfo struct {
 
 // Metadata contains metadata of transport protocol sessions.
 type Metadata struct {
-	Network       Network    `json:"network"`
-	SrcIP         netip.Addr `json:"sourceIP"`
-	MidIP         netip.Addr `json:"dialerIP"`
-	DstIP         netip.Addr `json:"destinationIP"`
-	SrcPort       uint16     `json:"sourcePort"`
-	MidPort       uint16     `json:"dialerPort"`
-	DstPort       uint16     `json:"destinationPort"`
-	HostName      string     `json:"hostName"`
-	IsFromCONNECT bool       `json:"isFromCONNECT"`
-	DNSInfo       *DNSInfo   `json:"dnsInfo"`
-	Route         string     `json:"route"` // Final routing decision for this connection
+	Network  Network    `json:"network"`
+	SrcIP    netip.Addr `json:"sourceIP"`
+	MidIP    netip.Addr `json:"dialerIP"`
+	DstIP    netip.Addr `json:"destinationIP"`
+	SrcPort  uint16     `json:"sourcePort"`
+	MidPort  uint16     `json:"dialerPort"`
+	DstPort  uint16     `json:"destinationPort"`
+	HostName string     `json:"hostName"`
+	DNSInfo  *DNSInfo   `json:"dnsInfo"`
+	Route    string     `json:"route"` // Final routing decision for this connection
 }
 
 func (m *Metadata) DestinationAddrPort() netip.AddrPort {

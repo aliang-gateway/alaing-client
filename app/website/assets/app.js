@@ -1378,6 +1378,91 @@ function getBadgeColor(source) {
     return colors[source] || 'primary';
 }
 
+// 格式化字节为可读的大小
+function formatBytes(bytes, decimals = 2) {
+    if (bytes === 0 || bytes === undefined || bytes === null) return '0 B';
+
+    const k = 1024;
+    const dm = decimals < 0 ? 0 : decimals;
+    const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
+}
+
+// 加载代理统计数据
+async function loadStatsData() {
+    try {
+        const response = await apiGet('/stats');
+        if (!response) {
+            console.error('Failed to load stats data');
+            return;
+        }
+
+        // 更新全局统计卡片
+        document.getElementById('statsUploadTotal').textContent = formatBytes(response.uploadTotal || 0);
+        document.getElementById('statsDownloadTotal').textContent = formatBytes(response.downloadTotal || 0);
+
+        // 计算总连接数
+        let totalConnections = 0;
+        if (response.byRoute) {
+            Object.values(response.byRoute).forEach(route => {
+                totalConnections += route.connectionCount || 0;
+            });
+        }
+        document.getElementById('statsConnectionCount').textContent = formatNumber(totalConnections);
+
+        // 总流量
+        const totalTraffic = (response.uploadTotal || 0) + (response.downloadTotal || 0);
+        document.getElementById('statsTotalTraffic').textContent = formatBytes(totalTraffic);
+
+        // 更新代理分布表格
+        renderStatsTable(response.byRoute);
+    } catch (error) {
+        console.error('Failed to load stats data:', error);
+    }
+}
+
+// 渲染代理统计表格
+function renderStatsTable(byRoute) {
+    const tbody = document.getElementById('statsTableBody');
+
+    if (!byRoute || Object.keys(byRoute).length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted">暂无数据</td></tr>';
+        return;
+    }
+
+    // 代理类型的显示名称映射
+    const routeNames = {
+        'RouteToCursor': 'MITM (Cursor/Nonelane)',
+        'RouteToDoor': '代理 (VLESS/Shadowsocks)',
+        'RouteDirect': '直连'
+    };
+
+    let html = '';
+
+    // 遍历所有代理类型
+    Object.entries(byRoute).forEach(([routeType, stats]) => {
+        const displayName = routeNames[routeType] || routeType;
+        const connectionCount = stats.connectionCount || 0;
+        const uploadTotal = stats.uploadTotal || 0;
+        const downloadTotal = stats.downloadTotal || 0;
+        const averageUpload = stats.averageUpload || 0;
+        const averageDownload = stats.averageDownload || 0;
+
+        html += `<tr>
+            <td><strong>${displayName}</strong></td>
+            <td class="text-right">${formatNumber(connectionCount)}</td>
+            <td class="text-right">${formatBytes(uploadTotal)}</td>
+            <td class="text-right">${formatBytes(downloadTotal)}</td>
+            <td class="text-right">${formatBytes(averageUpload)}</td>
+            <td class="text-right">${formatBytes(averageDownload)}</td>
+        </tr>`;
+    });
+
+    tbody.innerHTML = html;
+}
+
 // 加载DNS缓存数据
 async function loadDNSCacheData() {
     try {
@@ -1651,6 +1736,16 @@ function switchPage(page) {
         loadLogConfig();
     } else if (page === 'tokens') {
         loadToken();
+    } else if (page === 'stats') {
+        loadStatsData();
+        // 设置代理统计页面的定时刷新（每1.5秒）
+        const statsRefreshInterval = setInterval(() => {
+            if (appState.currentPage === 'stats') {
+                loadStatsData();
+            } else {
+                clearInterval(statsRefreshInterval);
+            }
+        }, 1500);
     } else if (page === 'dnscache') {
         loadDNSCacheData();
         // 设置DNS缓存页面的定时刷新（每5秒）

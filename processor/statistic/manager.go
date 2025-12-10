@@ -55,15 +55,72 @@ func (m *Manager) Now() (up int64, down int64) {
 
 func (m *Manager) Snapshot() *Snapshot {
 	var connections []tracker
+	byRoute := make(map[string]*RouteStats)
+
+	// Initialize route statistics
+	routes := []string{"RouteToCursor", "RouteToDoor", "RouteDirect"}
+	for _, route := range routes {
+		byRoute[route] = &RouteStats{
+			RouteType: route,
+		}
+	}
+
 	m.connections.Range(func(key, value any) bool {
-		connections = append(connections, value.(tracker))
+		t := value.(tracker)
+		connections = append(connections, t)
+
+		// Access tracker's metadata and statistics
+		// We need to assert the concrete type to access trackerInfo
+		var route string
+		var upload, download int64
+
+		if tcpT, ok := t.(*tcpTracker); ok {
+			route = tcpT.Metadata.Route
+			if route == "" {
+				route = "RouteDirect" // Default route if not set
+			}
+			upload = tcpT.UploadTotal.Load()
+			download = tcpT.DownloadTotal.Load()
+		} else if udpT, ok := t.(*udpTracker); ok {
+			route = udpT.Metadata.Route
+			if route == "" {
+				route = "RouteDirect" // Default route if not set
+			}
+			upload = udpT.UploadTotal.Load()
+			download = udpT.DownloadTotal.Load()
+		}
+
+		// Accumulate statistics for this route
+		if stats, exists := byRoute[route]; exists {
+			stats.ConnectionCount++
+			stats.UploadTotal += upload
+			stats.DownloadTotal += download
+		} else {
+			// If route not in predefined list, add it
+			byRoute[route] = &RouteStats{
+				RouteType:       route,
+				ConnectionCount: 1,
+				UploadTotal:     upload,
+				DownloadTotal:   download,
+			}
+		}
+
 		return true
 	})
+
+	// Calculate averages for each route
+	for _, stats := range byRoute {
+		if stats.ConnectionCount > 0 {
+			stats.AverageUpload = stats.UploadTotal / int64(stats.ConnectionCount)
+			stats.AverageDownload = stats.DownloadTotal / int64(stats.ConnectionCount)
+		}
+	}
 
 	return &Snapshot{
 		UploadTotal:   m.uploadTotal.Load(),
 		DownloadTotal: m.downloadTotal.Load(),
 		Connections:   connections,
+		ByRoute:       byRoute,
 	}
 }
 
@@ -87,8 +144,19 @@ func (m *Manager) handle() {
 	}
 }
 
+// RouteStats holds statistics for a specific route type
+type RouteStats struct {
+	RouteType       string `json:"routeType"`       // "RouteToCursor", "RouteToDoor", "RouteDirect"
+	ConnectionCount int    `json:"connectionCount"` // Number of connections
+	UploadTotal     int64  `json:"uploadTotal"`     // Total upload bytes
+	DownloadTotal   int64  `json:"downloadTotal"`   // Total download bytes
+	AverageUpload   int64  `json:"averageUpload"`   // Average upload per connection
+	AverageDownload int64  `json:"averageDownload"` // Average download per connection
+}
+
 type Snapshot struct {
-	DownloadTotal int64     `json:"downloadTotal"`
-	UploadTotal   int64     `json:"uploadTotal"`
-	Connections   []tracker `json:"connections"`
+	DownloadTotal int64                  `json:"downloadTotal"`
+	UploadTotal   int64                  `json:"uploadTotal"`
+	Connections   []tracker              `json:"connections"`
+	ByRoute       map[string]*RouteStats `json:"byRoute"` // Statistics grouped by route type
 }

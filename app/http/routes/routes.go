@@ -6,6 +6,7 @@ import (
 	"nursor.org/nursorgate/app/http/handlers"
 	"nursor.org/nursorgate/app/http/repositories"
 	"nursor.org/nursorgate/app/http/services"
+	"nursor.org/nursorgate/processor/statistic"
 )
 
 // Handlers holds all HTTP handler instances
@@ -19,6 +20,7 @@ type Handlers struct {
 	Door          *handlers.DoorHandler
 	Rules         *handlers.RulesHandler
 	DNSCache      *handlers.DNSCacheHandler
+	Stats         *handlers.StatsHandler
 }
 
 // NewHandlers creates and initializes all handlers with their dependencies
@@ -44,6 +46,7 @@ func NewHandlers() *Handlers {
 		Door:          handlers.NewDoorHandler(),
 		Rules:         handlers.NewRulesHandler(),
 		DNSCache:      handlers.NewDNSCacheHandler(),
+		Stats:         handlers.NewStatsHandler(statistic.DefaultManager),
 	}
 }
 
@@ -88,6 +91,9 @@ func RegisterRoutes(h *Handlers, mux *http.ServeMux) {
 	mux.HandleFunc("/api/rules/engine/status", h.Rules.HandleGetRuleEngineStatus)
 	mux.HandleFunc("/api/rules/engine/enable", h.Rules.HandleEnableRuleEngine)
 	mux.HandleFunc("/api/rules/engine/disable", h.Rules.HandleDisableRuleEngine)
+
+	// Statistics API (/api/stats/*)
+	mux.HandleFunc("/api/stats", h.Stats.HandleGetStats)
 
 	// DNS Cache API (/api/dns/*)
 	// 注意：更具体的路由必须放在更通用的路由之前，避免路径冲突
