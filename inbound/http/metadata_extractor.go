@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"nursor.org/nursorgate/common/logger"
 	M "nursor.org/nursorgate/inbound/tun/metadata"
@@ -26,6 +27,17 @@ func ExtractMetadataFromCONNECT(req *http.Request, conn net.Conn) (*M.Metadata, 
 
 	metadata.HostName = host
 	metadata.DstPort = port
+
+	// Record CONNECT binding information for DNS caching
+	if host != "" {
+		metadata.DNSInfo = &M.DNSInfo{
+			BindingSource: M.BindingSourceCONNECT,
+			BindingTime:   time.Now(),
+			CacheTTL:      10 * time.Minute,
+			ShouldCache:   true,
+		}
+		metadata.IsFromCONNECT = true
+	}
 
 	// Try to parse host as IP address
 	if ip := net.ParseIP(host); ip != nil {
@@ -100,6 +112,16 @@ func ExtractMetadataFromHTTP(req *http.Request, conn net.Conn) (*M.Metadata, err
 
 	metadata.HostName = hostOnly
 	metadata.DstPort = port
+
+	// Record HTTP Host header binding information for DNS caching
+	if hostOnly != "" {
+		metadata.DNSInfo = &M.DNSInfo{
+			BindingSource: M.BindingSourceHTTP,
+			BindingTime:   time.Now(),
+			CacheTTL:      10 * time.Minute,
+			ShouldCache:   true,
+		}
+	}
 
 	// Try to parse host as IP
 	if ip := net.ParseIP(hostOnly); ip != nil {

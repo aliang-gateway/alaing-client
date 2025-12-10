@@ -73,6 +73,12 @@
                                 Token
                             </a>
                         </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="#" data-page="dnscache">
+                                <i class="bi bi-globe2"></i>
+                                DNS 缓存
+                            </a>
+                        </li>
                     </ul>
                 </div>
             </nav>
@@ -510,6 +516,146 @@
                                 <button type="button" class="btn btn-secondary" id="tokenCopyBtn">
                                     <i class="bi bi-clipboard"></i> 复制
                                 </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- DNS 缓存页面 -->
+                <div id="dnscache-page" class="content-section">
+                    <h2 class="mb-4"><i class="bi bi-globe2"></i> DNS 缓存仪表板</h2>
+                    <p class="text-muted">实时监控和管理DNS缓存，查看缓存统计、热点域名和IP地址</p>
+
+                    <!-- 统计卡片网格 -->
+                    <div class="row mb-4">
+                        <div class="col-xl-3 col-md-6 mb-4">
+                            <div class="card border-left-primary shadow h-100 py-2">
+                                <div class="card-body">
+                                    <div class="row no-gutters align-items-center">
+                                        <div class="col mr-2">
+                                            <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">
+                                                缓存条目
+                                            </div>
+                                            <div class="h5 mb-0 font-weight-bold text-gray-800" id="dnsTotalEntries">-</div>
+                                            <small class="text-muted">total entries</small>
+                                        </div>
+                                        <div class="col-auto">
+                                            <i class="bi bi-archive fa-2x text-gray-300"></i>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-xl-3 col-md-6 mb-4">
+                            <div class="card border-left-success shadow h-100 py-2">
+                                <div class="card-body">
+                                    <div class="row no-gutters align-items-center">
+                                        <div class="col mr-2">
+                                            <div class="text-xs font-weight-bold text-success text-uppercase mb-1">
+                                                唯一域名
+                                            </div>
+                                            <div class="h5 mb-0 font-weight-bold text-gray-800" id="dnsUniqueDomains">-</div>
+                                            <small class="text-muted">unique domains</small>
+                                        </div>
+                                        <div class="col-auto">
+                                            <i class="bi bi-link fa-2x text-gray-300"></i>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-xl-3 col-md-6 mb-4">
+                            <div class="card border-left-info shadow h-100 py-2">
+                                <div class="card-body">
+                                    <div class="row no-gutters align-items-center">
+                                        <div class="col mr-2">
+                                            <div class="text-xs font-weight-bold text-info text-uppercase mb-1">
+                                                唯一IP
+                                            </div>
+                                            <div class="h5 mb-0 font-weight-bold text-gray-800" id="dnsUniqueIPs">-</div>
+                                            <small class="text-muted">unique IPs</small>
+                                        </div>
+                                        <div class="col-auto">
+                                            <i class="bi bi-globe fa-2x text-gray-300"></i>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-xl-3 col-md-6 mb-4">
+                            <div class="card border-left-warning shadow h-100 py-2">
+                                <div class="card-body">
+                                    <div class="row no-gutters align-items-center">
+                                        <div class="col mr-2">
+                                            <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">
+                                                命中率
+                                            </div>
+                                            <div class="h5 mb-0 font-weight-bold text-gray-800" id="dnsHitRate">-</div>
+                                            <small class="text-muted">hit rate %</small>
+                                        </div>
+                                        <div class="col-auto">
+                                            <i class="bi bi-percent fa-2x text-gray-300"></i>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 热点域名 -->
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            <i class="bi bi-fire me-2"></i> 热点域名 (Top 20)
+                        </div>
+                        <div class="card-body">
+                            <div id="dnsHotDomainsContainer">
+                                <div class="text-center text-muted py-4">暂无数据</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 热点IP -->
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            <i class="bi bi-lightning me-2"></i> 热点IP地址 (Top 20)
+                        </div>
+                        <div class="card-body">
+                            <div id="dnsHotIPsContainer">
+                                <div class="text-center text-muted py-4">暂无数据</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 缓存查询 -->
+                    <div class="card">
+                        <div class="card-header">
+                            <i class="bi bi-search me-2"></i> 缓存查询
+                        </div>
+                        <div class="card-body">
+                            <div class="row g-2 mb-3">
+                                <div class="col-md-9">
+                                    <input type="text" class="form-control" id="dnsSearchBox" placeholder="搜索域名或IP地址...">
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="btn-group w-100" role="group">
+                                        <button type="button" class="btn btn-primary" id="dnsSearchBtn">
+                                            <i class="bi bi-search"></i> 搜索
+                                        </button>
+                                        <button type="button" class="btn btn-info" id="dnsRefreshBtn">
+                                            <i class="bi bi-arrow-clockwise"></i> 刷新
+                                        </button>
+                                        <button type="button" class="btn btn-danger" id="dnsClearAllBtn">
+                                            <i class="bi bi-trash"></i> 清空
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                            <div id="dnsMessageContainer" class="mb-3"></div>
+                            <div id="dnsSearchResultsContainer">
+                                <div class="text-center text-muted py-4">输入域名或IP地址进行搜索</div>
                             </div>
                         </div>
                     </div>

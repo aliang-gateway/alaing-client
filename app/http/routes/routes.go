@@ -18,6 +18,7 @@ type Handlers struct {
 	LogStream     *handlers.LogStreamHandler
 	Door          *handlers.DoorHandler
 	Rules         *handlers.RulesHandler
+	DNSCache      *handlers.DNSCacheHandler
 }
 
 // NewHandlers creates and initializes all handlers with their dependencies
@@ -42,6 +43,7 @@ func NewHandlers() *Handlers {
 		LogStream:     handlers.NewLogStreamHandler(),
 		Door:          handlers.NewDoorHandler(),
 		Rules:         handlers.NewRulesHandler(),
+		DNSCache:      handlers.NewDNSCacheHandler(),
 	}
 }
 
@@ -86,4 +88,14 @@ func RegisterRoutes(h *Handlers, mux *http.ServeMux) {
 	mux.HandleFunc("/api/rules/engine/status", h.Rules.HandleGetRuleEngineStatus)
 	mux.HandleFunc("/api/rules/engine/enable", h.Rules.HandleEnableRuleEngine)
 	mux.HandleFunc("/api/rules/engine/disable", h.Rules.HandleDisableRuleEngine)
+
+	// DNS Cache API (/api/dns/*)
+	// 注意：更具体的路由必须放在更通用的路由之前，避免路径冲突
+	mux.HandleFunc("/api/dns/cache/query", h.DNSCache.QueryDomain)
+	mux.HandleFunc("/api/dns/cache/reverse", h.DNSCache.ReverseQuery)
+	mux.HandleFunc("/api/dns/cache/clear", h.DNSCache.ClearAll)
+	mux.HandleFunc("/api/dns/cache/delete/{domain}", h.DNSCache.DeleteEntry)
+	mux.HandleFunc("/api/dns/cache", h.DNSCache.GetCacheEntries)
+	mux.HandleFunc("/api/dns/stats", h.DNSCache.GetStatistics)
+	mux.HandleFunc("/api/dns/hotspots", h.DNSCache.GetHotspots)
 }

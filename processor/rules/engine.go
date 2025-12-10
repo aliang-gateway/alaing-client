@@ -8,6 +8,7 @@ import (
 
 	"nursor.org/nursorgate/common/logger"
 	"nursor.org/nursorgate/common/model"
+	M "nursor.org/nursorgate/inbound/tun/metadata"
 	"nursor.org/nursorgate/processor/cache"
 	"nursor.org/nursorgate/processor/config"
 	"nursor.org/nursorgate/processor/geoip"
@@ -37,6 +38,17 @@ func GetEngine() *RuleEngine {
 		}
 	})
 	return defaultEngine
+}
+
+// GetCache returns the IP-Domain cache from the singleton rule engine
+func GetCache() *cache.IPDomainCache {
+	engine := GetEngine()
+	if engine != nil {
+		engine.mu.RLock()
+		defer engine.mu.RUnlock()
+		return engine.ipDomainCache
+	}
+	return nil
 }
 
 // Initialize initializes the rule engine with configuration
@@ -341,6 +353,56 @@ func (e *RuleEngine) ClearCache() {
 
 	e.ipDomainCache.Clear()
 	logger.Info("Rule engine cache cleared")
+}
+
+// StoreBinding stores DNS binding from connection metadata to cache
+// This persists domain-IP relationships observed through SNI, HTTP Host, and CONNECT
+func (e *RuleEngine) StoreBinding(metadata *M.Metadata) {
+	if e.ipDomainCache == nil || metadata == nil {
+		return
+	}
+
+	if metadata.DNSInfo == nil || !metadata.DNSInfo.ShouldCache {
+		return
+	}
+
+	if metadata.HostName == "" || metadata.DstIP.IsUnspecified() {
+		return
+	}
+
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	// Convert route string to RouteDecision
+	var route cache.RouteDecision
+	switch metadata.Route {
+	case "RouteToCursor":
+		route = cache.RouteToCursor
+	case "RouteToDoor":
+		route = cache.RouteToDoor
+	case "RouteDirect":
+		route = cache.RouteDirect
+	default:
+		route = cache.RouteDirect
+	}
+
+	// Create cache entry from DNS binding
+	entry := &cache.CacheEntry{
+		Domain:         metadata.HostName,
+		IP:             metadata.DstIP,
+		Route:          route,
+		BindingSources: []M.BindingSource{metadata.DNSInfo.BindingSource},
+		CreatedAt:      metadata.DNSInfo.BindingTime,
+		ExpiresAt:      metadata.DNSInfo.BindingTime.Add(metadata.DNSInfo.CacheTTL),
+	}
+
+	// Store by domain
+	if metadata.HostName != "" {
+		e.ipDomainCache.SetWithTTL(metadata.HostName, entry, metadata.DNSInfo.CacheTTL)
+	}
+
+	logger.Debug(fmt.Sprintf("Stored DNS binding: %s (%s) via %s, route: %s",
+		metadata.HostName, metadata.DstIP, metadata.DNSInfo.BindingSource, metadata.Route))
 }
 
 // Disable disables the rule engine

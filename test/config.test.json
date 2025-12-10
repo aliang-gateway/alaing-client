@@ -17,7 +17,7 @@
   "baseProxies": {
     "nonelane": {
       "type": "nonelane",
-      "core_server": "ai-gateway.nursor.org:443"
+      "core_server": "https://ai-gateway.nursor.org"
     }
   },
   "doorProxy": {

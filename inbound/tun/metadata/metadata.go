@@ -3,7 +3,30 @@ package metadata
 import (
 	"net"
 	"net/netip"
+	"time"
 )
+
+// BindingSource represents the source of domain name binding
+type BindingSource string
+
+const (
+	BindingSourceSNI     BindingSource = "sni"
+	BindingSourceHTTP    BindingSource = "http_host"
+	BindingSourceDNS     BindingSource = "dns"
+	BindingSourceCONNECT BindingSource = "connect"
+)
+
+// DNSInfo contains DNS-related binding information
+type DNSInfo struct {
+	// BindingSource indicates where the domain name comes from
+	BindingSource BindingSource `json:"bindingSource"`
+	// BindingTime is when the domain was bound to the IP
+	BindingTime time.Time `json:"bindingTime"`
+	// CacheTTL suggests how long to cache this binding
+	CacheTTL time.Duration `json:"cacheTTL"`
+	// ShouldCache indicates if this binding should be cached
+	ShouldCache bool `json:"shouldCache"`
+}
 
 // Metadata contains metadata of transport protocol sessions.
 type Metadata struct {
@@ -16,6 +39,8 @@ type Metadata struct {
 	DstPort       uint16     `json:"destinationPort"`
 	HostName      string     `json:"hostName"`
 	IsFromCONNECT bool       `json:"isFromCONNECT"`
+	DNSInfo       *DNSInfo   `json:"dnsInfo"`
+	Route         string     `json:"route"` // Final routing decision for this connection
 }
 
 func (m *Metadata) DestinationAddrPort() netip.AddrPort {
