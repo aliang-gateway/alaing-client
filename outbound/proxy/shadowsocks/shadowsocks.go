@@ -243,25 +243,61 @@ func (pc *ssPacketConn) WriteTo(b []byte, addr net.Addr) (n int, err error) {
 	return pc.PacketConn.WriteTo(packet, pc.rAddr)
 }
 
-// ReadFrom 实现 PacketConn 接口
+// 修改后的 ReadFrom
 func (pc *ssPacketConn) ReadFrom(b []byte) (n int, addr net.Addr, err error) {
-	n, _, err = pc.PacketConn.ReadFrom(b)
+	// 1. 读取解密后的完整数据（包含地址头 + 载荷）
+	// 注意：这里最好用一个足够大的缓冲区，或者确保 b 足够大
+	buf := make([]byte, 65535)
+	n, _, err = pc.PacketConn.ReadFrom(buf)
 	if err != nil {
 		return 0, nil, err
 	}
 
-	logger.Debug(fmt.Sprintf("[Shadowsocks UDP] 读取数据 %d 字节", n))
+	// 2. 解析 SOCKS5 地址头，确定载荷的起始位置
+	// Shadowsocks UDP 地址头格式与 SOCKS5 类似
+	// [1-byte type] [variable length host] [2-byte port]
+	tx := 0
+	if len(buf[:n]) < 1 {
+		return 0, nil, errors.New("packet too short")
+	}
 
-	// 返回原始请求的目标地址
+	addrType := buf[0]
+	switch addrType {
+	case 0x01: // IPv4
+		tx = 1 + 4 + 2
+	case 0x03: // Domain
+		if len(buf[:n]) < 2 {
+			return 0, nil, errors.New("packet too short for domain")
+		}
+		domainLen := int(buf[1])
+		tx = 1 + 1 + domainLen + 2
+	case 0x04: // IPv6
+		tx = 1 + 16 + 2
+	default:
+		return 0, nil, fmt.Errorf("unknown address type: %d", addrType)
+	}
+
+	if n <= tx {
+		return 0, nil, errors.New("packet contains no payload")
+	}
+
+	// 3. 将真正的载荷复制到传入的 b 中
+	// 注意：这里不仅要剥离头部，还要防止 b 长度不足
+	payload := buf[tx:n]
+	copy(b, payload)
+
+	logger.Debug(fmt.Sprintf("[Shadowsocks UDP] 读取数据 (剥离头后) %d 字节", len(payload)))
+
+	// 4. 返回地址处理
+	// 如果是基于 Session 的 UDP（常见于 Tun 模式），通常返回固定的目标地址即可
 	if pc.metadata != nil {
-		// 返回正确的 net.Addr 类型
 		ip := pc.metadata.DstIP
 		port := pc.metadata.DstPort
-		return n, &net.UDPAddr{
+		return len(payload), &net.UDPAddr{
 			IP:   net.ParseIP(ip.String()),
 			Port: int(port),
 		}, nil
 	}
 
-	return n, pc.rAddr, nil
+	return len(payload), pc.rAddr, nil
 }
