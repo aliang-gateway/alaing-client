@@ -492,6 +492,7 @@ func createShadowsocksProxy(cfg *proxyConfig.ShadowsocksConfig) (proxy.Proxy, er
 		cfg.Server,
 		cfg.Method,
 		cfg.Password,
+		cfg.Username,
 		cfg.ObfsMode,
 		cfg.ObfsHost,
 	)

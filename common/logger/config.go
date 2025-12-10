@@ -79,7 +79,7 @@ func HTTPLogConfig() *LogConfig {
 	}
 
 	return &LogConfig{
-		Level:              INFO,
+		Level:              TRACE,
 		FileLogPath:        filepath.Join(logDir, "nursor_http.log"),
 		EnableFileRotation: true,
 		MaxLogSize:         50 * 1024 * 1024, // 50MB

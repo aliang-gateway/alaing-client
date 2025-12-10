@@ -198,6 +198,14 @@ type WrappedConnWithTLS struct {
 //
 // Returns both the routing decision and whether SNI extraction is required.
 func (h *DefaultTLSHandler) DetermineRouteWithContext(metadata *M.Metadata) (ProxyRoute, bool) {
+	// CONNECT tunnel requests must be routed directly without going through proxies.
+	// CONNECT tunnels require raw TCP passthrough, which is incompatible with application-layer
+	// proxies like Door (VLESS/Shadowsocks) that expect protocol-specific handshakes.
+	if metadata.IsFromCONNECT {
+		logger.Debug("CONNECT tunnel detected: routing directly without proxy")
+		return RouteDirect, false
+	}
+
 	engine := rules.GetEngine()
 
 	// If rule engine is disabled or not initialized, fallback to old logic

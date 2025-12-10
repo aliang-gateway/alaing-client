@@ -23,7 +23,7 @@ func LoggingMiddleware(next http.Handler) http.Handler {
 		}
 
 		// Log request
-		logger.Info(fmt.Sprintf("[HTTP] %s %s from %s", r.Method, r.RequestURI, r.RemoteAddr))
+		logger.GetHTTPLogger().Trace(fmt.Sprintf("[HTTP] %s %s from %s", r.Method, r.RequestURI, r.RemoteAddr))
 
 		// Call next handler
 		next.ServeHTTP(wrappedWriter, r)
@@ -32,7 +32,7 @@ func LoggingMiddleware(next http.Handler) http.Handler {
 		elapsed := time.Since(startTime)
 
 		// Log response
-		logger.Info(fmt.Sprintf("[HTTP] %s %s - Status: %d - Duration: %v",
+		logger.GetHTTPLogger().Trace(fmt.Sprintf("[HTTP] %s %s - Status: %d - Duration: %v",
 			r.Method, r.RequestURI, wrappedWriter.statusCode, elapsed))
 	})
 }

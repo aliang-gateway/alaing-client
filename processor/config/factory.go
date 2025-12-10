@@ -71,6 +71,7 @@ func createShadowsocksProxy(cfg *ShadowsocksConfig) (proxy.Proxy, error) {
 		cfg.Server,
 		cfg.Method,
 		cfg.Password,
+		cfg.Username,
 		cfg.ObfsMode,
 		cfg.ObfsHost,
 	)

@@ -58,13 +58,17 @@ func StartMitmHttp() {
 
 	// Accept connections in a loop
 	for {
-		// Check if we should stop
+		// Check if we should stop before accepting new connections
 		select {
 		case <-httpCtx.Done():
 			logger.Info("HTTP proxy server shutting down")
 			httpMutex.Lock()
 			isHttpRunning = false
 			httpMutex.Unlock()
+			// Close listener to ensure cleanup
+			if httpListener != nil {
+				httpListener.Close()
+			}
 			return
 		default:
 		}
@@ -74,10 +78,39 @@ func StartMitmHttp() {
 
 		conn, err := listener.Accept()
 		if err != nil {
+			// Check if context was cancelled during Accept
+			select {
+			case <-httpCtx.Done():
+				logger.Info("HTTP proxy server shutting down (during accept)")
+				httpMutex.Lock()
+				isHttpRunning = false
+				httpMutex.Unlock()
+				return
+			default:
+			}
+
+			// Check for timeout error (expected, continue loop)
 			if opErr, ok := err.(*net.OpError); ok && opErr.Timeout() {
 				// Timeout is expected, just continue to check for shutdown signal
 				continue
 			}
+
+			// Check if listener was closed (shutdown signal)
+			if opErr, ok := err.(*net.OpError); ok {
+				if opErr.Err != nil {
+					errStr := opErr.Err.Error()
+					if errStr == "use of closed network connection" ||
+						strings.Contains(errStr, "closed network connection") {
+						logger.Info("HTTP proxy server listener closed")
+						httpMutex.Lock()
+						isHttpRunning = false
+						httpMutex.Unlock()
+						return
+					}
+				}
+			}
+
+			// For other errors, log and continue
 			logger.Debug(fmt.Sprintf("Accept error: %v", err))
 			continue
 		}
@@ -94,24 +127,38 @@ func getDeadlineTime() time.Time {
 // StopHttpProxy stops the HTTP proxy server gracefully
 func StopHttpProxy() {
 	httpMutex.Lock()
-	defer httpMutex.Unlock()
 
 	if !isHttpRunning {
+		httpMutex.Unlock()
 		logger.Warn("HTTP proxy is not running")
 		return
 	}
 
 	logger.Info("Stopping HTTP proxy server...")
 
+	// 先取消 context，通知 goroutine 停止
 	if httpCancel != nil {
 		httpCancel()
 	}
 
-	if httpListener != nil {
-		httpListener.Close()
+	// 然后关闭 listener，这会中断 Accept() 调用
+	listener := httpListener
+	httpMutex.Unlock()
+
+	// 在锁外关闭 listener，避免死锁
+	if listener != nil {
+		if err := listener.Close(); err != nil {
+			logger.Debug(fmt.Sprintf("Error closing listener: %v", err))
+		}
 	}
 
+	// 等待一小段时间，确保 goroutine 退出
+	time.Sleep(100 * time.Millisecond)
+
+	httpMutex.Lock()
 	isHttpRunning = false
+	httpMutex.Unlock()
+
 	logger.Info("HTTP proxy server stopped")
 }
 

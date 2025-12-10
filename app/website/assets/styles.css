@@ -470,7 +470,7 @@ body {
 /* 通知样式 */
 .notification {
     position: fixed;
-    top: 20px;
+    top: 100px; /* 往下移动，避免与顶部导航栏重叠 */
     right: 20px;
     z-index: 9999;
     min-width: 300px;
@@ -483,16 +483,19 @@ body {
     border-radius: var(--border-radius);
     padding: 1rem 1.25rem;
     margin-bottom: 0;
+    background-color: #ffffff; /* 白色不透明背景 */
 }
 
 .alert-success {
-    background-color: rgba(242, 70, 70, 0.1);
+    background-color: #ffffff; /* 白色不透明背景 */
     color: var(--bs-success);
+    border-left: 4px solid var(--bs-success); /* 左侧边框标识 */
 }
 
 .alert-danger {
-    background-color: rgba(255, 25, 0, 0.1);
+    background-color: #ffffff; /* 白色不透明背景 */
     color: var(--bs-danger);
+    border-left: 4px solid var(--bs-danger); /* 左侧边框标识 */
 }
 
 /* 加载状态 */

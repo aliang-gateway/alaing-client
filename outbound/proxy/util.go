@@ -29,7 +29,8 @@ func SafeConnClose(c net.Conn, err error) {
 
 // serializeSocksAddr 将目的地址序列化为 SOCKS5 地址格式，使用 tun2socks 的 socks5.SerializeAddr
 func SerializeSocksAddr(metadata *M.Metadata) []byte {
-	// 使用 tun2socks 的 socks5.SerializeAddr 确保格式完全一致
+	// 必须使用空字符串以生成 IP 地址格式的 SOCKS5 地址
+	// Shadowsocks 服务器期望 IP 格式而不是域名格式
 	addr := socks5.SerializeAddr("", metadata.DstIP, metadata.DstPort)
 	return []byte(addr)
 }

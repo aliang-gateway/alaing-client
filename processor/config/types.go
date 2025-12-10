@@ -36,6 +36,7 @@ type ShadowsocksConfig struct {
 	Server   string `json:"server"`
 	Method   string `json:"method"`
 	Password string `json:"password"`
+	Username string `json:"username,omitempty"`
 	ObfsMode string `json:"obfs_mode,omitempty"`
 	ObfsHost string `json:"obfs_host,omitempty"`
 }
