@@ -7,69 +7,151 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
+	"fmt"
 	"math/big"
 	"math/rand"
 	"net"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
 
 	"nursor.org/nursorgate/common/logger"
-
-	_ "embed"
+	"nursor.org/nursorgate/processor/cert/generator"
 
 	"golang.org/x/net/http2"
+
+	cert_config "nursor.org/nursorgate/processor/cert"
 )
-
-//go:embed ca.pem
-var caCert []byte
-
-//go:embed mitm-ca.pem
-var mitmCaCert []byte
-
-//go:embed mitm-ca.key.pem
-var mitmCaKey []byte
 
 var defaultCertificate *tls.Certificate
 var caCertPool *x509.CertPool
+var certCache = sync.Map{}
+var mu sync.RWMutex
 
-func ExportMitmCaCertToFile(certPath string) error {
-	return os.WriteFile(certPath, mitmCaCert, 0644)
-}
-
-func ExportRootCaCertToFile(certPath string) error {
-	return os.WriteFile(certPath, caCert, 0644)
-}
-
-func GetNursorCertificate() *tls.Certificate {
-	if defaultCertificate == nil {
-		newCertfile, err := tls.X509KeyPair(mitmCaCert, mitmCaKey)
-		if err != nil {
-			return nil
-		}
-		defaultCertificate = &newCertfile
+// GetCertDir returns the certificate directory path
+func GetCertDir() (string, error) {
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return "", err
 	}
-	return defaultCertificate
+	return filepath.Join(homeDir, ".nonelane"), nil
 }
 
+// LoadMitmCACertificate loads the MITM CA certificate from filesystem
+func LoadMitmCACertificate() (*tls.Certificate, error) {
+	mu.RLock()
+	if defaultCertificate != nil {
+		mu.RUnlock()
+		return defaultCertificate, nil
+	}
+	mu.RUnlock()
+
+	certDir, err := GetCertDir()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get cert dir: %w", err)
+	}
+
+	certPath := filepath.Join(certDir, "mitm-ca.pem")
+	keyPath := filepath.Join(certDir, "mitm-ca.pem.key")
+
+	// Check if certificate files exist, if not generate them
+	if _, err := os.Stat(certPath); os.IsNotExist(err) {
+		logger.Warn("MITM CA certificate not found, generating new one")
+		config := cert_config.GetCertConfig("mitm-ca")
+		if config == nil {
+			return nil, fmt.Errorf("MITM CA configuration not found")
+		}
+		if err := generator.GenerateCertificateFromConfig(config, certPath); err != nil {
+			return nil, fmt.Errorf("failed to generate MITM CA certificate: %w", err)
+		}
+	}
+
+	// Load the certificate
+	cert, err := tls.LoadX509KeyPair(certPath, keyPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load MITM CA certificate: %w", err)
+	}
+
+	mu.Lock()
+	defaultCertificate = &cert
+	mu.Unlock()
+
+	return defaultCertificate, nil
+}
+
+// LoadRootCACertificate loads the Root CA certificate from filesystem
+func LoadRootCACertificate() ([]byte, error) {
+	certDir, err := GetCertDir()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get cert dir: %w", err)
+	}
+
+	certPath := filepath.Join(certDir, "root-ca.pem")
+
+	// Check if certificate file exists, if not generate it
+	if _, err := os.Stat(certPath); os.IsNotExist(err) {
+		logger.Warn("Root CA certificate not found, generating new one")
+		config := cert_config.GetCertConfig("root-ca")
+		if config == nil {
+			return nil, fmt.Errorf("Root CA configuration not found")
+		}
+		if err := generator.GenerateCertificateFromConfig(config, certPath); err != nil {
+			return nil, fmt.Errorf("failed to generate root CA certificate: %w", err)
+		}
+	}
+
+	return os.ReadFile(certPath)
+}
+
+// GetRootCertBytes returns the Root CA certificate bytes
 func GetRootCertBytes() []byte {
-	block, _ := pem.Decode(caCert)
+	certBytes, err := LoadRootCACertificate()
+	if err != nil {
+		logger.Error(fmt.Sprintf("Failed to load root CA certificate: %v", err))
+		return nil
+	}
+
+	block, _ := pem.Decode(certBytes)
+	if block == nil {
+		logger.Error("Failed to decode root CA certificate PEM")
+		return nil
+	}
+
 	return block.Bytes
 }
 
+// GetCaCertPool returns the CA certificate pool
 func GetCaCertPool() *x509.CertPool {
-	if caCertPool == nil {
-		caCertPool = x509.NewCertPool()
-		caCertPool.AppendCertsFromPEM(caCert)
+	mu.RLock()
+	if caCertPool != nil {
+		mu.RUnlock()
+		return caCertPool
 	}
-	return caCertPool
+	mu.RUnlock()
+
+	certBytes, err := LoadRootCACertificate()
+	if err != nil {
+		logger.Error(fmt.Sprintf("Failed to load root CA certificate: %v", err))
+		return nil
+	}
+
+	pool := x509.NewCertPool()
+	if !pool.AppendCertsFromPEM(certBytes) {
+		logger.Error("Failed to add root CA certificate to pool")
+		return nil
+	}
+
+	mu.Lock()
+	caCertPool = pool
+	mu.Unlock()
+
+	return pool
 }
 
-var certCache = sync.Map{}
-
+// creatCertForHost creates a TLS certificate for the specified host signed by MITM CA
 func creatCertForHost(host string) (tls.Certificate, error) {
-
 	var err error
 	if strings.Contains(host, ":") {
 		host, _, err = net.SplitHostPort(host)
@@ -82,10 +164,19 @@ func creatCertForHost(host string) (tls.Certificate, error) {
 		return cert.(tls.Certificate), nil
 	}
 
+	// Load the MITM CA certificate
+	caCert, err := LoadMitmCACertificate()
+	if err != nil {
+		return tls.Certificate{}, fmt.Errorf("failed to load MITM CA certificate: %w", err)
+	}
+
+	// Generate private key for the host
 	priv, err := rsa.GenerateKey(crand.Reader, 2048)
 	if err != nil {
 		return tls.Certificate{}, err
 	}
+
+	// Create certificate template
 	template := x509.Certificate{
 		SerialNumber: big.NewInt(rand.Int63n(1 << 62)),
 		Subject: pkix.Name{
@@ -102,9 +193,18 @@ func creatCertForHost(host string) (tls.Certificate, error) {
 		template.IPAddresses = append(template.IPAddresses, net.ParseIP(host))
 	}
 
-	caCert := GetNursorCertificate()
-	ca, _ := x509.ParseCertificate(caCert.Certificate[0])
+	// Parse CA certificate
+	block, _ := pem.Decode(caCert.Certificate[0])
+	if block == nil {
+		return tls.Certificate{}, fmt.Errorf("failed to decode CA certificate")
+	}
 
+	ca, err := x509.ParseCertificate(block.Bytes)
+	if err != nil {
+		return tls.Certificate{}, fmt.Errorf("failed to parse CA certificate: %w", err)
+	}
+
+	// Sign the certificate
 	derBytes, err := x509.CreateCertificate(crand.Reader, &template, ca, &priv.PublicKey, caCert.PrivateKey)
 	if err != nil {
 		return tls.Certificate{}, err
@@ -119,10 +219,11 @@ func creatCertForHost(host string) (tls.Certificate, error) {
 	return cert, nil
 }
 
+// CreateTlsConfigForHost creates a TLS configuration for the specified host
 func CreateTlsConfigForHost(host string) *tls.Config {
 	cert, err := creatCertForHost(host)
 	if err != nil {
-		logger.Error(err)
+		logger.Error(fmt.Sprintf("Failed to create certificate for host %s: %v", host, err))
 		return nil
 	}
 
@@ -138,3 +239,6 @@ func CreateTlsConfigForHost(host string) *tls.Config {
 		MinVersion:         tls.VersionTLS12,
 	}
 }
+
+// Note: CertConfig is imported from processor/cert/config.go via cert_config alias
+// The certificate type constants are also defined in processor/cert/config.go

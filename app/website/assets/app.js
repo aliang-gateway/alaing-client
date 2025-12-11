@@ -1812,4 +1812,172 @@ document.addEventListener('DOMContentLoaded', () => {
             appState.statusPollingInterval = null;
         }
     });
+
+    // ===== Certificate Management =====
+
+    // 获取证书状态
+    async function loadCertStatus() {
+        try {
+            const response = await apiGet('/cert/status');
+            updateCertStatusDisplay(response);
+        } catch (error) {
+            console.error('Failed to load cert status:', error);
+        }
+    }
+
+    // 检查证书安装状态
+    async function checkCertInstallation() {
+        const certType = document.getElementById('cert-type-select').value;
+        const btn = document.getElementById('btn-check-cert');
+        showLoading(btn);
+
+        try {
+            const result = await apiPost('/cert/status', { cert_type: certType });
+            updateCertStatusDisplay(result);
+            showSuccess(`证书状态: ${result.is_installed ? '✓ 已安装' : '✗ 未安装'}`);
+        } catch (error) {
+            showError('检查失败: ' + error.message);
+        } finally {
+            hideLoading(btn);
+        }
+    }
+
+    // 导出证书到 ~/.nonelane/
+    async function exportCert() {
+        const certType = document.getElementById('cert-type-select').value;
+        const btn = document.getElementById('btn-export-cert');
+        showLoading(btn);
+
+        try {
+            const result = await apiPost('/cert/export', { cert_type: certType });
+            showSuccess(`证书已导出到: ${result.export_path}`);
+            loadCertStatus(); // 刷新状态
+        } catch (error) {
+            showError('导出失败: ' + error.message);
+        } finally {
+            hideLoading(btn);
+        }
+    }
+
+    // 下载证书文件
+    async function downloadCert() {
+        const certType = document.getElementById('cert-type-select').value;
+        downloadFile(`/cert/download?cert_type=${certType}`, `${certType}.pem`);
+    }
+
+    // 安装证书到系统
+    async function installCert() {
+        const certType = document.getElementById('cert-type-select').value;
+
+        if (!confirm('此操作需要管理员权限。继续吗？')) {
+            return;
+        }
+
+        const btn = document.getElementById('btn-install-cert');
+        showLoading(btn);
+
+        try {
+            const result = await apiPost('/cert/install', { cert_type: certType });
+            showSuccess('证书安装成功！');
+            loadCertStatus(); // 刷新状态
+        } catch (error) {
+            showError('安装失败: ' + error.message);
+        } finally {
+            hideLoading(btn);
+        }
+    }
+
+    // 移除证书
+    async function removeCert() {
+        const certType = document.getElementById('cert-type-select').value;
+
+        if (!confirm('确定要移除证书吗？')) {
+            return;
+        }
+
+        const btn = document.getElementById('btn-remove-cert');
+        showLoading(btn);
+
+        try {
+            const result = await apiPost('/cert/remove', { cert_type: certType });
+            showSuccess('证书已移除！');
+            loadCertStatus(); // 刷新状态
+        } catch (error) {
+            showError('移除失败: ' + error.message);
+        } finally {
+            hideLoading(btn);
+        }
+    }
+
+    // 更新证书状态显示
+    function updateCertStatusDisplay(certStatus) {
+        const container = document.getElementById('cert-status-container');
+        if (!certStatus || !certStatus.cert_type) {
+            container.innerHTML = '<div class="alert alert-warning">暂无证书信息</div>';
+            return;
+        }
+
+        const statusBadge = certStatus.is_installed
+            ? '<span class="badge bg-success">✓ 已安装</span>'
+            : '<span class="badge bg-danger">✗ 未安装</span>';
+
+        const html = `
+            <div class="cert-item p-3 border rounded mb-2">
+                <div class="row">
+                    <div class="col-md-4">
+                        <strong>${getCertTypeName(certStatus.cert_type)}</strong>
+                        <div>${statusBadge}</div>
+                    </div>
+                    <div class="col-md-8">
+                        <small>
+                            <div><strong>主体:</strong> ${certStatus.subject || '-'}</div>
+                            <div><strong>颁发者:</strong> ${certStatus.issuer || '-'}</div>
+                            <div><strong>有效期:</strong> ${certStatus.not_before || '-'} ~ ${certStatus.not_after || '-'}</div>
+                            <div><strong>指纹:</strong> <code style="font-size: 0.75em;">${(certStatus.fingerprint || '-').substring(0, 16)}...</code></div>
+                        </small>
+                    </div>
+                </div>
+            </div>
+        `;
+        container.innerHTML = html;
+    }
+
+    function getCertTypeName(type) {
+        const names = {
+            'mitm-ca': 'MITM CA (客户端拦截)',
+            'root-ca': 'Root CA (根证书)',
+            'mtls-cert': 'mTLS Certificate (后端通信)'
+        };
+        return names[type] || type;
+    }
+
+    // 事件监听器绑定
+    if (document.getElementById('btn-check-cert')) {
+        document.getElementById('btn-check-cert').addEventListener('click', checkCertInstallation);
+        document.getElementById('btn-export-cert').addEventListener('click', exportCert);
+        document.getElementById('btn-download-cert').addEventListener('click', downloadCert);
+        document.getElementById('btn-install-cert').addEventListener('click', installCert);
+        document.getElementById('btn-remove-cert').addEventListener('click', removeCert);
+
+        // 页面加载时获取证书状态
+        loadCertStatus();
+
+        // 当页面可见时每10秒刷新一次证书状态
+        let certStatusPolling = null;
+
+        // 处理页面可见性变化
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden) {
+                if (certStatusPolling) clearInterval(certStatusPolling);
+            } else {
+                loadCertStatus(); // 页面重新显示时立即更新
+                if (!certStatusPolling) {
+                    certStatusPolling = setInterval(loadCertStatus, 10000);
+                }
+            }
+        });
+
+        // 初始启动轮询
+        certStatusPolling = setInterval(loadCertStatus, 10000);
+    }
 });

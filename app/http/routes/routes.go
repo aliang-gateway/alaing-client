@@ -21,6 +21,7 @@ type Handlers struct {
 	Rules         *handlers.RulesHandler
 	DNSCache      *handlers.DNSCacheHandler
 	Stats         *handlers.StatsHandler
+	Cert          *handlers.CertHandler
 }
 
 // NewHandlers creates and initializes all handlers with their dependencies
@@ -31,6 +32,7 @@ func NewHandlers() *Handlers {
 	proxyService := services.NewProxyService()
 	tokenService := services.NewTokenService()
 	runService := services.NewRunService()
+	certService := services.NewCertService()
 
 	// Initialize repositories
 	proxyRepository := repositories.NewProxyRepository()
@@ -47,6 +49,7 @@ func NewHandlers() *Handlers {
 		Rules:         handlers.NewRulesHandler(),
 		DNSCache:      handlers.NewDNSCacheHandler(),
 		Stats:         handlers.NewStatsHandler(statistic.DefaultManager),
+		Cert:          handlers.NewCertHandler(certService),
 	}
 }
 
@@ -94,6 +97,15 @@ func RegisterRoutes(h *Handlers, mux *http.ServeMux) {
 
 	// Statistics API (/api/stats/*)
 	mux.HandleFunc("/api/stats", h.Stats.HandleGetStats)
+
+	// Certificate Management API (/api/cert/*)
+	mux.HandleFunc("/api/cert/status", h.Cert.HandleGetStatus)
+	mux.HandleFunc("/api/cert/export", h.Cert.HandleExport)
+	mux.HandleFunc("/api/cert/download", h.Cert.HandleDownload)
+	mux.HandleFunc("/api/cert/install", h.Cert.HandleInstall)
+	mux.HandleFunc("/api/cert/remove", h.Cert.HandleRemove)
+	mux.HandleFunc("/api/cert/generate", h.Cert.HandleGenerateCert)
+	mux.HandleFunc("/api/cert/info", h.Cert.HandleGetInfo)
 
 	// DNS Cache API (/api/dns/*)
 	// 注意：更具体的路由必须放在更通用的路由之前，避免路径冲突
