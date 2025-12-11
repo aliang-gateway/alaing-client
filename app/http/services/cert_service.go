@@ -19,8 +19,10 @@ import (
 type CertStatusResult struct {
 	CertType       string `json:"cert_type"`       // "mitm-ca", "root-ca", "mtls-cert"
 	IsExported     bool   `json:"is_exported"`     // Whether exported to file
-	IsInstalled    bool   `json:"is_installed"`    // Whether installed to system
+	IsInstalled    bool   `json:"is_installed"`    // Whether installed to system (file exists)
+	IsTrusted      bool   `json:"is_trusted"`      // Whether marked as globally trusted (NEW)
 	InstallPath    string `json:"install_path"`    // Installation path
+	TrustStatus    string `json:"trust_status"`    // Trust status description (NEW)
 	Subject        string `json:"subject"`         // Certificate subject
 	Issuer         string `json:"issuer"`          // Certificate issuer
 	NotBefore      string `json:"not_before"`      // Valid from date
@@ -93,7 +95,24 @@ func (cs *CertService) GetCertStatus(certType string) (CertStatusResult, error) 
 		result.IsInstalled = isInstalled
 	}
 
-	logger.Info(fmt.Sprintf("Certificate %s status: installed=%v, exported=%v", certType, result.IsInstalled, result.IsExported))
+	// Check if trusted (NEW)
+	if isInstalled {
+		isTrusted, err := cs.installer.IsTrusted(certType, certBytes)
+		if err == nil {
+			result.IsTrusted = isTrusted
+		}
+		// Get detailed trust status (NEW)
+		trustStatus, err := cs.installer.GetTrustStatus(certType, certBytes)
+		if err == nil {
+			result.TrustStatus = trustStatus
+		}
+	} else {
+		result.IsTrusted = false
+		result.TrustStatus = "not_found"
+	}
+
+	logger.Info(fmt.Sprintf("Certificate %s status: exported=%v, installed=%v, trusted=%v, trustStatus=%s",
+		certType, result.IsExported, result.IsInstalled, result.IsTrusted, result.TrustStatus))
 	return result, nil
 }
 

@@ -1917,18 +1917,47 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        const statusBadge = certStatus.is_installed
-            ? '<span class="badge bg-success">✓ 已安装</span>'
-            : '<span class="badge bg-danger">✗ 未安装</span>';
+        // 构建状态 badges (NEW)
+        const exportedBadge = certStatus.is_exported
+            ? '<span class="badge bg-success"><i class="bi bi-check-circle"></i> 已导出</span>'
+            : '<span class="badge bg-danger"><i class="bi bi-x-circle"></i> 未导出</span>';
 
+        const installedBadge = certStatus.is_installed
+            ? '<span class="badge bg-success"><i class="bi bi-check-circle"></i> 已安装</span>'
+            : '<span class="badge bg-danger"><i class="bi bi-x-circle"></i> 未安装</span>';
+
+        const trustedBadge = certStatus.is_trusted
+            ? '<span class="badge bg-info"><i class="bi bi-shield-check"></i> 已信任</span>'
+            : '<span class="badge bg-warning"><i class="bi bi-exclamation-triangle"></i> 未信任</span>';
+
+        // 信任状态描述 (NEW)
+        const trustStatusText = getTrustStatusText(certStatus.trust_status);
+        const trustStatusBadge = getTrustStatusBadge(certStatus.trust_status);
+
+        // 构建 HTML
         const html = `
             <div class="cert-item p-3 border rounded mb-2">
-                <div class="row">
-                    <div class="col-md-4">
-                        <strong>${getCertTypeName(certStatus.cert_type)}</strong>
-                        <div>${statusBadge}</div>
+                <div class="row mb-3">
+                    <div class="col-md-12">
+                        <h6 class="mb-2">${getCertTypeName(certStatus.cert_type)}</h6>
+                        <div class="status-badges">
+                            ${exportedBadge}
+                            ${installedBadge}
+                            ${trustedBadge}
+                        </div>
                     </div>
-                    <div class="col-md-8">
+                </div>
+
+                <div class="row mb-2">
+                    <div class="col-md-12">
+                        <div class="trust-status-info">
+                            <small><strong>信任状态:</strong> ${trustStatusBadge}</small>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div class="col-md-12">
                         <small>
                             <div><strong>主体:</strong> ${certStatus.subject || '-'}</div>
                             <div><strong>颁发者:</strong> ${certStatus.issuer || '-'}</div>
@@ -1940,6 +1969,28 @@ document.addEventListener('DOMContentLoaded', () => {
             </div>
         `;
         container.innerHTML = html;
+    }
+
+    // NEW 辅助函数：获取信任状态的中文描述
+    function getTrustStatusText(trustStatus) {
+        const statusMap = {
+            'not_found': '证书不存在',
+            'installed_not_trusted': '已安装但未信任',
+            'system_trusted': '系统信任',
+            'unsupported_platform': '不支持的平台'
+        };
+        return statusMap[trustStatus] || trustStatus;
+    }
+
+    // NEW 辅助函数：获取信任状态的 badge HTML
+    function getTrustStatusBadge(trustStatus) {
+        const badgeMap = {
+            'not_found': '<span class="badge bg-danger">证书不存在</span>',
+            'installed_not_trusted': '<span class="badge bg-warning">已安装但未信任</span>',
+            'system_trusted': '<span class="badge bg-success">系统信任</span>',
+            'unsupported_platform': '<span class="badge bg-secondary">不支持的平台</span>'
+        };
+        return badgeMap[trustStatus] || `<span class="badge bg-secondary">${trustStatus}</span>`;
     }
 
     function getCertTypeName(type) {

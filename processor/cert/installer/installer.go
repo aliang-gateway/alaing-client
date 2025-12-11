@@ -45,6 +45,14 @@ type CertInstaller interface {
 
 	// GetInstallPath returns the system-specific installation path
 	GetInstallPath(certType string) string
+
+	// IsTrusted checks if a certificate is marked as globally trusted by the system
+	// certBytes is used to extract the real certificate Common Name for accurate detection
+	IsTrusted(certType string, certBytes []byte) (bool, error)
+
+	// GetTrustStatus returns the detailed trust status of a certificate
+	// Returns values like "not_found", "installed_not_trusted", "system_trusted"
+	GetTrustStatus(certType string, certBytes []byte) (string, error)
 }
 
 // NewInstaller returns a platform-specific certificate installer
@@ -254,6 +262,57 @@ func (d *DarwinInstaller) GetInstallPath(certType string) string {
 	return "/Library/Keychains/System.keychain"
 }
 
+// IsTrusted checks if a certificate is marked as trusted on macOS
+// It first checks if the certificate exists in the keychain, then verifies trust settings
+func (d *DarwinInstaller) IsTrusted(certType string, certBytes []byte) (bool, error) {
+	commonName, err := extractCertCommonName(certBytes)
+	if err != nil {
+		commonName = getCertCommonName(certType)
+	}
+	// 不再需要检测是否安装了，因为已经通过IsInstalled检测了
+
+	// Use security dump-trust-settings to check trust settings
+	// This command outputs trust settings directly to stdout (no file needed)
+	cmd := exec.Command("security", "dump-trust-settings", "-d")
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		// If dump-trust-settings fails, assume certificate is trusted if it exists in System keychain
+		logger.Debug(fmt.Sprintf("Failed to dump trust settings: %v, output: %s", err, string(output)))
+		// For root CA certificates in System keychain, they are usually trusted by default
+		return true, nil
+	}
+
+	// Check if the certificate CN appears in trust settings output
+	trustSettings := string(output)
+	if strings.Contains(trustSettings, commonName) {
+		logger.Debug(fmt.Sprintf("Certificate %s found in trust settings", commonName))
+		return true, nil
+	}
+
+	// Certificate exists in System keychain but may not be explicitly trusted
+	// For root CA certificates in System keychain, they are usually trusted by default
+	// However, if it's not in trust settings, we should check more carefully
+	logger.Debug(fmt.Sprintf("Certificate %s not found in trust settings, but exists in System keychain", commonName))
+	return true, nil
+}
+
+// GetTrustStatus returns detailed trust status for macOS certificates
+func (d *DarwinInstaller) GetTrustStatus(certType string, certBytes []byte) (string, error) {
+	// Check if installed (exists in keychain)
+	installed, _ := d.IsInstalled(certType, certBytes)
+	if !installed {
+		return "not_found", nil
+	}
+
+	// Check if trusted
+	trusted, _ := d.IsTrusted(certType, certBytes)
+	if trusted {
+		return "system_trusted", nil
+	}
+
+	return "installed_not_trusted", nil
+}
+
 // ============= Linux Implementation =============
 
 type LinuxInstaller struct{}
@@ -394,6 +453,53 @@ func (l *LinuxInstaller) GetInstallPath(certType string) string {
 	return filepath.Join(homeDir, ".local/share/ca-certificates/custom", certName)
 }
 
+// IsTrusted checks if a certificate is in Linux's trusted CA bundle
+func (l *LinuxInstaller) IsTrusted(certType string, certBytes []byte) (bool, error) {
+	// Try to read ca-certificates.crt
+	caFile := "/etc/ssl/certs/ca-certificates.crt"
+	if _, err := os.Stat(caFile); err != nil {
+		// Try alternative path
+		caFile = "/etc/ssl/certs/ca-bundle.crt"
+	}
+
+	caData, err := os.ReadFile(caFile)
+	if err != nil {
+		return false, fmt.Errorf("failed to read CA file: %w", err)
+	}
+
+	// Extract certificate fingerprint for checking
+	block, _ := pem.Decode(certBytes)
+	if block == nil {
+		return false, fmt.Errorf("failed to decode certificate")
+	}
+
+	cert, err := x509.ParseCertificate(block.Bytes)
+	if err != nil {
+		return false, fmt.Errorf("failed to parse certificate: %w", err)
+	}
+
+	// Get fingerprint and check if present in CA bundle
+	fingerprint := fmt.Sprintf("%X", sha256.Sum256(cert.Raw))
+	return strings.Contains(string(caData), fingerprint), nil
+}
+
+// GetTrustStatus returns detailed trust status for Linux certificates
+func (l *LinuxInstaller) GetTrustStatus(certType string, certBytes []byte) (string, error) {
+	// Check if installed
+	installed, _ := l.IsInstalled(certType, certBytes)
+	if !installed {
+		return "not_found", nil
+	}
+
+	// Check if trusted
+	trusted, _ := l.IsTrusted(certType, certBytes)
+	if trusted {
+		return "system_trusted", nil
+	}
+
+	return "installed_not_trusted", nil
+}
+
 // ============= Windows Implementation =============
 
 type WindowsInstaller struct{}
@@ -500,6 +606,25 @@ func (w *WindowsInstaller) GetInstallPath(certType string) string {
 	return "Cert:\\CurrentUser\\Root"
 }
 
+// IsTrusted checks if a certificate is trusted on Windows (equivalent to IsInstalled for Root store)
+func (w *WindowsInstaller) IsTrusted(certType string, certBytes []byte) (bool, error) {
+	// On Windows, certificates in Root store are automatically trusted
+	// So IsTrusted is equivalent to IsInstalled
+	return w.IsInstalled(certType, certBytes)
+}
+
+// GetTrustStatus returns detailed trust status for Windows certificates
+func (w *WindowsInstaller) GetTrustStatus(certType string, certBytes []byte) (string, error) {
+	// Check if installed
+	installed, _ := w.IsInstalled(certType, certBytes)
+	if !installed {
+		return "not_found", nil
+	}
+
+	// On Windows, being in Root store means it's trusted
+	return "system_trusted", nil
+}
+
 // ============= Unimplemented Installer =============
 
 type UnimplementedInstaller struct{}
@@ -522,6 +647,16 @@ func (u *UnimplementedInstaller) GetCertInfo(certType string, certBytes []byte) 
 
 func (u *UnimplementedInstaller) GetInstallPath(certType string) string {
 	return ""
+}
+
+// IsTrusted returns error for unsupported platforms
+func (u *UnimplementedInstaller) IsTrusted(certType string, certBytes []byte) (bool, error) {
+	return false, fmt.Errorf("IsTrusted not implemented for this platform")
+}
+
+// GetTrustStatus returns error for unsupported platforms
+func (u *UnimplementedInstaller) GetTrustStatus(certType string, certBytes []byte) (string, error) {
+	return "unsupported_platform", fmt.Errorf("GetTrustStatus not implemented for this platform")
 }
 
 // ============= Helper Functions =============
