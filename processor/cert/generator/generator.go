@@ -47,9 +47,11 @@ func GenerateCertificateFromConfig(config *cert_config.CertConfig, exportPath st
 		},
 		NotBefore:             time.Now(),
 		NotAfter:              time.Now().AddDate(config.ValidityYears, 0, 0),
-		KeyUsage:              x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature,
 		BasicConstraintsValid: true,
 		IsCA:                  true,
+		KeyUsage:              x509.KeyUsageDigitalSignature | x509.KeyUsageCertSign | x509.KeyUsageCRLSign,
+		// 扩展用途 (可选，但推荐)
+		ExtKeyUsage: []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth, x509.ExtKeyUsageClientAuth},
 	}
 
 	// Self-sign the certificate

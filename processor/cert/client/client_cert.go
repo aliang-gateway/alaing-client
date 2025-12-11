@@ -182,11 +182,13 @@ func creatCertForHost(host string) (tls.Certificate, error) {
 		Subject: pkix.Name{
 			CommonName: host,
 		},
-		NotBefore:   time.Now(),
-		NotAfter:    time.Now().Add(365 * 24 * time.Hour),
-		KeyUsage:    x509.KeyUsageDigitalSignature | x509.KeyUsageKeyEncipherment,
-		ExtKeyUsage: []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
-		DNSNames:    []string{host},
+		NotBefore:             time.Now(),
+		NotAfter:              time.Now().Add(365 * 24 * time.Hour),
+		KeyUsage:              x509.KeyUsageDigitalSignature | x509.KeyUsageKeyEncipherment,
+		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+		DNSNames:              []string{host},
+		IsCA:                  true,
+		BasicConstraintsValid: true,
 	}
 
 	if net.ParseIP(host) != nil {
@@ -194,12 +196,14 @@ func creatCertForHost(host string) (tls.Certificate, error) {
 	}
 
 	// Parse CA certificate
-	block, _ := pem.Decode(caCert.Certificate[0])
-	if block == nil {
-		return tls.Certificate{}, fmt.Errorf("failed to decode CA certificate")
+	// caCert.Certificate[0] is already DER-encoded bytes (not PEM),
+	// so we can parse it directly without PEM decoding
+	// tls.LoadX509KeyPair returns Certificate field as DER-encoded bytes
+	if len(caCert.Certificate) == 0 {
+		return tls.Certificate{}, fmt.Errorf("CA certificate has no certificate chain")
 	}
 
-	ca, err := x509.ParseCertificate(block.Bytes)
+	ca, err := x509.ParseCertificate(caCert.Certificate[0])
 	if err != nil {
 		return tls.Certificate{}, fmt.Errorf("failed to parse CA certificate: %w", err)
 	}
@@ -210,8 +214,22 @@ func creatCertForHost(host string) (tls.Certificate, error) {
 		return tls.Certificate{}, err
 	}
 
+	// Build certificate chain:
+	// 1. Server certificate (signed by MITM CA)
+	// 2. MITM CA certificate (intermediate CA)
+	//
+	// IMPORTANT: Do NOT include Root CA in the chain if it's already in system trust store.
+	// Including Root CA in the chain can cause "unknown certificate authority" errors because:
+	// - Root CA certificates should be self-signed and trusted by the system
+	// - Clients will use the Root CA from system trust store to verify the chain
+	// - Including Root CA in the chain may confuse clients or cause validation failures
+	//
+	// The certificate chain should be: Server Cert -> MITM CA Cert
+	// The client will use the Root CA from system trust store to verify MITM CA
+	certChain := [][]byte{derBytes, caCert.Certificate[0]}
+
 	cert := tls.Certificate{
-		Certificate: [][]byte{derBytes, caCert.Certificate[0], GetRootCertBytes()},
+		Certificate: certChain,
 		PrivateKey:  priv,
 	}
 

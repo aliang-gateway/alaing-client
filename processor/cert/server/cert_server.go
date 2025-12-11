@@ -3,26 +3,21 @@ package server
 import (
 	"crypto/tls"
 	"crypto/x509"
-	"fmt"
-	"os"
-	"path/filepath"
-	"sync"
+	_ "embed"
 
 	"nursor.org/nursorgate/common/logger"
-	client_cert "nursor.org/nursorgate/processor/cert/client"
 )
 
-var (
-	// ClientCert and ClientKey will be loaded from filesystem
-	// var ClientCert []byte
-	// var ClientKey []byte
+//go:embed client.pem
+var ClientCert []byte
 
-	// CaCert will be loaded from filesystem
-	// var CaCert []byte
+//go:embed client.key.pem
+var ClientKey []byte
 
-	cachedOutboundCert *OutboundCert
-	certMutex          sync.RWMutex
-)
+//go:embed ca.pem
+var CaCert []byte
+
+//var outboundCert *OutboundCert
 
 type OutboundCert struct {
 	cert      *tls.Certificate
@@ -31,91 +26,67 @@ type OutboundCert struct {
 	token     string
 }
 
-// loadClientCertFromFilesystem loads the mTLS client certificate from filesystem
-// Falls back to embedded certificate if filesystem certificate is not available
-func loadClientCertFromFilesystem() (*tls.Certificate, error) {
-	homeDir, err := os.UserHomeDir()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get user home directory: %w", err)
-	}
-
-	certPath := filepath.Join(homeDir, ".nonelane", "mtls-client.pem")
-	keyPath := filepath.Join(homeDir, ".nonelane", "mtls-client.pem.key")
-
-	// Check if files exist
-	if _, err := os.Stat(certPath); err == nil {
-		// Load certificate and key from filesystem
-		cert, err := tls.LoadX509KeyPair(certPath, keyPath)
-		if err == nil {
-			logger.Info("Loaded mTLS client certificate from " + certPath)
-			return &cert, nil
-		}
-		logger.Warn(fmt.Sprintf("Failed to load certificate from %s: %v", certPath, err))
-	}
-
-	// Fallback to embedded certificate if available
-	logger.Warn("Falling back to embedded mTLS client certificate")
-	return nil, fmt.Errorf("mTLS client certificate not found in filesystem and no embedded fallback available")
-}
-
-// loadRootCAFromFilesystem loads the Root CA certificate from filesystem
-func loadRootCAFromFilesystem() (*x509.CertPool, error) {
-	// Use the client_cert module's GetCaCertPool which handles filesystem loading
-	caCertPool := client_cert.GetCaCertPool()
-	if caCertPool == nil {
-		return nil, fmt.Errorf("failed to load Root CA certificate")
-	}
-	return caCertPool, nil
-}
-
 func GetOutboundCert(isHttp2 bool, SNIName string) *OutboundCert {
-	certMutex.RLock()
-	if cachedOutboundCert != nil {
-		certMutex.RUnlock()
-		return cachedOutboundCert
-	}
-	certMutex.RUnlock()
-
-	// Load client certificate from filesystem
-	cert, err := loadClientCertFromFilesystem()
+	cert, err := tls.X509KeyPair(ClientCert, ClientKey)
 	if err != nil {
-		logger.Error(fmt.Sprintf("Failed to load client certificate: %v", err))
 		return nil
 	}
 
-	// Load Root CA from filesystem
-	caCertPool, err := loadRootCAFromFilesystem()
-	if err != nil {
-		logger.Error(fmt.Sprintf("Failed to load Root CA: %v", err))
+	caCertPool := x509.NewCertPool()
+	if !caCertPool.AppendCertsFromPEM(CaCert) {
 		return nil
 	}
 
-	logger.Debug("OutboundCert: CA cert loaded successfully for " + SNIName)
 	var tlsConfig = &tls.Config{
-		RootCAs:            caCertPool,
-		Certificates:       []tls.Certificate{*cert},
-		ServerName:         SNIName,
+		RootCAs:      caCertPool,
+		Certificates: []tls.Certificate{cert},
+		ServerName:   SNIName, // 这里用于发送 SNI (伪装/路由)
+
+		// 1. 必须设为 true，否则标准库会因为域名不匹配而报错
 		InsecureSkipVerify: true,
+
+		// 2. 【关键】使用这个回调手动验证证书
+		VerifyConnection: func(cs tls.ConnectionState) error {
+			// 如果没有证书，直接报错
+			if len(cs.PeerCertificates) == 0 {
+				return x509.CertificateInvalidError{Reason: x509.NotAuthorizedToSign}
+			}
+
+			// 3. 配置验证选项
+			opts := x509.VerifyOptions{
+				Roots:         caCertPool, // 指定只信任我们的 CA
+				Intermediates: x509.NewCertPool(),
+			}
+			// 将中间证书加入验证池
+			for _, cert := range cs.PeerCertificates[1:] {
+				opts.Intermediates.AddCert(cert)
+			}
+
+			// 4. 【核心魔法】只验证签名，不验证域名
+			// 我们故意不设置 opts.DNSName，这样 Verify 就只检查“是不是亲生的”，不检查“名字对不对”
+			_, err := cs.PeerCertificates[0].Verify(opts)
+			if err != nil {
+				logger.Error("mTLS 验证失败: 服务端证书不是由指定 CA 签发的")
+				return err
+			}
+
+			logger.Debug("mTLS 验证成功: 确认是自家服务端")
+			return nil
+		},
 	}
+
 	if isHttp2 {
 		tlsConfig.NextProtos = []string{"h2", "http/1.1"}
 	}
 
 	outboundCert := &OutboundCert{
-		cert:      cert,
+		cert:      &cert,
 		ca:        caCertPool,
 		tlsConfig: tlsConfig,
 		token:     "",
 	}
-
-	// Cache the certificate
-	certMutex.Lock()
-	cachedOutboundCert = outboundCert
-	certMutex.Unlock()
-
 	return outboundCert
 }
-
 func (c *OutboundCert) SetToken(token string) {
 	c.token = token
 }

@@ -192,9 +192,9 @@ func setContentType(w http.ResponseWriter, path string) {
 	case ".ico":
 		w.Header().Set("Content-Type", "image/x-icon")
 	case ".woff", ".woff2":
-		w.Header().Set("Content-Type", "font/woff2")
+		w.Header().Set("Content-Type", "fonts/woff2")
 	case ".ttf":
-		w.Header().Set("Content-Type", "font/ttf")
+		w.Header().Set("Content-Type", "fonts/ttf")
 	case ".eot":
 		w.Header().Set("Content-Type", "application/vnd.ms-fontobject")
 	}
