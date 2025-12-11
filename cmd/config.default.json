@@ -24,30 +24,13 @@
     "type": "door",
     "members": [
       {
-        "showname": "Hong Kong Node 01",
-        "type": "vless",
-        "latency": 45,
-        "vless": {
-          "server": "node1.nursor.org:35001",
-          "uuid": "74cddcdd-6d48-41cf-8e62-902e7c943fe7",
-          "flow": "xtls-rprx-vision",
-          "tls_enabled": true,
-          "sni": "www.microsoft.com",
-          "reality_enabled": true,
-          "public_key": "sAtJcW2xLIUWRE-_7KHGEAtvHx-P1sDbjrrgrt4_XCo",
-          "short_id": "",
-          "short_id_list": ",ef,b79e62,7d87a3,f4bfb2,ecdc,048cc1,be,872a9cb601,4e642a,d0a4cc,6a37c85b4d,facf,e2e46bb5,5fe83d984b7c,884c,f2e4c3af,7b79c5,b7a05d,b6920fa248,0975,95,4d3bd40917,57d89cd6ed9a"
-        }
-      },
-
-      {
-        "showname": "HK Shadowsocks-3",
+        "showname": "Forbiden",
         "type": "shadowsocks",
         "latency": 12,
         "shadowsocks": {
-          "server": "103.255.209.43:35003",
+          "server": "127.0.0.1:12345",
           "method": "chacha20-ietf-poly1305",
-          "password": "ciLfKJczFXlhqABmWO6tFEMNkfMR9ZB6V/fFmjmIOBA="
+          "password": "passwordhere-please"
 
         }
       }

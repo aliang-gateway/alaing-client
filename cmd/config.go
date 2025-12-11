@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	_ "embed"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -17,9 +18,28 @@ import (
 	rules "nursor.org/nursorgate/processor/rules"
 )
 
+// Embed the default configuration
+//go:embed config.default.json
+var defaultConfigData string
+
 // Re-export config types for backward compatibility
 type Config = config.Config
 type EngineConfig = config.EngineConfig
+
+// setUseDefaultConfig marks that the default configuration is being used
+func setUseDefaultConfig(value bool) {
+	config.SetUsingDefaultConfig(value)
+}
+
+// IsUsingDefaultConfig returns whether the default embedded configuration is being used
+func IsUsingDefaultConfig() bool {
+	return config.IsUsingDefaultConfig()
+}
+
+// GetDefaultConfigBytes 返回嵌入的默认配置字节数据
+func GetDefaultConfigBytes() []byte {
+	return []byte(defaultConfigData)
+}
 
 // LoadConfig 从文件加载配置
 func LoadConfig(configPath string) (*Config, error) {
@@ -31,6 +51,16 @@ func LoadConfig(configPath string) (*Config, error) {
 	var config Config
 	if err := json.Unmarshal(data, &config); err != nil {
 		return nil, fmt.Errorf("failed to parse config file: %w", err)
+	}
+
+	return &config, nil
+}
+
+// LoadConfigFromBytes 从字节数据加载配置
+func LoadConfigFromBytes(data []byte) (*Config, error) {
+	var config Config
+	if err := json.Unmarshal(data, &config); err != nil {
+		return nil, fmt.Errorf("failed to parse config: %w", err)
 	}
 
 	return &config, nil
@@ -417,15 +447,6 @@ func FetchAndApplyConfigFromRemote(token string, serverURL string) error {
 
 	logger.Info("Config fetched and applied successfully from remote server")
 	return nil
-}
-
-// LoadConfigFromBytes 从字节数组加载配置（用于从远程获取的配置）
-func LoadConfigFromBytes(data []byte) (*Config, error) {
-	var config Config
-	if err := json.Unmarshal(data, &config); err != nil {
-		return nil, fmt.Errorf("failed to parse config: %w", err)
-	}
-	return &config, nil
 }
 
 // SaveConfigToFile 保存配置到文件

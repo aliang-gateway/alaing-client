@@ -34,7 +34,7 @@ func New(config *NoneLaneConfig) (*NoneLane, error) {
 	return &NoneLane{
 		Base: &proxy.Base{
 			Address:  config.Addr,
-			Protocol: proto.HY2, // 使用 HY2 作为协议类型，或者可以添加新的类型
+			Protocol: proto.Nonelane, // 使用 HY2 作为协议类型，或者可以添加新的类型
 		},
 		config:    config,
 		connector: NewCursorServerConnector(config),

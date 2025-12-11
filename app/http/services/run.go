@@ -5,6 +5,7 @@ import (
 
 	"nursor.org/nursorgate/app/http/models"
 	"nursor.org/nursorgate/common/logger"
+	"nursor.org/nursorgate/processor/config"
 	httpServer "nursor.org/nursorgate/inbound/http"
 	tun "nursor.org/nursorgate/inbound/tun/engine"
 	runner2 "nursor.org/nursorgate/inbound/tun/runner"
@@ -56,6 +57,15 @@ func (rs *RunService) SetRunning(running bool) {
 
 // StartService starts the service for the current mode
 func (rs *RunService) StartService() map[string]interface{} {
+	// Check if using default configuration - if so, require activation
+	if config.IsUsingDefaultConfig() {
+		return map[string]interface{}{
+			"error":  "activation_required",
+			"status": "failed",
+			"msg":    "需要激活配置。请提供 --config 或 --token 参数。",
+		}
+	}
+
 	rs.modeChangeMutex.Lock()
 
 	// Check if already running

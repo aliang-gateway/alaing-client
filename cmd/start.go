@@ -10,14 +10,6 @@ import (
 	"nursor.org/nursorgate/inbound/tun/runner"
 )
 
-var (
-	configPath string
-	token      string
-	serverURL  string
-	startTun   bool
-	startHttp  bool
-)
-
 var startCmd = &cobra.Command{
 	Use:   "start",
 	Short: "Start the nursor server",
@@ -31,46 +23,51 @@ Examples:
   nursor start --token your-token-here
 
   # Start with token and custom server URL
-  nursor start --token your-token-here --server https://api.example.com`,
+  nursor start --token your-token-here --server https://api.example.com
+
+  # Start with default embedded configuration
+  nursor start`,
 	RunE: runStart,
 }
 
 func init() {
 	rootCmd.AddCommand(startCmd)
+	// Parameters are inherited from root command via PersistentFlags
+}
 
-	// 配置文件路径
-	startCmd.Flags().StringVarP(&configPath, "config", "c", "", "Path to configuration file (e.g., ./config.json)")
+func ApplyDefaultConfig() error {
+	logger.Info("Loading default embedded configuration...")
+	defaultConfigBytes := GetDefaultConfigBytes()
+	config, err := LoadConfigFromBytes(defaultConfigBytes)
+	if err != nil {
+		return fmt.Errorf("failed to load default config: %w", err)
+	}
 
-	// Token（用于从远程获取配置）
-	startCmd.Flags().StringVarP(&token, "token", "t", "", "Token for fetching configuration from remote server")
+	if err := ApplyConfig(config); err != nil {
+		return fmt.Errorf("failed to apply default config: %w", err)
+	}
 
-	// 远程服务器 URL（可选）
-	startCmd.Flags().StringVarP(&serverURL, "server", "s", "", "Remote server URL for fetching configuration (optional)")
-
-	// 互斥：config 和 token 不能同时使用
-	startCmd.MarkFlagsMutuallyExclusive("config", "token")
-
-	startCmd.Flags().BoolVarP(&startTun, "tun", "u", false, "Start TUN service")
-
-	startCmd.Flags().BoolVarP(&startHttp, "http", "m", false, "Start MitmHttp service")
+	logger.Info("Default configuration applied successfully")
+	return nil
 }
 
 func runStart(cmd *cobra.Command, args []string) error {
 	// 检查参数
 	if configPath == "" && token == "" {
-		return fmt.Errorf("either --config or --token must be specified")
-	}
-
-	// 方式1: 从本地文件加载配置
-	if configPath != "" {
+		// Use default config
+		logger.Info("No configuration provided, using embedded default configuration...")
+		if err := ApplyDefaultConfig(); err != nil {
+			return fmt.Errorf("failed to apply default config: %w", err)
+		}
+		setUseDefaultConfig(true)
+	} else if configPath != "" {
+		// 方式1: 从本地文件加载配置
 		logger.Info(fmt.Sprintf("Loading configuration from file: %s", configPath))
 		if err := LoadAndApplyConfig(configPath); err != nil {
 			return fmt.Errorf("failed to load config from file: %w", err)
 		}
-	}
-
-	// 方式2: 从远程服务器获取配置
-	if token != "" {
+	} else if token != "" {
+		// 方式2: 从远程服务器获取配置
 		logger.Info("Fetching configuration from remote server...")
 		if err := FetchAndApplyConfigFromRemote(token, serverURL); err != nil {
 			return fmt.Errorf("failed to fetch config from remote: %w", err)

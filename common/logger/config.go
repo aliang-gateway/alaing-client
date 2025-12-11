@@ -56,7 +56,7 @@ func DefaultLogConfig() *LogConfig {
 	}
 
 	return &LogConfig{
-		Level:              WARN,
+		Level:              DEBUG,
 		ErrorWindow:        1 * time.Hour,
 		MaxErrorCount:      4,
 		CleanupInterval:    2 * time.Hour,
@@ -86,7 +86,6 @@ func HTTPLogConfig() *LogConfig {
 		MaxLogBackups:      3,
 	}
 }
-
 
 // Global configuration instance
 var (

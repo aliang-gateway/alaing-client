@@ -14,6 +14,7 @@ const (
 	//Relay
 	HY2
 	VLESS
+	Nonelane
 )
 
 type Proto uint8
@@ -35,7 +36,10 @@ func (proto Proto) String() string {
 	case HY2:
 		return "hy2"
 	case VLESS:
-		return "singbox"
+		return "vless"
+	case Nonelane:
+		return "nonelane"
+
 	default:
 		return fmt.Sprintf("proto(%d)", proto)
 	}
