@@ -139,7 +139,7 @@ func (h *TCPConnectionHandler) handleTLS(
 	// STEP 1: Attempt cache reverse lookup by destination IP
 	// This is the hot path - check if we've seen this IP-domain pair before
 	cache := rules.GetCache()
-	if cache != nil && !metadata.DstIP.IsUnspecified() {
+	if cache != nil && !metadata.DstIP.IsUnspecified() && metadata.HostName == "" {
 		cacheEntries := cache.GetByIP(metadata.DstIP)
 		if len(cacheEntries) > 0 {
 			// Use the first entry's domain for routing
@@ -149,6 +149,9 @@ func (h *TCPConnectionHandler) handleTLS(
 			logger.Debug(fmt.Sprintf("TLS: Found domain in cache for IP %s: %s (hit count: %d)",
 				metadata.DstIP, metadata.HostName, cachedEntry.HitCount))
 		}
+	} else {
+		cacheHit = true
+		sni = metadata.HostName
 	}
 
 	// STEP 2: Only extract SNI if we didn't find domain in cache
