@@ -13,7 +13,7 @@ env:
   # Change this if your executable/lib builds from another module path
   WORKING_DIR: ./client
   BIN_NAME: core
-  LIB_NAME: nursor
+  LIB_NAME: nonelane
 
 jobs:
   macos:

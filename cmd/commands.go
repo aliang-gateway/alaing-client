@@ -14,9 +14,9 @@ import (
 var versionCmd = &cobra.Command{
 	Use:   "version",
 	Short: "Print the version number",
-	Long:  `Print the version number of nursor`,
+	Long:  `Print the version number of nonelane`,
 	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Println("nursor v1.0.0")
+		fmt.Println("nonelane v1.0.0")
 	},
 }
 

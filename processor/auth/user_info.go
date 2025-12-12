@@ -1,0 +1,256 @@
+package user
+
+import (
+	"encoding/json"
+	"fmt"
+	"os"
+	"path/filepath"
+	"sync"
+	"time"
+)
+
+// UserInfo 用户信息结构（本地存储格式）
+type UserInfo struct {
+	AccessToken  string    `json:"access_token"`  // 加密存储
+	RefreshToken string    `json:"refresh_token"` // 加密存储
+	Username     string    `json:"username"`
+	PlanName     string    `json:"plan_name"`
+	TrafficUsed  int64     `json:"traffic_used"`
+	TrafficTotal int64     `json:"traffic_total"`
+	AIAskUsed    int       `json:"ai_ask_used"`
+	AIAskTotal   int       `json:"ai_ask_total"`
+	StartTime    string    `json:"start_time"`
+	EndTime      string    `json:"end_time"`
+	PlanType     string    `json:"plan_type"`
+	InnerToken   string    `json:"inner_token"` // 加密存储
+	UpdatedAt    time.Time `json:"updated_at"`  // 最后更新时间
+}
+
+// ActivateResponse 激活API响应结构
+type ActivateResponse struct {
+	Code int    `json:"code"`
+	Msg  string `json:"msg"`
+	Data struct {
+		AccessToken  string `json:"access_token"`
+		RefreshToken string `json:"refresh_token"`
+		User         struct {
+			PlanName     string `json:"plan_name"`
+			TrafficUsed  int64  `json:"traffic_used"`
+			TrafficTotal int64  `json:"traffic_total"`
+			AIAskUsed    int    `json:"ai_ask_used"`
+			AIAskTotal   int    `json:"ai_ask_total"`
+			StartTime    string `json:"start_time"`
+			EndTime      string `json:"end_time"`
+			PlanType     string `json:"plan_type"`
+			InnerToken   string `json:"inner_token"`
+			Username     string `json:"username"`
+		} `json:"user"`
+	} `json:"data"`
+}
+
+// RefreshResponse 刷新API响应结构
+// refresh API 返回的 data 直接包含用户信息，不包含 access_token 和 refresh_token
+type RefreshResponse struct {
+	Code int    `json:"code"`
+	Msg  string `json:"msg"`
+	Data struct {
+		PlanName     string `json:"plan_name"`
+		TrafficUsed  int64  `json:"traffic_used"`
+		TrafficTotal int64  `json:"traffic_total"`
+		AIAskUsed    int    `json:"ai_ask_used"`
+		AIAskTotal   int    `json:"ai_ask_total"`
+		StartTime    string `json:"start_time"`
+		EndTime      string `json:"end_time"`
+		PlanType     string `json:"plan_type"`
+		InnerToken   string `json:"inner_token"`
+		Username     string `json:"username"`
+	} `json:"data"`
+}
+
+var (
+	userInfoMutex   sync.RWMutex
+	currentUserInfo *UserInfo
+)
+
+// GetUserInfoPath 获取用户信息文件路径
+func GetUserInfoPath() (string, error) {
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return "", fmt.Errorf("failed to get home directory: %w", err)
+	}
+	// TODO: 应该将所有根目录下的操作统一一下，叫作data目录
+	configDir := filepath.Join(homeDir, ".nonelane")
+	return filepath.Join(configDir, "userinfo.json"), nil
+}
+
+// ensureConfigDir 确保配置目录存在
+func ensureConfigDir() error {
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return fmt.Errorf("failed to get home directory: %w", err)
+	}
+
+	configDir := filepath.Join(homeDir, ".nonelane")
+	if err := os.MkdirAll(configDir, 0700); err != nil {
+		return fmt.Errorf("failed to create config directory: %w", err)
+	}
+
+	return nil
+}
+
+// SaveUserInfo 保存用户信息到本地（加密存储）
+func SaveUserInfo(info *UserInfo) error {
+	if info == nil {
+		return fmt.Errorf("user info cannot be nil")
+	}
+
+	// 确保配置目录存在
+	if err := ensureConfigDir(); err != nil {
+		return err
+	}
+
+	// 加密敏感字段
+	encryptedAccessToken, err := EncryptField(info.AccessToken)
+	if err != nil {
+		return fmt.Errorf("failed to encrypt access token: %w", err)
+	}
+
+	encryptedRefreshToken, err := EncryptField(info.RefreshToken)
+	if err != nil {
+		return fmt.Errorf("failed to encrypt refresh token: %w", err)
+	}
+
+	encryptedInnerToken, err := EncryptField(info.InnerToken)
+	if err != nil {
+		return fmt.Errorf("failed to encrypt inner token: %w", err)
+	}
+
+	// 创建加密后的用户信息副本
+	encryptedInfo := *info
+	encryptedInfo.AccessToken = encryptedAccessToken
+	encryptedInfo.RefreshToken = encryptedRefreshToken
+	encryptedInfo.InnerToken = encryptedInnerToken
+	encryptedInfo.UpdatedAt = time.Now()
+
+	// 序列化为JSON
+	data, err := json.MarshalIndent(&encryptedInfo, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to marshal user info: %w", err)
+	}
+
+	// 获取文件路径
+	filePath, err := GetUserInfoPath()
+	if err != nil {
+		return err
+	}
+
+	// 写入文件（权限0600只有所有者可读写）
+	if err := os.WriteFile(filePath, data, 0600); err != nil {
+		return fmt.Errorf("failed to write user info file: %w", err)
+	}
+
+	// 更新内存中的用户信息
+	userInfoMutex.Lock()
+	currentUserInfo = info
+	userInfoMutex.Unlock()
+
+	return nil
+}
+
+// LoadUserInfo 从本地加载用户信息（自动解密）
+func LoadUserInfo() (*UserInfo, error) {
+	filePath, err := GetUserInfoPath()
+	if err != nil {
+		return nil, err
+	}
+
+	// 检查文件是否存在
+	if _, err := os.Stat(filePath); os.IsNotExist(err) {
+		return nil, fmt.Errorf("user info file does not exist: %s", filePath)
+	}
+
+	// 读取文件
+	data, err := os.ReadFile(filePath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read user info file: %w", err)
+	}
+
+	// 反序列化JSON
+	var encryptedInfo UserInfo
+	if err := json.Unmarshal(data, &encryptedInfo); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal user info: %w", err)
+	}
+
+	// 解密敏感字段
+	accessToken, err := DecryptField(encryptedInfo.AccessToken)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decrypt access token: %w", err)
+	}
+
+	refreshToken, err := DecryptField(encryptedInfo.RefreshToken)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decrypt refresh token: %w", err)
+	}
+
+	innerToken, err := DecryptField(encryptedInfo.InnerToken)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decrypt inner token: %w", err)
+	}
+
+	// 创建解密后的用户信息
+	decryptedInfo := encryptedInfo
+	decryptedInfo.AccessToken = accessToken
+	decryptedInfo.RefreshToken = refreshToken
+	decryptedInfo.InnerToken = innerToken
+
+	// 更新内存中的用户信息
+	userInfoMutex.Lock()
+	currentUserInfo = &decryptedInfo
+	userInfoMutex.Unlock()
+
+	return &decryptedInfo, nil
+}
+
+// UpdateUserInfo 更新用户信息并保存
+func UpdateUserInfo(info *UserInfo) error {
+	return SaveUserInfo(info)
+}
+
+// DeleteUserInfo 删除本地用户信息
+func DeleteUserInfo() error {
+	filePath, err := GetUserInfoPath()
+	if err != nil {
+		return err
+	}
+
+	// 删除文件
+	if err := os.Remove(filePath); err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("failed to delete user info file: %w", err)
+	}
+
+	// 清空内存中的用户信息
+	userInfoMutex.Lock()
+	currentUserInfo = nil
+	userInfoMutex.Unlock()
+
+	return nil
+}
+
+// GetCurrentUserInfo 获取当前加载的用户信息（内存）
+func GetCurrentUserInfo() *UserInfo {
+	userInfoMutex.RLock()
+	defer userInfoMutex.RUnlock()
+	if currentUserInfo == nil {
+		return nil
+	}
+	// 返回副本以避免并发修改
+	info := *currentUserInfo
+	return &info
+}
+
+// SetCurrentUserInfo 设置当前用户信息（内存）
+func SetCurrentUserInfo(info *UserInfo) {
+	userInfoMutex.Lock()
+	defer userInfoMutex.Unlock()
+	currentUserInfo = info
+}

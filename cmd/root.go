@@ -16,9 +16,9 @@ var (
 )
 
 var rootCmd = &cobra.Command{
-	Use:   "nursor",
-	Short: "Nursor is a tool for managing your nursor server",
-	Long:  `Nursor is a tool for managing your nursor server`,
+	Use:   "nonelane",
+	Short: "Nonelane is a tool for managing your nonelane server",
+	Long:  `Nonelane is a tool for managing your nonelane server`,
 	// PersistentPreRunE: 移除，因为逻辑应该在 RunE 或子命令中处理
 	// 这样可以避免在子命令执行时也执行不必要的逻辑
 	RunE: func(cmd *cobra.Command, args []string) error {

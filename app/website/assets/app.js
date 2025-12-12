@@ -109,7 +109,7 @@ function updateStatusIndicator() {
 
     if (statusText) {
         const runningStatus = appState.runStatus.isRunning ? '运行中' : '已停止';
-        statusText.textContent = `Nursorgate2 - ${runningStatus}`;
+        statusText.textContent = `NonelaneCore - ${runningStatus}`;
     }
 
     if (indicator) {
@@ -259,6 +259,23 @@ function hideLoading(element) {
     element.disabled = false;
 }
 
+// 格式化日期时间
+function formatDateTime(isoString) {
+    try {
+        const date = new Date(isoString);
+        return date.toLocaleString('zh-CN', {
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit'
+        });
+    } catch (error) {
+        return isoString || '-';
+    }
+}
+
 // ============ 仪表板功能 ============
 async function loadDashboard() {
     try {
@@ -318,10 +335,10 @@ async function loadDashboard() {
         const statusText = document.getElementById('statusText');
         if (isRunning) {
             indicator.className = 'status-indicator running';
-            statusText.textContent = 'Nursorgate2 - 运行中';
+            statusText.textContent = 'NonelaneCore - 运行中';
         } else {
             indicator.className = 'status-indicator stopped';
-            statusText.textContent = 'Nursorgate2 - 已停止';
+            statusText.textContent = 'NonelaneCore - 已停止';
         }
         
         // 更新按钮状态
@@ -1812,6 +1829,204 @@ document.addEventListener('DOMContentLoaded', () => {
             appState.statusPollingInterval = null;
         }
     });
+
+    // ===== 用户认证管理 =====
+
+    // 加载用户信息
+    async function loadAuthUserInfo() {
+        try {
+            const response = await apiGet('/auth/userinfo');
+            if (response.status === 'no_user') {
+                displayNoUserInfo();
+                return;
+            }
+
+            const userInfo = response.data;
+            displayUserInfo(userInfo);
+            loadRefreshStatus();
+        } catch (error) {
+            console.error('Failed to load user info:', error);
+            displayNoUserInfo();
+        }
+    }
+
+    // 显示用户信息
+    function displayUserInfo(userInfo) {
+        const container = document.getElementById('authUserInfoContainer');
+        const trafficPercent = userInfo.traffic_total > 0
+            ? Math.round((userInfo.traffic_used / userInfo.traffic_total) * 100)
+            : 0;
+
+        const trafficUsedGB = (userInfo.traffic_used / (1024 * 1024 * 1024)).toFixed(2);
+        const trafficTotalGB = (userInfo.traffic_total / (1024 * 1024 * 1024)).toFixed(2);
+
+        container.innerHTML = `
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <div>
+                        <strong>用户名:</strong> ${userInfo.username}
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div>
+                        <strong>计划名称:</strong> ${userInfo.plan_name}
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div>
+                        <strong>计划类型:</strong> ${userInfo.plan_type}
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div>
+                        <strong>有效期:</strong> ${userInfo.start_time} 至 ${userInfo.end_time}
+                    </div>
+                </div>
+                <div class="col-12">
+                    <div>
+                        <strong>流量使用:</strong>
+                        <div class="progress mt-2" style="height: 20px;">
+                            <div class="progress-bar ${trafficPercent > 90 ? 'bg-danger' : trafficPercent > 70 ? 'bg-warning' : 'bg-success'}"
+                                 role="progressbar"
+                                 style="width: ${trafficPercent}%;"
+                                 aria-valuenow="${trafficPercent}"
+                                 aria-valuemin="0"
+                                 aria-valuemax="100">
+                                ${trafficUsedGB}GB / ${trafficTotalGB}GB (${trafficPercent}%)
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div>
+                        <strong>AI 提问:</strong> ${userInfo.ai_ask_used} / ${userInfo.ai_ask_total}
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div>
+                        <strong>最后更新:</strong> ${formatDateTime(userInfo.updated_at)}
+                    </div>
+                </div>
+            </div>
+        `;
+
+        // 显示登出按钮
+        document.getElementById('authLogoutBtn').style.display = 'inline-block';
+
+        // 显示刷新状态卡片
+        document.getElementById('authRefreshStatusCard').style.display = 'block';
+    }
+
+    // 显示无用户信息
+    function displayNoUserInfo() {
+        const container = document.getElementById('authUserInfoContainer');
+        container.innerHTML = `
+            <div class="text-center text-muted py-4">
+                <p>暂无用户信息，请先激活 Token</p>
+            </div>
+        `;
+
+        // 隐藏登出按钮
+        document.getElementById('authLogoutBtn').style.display = 'none';
+
+        // 隐藏刷新状态卡片
+        document.getElementById('authRefreshStatusCard').style.display = 'none';
+    }
+
+    // 激活Token
+    document.getElementById('authActivateBtn').addEventListener('click', async () => {
+        const token = document.getElementById('authTokenInput').value.trim();
+        if (!token) {
+            showError('请输入 Token');
+            return;
+        }
+
+        const btn = document.getElementById('authActivateBtn');
+        showLoading(btn);
+
+        try {
+            const response = await apiPost('/auth/activate', { token });
+            if (response.status === 'success') {
+                showSuccess('Token 激活成功');
+                document.getElementById('authTokenInput').value = '';
+                loadAuthUserInfo();
+            } else {
+                showError(response.msg || 'Token 激活失败');
+            }
+        } catch (error) {
+            showError('激活失败: ' + error.message);
+        } finally {
+            hideLoading(btn);
+        }
+    });
+
+    // 加载刷新状态
+    async function loadRefreshStatus() {
+        try {
+            const response = await apiGet('/auth/refresh-status');
+            if (response.status === 'success') {
+                updateRefreshStatus(response.data);
+            }
+        } catch (error) {
+            console.error('Failed to load refresh status:', error);
+        }
+    }
+
+    // 更新刷新状态显示
+    function updateRefreshStatus(status) {
+        const runningBadge = document.getElementById('authRefreshRunning');
+        const lastUpdateEl = document.getElementById('authLastUpdate');
+        const refreshIntervalEl = document.getElementById('authRefreshInterval');
+        const errorEl = document.getElementById('authRefreshError');
+        const errorMsgEl = document.getElementById('authRefreshErrorMsg');
+
+        // 更新运行状态
+        runningBadge.className = status.is_running ? 'badge bg-success' : 'badge bg-secondary';
+        runningBadge.textContent = status.is_running ? '运行中' : '未运行';
+
+        // 更新最后更新时间
+        if (status.last_update_time) {
+            lastUpdateEl.textContent = formatDateTime(status.last_update_time);
+        }
+
+        // 更新刷新间隔
+        refreshIntervalEl.textContent = status.refresh_interval || '1 分钟';
+
+        // 更新错误显示
+        if (status.last_error) {
+            errorEl.style.display = 'block';
+            errorMsgEl.textContent = status.last_error;
+        } else {
+            errorEl.style.display = 'none';
+        }
+    }
+
+    // 登出
+    document.getElementById('authLogoutBtn').addEventListener('click', async () => {
+        if (!confirm('确定要登出吗？')) {
+            return;
+        }
+
+        const btn = document.getElementById('authLogoutBtn');
+        showLoading(btn);
+
+        try {
+            await apiPost('/auth/logout', {});
+            showSuccess('登出成功');
+            displayNoUserInfo();
+            document.getElementById('authTokenInput').value = '';
+        } catch (error) {
+            showError('登出失败: ' + error.message);
+        } finally {
+            showSuccess(btn);
+        }
+    });
+
+    // 页面加载时自动加载用户信息
+    loadAuthUserInfo();
+
+    // 定时刷新用户信息（每30秒）
+    setInterval(loadAuthUserInfo, 30000);
 
     // ===== Certificate Management =====
 

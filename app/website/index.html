@@ -95,6 +95,78 @@
                 <div id="dashboard-page" class="content-section active">
                     <h2 class="mb-4"><i class="bi bi-speedometer2"></i> 仪表板</h2>
 
+                    <!-- Token激活卡片 -->
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            <i class="bi bi-key-fill me-2"></i> Token 激活
+                        </div>
+                        <div class="card-body">
+                            <div class="row mb-3">
+                                <div class="col-md-10">
+                                    <input type="text" class="form-control" id="authTokenInput" placeholder="输入激活 Token...">
+                                </div>
+                                <div class="col-md-2">
+                                    <button type="button" class="btn btn-primary w-100" id="authActivateBtn">
+                                        <i class="bi bi-play-fill"></i> 激活
+                                    </button>
+                                </div>
+                            </div>
+                            <div id="authActivateMessage" style="display: none;"></div>
+                        </div>
+                    </div>
+
+                    <!-- 用户信息卡片 -->
+                    <div class="card mb-4">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <span>
+                                <i class="bi bi-person-circle me-2"></i> 用户信息
+                            </span>
+                            <button type="button" class="btn btn-sm btn-danger" id="authLogoutBtn" style="display: none;">
+                                <i class="bi bi-box-arrow-right"></i> 登出
+                            </button>
+                        </div>
+                        <div class="card-body" id="authUserInfoContainer">
+                            <div class="text-center text-muted py-4">
+                                <p>暂无用户信息，请先激活 Token</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 刷新状态卡片 -->
+                    <div class="card mb-4" id="authRefreshStatusCard" style="display: none;">
+                        <div class="card-header">
+                            <i class="bi bi-arrow-clockwise me-2"></i> 刷新状态
+                        </div>
+                        <div class="card-body">
+                            <div class="row g-3">
+                                <div class="col-md-4">
+                                    <div class="d-flex align-items-center">
+                                        <span class="me-2">自动刷新:</span>
+                                        <span id="authRefreshRunning" class="badge bg-secondary">未运行</span>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="d-flex align-items-center">
+                                        <span class="me-2">最后更新:</span>
+                                        <span id="authLastUpdate" class="text-muted">-</span>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="d-flex align-items-center">
+                                        <span class="me-2">刷新间隔:</span>
+                                        <span id="authRefreshInterval" class="text-muted">1 分钟</span>
+                                    </div>
+                                </div>
+                                <div class="col-12" id="authRefreshError" style="display: none;">
+                                    <div class="alert alert-warning mb-0" role="alert">
+                                        <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                                        <span id="authRefreshErrorMsg"></span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
                     <div class="row mb-4">
                         <div class="col-xl-3 col-md-6 mb-4">
                             <div class="card border-left-primary shadow h-100 py-2">

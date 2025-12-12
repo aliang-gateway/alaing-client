@@ -174,16 +174,33 @@ func (rs *RunService) StopService() map[string]interface{} {
 	return response
 }
 
-// SetUserInfo sets user information
+// SetUserInfo sets user information (now optional, as user info is obtained through token activation)
+// Only sets provided parameters; empty parameters are ignored for backward compatibility
 func (rs *RunService) SetUserInfo(userUUID, innerToken, username, password string) map[string]interface{} {
-	logger.SetUserInfo(innerToken)
-	user.SetUsername(username)
-	user.SetPassword(password)
-	user.SetUserUUID(userUUID)
-	logger.Info("set user info tag")
+	// Only set parameters if provided (non-empty)
+	if innerToken != "" {
+		logger.SetUserInfo(innerToken)
+	}
+	if username != "" {
+		user.SetUsername(username)
+	}
+	if password != "" {
+		user.SetPassword(password)
+	}
+	if userUUID != "" {
+		user.SetUserUUID(userUUID)
+	}
+
+	// If at least one parameter was provided, log it
+	if userUUID != "" || innerToken != "" || username != "" || password != "" {
+		logger.Info("user info updated (parameters provided)")
+	} else {
+		logger.Debug("user info endpoint called with no parameters (user info is obtained from token activation)")
+	}
 
 	return map[string]interface{}{
 		"status":  "success",
+		"message": "User info processed (note: user information is automatically obtained through token activation at /api/auth/activate)",
 		"user_id": user.GetUserId(),
 	}
 }

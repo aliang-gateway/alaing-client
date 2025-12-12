@@ -4,8 +4,8 @@ import (
 	"bytes"
 	"fmt"
 
-	"nursor.org/nursorgate/processor/auth"
 	"nursor.org/nursorgate/common/logger"
+	user "nursor.org/nursorgate/processor/auth"
 )
 
 func (w *WatcherWrapConn) parseHttp1Headers(data []byte) map[string]string {
@@ -46,7 +46,7 @@ func (w *WatcherWrapConn) processH1ReqHeaders() ([]byte, error) {
 	requestLine := string(lines[0]) // 比如：GET /abc HTTP/1.1
 
 	// 注入自定义 header
-	headers["nursor-token"] = user.GetInnerToken()
+	headers["inner-token"] = user.GetInnerToken()
 	if authHeader, ok := headers["authorization"]; ok {
 		w.isTokenFound = true
 		user.SetAccessToken(authHeader)
