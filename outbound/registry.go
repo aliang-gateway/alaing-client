@@ -2,7 +2,6 @@ package outbound
 
 import (
 	"fmt"
-	"math/rand"
 	"strings"
 	"sync"
 
@@ -123,7 +122,6 @@ func (r *Registry) Unregister(name string) error {
 
 	delete(r.proxies, name)
 
-	
 	logger.Info(fmt.Sprintf("Proxy '%s' unregistered", name))
 	return nil
 }
@@ -165,7 +163,6 @@ func (r *Registry) Get(name string) (proxy.Proxy, error) {
 	return nil, fmt.Errorf("proxy '%s' not found", name)
 }
 
-
 // GetHardcodedDefault 始终返回 direct 代理作为硬编码的默认值
 func (r *Registry) GetHardcodedDefault() (proxy.Proxy, error) {
 	return r.Get("direct")
@@ -204,7 +201,6 @@ func (r *Registry) GetNonelane() (proxy.Proxy, error) {
 	}
 	return p, nil
 }
-
 
 // List 列出所有已注册的代理名称
 func (r *Registry) List() []string {
@@ -272,41 +268,6 @@ func (r *Registry) Clear() {
 	r.proxies = make(map[string]proxy.Proxy)
 	r.doorGroup = nil
 	logger.Warn("All proxies cleared")
-}
-
-// RegisterFromConfig 根据配置注册代理（支持自定义名称）
-// 使用factory模式创建代理实例，并将配置存储在ConfigStore中
-func (r *Registry) RegisterFromConfig(name string, cfg *proxyConfig.BaseProxyConfig) error {
-	if name == "" {
-		return fmt.Errorf("proxy name cannot be empty")
-	}
-	if cfg == nil {
-		return fmt.Errorf("config cannot be nil")
-	}
-
-	// 验证配置
-	if err := cfg.Validate(); err != nil {
-		return fmt.Errorf("invalid config: %w", err)
-	}
-
-	// 使用factory创建代理实例
-	p, err := proxyConfig.CreateProxyFromConfig(cfg)
-	if err != nil {
-		return fmt.Errorf("failed to create proxy: %w", err)
-	}
-
-	// 在Registry中注册实例
-	if err := r.Register(name, p); err != nil {
-		return err
-	}
-
-	// 将配置存储在ConfigStore中
-	if err := proxyConfig.GetConfigStore().Set(name, cfg); err != nil {
-		logger.Warn(fmt.Sprintf("Failed to store config for '%s': %v", name, err))
-		// 不因配置存储失败而中止注册
-	}
-
-	return nil
 }
 
 // RegisterDoorFromConfig 从配置注册 door 代理集合
@@ -452,26 +413,19 @@ func createVLESSProxy(cfg *proxyConfig.VLESSConfig) (proxy.Proxy, error) {
 
 	// Handle REALITY
 	if cfg.RealityEnabled {
-		shortID := cfg.ShortID
-		if shortID == "" && cfg.ShortIDList != "" {
-			// Random selection from ShortIDList
-			shortIDArray := strings.Split(cfg.ShortIDList, ",")
-			if len(shortIDArray) > 0 {
-				shortID = strings.TrimSpace(shortIDArray[rand.Intn(len(shortIDArray))])
-			}
-		}
 		return vless.NewVLESSWithReality(
 			cfg.Server,
+			cfg.ServerPort,
 			cfg.UUID,
+			cfg.Flow,
+			cfg.TLSEnabled,
+			cfg.RealityEnabled,
 			cfg.SNI,
 			cfg.PublicKey,
+			cfg.ShortIDs,
 		)
-	}
-
-	// Handle TLS
-	if cfg.TLSEnabled {
+	} else if cfg.TLSEnabled {
 		if cfg.Flow != "" {
-			// VLESS with Vision flow
 			return vless.NewVLESSWithVision(cfg.Server, cfg.UUID, cfg.SNI)
 		}
 		// VLESS with TLS only
@@ -485,15 +439,15 @@ func createVLESSProxy(cfg *proxyConfig.VLESSConfig) (proxy.Proxy, error) {
 // createShadowsocksProxy creates Shadowsocks proxy instance from door member config
 func createShadowsocksProxy(cfg *proxyConfig.ShadowsocksConfig) (proxy.Proxy, error) {
 	if cfg == nil {
-		return nil, fmt.Errorf("Shadowsocks config cannot be nil")
+		return nil, fmt.Errorf("Shadowsocks Config Cannot Be Empty")
 	}
-
-	return shadowsocks.NewShadowsocks(
-		cfg.Server,
-		cfg.Method,
-		cfg.Password,
-		cfg.Username,
-		cfg.ObfsMode,
-		cfg.ObfsHost,
-	)
+	return shadowsocks.NewShadowsocksWithConfig(&shadowsocks.ShadowsocksConfig{
+		Server:   cfg.Server,
+		Port:     cfg.ServerPort,
+		Method:   cfg.Method,
+		Password: cfg.Password,
+		Username: cfg.Username,
+		ObfsMode: cfg.ObfsMode,
+		ObfsHost: cfg.ObfsHost,
+	})
 }

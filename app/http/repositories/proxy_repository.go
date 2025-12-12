@@ -5,7 +5,6 @@ import (
 
 	"nursor.org/nursorgate/app/http/services"
 	proxyRegistry "nursor.org/nursorgate/outbound"
-	proxyConfig "nursor.org/nursorgate/processor/config"
 )
 
 // ProxyRepositoryImpl provides access to proxy functionality
@@ -49,15 +48,6 @@ func (pr *ProxyRepositoryImpl) GetProxy(name string) (interface{}, error) {
 		return nil, errors.New("proxy not found")
 	}
 	return proxyInfo, nil
-}
-
-// Register registers a new proxy instance
-func (pr *ProxyRepositoryImpl) Register(name string, config interface{}) error {
-	registry := proxyRegistry.GetRegistry()
-	if cfg, ok := config.(*proxyConfig.BaseProxyConfig); ok {
-		return registry.RegisterFromConfig(name, cfg)
-	}
-	return errors.New("invalid config type")
 }
 
 // Unregister removes a proxy from the registry

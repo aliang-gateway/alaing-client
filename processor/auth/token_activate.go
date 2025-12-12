@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"nursor.org/nursorgate/common/logger"
+	"nursor.org/nursorgate/processor/inbound"
 )
 
 const (
@@ -41,6 +42,14 @@ func ActivateToken(token string) (*UserInfo, error) {
 		// 更新运行时状态
 		SetInnerToken(userInfo.InnerToken)
 
+		// 获取并更新Door代理信息（网络优先策略）
+		if err := inbound.UpdateDoorProxies(userInfo.AccessToken); err != nil {
+			logger.Warn(fmt.Sprintf("Failed to update inbound proxies: %v", err))
+			// 不返回错误，因为激活已经成功，缺少代理不是致命错误
+		} else {
+			logger.Info("Successfully updated inbound proxies after token activation")
+		}
+
 		// 启动定时刷新
 		startTokenRefresh()
 
@@ -56,6 +65,16 @@ func ActivateToken(token string) (*UserInfo, error) {
 
 		// 更新运行时状态
 		SetInnerToken(localUserInfo.InnerToken)
+
+		// 尝试更新Door代理信息（使用本地用户的AccessToken）
+		if localUserInfo.AccessToken != "" {
+			if err := inbound.UpdateDoorProxies(localUserInfo.AccessToken); err != nil {
+				logger.Warn(fmt.Sprintf("Failed to update inbound proxies from fallback user info: %v", err))
+				// 不返回错误，继续启动
+			} else {
+				logger.Info("Successfully updated inbound proxies from fallback user info")
+			}
+		}
 
 		// 启动定时刷新（尝试在后续刷新时重新激活）
 		startTokenRefresh()

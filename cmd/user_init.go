@@ -5,6 +5,7 @@ import (
 
 	"nursor.org/nursorgate/common/logger"
 	auth "nursor.org/nursorgate/processor/auth"
+	"nursor.org/nursorgate/processor/inbound"
 )
 
 // InitializeUser 初始化用户信息和Token激活
@@ -35,7 +36,7 @@ func InitializeUser(token string) {
 	}
 }
 
-// LoadLocalUserInfo 加载本地用户信息
+// loadLocalUserInfo 加载本地用户信息
 func loadLocalUserInfo() error {
 	userInfo, err := auth.LoadUserInfo()
 	if err != nil {
@@ -44,6 +45,16 @@ func loadLocalUserInfo() error {
 
 	// 更新运行时状态
 	auth.SetInnerToken(userInfo.InnerToken)
+
+	// 加载完本地用户信息后，尝试更新Door代理信息
+	if userInfo.AccessToken != "" {
+		if err := inbound.UpdateDoorProxies(userInfo.AccessToken); err != nil {
+			logger.Warn(fmt.Sprintf("Failed to update inbound proxies on startup: %v", err))
+			// 不返回错误，允许系统继续启动
+		} else {
+			logger.Info("Successfully updated inbound proxies on startup")
+		}
+	}
 
 	return nil
 }

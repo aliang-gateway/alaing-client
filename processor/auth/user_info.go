@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"sync"
 	"time"
+
+	"nursor.org/nursorgate/common/logger"
 )
 
 // UserInfo 用户信息结构（本地存储格式）
@@ -78,8 +80,8 @@ func GetUserInfoPath() (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("failed to get home directory: %w", err)
 	}
-	// TODO: 应该将所有根目录下的操作统一一下，叫作data目录
 	configDir := filepath.Join(homeDir, ".nonelane")
+	logger.Debug("get user info path: %s", configDir)
 	return filepath.Join(configDir, "userinfo.json"), nil
 }
 

@@ -19,6 +19,7 @@ import (
 )
 
 // Embed the default configuration
+//
 //go:embed config.default.json
 var defaultConfigData string
 
@@ -95,13 +96,6 @@ func ApplyConfig(config *Config) error {
 		return fmt.Errorf("phase 3 - door proxy registration failed: %w", err)
 	}
 	logger.Debug("Phase 3: Door proxy collection registered")
-
-	// Phase 4: Register custom user proxies from configuration
-	// These are optional and supplement the built-in proxies
-	if err := registerCustomProxies(config.BaseProxies); err != nil {
-		return fmt.Errorf("phase 4 - custom proxy registration failed: %w", err)
-	}
-	logger.Debug("Phase 4: Custom proxies registered")
 
 	// Phase 5: Set the active default proxy for routing decisions
 	// Determines which proxy is used when no specific routing rule applies
@@ -309,44 +303,6 @@ func registerDoorProxy(cfg *config.Config) error {
 	}
 
 	logger.Info(fmt.Sprintf("Door proxy collection registered successfully with %d members", len(doorConfig.Members)))
-	return nil
-}
-
-// registerCustomProxies 注册自定义代理（除 direct, nonelane 外的其他代理）
-func registerCustomProxies(proxies map[string]*config.BaseProxyConfig) error {
-	if len(proxies) == 0 {
-		logger.Debug("No custom proxies to register")
-		return nil
-	}
-
-	registry := outbound.GetRegistry()
-
-	for name, cfg := range proxies {
-		// 跳过内置代理
-		if name == "direct" || name == "nonelane" {
-			continue
-		}
-
-		if cfg == nil {
-			logger.Warn(fmt.Sprintf("Nil proxy config for '%s', skipping", name))
-			continue
-		}
-
-		// 验证配置
-		if err := cfg.Validate(); err != nil {
-			logger.Error(fmt.Sprintf("Invalid config for proxy '%s': %v", name, err))
-			continue
-		}
-
-		// 注册代理（创建实例 + 存储配置）
-		if err := registry.RegisterFromConfig(name, cfg); err != nil {
-			logger.Error(fmt.Sprintf("Failed to register proxy '%s': %v", name, err))
-			continue
-		}
-
-		logger.Info(fmt.Sprintf("Custom proxy '%s' registered successfully", name))
-	}
-
 	return nil
 }
 

@@ -6,8 +6,6 @@ import (
 	"fmt"
 	"net"
 	"net/netip"
-	"strconv"
-	"strings"
 	"sync"
 
 	"github.com/xjasonlyu/tun2socks/v2/transport/shadowsocks/core"
@@ -43,29 +41,6 @@ type ShadowsocksConfig struct {
 	Username string `json:"username,omitempty"`
 	ObfsMode string `json:"obfs_mode"`
 	ObfsHost string `json:"obfs_host"`
-}
-
-// NewShadowsocks 创建 Shadowsocks 客户端
-// 参数：server, method, password, username, obfsMode, obfsHost
-func NewShadowsocks(server, method, password, username, obfsMode, obfsHost string) (*Shadowsocks, error) {
-	// 解析服务器地址
-	host, port := server, uint16(8388)
-	if idx := strings.Index(server, ":"); idx != -1 {
-		host = server[:idx]
-		if p, err := strconv.ParseUint(server[idx+1:], 10, 16); err == nil {
-			port = uint16(p)
-		}
-	}
-
-	return NewShadowsocksWithConfig(&ShadowsocksConfig{
-		Server:   host,
-		Port:     port,
-		Method:   method,
-		Password: password,
-		Username: username,
-		ObfsMode: obfsMode,
-		ObfsHost: obfsHost,
-	})
 }
 
 // NewShadowsocksWithConfig 使用配置创建 Shadowsocks 客户端

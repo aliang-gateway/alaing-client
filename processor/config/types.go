@@ -20,25 +20,26 @@ type DoorProxyMember struct {
 
 // VLESSConfig represents VLESS protocol configuration
 type VLESSConfig struct {
-	Server         string `json:"server"`
-	UUID           string `json:"uuid"`
-	Flow           string `json:"flow,omitempty"`
-	TLSEnabled     bool   `json:"tls_enabled"`
-	SNI            string `json:"sni,omitempty"`
-	RealityEnabled bool   `json:"reality_enabled"`
-	PublicKey      string `json:"public_key,omitempty"`
-	ShortID        string `json:"short_id,omitempty"`
-	ShortIDList    string `json:"short_id_list,omitempty"`
+	Server         string   `json:"server_host"`
+	ServerPort     uint16   `json:"server_port"`
+	UUID           string   `json:"uuid"`
+	Flow           string   `json:"flow,omitempty"`
+	TLSEnabled     bool     `json:"tls_enabled"`
+	RealityEnabled bool     `json:"reality_enabled"`
+	SNI            string   `json:"sni,omitempty"`
+	PublicKey      string   `json:"public_key,omitempty"`
+	ShortIDs       []string `json:"short_ids,omitempty"`
 }
 
 // ShadowsocksConfig represents Shadowsocks protocol configuration
 type ShadowsocksConfig struct {
-	Server   string `json:"server"`
-	Method   string `json:"method"`
-	Password string `json:"password"`
-	Username string `json:"username,omitempty"`
-	ObfsMode string `json:"obfs_mode,omitempty"`
-	ObfsHost string `json:"obfs_host,omitempty"`
+	Server     string `json:"server_host"`
+	ServerPort uint16 `json:"server_port"`
+	Method     string `json:"method"`
+	Password   string `json:"password"`
+	Username   string `json:"username,omitempty"`
+	ObfsMode   string `json:"obfs_mode,omitempty"`
+	ObfsHost   string `json:"obfs_host,omitempty"`
 }
 
 // Validate validates the proxy configuration

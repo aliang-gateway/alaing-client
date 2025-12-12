@@ -5,7 +5,6 @@ import (
 	"crypto/tls"
 	"fmt"
 	"io"
-	"math/rand"
 	"net"
 	"strconv"
 	"strings"
@@ -44,16 +43,18 @@ type RealityConfig struct {
 	ShortID   string `json:"short_id"`
 }
 
-// VLESSConfig VLESS 配置选项
+// VLESSConfig represents VLESS protocol configuration
 type VLESSConfig struct {
-	Server     string         `json:"server"`
-	ServerPort uint16         `json:"server_port"`
-	UUID       string         `json:"uuid"`
-	Flow       string         `json:"flow"`
-	TLS        *TLSConfig     `json:"tls,omitempty"`
-	Reality    *RealityConfig `json:"reality,omitempty"`
-	PublicKey  string         `json:"public_key"`
-	ShortID    string         `json:"short_id"`
+	Server         string     `json:"server"`
+	ServerPort     uint16     `json:"server_port"`
+	UUID           string     `json:"uuid"`
+	Flow           string     `json:"flow,omitempty"`
+	TLSEnabled     bool       `json:"tls_enabled"`
+	RealityEnabled bool       `json:"reality_enabled"`
+	SNI            string     `json:"sni,omitempty"`
+	PublicKey      string     `json:"public_key,omitempty"`
+	ShortIDList    []string   `json:"short_id_list,omitempty"`
+	TLS            *TLSConfig `json:"tls,omitempty"`
 }
 
 // TLSConfig TLS 配置
@@ -134,39 +135,27 @@ func NewVLESSWithVision(server, uuid, sni string) (*VLESS, error) {
 }
 
 // NewVLESSWithReality 创建带 REALITY 的 VLESS 客户端
-func NewVLESSWithReality(server, uuid, sni, publicKey string) (*VLESS, error) {
-	return NewVLESSWithRealityAndShortID(server, uuid, sni, publicKey, "")
-}
-
-// NewVLESSWithRealityAndShortID 创建带 REALITY 和指定 ShortID 的 VLESS 客户端
-func NewVLESSWithRealityAndShortID(server, uuid, sni, publicKey, shortID string) (*VLESS, error) {
+func NewVLESSWithReality(Server string, ServerPort uint16, UUID string, Flow string, TLSEnabled bool, RealityEnabled bool, SNI string, PublicKey string, ShortIDList []string) (*VLESS, error) {
 	// 如果没有提供 shortID，从默认列表随机选择
-	if shortID == "" {
-		shortIDStr := "ef,b79e62,7d87a3,f4bfb2,ecdc,048cc1,be,872a9cb601,4e642a,d0a4cc,6a37c85b4d,facf,e2e46bb5,5fe83d984b7c,884c,f2e4c3af,7b79c5,b7a05d,b6920fa248,0975,95,4d3bd40917,57d89cd6ed9a"
-		shortIDSArray := strings.Split(shortIDStr, ",")
-		shortID = shortIDSArray[rand.Intn(len(shortIDSArray))]
+	if len(ShortIDList) == 0 {
+		return nil, fmt.Errorf("shortIDList is empty")
 	}
-	// 解析服务器地址
-	host, port := server, uint16(443)
-	if idx := strings.Index(server, ":"); idx != -1 {
-		host = server[:idx]
-		if p, err := strconv.ParseUint(server[idx+1:], 10, 16); err == nil {
-			port = uint16(p)
-		}
-	}
-
 	return NewVLESSWithConfig(&VLESSConfig{
-		Server:     host,
-		ServerPort: port,
-		UUID:       uuid,
-		Flow:       "xtls-rprx-vision",
+		Server:         Server,
+		ServerPort:     uint16(ServerPort),
+		UUID:           UUID,
+		Flow:           Flow,
+		TLSEnabled:     TLSEnabled,
+		RealityEnabled: RealityEnabled,
+		SNI:            SNI,
+		PublicKey:      PublicKey,
+		ShortIDList:    ShortIDList,
 		TLS: &TLSConfig{
-			Enabled:    true,
-			ServerName: sni,
+			Enabled:    bool(TLSEnabled),
+			ServerName: SNI,
 			Reality: &RealityConfig{
-				Enabled:   true,
-				PublicKey: publicKey,
-				ShortID:   shortID,
+				Enabled:   bool(RealityEnabled),
+				PublicKey: PublicKey,
 			},
 		},
 	})
@@ -187,10 +176,12 @@ func NewVLESSWithConfig(config *VLESSConfig) (*VLESS, error) {
 			Address:  fmt.Sprintf("%s:%d", config.Server, config.ServerPort),
 			Protocol: proto.VLESS,
 		},
-		server: config.Server,
-		uuid:   config.UUID,
-		//uuidBytes: parsedUUID[:], // 转换为字节数组
-		client: client,
+		server:  config.Server,
+		uuid:    config.UUID,
+		sni:     config.SNI,
+		flow:    config.Flow,
+		reality: config.TLS.Reality,
+		client:  client,
 	}
 
 	if config.TLS != nil && config.TLS.Enabled {
