@@ -8,11 +8,14 @@ import (
 	"math/rand"
 	"os"
 	"strings"
+	"time"
 
 	"nursor.org/nursorgate/common/logger"
 	"nursor.org/nursorgate/outbound"
 	"nursor.org/nursorgate/processor/config"
+	"nursor.org/nursorgate/processor/dns"
 	geoip "nursor.org/nursorgate/processor/geoip"
+	"nursor.org/nursorgate/processor/inbound"
 	rules "nursor.org/nursorgate/processor/rules"
 )
 
@@ -116,12 +119,29 @@ func ApplyConfig(cfg *Config) error {
 	}
 
 	// Phase 6: Initialize DNS preloader
-	// if err := dns.NewPreloader(dns.GetGlobalResolver(), cfg.DNSPreResolution); err != nil {
-	// 	logger.Warn(fmt.Sprintf("Phase 6 - DNS preloader initialization failed (non-fatal): %v", err))
-	// } else {
-	// 	logger.Debug("Phase 6: DNS preloader initialized")
-	// }
-
+	registry := outbound.GetRegistry()
+	directProxy, err := registry.Get("direct")
+	if err != nil {
+		return fmt.Errorf("failed to get direct proxy: %w", err)
+	}
+	doorProxy, err := registry.GetDoor()
+	if err != nil {
+		return fmt.Errorf("failed to get door proxy: %w", err)
+	}
+	resolver := dns.NewHybridResolver(&dns.DNSConfig{
+		Type:             dns.ResolverTypeHybrid,
+		PrimaryDNS:       cfg.DNSPreResolution.PrimaryDNS,
+		FallbackDNS:      cfg.DNSPreResolution.FallbackDNS,
+		SystemDNSEnabled: cfg.DNSPreResolution.SystemDNSFallback,
+		Timeout:          cfg.DNSPreResolution.GetTimeout(),
+		MaxTTL:           cfg.DNSPreResolution.GetMaxCacheTTL(),
+		CacheEnabled:     cfg.DNSPreResolution.CacheResults,
+		ConcurrentLimit:  cfg.DNSPreResolution.ConcurrentLimit,
+		RetryCount:       3,
+		RetryDelay:       500 * time.Millisecond,
+	}, doorProxy, directProxy)
+	dns.SetGlobalResolver(resolver)
+	inbound.InitDNSPreloader(resolver, cfg.DNSPreResolution)
 	logger.Info("Configuration applied successfully")
 	return nil
 }

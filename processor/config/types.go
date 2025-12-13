@@ -102,17 +102,34 @@ type CacheConfig struct {
 
 // DNSPreResolutionConfig DNS预解析配置
 type DNSPreResolutionConfig struct {
-	Enabled         bool          `json:"enabled"`          // 是否启用DNS预解析
-	Timeout         string        `json:"timeout"`          // 预解析超时时间（如 "10s"）
-	ConcurrentLimit int           `json:"concurrentLimit"`  // 并发解析限制
-	RetryOnFailure  bool          `json:"retryOnFailure"`   // 失败时是否重试
-	CacheResults    bool          `json:"cacheResults"`     // 是否缓存预解析结果
-	PreferIPv4      bool          `json:"preferIPv4"`       // 优先使用IPv4地址
-	ForceResolve    bool          `json:"forceResolve"`     // 强制解析（即使是IP也尝试）
-	MaxCacheTTL     string        `json:"maxCacheTTL"`      // 最大缓存TTL（如 "1h"）
-	PrimaryDNS      string        `json:"primaryDNS"`       // 主DNS服务器
-	FallbackDNS     string        `json:"fallbackDNS"`      // 回退DNS服务器
-	SystemDNSFallback bool         `json:"systemDNSFallback"` // 是否回退到系统DNS
+	Enabled           bool   `json:"enabled"`           // 是否启用DNS预解析
+	Timeout           string `json:"timeout"`           // 预解析超时时间（如 "10s"）
+	ConcurrentLimit   int    `json:"concurrentLimit"`   // 并发解析限制
+	RetryOnFailure    bool   `json:"retryOnFailure"`    // 失败时是否重试
+	CacheResults      bool   `json:"cacheResults"`      // 是否缓存预解析结果
+	PreferIPv4        bool   `json:"preferIPv4"`        // 优先使用IPv4地址
+	ForceResolve      bool   `json:"forceResolve"`      // 强制解析（即使是IP也尝试）
+	MaxCacheTTL       string `json:"maxCacheTTL"`       // 最大缓存TTL（如 "1h"）
+	PrimaryDNS        string `json:"primaryDNS"`        // 主DNS服务器
+	FallbackDNS       string `json:"fallbackDNS"`       // 回退DNS服务器
+	SystemDNSFallback bool   `json:"systemDNSFallback"` // 是否回退到系统DNS
+}
+
+// GetDNSPreResolutionConfig 获取DNS预解析配置
+func GetDNSPreResolutionConfig() *DNSPreResolutionConfig {
+	return &DNSPreResolutionConfig{
+		Enabled:           true,
+		Timeout:           "10s",
+		ConcurrentLimit:   10,
+		RetryOnFailure:    true,
+		CacheResults:      true,
+		PreferIPv4:        true,
+		ForceResolve:      false,
+		MaxCacheTTL:       "1h",
+		PrimaryDNS:        "8.8.8.8:53",
+		FallbackDNS:       "223.5.5.5:53",
+		SystemDNSFallback: true,
+	}
 }
 
 // GetTimeout 解析超时时间
@@ -181,9 +198,9 @@ type Config struct {
 	NacosServer      string                      `json:"nacos_server,omitempty"` // Nacos配置中心，可选，默认为 "http://nacos-config.nursor.org"
 	CurrentProxy     string                      `json:"currentProxy"`
 	BaseProxies      map[string]*BaseProxyConfig `json:"baseProxies"`
-	DoorProxy        *DoorProxyConfig            `json:"doorProxy,omitempty"`            // Door 代理集合配置
-	RoutingRules     *RoutingRulesConfig         `json:"routingRules,omitempty"`         // 路由规则配置
-	DNSPreResolution *DNSPreResolutionConfig     `json:"dnsPreResolution,omitempty"`     // DNS预解析配置
+	DoorProxy        *DoorProxyConfig            `json:"doorProxy,omitempty"`        // Door 代理集合配置
+	RoutingRules     *RoutingRulesConfig         `json:"routingRules,omitempty"`     // 路由规则配置
+	DNSPreResolution *DNSPreResolutionConfig     `json:"dnsPreResolution,omitempty"` // DNS预解析配置
 }
 
 // GetTokenActivateURL returns the complete Token activation URL

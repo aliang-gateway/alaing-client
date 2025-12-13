@@ -9,12 +9,13 @@ import (
 	"time"
 
 	"nursor.org/nursorgate/common/logger"
+	"nursor.org/nursorgate/processor/config"
 )
 
 // Preloader DNS预加载器，负责在代理注册前解析域名
 type Preloader struct {
 	resolver DNSResolverInterface
-	config   *PreloadConfig
+	config   *config.DNSPreResolutionConfig
 	mu       sync.RWMutex
 
 	// 预解析结果缓存
@@ -34,14 +35,22 @@ type Preloader struct {
 }
 
 // NewPreloader 创建DNS预加载器
-func NewPreloader(resolver DNSResolverInterface, config *PreloadConfig) *Preloader {
-	if config == nil {
-		config = DefaultPreloadConfig()
+func NewPreloader(resolver DNSResolverInterface, cfg *config.DNSPreResolutionConfig) *Preloader {
+	if cfg == nil {
+		cfg = &config.DNSPreResolutionConfig{
+			Enabled:         true,
+			Timeout:         "10s",
+			ConcurrentLimit: 10,
+			RetryOnFailure:  true,
+			CacheResults:    true,
+			PreferIPv4:      true,
+			ForceResolve:    false,
+		}
 	}
 
 	p := &Preloader{
 		resolver:     resolver,
-		config:       config,
+		config:       cfg,
 		preloadCache: make(map[string]*PreloadResult),
 	}
 
@@ -230,40 +239,40 @@ func (p *Preloader) GetStats() *PreloaderStats {
 	}
 
 	return &PreloaderStats{
-		TotalAttempts:  p.stats.TotalAttempts,
-		Successful:     p.stats.Successful,
-		Failed:         p.stats.Failed,
-		CacheHits:      p.stats.CacheHits,
-		SuccessRate:    successRate,
-		CacheHitRate:   cacheHitRate,
-		AvgDuration:    avgDuration,
-		CacheSize:      cacheSize,
-		LastUpdate:     p.stats.lastUpdate,
+		TotalAttempts: p.stats.TotalAttempts,
+		Successful:    p.stats.Successful,
+		Failed:        p.stats.Failed,
+		CacheHits:     p.stats.CacheHits,
+		SuccessRate:   successRate,
+		CacheHitRate:  cacheHitRate,
+		AvgDuration:   avgDuration,
+		CacheSize:     cacheSize,
+		LastUpdate:    p.stats.lastUpdate,
 	}
 }
 
 // PreloaderStats 预加载器统计信息
 type PreloaderStats struct {
-	TotalAttempts  int64         `json:"total_attempts"`
-	Successful     int64         `json:"successful"`
-	Failed         int64         `json:"failed"`
-	CacheHits      int64         `json:"cache_hits"`
-	SuccessRate    float64       `json:"success_rate"`
-	CacheHitRate   float64       `json:"cache_hit_rate"`
-	AvgDuration    time.Duration `json:"avg_duration"`
-	CacheSize      int           `json:"cache_size"`
-	LastUpdate     time.Time     `json:"last_update"`
+	TotalAttempts int64         `json:"total_attempts"`
+	Successful    int64         `json:"successful"`
+	Failed        int64         `json:"failed"`
+	CacheHits     int64         `json:"cache_hits"`
+	SuccessRate   float64       `json:"success_rate"`
+	CacheHitRate  float64       `json:"cache_hit_rate"`
+	AvgDuration   time.Duration `json:"avg_duration"`
+	CacheSize     int           `json:"cache_size"`
+	LastUpdate    time.Time     `json:"last_update"`
 }
 
 // SetConfig 更新配置
-func (p *Preloader) SetConfig(config *PreloadConfig) {
+func (p *Preloader) SetConfig(cfg *config.DNSPreResolutionConfig) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	p.config = config
+	p.config = cfg
 }
 
 // GetConfig 获取当前配置
-func (p *Preloader) GetConfig() *PreloadConfig {
+func (p *Preloader) GetConfig() *config.DNSPreResolutionConfig {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 	return p.config

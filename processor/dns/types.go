@@ -103,30 +103,6 @@ type CacheStats struct {
 	AvgTTL    time.Duration `json:"avg_ttl"`    // 平均TTL
 }
 
-// PreloadConfig 预解析配置
-type PreloadConfig struct {
-	Enabled         bool          `json:"enabled"`          // 是否启用预解析
-	Timeout         time.Duration `json:"timeout"`          // 预解析超时时间
-	ConcurrentLimit int           `json:"concurrent_limit"` // 并发限制
-	RetryOnFailure  bool          `json:"retry_on_failure"` // 失败时是否重试
-	CacheResults    bool          `json:"cache_results"`    // 是否缓存结果
-	PreferIPv4      bool          `json:"prefer_ipv4"`      // 优先使用IPv4
-	ForceResolve    bool          `json:"force_resolve"`    // 强制解析（即使是IP也尝试）
-}
-
-// DefaultPreloadConfig 返回默认预解析配置
-func DefaultPreloadConfig() *PreloadConfig {
-	return &PreloadConfig{
-		Enabled:         true,
-		Timeout:         10 * time.Second,
-		ConcurrentLimit: 5,
-		RetryOnFailure:  true,
-		CacheResults:    true,
-		PreferIPv4:      true,
-		ForceResolve:    false,
-	}
-}
-
 // DialerProvider 提供用于DNS解析的dialer接口
 type DialerProvider interface {
 	GetPrimaryDialer() Dialer

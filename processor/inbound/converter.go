@@ -16,7 +16,7 @@ import (
 var globalPreloader *dns.Preloader
 
 // InitDNSPreloader initializes the global DNS preloader
-func InitDNSPreloader(resolver dns.DNSResolverInterface, preloadConfig *dns.PreloadConfig) {
+func InitDNSPreloader(resolver dns.DNSResolverInterface, preloadConfig *config.DNSPreResolutionConfig) {
 	globalPreloader = dns.NewPreloader(resolver, preloadConfig)
 	logger.Info("[DNS] Global preloader initialized")
 }
