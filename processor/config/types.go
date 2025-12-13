@@ -97,23 +97,6 @@ type CacheConfig struct {
 	TTL        string `json:"ttl"`        // 缓存 TTL（如 "5m", "1h"）
 }
 
-// EngineConfig 引擎配置（对应 processor/config.EngineConf），以前的tun2socks配置key
-type EngineConfig struct {
-	MTU                      int    `json:"mtu"`
-	Mark                     int    `json:"fwmark"`
-	RestAPI                  string `json:"restapi"`
-	Device                   string `json:"device"`
-	LogLevel                 string `json:"loglevel"`
-	Interface                string `json:"interface"`
-	TCPModerateReceiveBuffer bool   `json:"tcp-moderate-receive-buffer"`
-	TCPSendBufferSize        string `json:"tcp-send-buffer-size"`
-	TCPReceiveBufferSize     string `json:"tcp-receive-buffer-size"`
-	MulticastGroups          string `json:"multicast-groups"`
-	TUNPreUp                 string `json:"tun-pre-up"`
-	TUNPostUp                string `json:"tun-post-up"`
-	UDPTimeout               string `json:"udp-timeout"` // 字符串格式，需要解析为 time.Duration
-}
-
 // DoorProxyConfig Door 代理集合专用配置
 type DoorProxyConfig struct {
 	Type    string            `json:"type"`
@@ -122,7 +105,6 @@ type DoorProxyConfig struct {
 
 // Config 完整配置结构
 type Config struct {
-	Engine       *EngineConfig               `json:"engine"`
 	APIServer    string                      `json:"api_server"`             // 必须配置：Token激活、刷新、Inbound的基础URL
 	NacosServer  string                      `json:"nacos_server,omitempty"` // Nacos配置中心，可选，默认为 "http://nacos-config.nursor.org"
 	CurrentProxy string                      `json:"currentProxy"`

@@ -8,7 +8,6 @@ import (
 	"math/rand"
 	"os"
 	"strings"
-	"time"
 
 	"nursor.org/nursorgate/common/logger"
 	"nursor.org/nursorgate/outbound"
@@ -24,7 +23,6 @@ var defaultConfigData string
 
 // Re-export config types for backward compatibility
 type Config = config.Config
-type EngineConfig = config.EngineConfig
 
 // setUseDefaultConfig marks that the default configuration is being used
 func setUseDefaultConfig(value bool) {
@@ -83,46 +81,38 @@ func ApplyConfig(cfg *Config) error {
 	// Store config globally for access by other modules
 	config.SetGlobalConfig(cfg)
 
-	// Phase 1: Apply engine configuration
-	if cfg.Engine != nil {
-		if err := applyEngineConfig(cfg.Engine); err != nil {
-			return fmt.Errorf("phase 1 - engine config failed: %w", err)
-		}
-		logger.Debug("Phase 1: Engine configuration applied")
-	}
-
-	// Phase 2: Register built-in proxies (direct + nonelane)
+	// Phase 1: Register built-in proxies (direct + nonelane)
 	// These are mandatory and always available
 	if err := registerBuiltinProxies(cfg); err != nil {
-		return fmt.Errorf("phase 2 - builtin proxies registration failed: %w", err)
+		return fmt.Errorf("phase 1 - builtin proxies registration failed: %w", err)
 	}
-	logger.Debug("Phase 2: Built-in proxies registered")
+	logger.Debug("Phase 1: Built-in proxies registered")
 
-	// Phase 3: Register door proxy collection if configured
+	// Phase 2: Register door proxy collection if configured
 	if err := registerDoorProxy(cfg); err != nil {
-		return fmt.Errorf("phase 3 - door proxy registration failed: %w", err)
+		return fmt.Errorf("phase 2 - door proxy registration failed: %w", err)
 	}
-	logger.Debug("Phase 3: Door proxy collection registered")
+	logger.Debug("Phase 2: Door proxy collection registered")
 
-	// Phase 5: Set the active default proxy for routing decisions
+	// Phase 3: Set the active default proxy for routing decisions
 	// Determines which proxy is used when no specific routing rule applies
 	if err := setEffectiveDefaultProxy(cfg.CurrentProxy); err != nil {
-		return fmt.Errorf("phase 5 - failed to set default proxy: %w", err)
+		return fmt.Errorf("phase 3 - failed to set default proxy: %w", err)
 	}
-	logger.Debug("Phase 5: Default proxy set for routing")
+	logger.Debug("Phase 3: Default proxy set for routing")
 
-	// Phase 6: Initialize GeoIP service if configured
+	// Phase 4: Initialize GeoIP service if configured
 	if err := initializeGeoIP(cfg.RoutingRules); err != nil {
-		logger.Warn(fmt.Sprintf("Phase 6 - GeoIP initialization failed (non-fatal): %v", err))
+		logger.Warn(fmt.Sprintf("Phase 4 - GeoIP initialization failed (non-fatal): %v", err))
 	} else {
-		logger.Debug("Phase 6: GeoIP service initialized")
+		logger.Debug("Phase 4: GeoIP service initialized")
 	}
 
-	// Phase 7: Initialize routing rule engine
+	// Phase 5: Initialize routing rule engine
 	if err := initializeRuleEngine(cfg.RoutingRules); err != nil {
-		logger.Warn(fmt.Sprintf("Phase 7 - Rule engine initialization failed (non-fatal): %v", err))
+		logger.Warn(fmt.Sprintf("Phase 5 - Rule engine initialization failed (non-fatal): %v", err))
 	} else {
-		logger.Debug("Phase 7: Rule engine initialized")
+		logger.Debug("Phase 5: Rule engine initialized")
 	}
 
 	logger.Info("Configuration applied successfully")
@@ -223,39 +213,6 @@ func getBestOrRandomDoorMember(registry *outbound.Registry) string {
 	return members[randomIndex].ShowName
 }
 
-// applyEngineConfig 应用引擎配置
-func applyEngineConfig(engineCfg *config.EngineConfig) error {
-	// 解析 UDP 超时时间
-	udpTimeout, err := time.ParseDuration(engineCfg.UDPTimeout)
-	if err != nil {
-		// 如果解析失败，使用默认值
-		udpTimeout = 60 * time.Second
-		logger.Warn(fmt.Sprintf("Failed to parse udp-timeout '%s', using default 60s", engineCfg.UDPTimeout))
-	}
-
-	// 转换为 processor/config.EngineConf
-	engineConf := &config.EngineConf{
-		MTU:                      engineCfg.MTU,
-		Mark:                     engineCfg.Mark,
-		RestAPI:                  engineCfg.RestAPI,
-		Device:                   engineCfg.Device,
-		LogLevel:                 engineCfg.LogLevel,
-		Interface:                engineCfg.Interface,
-		TCPModerateReceiveBuffer: engineCfg.TCPModerateReceiveBuffer,
-		TCPSendBufferSize:        engineCfg.TCPSendBufferSize,
-		TCPReceiveBufferSize:     engineCfg.TCPReceiveBufferSize,
-		MulticastGroups:          engineCfg.MulticastGroups,
-		TUNPreUp:                 engineCfg.TUNPreUp,
-		TUNPostUp:                engineCfg.TUNPostUp,
-		UDPTimeout:               udpTimeout,
-	}
-
-	// 插入到配置系统
-	config.Insert(engineConf)
-	logger.Info("Engine config applied successfully")
-	return nil
-}
-
 // registerBuiltinProxies 注册内置代理（direct 和 nonelane）
 func registerBuiltinProxies(cfg *Config) error {
 	registry := outbound.GetRegistry()
@@ -339,7 +296,6 @@ func LoadAndApplyConfig(configPath string) error {
 	logger.Info(fmt.Sprintf("Config loaded and applied successfully from: %s", configPath))
 	return nil
 }
-
 
 // SaveConfigToFile 保存配置到文件
 func SaveConfigToFile(config *Config, filePath string) error {

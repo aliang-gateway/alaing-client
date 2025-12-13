@@ -10,9 +10,7 @@ import (
 type EngineConf struct {
 	MTU                      int           `yaml:"mtu"`
 	Mark                     int           `yaml:"fwmark"`
-	RestAPI                  string        `yaml:"restapi"`
 	Device                   string        `yaml:"device"`
-	LogLevel                 string        `yaml:"loglevel"`
 	Interface                string        `yaml:"interface"`
 	TCPModerateReceiveBuffer bool          `yaml:"tcp-moderate-receive-buffer"`
 	TCPSendBufferSize        string        `yaml:"tcp-send-buffer-size"`

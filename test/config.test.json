@@ -1,19 +1,4 @@
 {
-  "engine": {
-    "mtu": 0,
-    "fwmark": 0,
-    "restapi": "",
-    "device": "utun0",
-    "loglevel": "info",
-    "interface": "en0",
-    "tcp-moderate-receive-buffer": false,
-    "tcp-send-buffer-size": "",
-    "tcp-receive-buffer-size": "",
-    "multicast-groups": "",
-    "tun-pre-up": "",
-    "tun-post-up": "",
-    "udp-timeout": "60s"
-  },
   "api_server": "http://127.0.0.1:8000",
   "nacos_server": "http://127.0.0.1:8848",
   "currentProxy": "door",

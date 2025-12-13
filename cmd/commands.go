@@ -54,7 +54,6 @@ var configSaveCmd = &cobra.Command{
 		}
 
 		config := &Config{
-			Engine:       nil, // TODO: 从系统获取
 			CurrentProxy: defaultProxy,
 			DoorProxy:    nil, // TODO: 从系统获取
 			BaseProxies:  configs,
