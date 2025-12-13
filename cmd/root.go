@@ -10,9 +10,6 @@ import (
 var (
 	configPath string
 	token      string
-	serverURL  string
-	startTun   bool
-	startHttp  bool
 )
 
 var rootCmd = &cobra.Command{
@@ -32,17 +29,8 @@ func init() {
 	// 配置文件路径
 	rootCmd.PersistentFlags().StringVarP(&configPath, "config", "c", "", "Path to configuration file (e.g., ./config.json)")
 
-	// Token（用于从远程获取配置）
-	rootCmd.PersistentFlags().StringVarP(&token, "token", "t", "", "Token for fetching configuration from remote server")
-
-	// 远程服务器 URL（可选）
-	rootCmd.PersistentFlags().StringVarP(&serverURL, "server", "s", "", "Remote server URL for fetching configuration (optional)")
-
-	// TUN 服务
-	rootCmd.PersistentFlags().BoolVarP(&startTun, "tun", "u", false, "Start TUN service")
-
-	// HTTP MITM 服务
-	rootCmd.PersistentFlags().BoolVarP(&startHttp, "http", "m", false, "Start MitmHttp service")
+	// Token（用于激活用户）
+	rootCmd.PersistentFlags().StringVarP(&token, "token", "t", "", "Token for user activation")
 }
 
 func Execute() {

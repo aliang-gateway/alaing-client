@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"math/rand"
-	"net/http"
 	"os"
 	"strings"
 	"time"
@@ -75,10 +74,18 @@ func LoadConfigFromBytes(data []byte) (*Config, error) {
 // 3. Register door proxy collection if configured
 // 4. Register other custom user-defined proxies
 // 5. Set the active default proxy for routing
-func ApplyConfig(config *Config) error {
+func ApplyConfig(cfg *Config) error {
+	// Validate configuration
+	if err := cfg.Validate(); err != nil {
+		return fmt.Errorf("configuration validation failed: %w", err)
+	}
+
+	// Store config globally for access by other modules
+	config.SetGlobalConfig(cfg)
+
 	// Phase 1: Apply engine configuration
-	if config.Engine != nil {
-		if err := applyEngineConfig(config.Engine); err != nil {
+	if cfg.Engine != nil {
+		if err := applyEngineConfig(cfg.Engine); err != nil {
 			return fmt.Errorf("phase 1 - engine config failed: %w", err)
 		}
 		logger.Debug("Phase 1: Engine configuration applied")
@@ -86,33 +93,33 @@ func ApplyConfig(config *Config) error {
 
 	// Phase 2: Register built-in proxies (direct + nonelane)
 	// These are mandatory and always available
-	if err := registerBuiltinProxies(config); err != nil {
+	if err := registerBuiltinProxies(cfg); err != nil {
 		return fmt.Errorf("phase 2 - builtin proxies registration failed: %w", err)
 	}
 	logger.Debug("Phase 2: Built-in proxies registered")
 
 	// Phase 3: Register door proxy collection if configured
-	if err := registerDoorProxy(config); err != nil {
+	if err := registerDoorProxy(cfg); err != nil {
 		return fmt.Errorf("phase 3 - door proxy registration failed: %w", err)
 	}
 	logger.Debug("Phase 3: Door proxy collection registered")
 
 	// Phase 5: Set the active default proxy for routing decisions
 	// Determines which proxy is used when no specific routing rule applies
-	if err := setEffectiveDefaultProxy(config.CurrentProxy); err != nil {
+	if err := setEffectiveDefaultProxy(cfg.CurrentProxy); err != nil {
 		return fmt.Errorf("phase 5 - failed to set default proxy: %w", err)
 	}
 	logger.Debug("Phase 5: Default proxy set for routing")
 
 	// Phase 6: Initialize GeoIP service if configured
-	if err := initializeGeoIP(config.RoutingRules); err != nil {
+	if err := initializeGeoIP(cfg.RoutingRules); err != nil {
 		logger.Warn(fmt.Sprintf("Phase 6 - GeoIP initialization failed (non-fatal): %v", err))
 	} else {
 		logger.Debug("Phase 6: GeoIP service initialized")
 	}
 
 	// Phase 7: Initialize routing rule engine
-	if err := initializeRuleEngine(config.RoutingRules); err != nil {
+	if err := initializeRuleEngine(cfg.RoutingRules); err != nil {
 		logger.Warn(fmt.Sprintf("Phase 7 - Rule engine initialization failed (non-fatal): %v", err))
 	} else {
 		logger.Debug("Phase 7: Rule engine initialized")
@@ -260,14 +267,18 @@ func registerBuiltinProxies(cfg *Config) error {
 
 	// 2. 注册 nonelane 代理
 	coreServer := ""
+	// 首先尝试从 NonelaneCoreServer 字段读取
 	if cfg.BaseProxies != nil {
+		// 其次尝试从 BaseProxies["nonelane"].CoreServer 读取
 		if nonelaneConfig, exists := cfg.BaseProxies["nonelane"]; exists && nonelaneConfig != nil {
 			coreServer = nonelaneConfig.CoreServer
 		}
 	}
+
 	// 如果配置中没有指定，使用默认值
 	if coreServer == "" {
 		coreServer = "ai-gateway.nursor.org:443"
+		logger.Debug("Using default Nonelane server address")
 	}
 
 	if err := registry.RegisterNonelane(coreServer); err != nil {
@@ -315,13 +326,13 @@ func LoadAndApplyConfig(configPath string) error {
 	}
 
 	// 加载配置
-	config, err := LoadConfig(configPath)
+	cfg, err := LoadConfig(configPath)
 	if err != nil {
 		return fmt.Errorf("failed to load config: %w", err)
 	}
 
 	// 应用配置
-	if err := ApplyConfig(config); err != nil {
+	if err := ApplyConfig(cfg); err != nil {
 		return fmt.Errorf("failed to apply config: %w", err)
 	}
 
@@ -329,81 +340,6 @@ func LoadAndApplyConfig(configPath string) error {
 	return nil
 }
 
-// FetchConfigFromRemote 从远程服务器获取配置
-func FetchConfigFromRemote(token string, serverURL string) (*Config, error) {
-	if serverURL == "" {
-		// 使用默认服务器地址
-		serverURL = config.GetCursorAiGatewayHost()
-		if serverURL == "" {
-			serverURL = "https://api2.nursor.org:12235" // 默认服务器
-		}
-	}
-
-	// 确保 URL 格式正确
-	if !strings.HasPrefix(serverURL, "http://") && !strings.HasPrefix(serverURL, "https://") {
-		serverURL = "https://" + serverURL
-	}
-
-	// 构建请求 URL
-	url := fmt.Sprintf("%s/api/config?token=%s", serverURL, token)
-
-	// 创建 HTTP 请求
-	req, err := http.NewRequest("GET", url, nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %w", err)
-	}
-
-	// 设置请求头
-	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
-	req.Header.Set("Content-Type", "application/json")
-
-	// 发送请求
-	client := &http.Client{
-		Timeout: 30 * time.Second,
-	}
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("failed to fetch config from remote: %w", err)
-	}
-	defer resp.Body.Close()
-
-	// 检查响应状态
-	if resp.StatusCode != http.StatusOK {
-		body, _ := ioutil.ReadAll(resp.Body)
-		return nil, fmt.Errorf("remote server returned status %d: %s", resp.StatusCode, string(body))
-	}
-
-	// 读取响应体
-	body, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read response: %w", err)
-	}
-
-	// 解析 JSON
-	var config Config
-	if err := json.Unmarshal(body, &config); err != nil {
-		return nil, fmt.Errorf("failed to parse remote config: %w", err)
-	}
-
-	return &config, nil
-}
-
-// FetchAndApplyConfigFromRemote 从远程获取配置并应用
-func FetchAndApplyConfigFromRemote(token string, serverURL string) error {
-	// 从远程获取配置
-	config, err := FetchConfigFromRemote(token, serverURL)
-	if err != nil {
-		return fmt.Errorf("failed to fetch config from remote: %w", err)
-	}
-
-	// 应用配置
-	if err := ApplyConfig(config); err != nil {
-		return fmt.Errorf("failed to apply config: %w", err)
-	}
-
-	logger.Info("Config fetched and applied successfully from remote server")
-	return nil
-}
 
 // SaveConfigToFile 保存配置到文件
 func SaveConfigToFile(config *Config, filePath string) error {

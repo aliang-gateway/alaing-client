@@ -38,19 +38,6 @@ var configLoadCmd = &cobra.Command{
 	},
 }
 
-var configFetchCmd = &cobra.Command{
-	Use:   "fetch",
-	Short: "Fetch configuration from remote server",
-	Long:  `Fetch configuration from remote server using token`,
-	RunE: func(cmd *cobra.Command, args []string) error {
-		if token == "" {
-			return fmt.Errorf("--token is required for fetching config from remote")
-		}
-		logger.Info("Fetching configuration from remote server...")
-		return FetchAndApplyConfigFromRemote(token, serverURL)
-	},
-}
-
 var configSaveCmd = &cobra.Command{
 	Use:   "save [output-file]",
 	Short: "Save current configuration to file",
@@ -81,10 +68,5 @@ func init() {
 	rootCmd.AddCommand(configCmd)
 
 	configCmd.AddCommand(configLoadCmd)
-	configCmd.AddCommand(configFetchCmd)
 	configCmd.AddCommand(configSaveCmd)
-
-	// config fetch 命令需要 token
-	configFetchCmd.Flags().StringVarP(&token, "token", "t", "", "Token for fetching configuration")
-	configFetchCmd.Flags().StringVarP(&serverURL, "server", "s", "", "Remote server URL (optional)")
 }

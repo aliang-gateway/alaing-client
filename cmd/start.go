@@ -9,27 +9,25 @@ import (
 	"github.com/spf13/cobra"
 	httpServer "nursor.org/nursorgate/app/http"
 	"nursor.org/nursorgate/common/logger"
-	"nursor.org/nursorgate/inbound/http"
-	"nursor.org/nursorgate/inbound/tun/runner"
 	auth "nursor.org/nursorgate/processor/auth"
 )
 
 var startCmd = &cobra.Command{
 	Use:   "start",
 	Short: "Start the nonelane server",
-	Long: `Start the nonelane server with configuration from file or remote server.
+	Long: `Start the nonelane server with configuration from file or default embedded config.
 
 Examples:
-  # Start with local config file
+  # Start with local config file and activate user with token
+  nonelane start --config ./config.json --token your-token-here
+
+  # Start with local config file (use locally saved user info)
   nonelane start --config ./config.json
 
-  # Start with token (fetch config from remote)
+  # Start with default embedded configuration and activate user with token
   nonelane start --token your-token-here
 
-  # Start with token and custom server URL
-  nonelane start --token your-token-here --server https://api.example.com
-
-  # Start with default embedded configuration
+  # Start with default embedded configuration (use locally saved user info)
   nonelane start`,
 	RunE: runStart,
 }
@@ -56,30 +54,24 @@ func ApplyDefaultConfig() error {
 }
 
 func runStart(cmd *cobra.Command, args []string) error {
-	// 检查参数
-	if configPath == "" && token == "" {
-		// Use default config
-		logger.Info("No configuration provided, using embedded default configuration...")
-		if err := ApplyDefaultConfig(); err != nil {
-			return fmt.Errorf("failed to apply default config: %w", err)
-		}
-		setUseDefaultConfig(true)
-	} else if configPath != "" {
-		// 方式1: 从本地文件加载配置
+	// Load configuration (from file or default)
+	if configPath != "" {
+		// Load from local config file
 		logger.Info(fmt.Sprintf("Loading configuration from file: %s", configPath))
 		if err := LoadAndApplyConfig(configPath); err != nil {
 			return fmt.Errorf("failed to load config from file: %w", err)
 		}
-	} else if token != "" {
-		// 方式2: 从远程服务器获取配置
-		logger.Info("Fetching configuration from remote server...")
-		if err := FetchAndApplyConfigFromRemote(token, serverURL); err != nil {
-			return fmt.Errorf("failed to fetch config from remote: %w", err)
+	} else {
+		// Use default embedded configuration
+		logger.Info("No config file provided, using embedded default configuration...")
+		if err := ApplyDefaultConfig(); err != nil {
+			return fmt.Errorf("failed to apply default config: %w", err)
 		}
+		setUseDefaultConfig(true)
 	}
 
-	// 初始化用户信息和Token激活
-	// 如果提供了--token参数，则尝试激活；否则尝试加载本地用户信息
+	// Initialize user info (activate with token or load locally saved info)
+	// If --token is provided, activate user; otherwise load locally saved user info
 	InitializeUser(token)
 
 	// 启动服务器
@@ -87,17 +79,6 @@ func runStart(cmd *cobra.Command, args []string) error {
 
 	// 启动 HTTP 服务器（包含代理注册中心初始化）
 	go httpServer.StartHttpServer()
-
-	// 启动 TUN 服务
-	if startTun {
-		go func() {
-			runner.Start()
-		}()
-	} else if startHttp {
-		go func() {
-			http.StartMitmHttp()
-		}()
-	}
 
 	// 等待信号并优雅关闭
 	logger.Info("Server started successfully. Press Ctrl+C to stop.")
