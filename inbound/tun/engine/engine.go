@@ -10,6 +10,7 @@ import (
 	"github.com/sagernet/gvisor/pkg/tcpip/stack"
 	"nursor.org/nursorgate/common/logger"
 	"nursor.org/nursorgate/inbound/tun/runner/utils"
+	"nursor.org/nursorgate/outbound"
 	"nursor.org/nursorgate/outbound/proxy"
 	"nursor.org/nursorgate/outbound/proxy/direct"
 
@@ -22,6 +23,7 @@ import (
 	"nursor.org/nursorgate/inbound/tun/tunnel"
 	proxyRegistry "nursor.org/nursorgate/outbound"
 	config "nursor.org/nursorgate/processor/config"
+	"nursor.org/nursorgate/processor/dns"
 )
 
 var (
@@ -161,13 +163,13 @@ func netstack(k *config.EngineConf) (err error) {
 		doorProxy = nil
 	}
 
-	// 如果有门代理，创建 DNS resolver
-	if doorProxy != nil {
-		defaultResolver := tunnel.NewDNSResolver("8.8.8.8:53", doorProxy, 5*time.Second, 5*time.Minute)
-		tunnel.SetDefaultResolver(defaultResolver)
-		logger.Info(fmt.Sprintf("DNS resolver configured with door proxy: %s", doorProxy.Addr()))
-	}
-
+	// 获取direct代理用于回退
+	registry := outbound.GetRegistry()
+	directProxy, err := registry.Get("direct")
+	// 使用混合DNS解析器，优先door代理，回退到direct代理
+	hybridResolver := dns.CreateDefaultHybridResolver(doorProxy, directProxy)
+	dns.SetGlobalResolver(hybridResolver)
+	dns.NewPreloader(hybridResolver, dns.DefaultPreloadConfig())
 	if _defaultDevice, err = parseDevice(k.Device, uint32(k.MTU)); err != nil {
 		return err
 	}

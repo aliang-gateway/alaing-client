@@ -10,12 +10,43 @@ import (
 
 	"github.com/xjasonlyu/tun2socks/v2/transport/shadowsocks/core"
 
+	"strings"
+
 	"nursor.org/nursorgate/common/logger"
 	"nursor.org/nursorgate/inbound/tun/dialer"
 	M "nursor.org/nursorgate/inbound/tun/metadata"
 	"nursor.org/nursorgate/outbound/proxy"
 	"nursor.org/nursorgate/outbound/proxy/proto"
 )
+
+// isDNSError 检查错误是否为DNS解析相关错误
+func isDNSError(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	errStr := err.Error()
+
+	// 常见的DNS解析错误模式
+	dnsErrorPatterns := []string{
+		"lookup",
+		"no such host",
+		"server not found",
+		"dns timeout",
+		"i/o timeout",
+		"timeout while waiting for response",
+	}
+
+	for _, pattern := range dnsErrorPatterns {
+		if strings.Contains(strings.ToLower(errStr), pattern) {
+			return true
+		}
+	}
+
+	// 检查是否为net.DNSError类型
+	var dnsErr *net.DNSError
+	return errors.As(err, &dnsErr)
+}
 
 // Shadowsocks Shadowsocks 代理实现
 // 基于 tun2socks 的核心加密库，提供改进的错误处理和稳定性
@@ -99,8 +130,14 @@ func (ss *Shadowsocks) DialContext(ctx context.Context, metadata *M.Metadata) (c
 	var connErr error
 	c, connErr = dialer.DialContext(ctx, "tcp", ss.Addr())
 	if connErr != nil {
-		logger.Error(fmt.Sprintf("[Shadowsocks] ✗ 连接失败 %s: %v", ss.Addr(), connErr))
-		return nil, fmt.Errorf("failed to connect to shadowsocks server: %w", connErr)
+		// 改进错误处理，区分DNS解析错误和连接错误
+		if isDNSError(connErr) {
+			logger.Error(fmt.Sprintf("[Shadowsocks] ✗ DNS解析失败 %s: %v", ss.Addr(), connErr))
+			return nil, fmt.Errorf("DNS resolution failed for shadowsocks server %s: %w", ss.Addr(), connErr)
+		} else {
+			logger.Error(fmt.Sprintf("[Shadowsocks] ✗ 连接失败 %s: %v", ss.Addr(), connErr))
+			return nil, fmt.Errorf("failed to connect to shadowsocks server %s: %w", ss.Addr(), connErr)
+		}
 	}
 
 	// 设置 KeepAlive

@@ -1,0 +1,397 @@
+package dns
+
+import (
+	"context"
+	"fmt"
+	"net"
+	"strings"
+	"sync"
+	"time"
+
+	"nursor.org/nursorgate/common/logger"
+)
+
+// BaseResolver 基础DNS解析器实现
+type BaseResolver struct {
+	config *DNSConfig
+	mu     sync.RWMutex
+
+	// 缓存相关
+	cache     map[string]*cacheEntry
+	cacheMu   sync.RWMutex
+	cacheHits int64
+	cacheMiss int64
+}
+
+// cacheEntry DNS缓存条目
+type cacheEntry struct {
+	ips       []net.IP
+	expiresAt time.Time
+	source    string
+}
+
+// NewBaseResolver 创建基础DNS解析器
+func NewBaseResolver(config *DNSConfig) *BaseResolver {
+	if config == nil {
+		config = DefaultDNSConfig()
+	}
+
+	r := &BaseResolver{
+		config: config,
+		cache:  make(map[string]*cacheEntry),
+	}
+
+	// 启动缓存清理协程
+	go r.startCacheCleanup()
+
+	return r
+}
+
+// LookupA 解析A记录（IPv4）
+func (r *BaseResolver) LookupA(ctx context.Context, domain string) ([]net.IP, error) {
+	return r.lookup(ctx, domain, true) // true表示查找IPv4
+}
+
+// LookupAAAA 解析AAAA记录（IPv6）
+func (r *BaseResolver) LookupAAAA(ctx context.Context, domain string) ([]net.IP, error) {
+	return r.lookup(ctx, domain, false) // false表示查找IPv6
+}
+
+// ResolveIP 解析IP地址（优先返回IPv4，可配置）
+func (r *BaseResolver) ResolveIP(ctx context.Context, domain string) (*ResolveResult, error) {
+	result := &ResolveResult{
+		Success: false,
+		Source:  "unknown",
+	}
+
+	// 检查是否是IP地址
+	if ip := net.ParseIP(domain); ip != nil {
+		result.IPs = []net.IP{ip}
+		result.Success = true
+		result.Source = "direct"
+		result.TTL = r.config.MaxTTL
+		return result, nil
+	}
+
+	// 尝试IPv4解析
+	if ipv4s, err := r.LookupA(ctx, domain); err == nil && len(ipv4s) > 0 {
+		result.IPs = ipv4s
+		result.Success = true
+		result.TTL = r.config.MaxTTL
+		return result, nil
+	}
+
+	// 尝试IPv6解析
+	if ipv6s, err := r.LookupAAAA(ctx, domain); err == nil && len(ipv6s) > 0 {
+		result.IPs = ipv6s
+		result.Success = true
+		result.TTL = r.config.MaxTTL
+		return result, nil
+	}
+
+	result.Error = fmt.Errorf("no IP addresses found for domain %s", domain)
+	return result, result.Error
+}
+
+// ResolveWithFallback 带回退机制的解析（基类方法，子类可重写）
+func (r *BaseResolver) ResolveWithFallback(ctx context.Context, domain string) (*ResolveResult, error) {
+	return r.ResolveIP(ctx, domain)
+}
+
+// PreloadDomains 批量预解析域名
+func (r *BaseResolver) PreloadDomains(ctx context.Context, domains []string) map[string]*PreloadResult {
+	results := make(map[string]*PreloadResult)
+
+	// 去重
+	uniqueDomains := make(map[string]bool)
+	for _, domain := range domains {
+		domain = strings.ToLower(strings.TrimSpace(domain))
+		if domain != "" && !r.isIPAddress(domain) {
+			uniqueDomains[domain] = true
+		}
+	}
+
+	// 并发解析，限制并发数
+	sem := make(chan struct{}, r.config.ConcurrentLimit)
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+
+	for domain := range uniqueDomains {
+		wg.Add(1)
+		go func(d string) {
+			defer wg.Done()
+			sem <- struct{}{}
+			defer func() { <-sem }()
+
+			start := time.Now()
+			result := &PreloadResult{
+				Domain:    d,
+				Timestamp: start,
+			}
+
+			resolveResult, err := r.ResolveIP(ctx, d)
+			result.Duration = time.Since(start)
+
+			if err == nil && resolveResult.Success && len(resolveResult.IPs) > 0 {
+				result.Success = true
+				// 优先选择IPv4地址
+				for _, ip := range resolveResult.IPs {
+					if ip.To4() != nil {
+						result.IP = ip
+						break
+					}
+				}
+				// 如果没有IPv4，使用第一个IPv6
+				if result.IP == nil {
+					result.IP = resolveResult.IPs[0]
+				}
+				logger.Debug(fmt.Sprintf("[DNS] Preloaded %s -> %s (%v)", d, result.IP, result.Duration))
+			} else {
+				result.Error = fmt.Errorf("preload failed for %s: %v", d, err)
+				logger.Warn(fmt.Sprintf("[DNS] Preload failed for %s: %v", d, err))
+			}
+
+			mu.Lock()
+			results[d] = result
+			mu.Unlock()
+		}(domain)
+	}
+
+	wg.Wait()
+	return results
+}
+
+// GetType 获取解析器类型
+func (r *BaseResolver) GetType() DNSResolverType {
+	return r.config.Type
+}
+
+// SetTimeout 设置超时时间
+func (r *BaseResolver) SetTimeout(timeout time.Duration) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.config.Timeout = timeout
+}
+
+// GetTimeout 获取超时时间
+func (r *BaseResolver) GetTimeout() time.Duration {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return r.config.Timeout
+}
+
+// SetCacheEnabled 启用/禁用缓存
+func (r *BaseResolver) SetCacheEnabled(enabled bool) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.config.CacheEnabled = enabled
+	if !enabled {
+		r.ClearCache()
+	}
+}
+
+// IsCacheEnabled 检查缓存是否启用
+func (r *BaseResolver) IsCacheEnabled() bool {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return r.config.CacheEnabled
+}
+
+// ClearCache 清理缓存
+func (r *BaseResolver) ClearCache() {
+	r.cacheMu.Lock()
+	defer r.cacheMu.Unlock()
+	r.cache = make(map[string]*cacheEntry)
+	r.cacheHits = 0
+	r.cacheMiss = 0
+	logger.Info("[DNS] Cache cleared")
+}
+
+// GetCacheStats 获取缓存统计信息
+func (r *BaseResolver) GetCacheStats() *CacheStats {
+	r.cacheMu.RLock()
+	defer r.cacheMu.RUnlock()
+
+	total := r.cacheHits + r.cacheMiss
+	hitRate := float64(0)
+	if total > 0 {
+		hitRate = float64(r.cacheHits) / float64(total)
+	}
+
+	// 计算平均TTL
+	var totalTTL time.Duration
+	var count int
+	now := time.Now()
+	for _, entry := range r.cache {
+		if entry.expiresAt.After(now) {
+			totalTTL += entry.expiresAt.Sub(now)
+			count++
+		}
+	}
+
+	avgTTL := time.Duration(0)
+	if count > 0 {
+		avgTTL = totalTTL / time.Duration(count)
+	}
+
+	return &CacheStats{
+		Entries:   len(r.cache),
+		Hits:      r.cacheHits,
+		Misses:    r.cacheMiss,
+		HitRate:   hitRate,
+		LastClean: now,
+		AvgTTL:    avgTTL,
+	}
+}
+
+// lookup 内部解析方法
+func (r *BaseResolver) lookup(ctx context.Context, domain string, preferIPv4 bool) ([]net.IP, error) {
+	domain = strings.ToLower(strings.TrimSpace(domain))
+
+	// 如果是IP地址，直接返回
+	if ip := net.ParseIP(domain); ip != nil {
+		if preferIPv4 && ip.To4() != nil {
+			return []net.IP{ip}, nil
+		}
+		if !preferIPv4 && ip.To4() == nil {
+			return []net.IP{ip}, nil
+		}
+		return []net.IP{ip}, nil
+	}
+
+	// 检查缓存
+	if r.config.CacheEnabled {
+		cacheKey := fmt.Sprintf("%s|%v", domain, preferIPv4)
+		if cached := r.getCached(cacheKey); cached != nil {
+			r.cacheHits++
+			return cached.ips, nil
+		}
+		r.cacheMiss++
+	}
+
+	// 执行实际解析（基类方法，子类应该重写）
+	ips, ttl, err := r.performLookup(ctx, domain, preferIPv4)
+	if err != nil {
+		return nil, err
+	}
+
+	// 缓存结果
+	if r.config.CacheEnabled && len(ips) > 0 {
+		cacheKey := fmt.Sprintf("%s|%v", domain, preferIPv4)
+		life := ttl
+		if life <= 0 || life > r.config.MaxTTL {
+			life = r.config.MaxTTL
+		}
+		r.setCached(cacheKey, ips, life, "base")
+	}
+
+	return ips, nil
+}
+
+// performLookup 执行实际DNS解析（基类实现，使用系统解析器）
+func (r *BaseResolver) performLookup(ctx context.Context, domain string, preferIPv4 bool) ([]net.IP, time.Duration, error) {
+	// 创建带超时的上下文
+	ctx, cancel := context.WithTimeout(ctx, r.config.Timeout)
+	defer cancel()
+
+	resolver := &net.Resolver{
+		PreferGo: true,
+	}
+
+	if preferIPv4 {
+		ips, err := resolver.LookupIPAddr(ctx, domain)
+		if err != nil {
+			return nil, 0, err
+		}
+		var ipv4s []net.IP
+		for _, ipAddr := range ips {
+			if ipAddr.IP.To4() != nil {
+				ipv4s = append(ipv4s, ipAddr.IP)
+			}
+		}
+		if len(ipv4s) == 0 {
+			return nil, 0, fmt.Errorf("no IPv4 addresses found for %s", domain)
+		}
+		return ipv4s, r.config.MaxTTL, nil
+	} else {
+		ips, err := resolver.LookupIPAddr(ctx, domain)
+		if err != nil {
+			return nil, 0, err
+		}
+		var ipv6s []net.IP
+		for _, ipAddr := range ips {
+			if ipAddr.IP.To4() == nil && ipAddr.IP.To16() != nil {
+				ipv6s = append(ipv6s, ipAddr.IP)
+			}
+		}
+		if len(ipv6s) == 0 {
+			return nil, 0, fmt.Errorf("no IPv6 addresses found for %s", domain)
+		}
+		return ipv6s, r.config.MaxTTL, nil
+	}
+}
+
+// getCached 获取缓存条目
+func (r *BaseResolver) getCached(key string) *cacheEntry {
+	r.cacheMu.RLock()
+	defer r.cacheMu.RUnlock()
+
+	entry, exists := r.cache[key]
+	if !exists || time.Now().After(entry.expiresAt) {
+		return nil
+	}
+	return entry
+}
+
+// setCached 设置缓存条目
+func (r *BaseResolver) setCached(key string, ips []net.IP, ttl time.Duration, source string) {
+	r.cacheMu.Lock()
+	defer r.cacheMu.Unlock()
+
+	r.cache[key] = &cacheEntry{
+		ips:       cloneIPs(ips),
+		expiresAt: time.Now().Add(ttl),
+		source:    source,
+	}
+}
+
+// startCacheCleanup 启动缓存清理协程
+func (r *BaseResolver) startCacheCleanup() {
+	ticker := time.NewTicker(time.Minute)
+	defer ticker.Stop()
+
+	for range ticker.C {
+		r.cleanExpiredCache()
+	}
+}
+
+// cleanExpiredCache 清理过期缓存
+func (r *BaseResolver) cleanExpiredCache() {
+	r.cacheMu.Lock()
+	defer r.cacheMu.Unlock()
+
+	now := time.Now()
+	for key, entry := range r.cache {
+		if now.After(entry.expiresAt) {
+			delete(r.cache, key)
+		}
+	}
+}
+
+// isIPAddress 检查字符串是否是IP地址
+func (r *BaseResolver) isIPAddress(s string) bool {
+	return net.ParseIP(s) != nil
+}
+
+// cloneIPs 克隆IP地址切片
+func cloneIPs(src []net.IP) []net.IP {
+	out := make([]net.IP, len(src))
+	for i := range src {
+		if src[i] != nil {
+			b := make([]byte, len(src[i]))
+			copy(b, src[i])
+			out[i] = net.IP(b)
+		}
+	}
+	return out
+}

@@ -63,20 +63,20 @@ func registerInboundsToDoor(inbounds []InboundInfo) error {
 		return fmt.Errorf("no inbounds to register")
 	}
 
-	var members []config.DoorProxyMember
-
-	// Convert each inbound to proxy configuration
-	for _, info := range inbounds {
-		member, err := ConvertToProxyConfig(info)
-		if err != nil {
-			logger.Warn(fmt.Sprintf("Failed to convert inbound %s: %v, skipping", info.Tag, err))
-			continue // Skip failed inbound, continue with others
-		}
-		members = append(members, *member)
+	// Use batch conversion for better DNS pre-resolution performance
+	proxyMembers, err := BatchConvertToProxyConfigs(inbounds)
+	if err != nil {
+		return fmt.Errorf("failed to convert inbounds: %w", err)
 	}
 
-	if len(members) == 0 {
+	if len(proxyMembers) == 0 {
 		return fmt.Errorf("no valid inbounds to register")
+	}
+
+	// Convert slice members to the expected format
+	var members []config.DoorProxyMember
+	for _, member := range proxyMembers {
+		members = append(members, *member)
 	}
 
 	// Register Door proxy configuration
@@ -90,6 +90,6 @@ func registerInboundsToDoor(inbounds []InboundInfo) error {
 		Members: members,
 	}
 
-	logger.Info(fmt.Sprintf("Registering %d inbound members to Door proxy", len(members)))
+	logger.Info(fmt.Sprintf("Registering %d inbound members to Door proxy (with DNS pre-resolution)", len(members)))
 	return registry.RegisterDoorFromConfig(doorConfig)
 }

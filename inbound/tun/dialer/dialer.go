@@ -4,6 +4,7 @@ import (
 	"context"
 	"net"
 	"syscall"
+	"time"
 
 	"go.uber.org/atomic"
 )
@@ -12,6 +13,12 @@ var (
 	DefaultInterfaceName  = atomic.NewString("")
 	DefaultInterfaceIndex = atomic.NewInt32(0)
 	DefaultRoutingMark    = atomic.NewInt32(0)
+)
+
+// Default timeouts for network connections
+const (
+	DefaultDialTimeout     = 35 * time.Second // Total timeout including DNS resolution and connection
+	DefaultKeepAlivePeriod = 30 * time.Second // TCP keepalive period
 )
 
 type Options struct {
@@ -41,6 +48,8 @@ func DialContext(ctx context.Context, network, address string) (net.Conn, error)
 
 func DialContextWithOptions(ctx context.Context, network, address string, opts *Options) (net.Conn, error) {
 	d := &net.Dialer{
+		Timeout:   DefaultDialTimeout,   // Add timeout to prevent infinite waiting
+		KeepAlive: DefaultKeepAlivePeriod, // Add keepalive for better connection management
 		Control: func(network, address string, c syscall.RawConn) error {
 			return setSocketOptions(network, address, c, opts)
 		},

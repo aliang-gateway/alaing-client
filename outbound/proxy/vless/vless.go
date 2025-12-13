@@ -3,6 +3,7 @@ package vless
 import (
 	"context"
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -22,6 +23,35 @@ import (
 	"nursor.org/nursorgate/outbound/proxy"
 	"nursor.org/nursorgate/outbound/proxy/proto"
 )
+
+// isDNSError 检查错误是否为DNS解析相关错误
+func isDNSError(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	errStr := err.Error()
+
+	// 常见的DNS解析错误模式
+	dnsErrorPatterns := []string{
+		"lookup",
+		"no such host",
+		"server not found",
+		"dns timeout",
+		"i/o timeout",
+		"timeout while waiting for response",
+	}
+
+	for _, pattern := range dnsErrorPatterns {
+		if strings.Contains(strings.ToLower(errStr), pattern) {
+			return true
+		}
+	}
+
+	// 检查是否为net.DNSError类型
+	var dnsErr *net.DNSError
+	return errors.As(err, &dnsErr)
+}
 
 // VLESS 使用简化的 VLESS 实现，参考 xray-core 设计
 type VLESS struct {
@@ -214,7 +244,12 @@ func (v *VLESS) establishNewConnection(ctx context.Context, metadata *M.Metadata
 	logger.Debug(fmt.Sprintf("DEBUG: 连接到 VLESS 服务器 %s\n", v.Addr()))
 	conn, err := dialer.DialContext(ctx, "tcp", v.Addr())
 	if err != nil {
-		return nil, fmt.Errorf("failed to connect to VLESS server: %w", err)
+		// 改进错误处理，区分DNS解析错误和连接错误
+		if isDNSError(err) {
+			return nil, fmt.Errorf("DNS resolution failed for VLESS server %s: %w", v.Addr(), err)
+		} else {
+			return nil, fmt.Errorf("failed to connect to VLESS server %s: %w", v.Addr(), err)
+		}
 	}
 
 	// 如果启用了 REALITY，进行 REALITY 握手

@@ -115,6 +115,13 @@ func ApplyConfig(cfg *Config) error {
 		logger.Debug("Phase 5: Rule engine initialized")
 	}
 
+	// Phase 6: Initialize DNS preloader
+	// if err := dns.NewPreloader(dns.GetGlobalResolver(), cfg.DNSPreResolution); err != nil {
+	// 	logger.Warn(fmt.Sprintf("Phase 6 - DNS preloader initialization failed (non-fatal): %v", err))
+	// } else {
+	// 	logger.Debug("Phase 6: DNS preloader initialized")
+	// }
+
 	logger.Info("Configuration applied successfully")
 	return nil
 }
