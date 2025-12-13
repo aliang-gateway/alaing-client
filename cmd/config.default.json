@@ -14,6 +14,10 @@
     "tun-post-up": "",
     "udp-timeout": "60s"
   },
+  "api_server": "https://api.nonelane.com",
+  "nonelane_core_server": "ai-gateway.nursor.org:443",
+  "nacos_server": "http://nacos-config.nursor.org",
+  "currentProxy": "door",
   "baseProxies": {
     "nonelane": {
       "type": "nonelane",

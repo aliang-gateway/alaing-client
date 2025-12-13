@@ -123,8 +123,38 @@ type DoorProxyConfig struct {
 // Config 完整配置结构
 type Config struct {
 	Engine       *EngineConfig               `json:"engine"`
+	APIServer    string                      `json:"api_server"`             // 必须配置：Token激活、刷新、Inbound的基础URL
+	NacosServer  string                      `json:"nacos_server,omitempty"` // Nacos配置中心，可选，默认为 "http://nacos-config.nursor.org"
 	CurrentProxy string                      `json:"currentProxy"`
 	BaseProxies  map[string]*BaseProxyConfig `json:"baseProxies"`
 	DoorProxy    *DoorProxyConfig            `json:"doorProxy,omitempty"`    // Door 代理集合配置
 	RoutingRules *RoutingRulesConfig         `json:"routingRules,omitempty"` // 路由规则配置
+}
+
+// GetTokenActivateURL returns the complete Token activation URL
+func (c *Config) GetTokenActivateURL() string {
+	return fmt.Sprintf("%s/api/user/auth/new/activate", c.APIServer)
+}
+
+// GetPlanStatusURL returns the complete Plan status URL
+func (c *Config) GetPlanStatusURL() string {
+	return fmt.Sprintf("%s/api/user/auth/info/plan/info", c.APIServer)
+}
+
+// GetInboundsURL returns the complete Inbounds API URL
+func (c *Config) GetInboundsURL() string {
+	return fmt.Sprintf("%s/api/production/prod/sui/user/sui/inbounds", c.APIServer)
+}
+
+// GetRemoteConfigURL returns the complete remote configuration URL
+func (c *Config) GetRemoteConfigURL() string {
+	return fmt.Sprintf("%s/api/config", c.APIServer)
+}
+
+// Validate validates the configuration
+func (c *Config) Validate() error {
+	if c.APIServer == "" {
+		return fmt.Errorf("api_server is required in configuration")
+	}
+	return nil
 }

@@ -1,0 +1,54 @@
+package config
+
+import (
+	"fmt"
+	"net/url"
+)
+
+// URLBuilder 提供统一的 API URL 构建功能
+type URLBuilder struct {
+	cfg *Config
+}
+
+// NewURLBuilder 创建新的 URL 构建器
+func NewURLBuilder() (*URLBuilder, error) {
+	cfg := GetGlobalConfig()
+	if cfg == nil {
+		return nil, fmt.Errorf("config not initialized")
+	}
+	return &URLBuilder{cfg: cfg}, nil
+}
+
+// GetTokenActivateURL 获取 Token 激活 URL
+func (ub *URLBuilder) GetTokenActivateURL() (string, error) {
+	return ub.getAndValidateURL(ub.cfg.GetTokenActivateURL())
+}
+
+// GetPlanStatusURL 获取 Plan 状态 URL
+func (ub *URLBuilder) GetPlanStatusURL() (string, error) {
+	return ub.getAndValidateURL(ub.cfg.GetPlanStatusURL())
+}
+
+// GetInboundsURL 获取 Inbounds URL
+func (ub *URLBuilder) GetInboundsURL() (string, error) {
+	return ub.getAndValidateURL(ub.cfg.GetInboundsURL())
+}
+
+// getAndValidateURL 通用的 URL 获取和验证方法
+func (ub *URLBuilder) getAndValidateURL(fullURL string) (string, error) {
+	if fullURL == "" {
+		return "", fmt.Errorf("API URL not configured in config.api_server")
+	}
+
+	if !IsValidURL(fullURL) {
+		return "", fmt.Errorf("invalid API URL: %s", fullURL)
+	}
+
+	return fullURL, nil
+}
+
+// IsValidURL 验证 URL 是否合法
+func IsValidURL(urlString string) bool {
+	parsedURL, err := url.Parse(urlString)
+	return err == nil && parsedURL.Scheme != "" && parsedURL.Host != ""
+}

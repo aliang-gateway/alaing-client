@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"nursor.org/nursorgate/common/config"
+	processorconfig "nursor.org/nursorgate/processor/config"
 
 	"github.com/nacos-group/nacos-sdk-go/clients/config_client"
 	"github.com/nacos-group/nacos-sdk-go/vo"
@@ -76,8 +77,15 @@ func NewAllowProxyDomain() *AllowProxyDomain {
 			ToCursorDomain: []string{"cursor.sh", "cursor.com"},
 			ToDoorDomain:   []string{"google.com"},
 		}
+
+		// Get Nacos server address from global config, with fallback to default
+		nacosServer := "http://nacos-config.nursor.org"
+		if cfg := processorconfig.GetGlobalConfig(); cfg != nil && cfg.NacosServer != "" {
+			nacosServer = cfg.NacosServer
+		}
+
 		nacosClient, err := config.NewNacosClient(
-			"http://nacos-config.nursor.org",
+			nacosServer,
 			"5afe4eb9-d3ee-4b37-a072-7ea04421467a",
 			80,
 		)

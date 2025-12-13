@@ -8,11 +8,10 @@ import (
 	"time"
 
 	"nursor.org/nursorgate/common/logger"
+	"nursor.org/nursorgate/processor/config"
 )
 
 const (
-	// API endpoint for fetching inbounds
-	inboundsAPIURL = "http://127.0.0.1:8000/api/production/prod/sui/user/sui/inbounds"
 	// API call timeout
 	apiTimeout = 10 * time.Second
 )
@@ -23,8 +22,20 @@ func FetchInbounds(accessToken string) ([]InboundInfo, error) {
 		return nil, fmt.Errorf("access token cannot be empty")
 	}
 
+	// Get URL builder
+	urlBuilder, err := config.NewURLBuilder()
+	if err != nil {
+		return nil, err
+	}
+
+	// Get and validate inbounds URL
+	inboundsURL, err := urlBuilder.GetInboundsURL()
+	if err != nil {
+		return nil, err
+	}
+
 	// Create GET request
-	req, err := http.NewRequest("GET", inboundsAPIURL, nil)
+	req, err := http.NewRequest("GET", inboundsURL, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}

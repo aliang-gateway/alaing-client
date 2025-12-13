@@ -9,12 +9,11 @@ import (
 	"time"
 
 	"nursor.org/nursorgate/common/logger"
+	"nursor.org/nursorgate/processor/config"
 	"nursor.org/nursorgate/processor/inbound"
 )
 
 const (
-	// 激活API地址
-	activateAPIURL = "https://api.nonelane.com/api/user/auth/new/activate"
 	// API调用超时
 	apiTimeout = 10 * time.Second
 )
@@ -88,6 +87,18 @@ func ActivateToken(token string) (*UserInfo, error) {
 
 // callActivateAPI 调用外部激活API
 func callActivateAPI(token string) (*UserInfo, error) {
+	// 获取 URL 构建器
+	urlBuilder, err := config.NewURLBuilder()
+	if err != nil {
+		return nil, err
+	}
+
+	// 获取并验证 URL
+	activateURL, err := urlBuilder.GetTokenActivateURL()
+	if err != nil {
+		return nil, err
+	}
+
 	// 构建请求
 	requestBody := map[string]string{
 		"access_token": token,
@@ -98,7 +109,7 @@ func callActivateAPI(token string) (*UserInfo, error) {
 		return nil, fmt.Errorf("failed to marshal request: %w", err)
 	}
 
-	req, err := http.NewRequest("POST", activateAPIURL, bytes.NewBuffer(jsonData))
+	req, err := http.NewRequest("POST", activateURL, bytes.NewBuffer(jsonData))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}

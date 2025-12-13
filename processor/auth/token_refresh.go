@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"nursor.org/nursorgate/common/logger"
+	"nursor.org/nursorgate/processor/config"
 )
 
 // TokenRefresher 定时刷新用户Token和信息
@@ -25,8 +26,6 @@ type TokenRefresher struct {
 const (
 	// 默认刷新间隔（1分钟）
 	defaultRefreshDuration = 1 * time.Minute
-	// Token刷新API地址
-	refreshTokenAPIURL = "http://localhost:8000/api/user/auth/info/plan/info"
 )
 
 // NewTokenRefresher 创建新的Token刷新器
@@ -169,8 +168,20 @@ func callRefreshTokenAPI(accessToken string) (*UserInfo, error) {
 		return nil, fmt.Errorf("access token cannot be empty")
 	}
 
+	// 获取 URL 构建器
+	urlBuilder, err := config.NewURLBuilder()
+	if err != nil {
+		return nil, err
+	}
+
+	// 获取并验证 URL
+	planStatusURL, err := urlBuilder.GetPlanStatusURL()
+	if err != nil {
+		return nil, err
+	}
+
 	// 创建 GET 请求（不需要 body）
-	req, err := http.NewRequest("GET", refreshTokenAPIURL, nil)
+	req, err := http.NewRequest("GET", planStatusURL, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
