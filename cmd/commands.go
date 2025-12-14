@@ -5,8 +5,6 @@ import (
 
 	"github.com/spf13/cobra"
 	"nursor.org/nursorgate/common/logger"
-	proxyRegistry "nursor.org/nursorgate/outbound"
-	proxyConfig "nursor.org/nursorgate/processor/config"
 )
 
 // 添加其他有用的命令
@@ -38,34 +36,9 @@ var configLoadCmd = &cobra.Command{
 	},
 }
 
-var configSaveCmd = &cobra.Command{
-	Use:   "save [output-file]",
-	Short: "Save current configuration to file",
-	Long:  `Save the current configuration to a JSON file`,
-	Args:  cobra.ExactArgs(1),
-	RunE: func(cmd *cobra.Command, args []string) error {
-		// 从系统获取当前配置并保存
-		configs := proxyConfig.GetConfigStore().GetAll()
-		registry := proxyRegistry.GetRegistry()
-		defaultProxy := ""
-		// Default proxy is always direct
-		if p, err := registry.Get("direct"); err == nil {
-			defaultProxy = p.Addr()
-		}
-
-		config := &Config{
-			CurrentProxy: defaultProxy,
-			DoorProxy:    nil, // TODO: 从系统获取
-			BaseProxies:  configs,
-		}
-		return SaveConfigToFile(config, args[0])
-	},
-}
-
 func init() {
 	rootCmd.AddCommand(versionCmd)
 	rootCmd.AddCommand(configCmd)
 
 	configCmd.AddCommand(configLoadCmd)
-	configCmd.AddCommand(configSaveCmd)
 }

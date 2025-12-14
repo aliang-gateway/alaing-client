@@ -309,20 +309,6 @@ func LoadAndApplyConfig(configPath string) error {
 	return nil
 }
 
-// SaveConfigToFile 保存配置到文件
-func SaveConfigToFile(config *Config, filePath string) error {
-	data, err := json.MarshalIndent(config, "", "  ")
-	if err != nil {
-		return fmt.Errorf("failed to marshal config: %w", err)
-	}
-
-	if err := ioutil.WriteFile(filePath, data, 0644); err != nil {
-		return fmt.Errorf("failed to write config file: %w", err)
-	}
-
-	return nil
-}
-
 // initializeGeoIP 初始化 GeoIP 服务
 func initializeGeoIP(routingRules *config.RoutingRulesConfig) error {
 	if routingRules == nil || routingRules.GeoIP == nil {

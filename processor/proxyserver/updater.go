@@ -28,7 +28,7 @@ func UpdateDoorProxies(accessToken string) error {
 	return registerInboundsToDoor(members)
 }
 
-// registerInboundsToDoor 处理DoorProxyMember并注册到Door代理组（集成DNS处理）
+// registerInboundsToDoor 处理DoorProxyMember并注册到Door代理组（集成DNS处理和配置更新）
 func registerInboundsToDoor(members []config.DoorProxyMember) error {
 	if len(members) == 0 {
 		return fmt.Errorf("no members to register")
@@ -47,7 +47,13 @@ func registerInboundsToDoor(members []config.DoorProxyMember) error {
 		Members: processedMembers,
 	}
 
-	// 注册到代理组
+	// 1. 更新全局配置（配置成为唯一真实来源）
+	if err := config.UpdateGlobalDoorProxyConfig(doorConfig); err != nil {
+		logger.Warn(fmt.Sprintf("Failed to update global config: %v", err))
+		// 不返回错误，继续执行
+	}
+
+	// 2. 注册到代理组（运行时实例）
 	registry := outbound.GetRegistry()
 	if registry == nil {
 		return fmt.Errorf("proxy registry is not available")
@@ -58,7 +64,7 @@ func registerInboundsToDoor(members []config.DoorProxyMember) error {
 		return err
 	}
 
-	// 同步DNS解析器
+	// 3. 同步DNS解析器
 	UpdateGlobalResolverWithDoorConfig(doorConfig)
 
 	return nil

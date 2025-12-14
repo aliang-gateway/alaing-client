@@ -405,6 +405,26 @@ func (r *Registry) GetDoorGroup() *DoorProxyGroup {
 	return r.doorGroup
 }
 
+// GetDoorProxyConfig 从全局配置获取 Door 代理配置（而非运行时实例）
+// This retrieves configuration from globalConfig, not from Registry's runtime DoorProxyGroup
+// 这是获取配置信息的方法，作为配置的单一真实来源
+func (r *Registry) GetDoorProxyConfig() (*proxyConfig.DoorProxyConfig, error) {
+	cfg := proxyConfig.GetGlobalConfig()
+	if cfg == nil || cfg.DoorProxy == nil {
+		return nil, fmt.Errorf("door proxy configuration not available")
+	}
+
+	// 返回配置以防止外部修改
+	return cfg.DoorProxy, nil
+}
+
+// GetProxyConfigInfo retrieves complete proxy configuration information from global configuration
+// Supports both regular proxies and door proxy members (format: "door:ShowName")
+// Returns detailed configuration including protocol-specific fields
+func (r *Registry) GetProxyConfigInfo(proxyName string) (map[string]interface{}, error) {
+	return proxyConfig.GetProxyConfigInfo(proxyName)
+}
+
 // createVLESSProxy creates VLESS proxy instance from door member config
 func createVLESSProxy(member *proxyConfig.DoorProxyMember) (proxy.Proxy, error) {
 	if member == nil {

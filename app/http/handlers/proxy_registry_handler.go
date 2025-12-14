@@ -6,6 +6,7 @@ import (
 	"nursor.org/nursorgate/app/http/common"
 	"nursor.org/nursorgate/app/http/repositories"
 	"nursor.org/nursorgate/outbound"
+	proxyConfig "nursor.org/nursorgate/processor/config"
 )
 
 // ProxyRegistryHandler handles HTTP requests for proxy registry operations
@@ -93,12 +94,14 @@ func (prh *ProxyRegistryHandler) HandleProxyRegistryList(w http.ResponseWriter, 
 
 // HandleProxyRegistryGet handles GET /api/proxy/registry/get
 // Query parameter: name (required) - get specific proxy by name
-// Returns detailed proxy information including name, type, address, and proxy-specific configuration fields
+// Returns complete proxy configuration information including all config details
 // Supported formats:
 //   - "direct" - direct proxy
 //   - "nonelane" - nonelane proxy
 //   - "custom_name" - custom proxy
 //   - "door:ShowName" - door proxy member (e.g., "door:日本 Tokyo")
+//
+// Returns configuration from globalConfig along with runtime proxy information
 func (prh *ProxyRegistryHandler) HandleProxyRegistryGet(w http.ResponseWriter, r *http.Request) {
 	name := common.GetQueryParamString(r, "name", "")
 	if name == "" {
@@ -106,29 +109,46 @@ func (prh *ProxyRegistryHandler) HandleProxyRegistryGet(w http.ResponseWriter, r
 		return
 	}
 
-	proxyInstance, err := prh.proxyRepository.GetByName(name)
+	// First, try to get complete configuration information from global config
+	configInfo, err := proxyConfig.GetProxyConfigInfo(name)
 	if err != nil {
-		common.ErrorNotFound(w, "proxy not found")
+		// If not found in config, try to get from registry (for dynamically created proxies)
+		proxyInstance, repoErr := prh.proxyRepository.GetByName(name)
+		if repoErr != nil {
+			common.ErrorNotFound(w, "proxy not found in configuration or registry")
+			return
+		}
+
+		// Build fallback proxy info from runtime instance
+		proxyInfo := map[string]interface{}{
+			"name": name,
+		}
+
+		// Get basic info from proxy instance
+		if baseProxy, ok := proxyInstance.(interface {
+			Addr() string
+			Proto() interface{ String() string }
+		}); ok {
+			proxyInfo["type"] = baseProxy.Proto().String()
+			proxyInfo["addr"] = baseProxy.Addr()
+		} else {
+			proxyInfo["type"] = "unknown"
+			proxyInfo["error"] = "could not extract proxy details"
+		}
+		proxyInfo["source"] = "runtime"
+
+		common.Success(w, proxyInfo)
 		return
 	}
 
-	// Build base proxy info
-	proxyInfo := map[string]interface{}{}
-
-	// Get basic info from proxy instance
-	if baseProxy, ok := proxyInstance.(interface {
-		Addr() string
-		Proto() interface{ String() string }
-	}); ok {
-		proxyInfo["name"] = name
-		proxyInfo["type"] = baseProxy.Proto().String()
-		proxyInfo["addr"] = baseProxy.Addr()
-	} else {
-		// Fallback: just return basic name
-		proxyInfo["name"] = name
-		proxyInfo["type"] = "unknown"
-		proxyInfo["error"] = "could not extract proxy details"
+	// Also fetch runtime proxy info to include address and runtime details
+	registry := outbound.GetRegistry()
+	proxyInstance, err := registry.Get(name)
+	if err == nil && proxyInstance != nil {
+		// Add runtime information to config info
+		configInfo["addr"] = proxyInstance.Addr()
+		configInfo["proto"] = proxyInstance.Proto().String()
 	}
 
-	common.Success(w, proxyInfo)
+	common.Success(w, configInfo)
 }
