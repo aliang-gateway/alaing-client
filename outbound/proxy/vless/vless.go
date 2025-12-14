@@ -424,3 +424,39 @@ func (v *VLESS) GetCustomTLSOptions(customize func(*sopt.OutboundTLSOptions)) *s
 	}
 	return opts
 }
+
+// Getter methods for configuration details
+// GetServer returns the server address
+func (v *VLESS) GetServer() string {
+	v.mu.RLock()
+	defer v.mu.RUnlock()
+	return v.server
+}
+
+// GetUUID returns the UUID
+func (v *VLESS) GetUUID() string {
+	v.mu.RLock()
+	defer v.mu.RUnlock()
+	return v.uuid
+}
+
+// GetSNI returns the SNI
+func (v *VLESS) GetSNI() string {
+	v.mu.RLock()
+	defer v.mu.RUnlock()
+	return v.sni
+}
+
+// GetFlow returns the flow
+func (v *VLESS) GetFlow() string {
+	v.mu.RLock()
+	defer v.mu.RUnlock()
+	return v.flow
+}
+
+// GetRealityConfig returns the REALITY configuration
+func (v *VLESS) GetRealityConfig() *RealityConfig {
+	v.mu.RLock()
+	defer v.mu.RUnlock()
+	return v.reality
+}

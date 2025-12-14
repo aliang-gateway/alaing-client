@@ -5,11 +5,11 @@ import (
 
 	"nursor.org/nursorgate/app/http/models"
 	"nursor.org/nursorgate/common/logger"
-	"nursor.org/nursorgate/processor/config"
 	httpServer "nursor.org/nursorgate/inbound/http"
 	tun "nursor.org/nursorgate/inbound/tun/engine"
 	runner2 "nursor.org/nursorgate/inbound/tun/runner"
 	user "nursor.org/nursorgate/processor/auth"
+	"nursor.org/nursorgate/processor/config"
 )
 
 // RunService handles run/mode operations
@@ -57,8 +57,8 @@ func (rs *RunService) SetRunning(running bool) {
 
 // StartService starts the service for the current mode
 func (rs *RunService) StartService() map[string]interface{} {
-	// Check if using default configuration - if so, require activation
-	if config.IsUsingDefaultConfig() {
+	// Check if using default configuration AND no local user info - if so, require activation
+	if config.IsUsingDefaultConfig() && !config.HasLocalUserInfo() {
 		return map[string]interface{}{
 			"error":  "activation_required",
 			"status": "failed",

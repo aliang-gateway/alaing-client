@@ -4,8 +4,9 @@ import "sync"
 
 // ConfigState tracks the source of the current configuration
 type ConfigState struct {
-	mu                  sync.RWMutex
-	usingDefaultConfig  bool
+	mu                 sync.RWMutex
+	usingDefaultConfig bool
+	hasLocalUserInfo   bool
 }
 
 var (
@@ -37,4 +38,20 @@ func IsUsingDefaultConfig() bool {
 	state.mu.RLock()
 	defer state.mu.RUnlock()
 	return state.usingDefaultConfig
+}
+
+// SetHasLocalUserInfo marks whether valid local user information exists
+func SetHasLocalUserInfo(value bool) {
+	state := GetConfigState()
+	state.mu.Lock()
+	defer state.mu.Unlock()
+	state.hasLocalUserInfo = value
+}
+
+// HasLocalUserInfo returns whether valid local user information exists
+func HasLocalUserInfo() bool {
+	state := GetConfigState()
+	state.mu.RLock()
+	defer state.mu.RUnlock()
+	return state.hasLocalUserInfo
 }

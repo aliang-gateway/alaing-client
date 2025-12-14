@@ -313,3 +313,39 @@ func (pc *ssPacketConn) ReadFrom(b []byte) (n int, addr net.Addr, err error) {
 
 	return len(payload), pc.rAddr, nil
 }
+
+// Getter methods for configuration details
+// GetMethod returns the encryption method
+func (ss *Shadowsocks) GetMethod() string {
+	ss.mu.RLock()
+	defer ss.mu.RUnlock()
+	return ss.method
+}
+
+// GetPassword returns the password
+func (ss *Shadowsocks) GetPassword() string {
+	ss.mu.RLock()
+	defer ss.mu.RUnlock()
+	return ss.password
+}
+
+// GetUsername returns the username
+func (ss *Shadowsocks) GetUsername() string {
+	ss.mu.RLock()
+	defer ss.mu.RUnlock()
+	return ss.username
+}
+
+// GetObfsMode returns the obfs mode
+func (ss *Shadowsocks) GetObfsMode() string {
+	ss.mu.RLock()
+	defer ss.mu.RUnlock()
+	return ss.obfsMode
+}
+
+// GetObfsHost returns the obfs host
+func (ss *Shadowsocks) GetObfsHost() string {
+	ss.mu.RLock()
+	defer ss.mu.RUnlock()
+	return ss.obfsHost
+}

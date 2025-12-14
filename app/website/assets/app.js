@@ -408,26 +408,25 @@ document.getElementById('dashStopBtn').addEventListener('click', () => {
 // ============ 代理管理功能 ============
 async function loadProxyData() {
     try {
-        const [proxyListData, doorMembersData] = await Promise.all([
-            apiGet('/proxy/list'),
-            apiGet('/proxy/door/members').catch(() => ({ members: [] }))
-        ]);
+        // 从单一数据源获取所有代理（包括door:xxx虚拟成员）+ 当前代理信息
+        const proxyListData = await apiGet('/proxy/list');
 
-        // 获取当前代理，如果失败则为 null
+        // 从响应中提取当前代理信息和自动模式标识
         let currentProxy = null;
-        try {
-            const currentProxyData = await apiGet('/proxy/current/get');
-            // 如果API返回了有效的代理信息且没有错误，提取name字段
-            if (currentProxyData && currentProxyData.name && !currentProxyData.error) {
-                currentProxy = currentProxyData.name;
+        let isDoorAutoMode = false;
+        let currentProxyInfo = null;
+
+        if (proxyListData) {
+            // 从新的响应结构中获取当前代理信息
+            if (proxyListData.current_proxy) {
+                currentProxy = proxyListData.current_proxy.name;
+                currentProxyInfo = proxyListData.current_proxy;
             }
-        } catch (error) {
-            console.log('当前代理未设置:', error.message);
+            // 获取door自动模式标识
+            isDoorAutoMode = proxyListData.is_door_auto_mode || false;
         }
 
-        console.log('原始数据:', { proxyListData, currentProxy, doorMembersData });
-
-        // 处理代理列表数据 - /api/proxy/list 现在只返回非door代理
+        // 处理代理列表数据 - 直接使用 /api/proxy/list 的结果（包含所有代理）
         let allProxies = [];
         if (proxyListData) {
             if (proxyListData.proxies && typeof proxyListData.proxies === 'object') {
@@ -436,64 +435,51 @@ async function loadProxyData() {
                     name: name,
                     ...proxyListData.proxies[name]
                 }));
-            } else if (Array.isArray(proxyListData)) {
+            } else if (Array.isArray(proxyListData.proxies)) {
                 // 如果已经是数组
-                allProxies = proxyListData;
+                allProxies = proxyListData.proxies;
             }
         }
 
-        const members = Array.isArray(doorMembersData?.members) ? doorMembersData.members : [];
+        console.log('完整代理列表:', allProxies);
+        console.log('当前代理:', currentProxy);
+        console.log('Door自动模式:', isDoorAutoMode);
 
-        console.log('转换后的非door代理列表:', allProxies);
-        console.log('Door成员:', members);
-        console.log('当前代理值:', currentProxy);
-
-        // 将door成员转换为代理格式并添加到allProxies
-        const doorMembers = members.map(member => ({
-            name: `door:${member.showname}`,
-            show_name: member.showname,
-            type: member.type,
-            addr: member.addr,
-            latency: member.latency
-        }));
-
-        // 合并所有代理：非door代理 + door成员
-        allProxies = [...allProxies, ...doorMembers];
-
-        console.log('合并后的完整代理列表:', allProxies);
-        console.log('Door 成员:', doorMembers);
-
-        // 如果当前代理为空或未设置，默认设置为 door 代理
+        // 使用当前代理作为selectedProxy
         let selectedProxy = currentProxy;
-        if (!selectedProxy && doorMembers.length > 0) {
-            selectedProxy = doorMembers[0].name;
-            console.log('当前代理未设置，自动设置为:', selectedProxy);
-            try {
-                // 设置当前代理为第一个 door 成员
-                await apiPost('/proxy/current/set', { name: selectedProxy });
-                console.log('已自动设置当前代理为:', selectedProxy);
-            } catch (error) {
-                console.error('自动设置当前代理失败:', error);
-            }
-        }
 
-        // 更新当前代理选择框 - 显示所有 door 成员
+        // 提取door成员（名称以"door:"开头）用于下拉框显示
+        const doorProxies = allProxies.filter(proxy => proxy.name && proxy.name.startsWith('door:'));
+
+        // 更新当前代理选择框 - 只显示door成员
         const select = document.getElementById('proxySelect');
         select.innerHTML = '';
-        if (doorMembers.length === 0) {
+        if (doorProxies.length === 0) {
             select.innerHTML = '<option>暂无 Door 成员</option>';
         } else {
-            doorMembers.forEach(proxy => {
+            // 如果是自动模式，添加提示
+            const autoModeHint = isDoorAutoMode ? ' (自动模式)' : '';
+            doorProxies.forEach(proxy => {
                 const option = document.createElement('option');
                 option.value = proxy.name;
-                // 显示时只显示成员名称，不显示 "door:" 前缀
+                // 显示时去掉"door:"前缀
                 const displayName = proxy.name.substring(5);
-                option.textContent = displayName;
+                option.textContent = displayName + autoModeHint;
                 if (proxy.name === selectedProxy) {
                     option.selected = true;
                 }
                 select.appendChild(option);
             });
+        }
+
+        // 显示当前代理信息
+        const currentProxyDisplay = document.getElementById('currentProxyDisplay');
+        if (currentProxyDisplay && currentProxyInfo) {
+            const displayName = currentProxyInfo.show_name || currentProxyInfo.name;
+            const autoModeLabel = isDoorAutoMode && currentProxyInfo.name.startsWith('door:')
+                ? ' <span class="badge bg-info ms-2">自动模式</span>'
+                : '';
+            currentProxyDisplay.innerHTML = `当前代理: <strong>${displayName}</strong>${autoModeLabel}`;
         }
 
         // 更新所有代理表格
@@ -504,7 +490,7 @@ async function loadProxyData() {
             tbody.innerHTML = allProxies.map(proxy => {
                 // 判断是否是当前代理
                 const isCurrent = proxy.name === selectedProxy;
-                // 显示名称：虚拟的 door 成员时隐藏 "door:" 前缀
+                // 显示名称：door成员时隐藏"door:"前缀
                 const displayName = proxy.name && proxy.name.startsWith('door:')
                     ? proxy.name.substring(5)
                     : proxy.name;
@@ -528,32 +514,11 @@ async function loadProxyData() {
             }).join('');
         }
 
-        // 更新 Door 成员表格 - 只显示 door 代理的成员
-        const doorBody = document.getElementById('doorTableBody');
-        if (members.length === 0) {
-            doorBody.innerHTML = '<tr><td colspan="4" class="text-center text-muted">暂无 Door 成员</td></tr>';
-        } else {
-            doorBody.innerHTML = members.map(member => `
-                <tr>
-                    <td>${member.show_name || member.name || '-'}</td>
-                    <td>${member.latency || '-'}ms</td>
-                    <td><span class="badge bg-secondary">${member.type || 'Unknown'}</span></td>
-                    <td>
-                        <button class="btn btn-sm btn-outline-primary" onclick="switchDoorMember('${member.show_name || member.name}')">
-                            切换
-                        </button>
-                    </td>
-                </tr>
-            `).join('');
-        }
-
         appState.proxies = allProxies;
         appState.currentProxy = selectedProxy;
-        appState.doorMembers = members;
     } catch (error) {
         console.error('加载代理数据失败:', error);
         document.getElementById('proxyTableBody').innerHTML = '<tr><td colspan="5" class="text-center text-danger">加载失败: ' + error.message + '</td></tr>';
-        document.getElementById('doorTableBody').innerHTML = '<tr><td colspan="4" class="text-center text-danger">加载失败: ' + error.message + '</td></tr>';
     }
 }
 

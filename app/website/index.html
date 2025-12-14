@@ -377,6 +377,13 @@
                     <h2 class="mb-4"><i class="bi bi-globe"></i> 代理管理</h2>
 
                     <div class="card mb-4">
+                        <div class="card-header">当前代理信息</div>
+                        <div class="card-body">
+                            <div id="currentProxyDisplay" class="text-muted">加载中...</div>
+                        </div>
+                    </div>
+
+                    <div class="card mb-4">
                         <div class="card-header">当前代理选择</div>
                         <div class="card-body">
                             <div class="row align-items-center">
@@ -405,6 +412,7 @@
                                             <th>类型</th>
                                             <th>地址</th>
                                             <th>操作</th>
+                                            <th>详细</th>
                                         </tr>
                                     </thead>
                                     <tbody id="proxyTableBody">
@@ -428,6 +436,7 @@
                                             <th>延迟</th>
                                             <th>类型</th>
                                             <th>操作</th>
+                                            <th>详细</th>
                                         </tr>
                                     </thead>
                                     <tbody id="doorTableBody">

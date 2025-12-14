@@ -5,6 +5,7 @@ import (
 
 	"nursor.org/nursorgate/common/logger"
 	auth "nursor.org/nursorgate/processor/auth"
+	"nursor.org/nursorgate/processor/config"
 	"nursor.org/nursorgate/processor/inbound"
 )
 
@@ -17,11 +18,14 @@ func InitializeUser(token string) {
 		userInfo, err := auth.ActivateToken(token)
 
 		if err == nil {
-			// 激活成功
+			// 激活成功（可能是远程激活或本地回退）
 			logger.Info(fmt.Sprintf("User activated successfully: %s (Plan: %s)", userInfo.Username, userInfo.PlanName))
+			// 标记为有本地用户信息（激活成功后会自动保存到本地）
+			config.SetHasLocalUserInfo(true)
 		} else {
-			// 激活失败，但ActivateToken会自动尝试加载本地用户信息
-			logger.Warn(fmt.Sprintf("Token activation failed or using local fallback: %v", err))
+			// 激活失败
+			logger.Warn(fmt.Sprintf("Token activation failed: %v", err))
+			config.SetHasLocalUserInfo(false)
 		}
 	} else {
 		// Step 2: 没有提供token，尝试加载本地用户信息
@@ -29,9 +33,13 @@ func InitializeUser(token string) {
 			userInfo := auth.GetCurrentUserInfo()
 			if userInfo != nil {
 				logger.Info(fmt.Sprintf("Local user info loaded successfully: %s (Plan: %s)", userInfo.Username, userInfo.PlanName))
+				// 标记为有本地用户信息
+				config.SetHasLocalUserInfo(true)
 			}
 		} else {
 			logger.Debug("No local user info found, starting without user authentication")
+			// 标记为没有本地用户信息
+			config.SetHasLocalUserInfo(false)
 		}
 	}
 }

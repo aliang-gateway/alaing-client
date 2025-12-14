@@ -101,3 +101,14 @@ func basicAuth(username, password string) string {
 	auth := username + ":" + password
 	return base64.StdEncoding.EncodeToString([]byte(auth))
 }
+
+// Getter methods for configuration details
+// GetUser returns the username
+func (h *HTTP) GetUser() string {
+	return h.user
+}
+
+// GetPass returns the password
+func (h *HTTP) GetPass() string {
+	return h.pass
+}

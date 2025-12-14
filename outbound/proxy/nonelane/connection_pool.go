@@ -104,6 +104,23 @@ func (cp *ConnectionPool) Stats() map[string]interface{} {
 	}
 }
 
+// ClearAllConnections closes all pooled connections without closing the pool
+// This is useful for clearing stale connections when switching proxies
+func (cp *ConnectionPool) ClearAllConnections() error {
+	cp.mu.Lock()
+	defer cp.mu.Unlock()
+
+	// Close all connections
+	for key, conn := range cp.conns {
+		if conn != nil && conn.Conn != nil {
+			conn.Conn.Close()
+		}
+		delete(cp.conns, key)
+	}
+
+	return nil
+}
+
 // Close closes all connections in the pool
 func (cp *ConnectionPool) Close() error {
 	cp.mu.Lock()

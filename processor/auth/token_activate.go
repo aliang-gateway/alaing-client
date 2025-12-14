@@ -52,6 +52,9 @@ func ActivateToken(token string) (*UserInfo, error) {
 		// 启动定时刷新
 		startTokenRefresh()
 
+		config.SetUsingDefaultConfig(false)
+		config.SetHasLocalUserInfo(true)
+
 		return userInfo, nil
 	}
 
