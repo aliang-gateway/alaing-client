@@ -100,7 +100,7 @@ func ensureConfigDir() error {
 	return nil
 }
 
-// SaveUserInfo 保存用户信息到本地（加密存储）
+// SaveUserInfo 保存用户信息到本地（整文件加密）
 func SaveUserInfo(info *UserInfo) error {
 	if info == nil {
 		return fmt.Errorf("user info cannot be nil")
@@ -111,33 +111,13 @@ func SaveUserInfo(info *UserInfo) error {
 		return err
 	}
 
-	// 加密敏感字段
-	encryptedAccessToken, err := EncryptField(info.AccessToken)
-	if err != nil {
-		return fmt.Errorf("failed to encrypt access token: %w", err)
-	}
+	// 更新时间戳
+	info.UpdatedAt = time.Now()
 
-	encryptedRefreshToken, err := EncryptField(info.RefreshToken)
+	// 使用整文件加密（新格式）
+	encryptedData, err := EncryptUserInfoFile(info)
 	if err != nil {
-		return fmt.Errorf("failed to encrypt refresh token: %w", err)
-	}
-
-	encryptedInnerToken, err := EncryptField(info.InnerToken)
-	if err != nil {
-		return fmt.Errorf("failed to encrypt inner token: %w", err)
-	}
-
-	// 创建加密后的用户信息副本
-	encryptedInfo := *info
-	encryptedInfo.AccessToken = encryptedAccessToken
-	encryptedInfo.RefreshToken = encryptedRefreshToken
-	encryptedInfo.InnerToken = encryptedInnerToken
-	encryptedInfo.UpdatedAt = time.Now()
-
-	// 序列化为JSON
-	data, err := json.MarshalIndent(&encryptedInfo, "", "  ")
-	if err != nil {
-		return fmt.Errorf("failed to marshal user info: %w", err)
+		return fmt.Errorf("failed to encrypt user info file: %w", err)
 	}
 
 	// 获取文件路径
@@ -147,9 +127,11 @@ func SaveUserInfo(info *UserInfo) error {
 	}
 
 	// 写入文件（权限0600只有所有者可读写）
-	if err := os.WriteFile(filePath, data, 0600); err != nil {
+	if err := os.WriteFile(filePath, encryptedData, 0600); err != nil {
 		return fmt.Errorf("failed to write user info file: %w", err)
 	}
+
+	logger.Debug("User info saved successfully (whole-file encryption)")
 
 	// 更新内存中的用户信息
 	userInfoMutex.Lock()
@@ -159,7 +141,7 @@ func SaveUserInfo(info *UserInfo) error {
 	return nil
 }
 
-// LoadUserInfo 从本地加载用户信息（自动解密）
+// LoadUserInfo 从本地加载用户信息（自动解密，支持新旧格式迁移）
 func LoadUserInfo() (*UserInfo, error) {
 	filePath, err := GetUserInfoPath()
 	if err != nil {
@@ -177,40 +159,71 @@ func LoadUserInfo() (*UserInfo, error) {
 		return nil, fmt.Errorf("failed to read user info file: %w", err)
 	}
 
-	// 反序列化JSON
+	// 尝试新格式（整文件加密）
+	decryptedInfo, err := DecryptUserInfoFile(data)
+	if err == nil {
+		logger.Debug("User info loaded successfully (whole-file encryption format)")
+
+		// 更新内存中的用户信息
+		userInfoMutex.Lock()
+		currentUserInfo = decryptedInfo
+		userInfoMutex.Unlock()
+
+		return decryptedInfo, nil
+	}
+
+	// 新格式失败，尝试旧格式（字段级加密）
+	logger.Debug("New format decryption failed, attempting old format")
+
+	// 检查是否是旧格式（JSON结构）
 	var encryptedInfo UserInfo
 	if err := json.Unmarshal(data, &encryptedInfo); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal user info: %w", err)
+		return nil, fmt.Errorf("failed to unmarshal user info (both formats): %w", err)
 	}
 
-	// 解密敏感字段
-	accessToken, err := DecryptField(encryptedInfo.AccessToken)
-	if err != nil {
-		return nil, fmt.Errorf("failed to decrypt access token: %w", err)
+	// 尝试解密旧格式的字段
+	accessToken, accessTokenErr := DecryptField(encryptedInfo.AccessToken)
+	refreshToken, refreshTokenErr := DecryptField(encryptedInfo.RefreshToken)
+	innerToken, innerTokenErr := DecryptField(encryptedInfo.InnerToken)
+
+	// 如果字段级解密失败，说明不是旧格式
+	if accessTokenErr != nil || refreshTokenErr != nil || innerTokenErr != nil {
+		return nil, fmt.Errorf("user info file format not recognized (tried both new and old formats)")
 	}
 
-	refreshToken, err := DecryptField(encryptedInfo.RefreshToken)
-	if err != nil {
-		return nil, fmt.Errorf("failed to decrypt refresh token: %w", err)
+	// 成功解密旧格式，创建解密后的用户信息
+	decryptedInfo = &UserInfo{
+		AccessToken:  accessToken,
+		RefreshToken: refreshToken,
+		Username:     encryptedInfo.Username,
+		PlanName:     encryptedInfo.PlanName,
+		TrafficUsed:  encryptedInfo.TrafficUsed,
+		TrafficTotal: encryptedInfo.TrafficTotal,
+		AIAskUsed:    encryptedInfo.AIAskUsed,
+		AIAskTotal:   encryptedInfo.AIAskTotal,
+		StartTime:    encryptedInfo.StartTime,
+		EndTime:      encryptedInfo.EndTime,
+		PlanType:     encryptedInfo.PlanType,
+		InnerToken:   innerToken,
+		UpdatedAt:    encryptedInfo.UpdatedAt,
 	}
 
-	innerToken, err := DecryptField(encryptedInfo.InnerToken)
-	if err != nil {
-		return nil, fmt.Errorf("failed to decrypt inner token: %w", err)
-	}
+	logger.Info("User info loaded from old format (field-level encryption), migrating to new format...")
 
-	// 创建解密后的用户信息
-	decryptedInfo := encryptedInfo
-	decryptedInfo.AccessToken = accessToken
-	decryptedInfo.RefreshToken = refreshToken
-	decryptedInfo.InnerToken = innerToken
+	// 自动迁移到新格式
+	if err := SaveUserInfo(decryptedInfo); err != nil {
+		logger.Warn(fmt.Sprintf("Failed to migrate user info to new format: %v", err))
+		// 继续返回解密的用户信息，迁移失败不应该阻止启动
+	} else {
+		logger.Info("User info successfully migrated to new format (whole-file encryption)")
+	}
 
 	// 更新内存中的用户信息
 	userInfoMutex.Lock()
-	currentUserInfo = &decryptedInfo
+	currentUserInfo = decryptedInfo
 	userInfoMutex.Unlock()
 
-	return &decryptedInfo, nil
+	return decryptedInfo, nil
 }
 
 // UpdateUserInfo 更新用户信息并保存
