@@ -31,7 +31,7 @@
       {
         "showname": "HK Shadowsocks-3",
         "type": "shadowsocks",
-        "latency": 12,
+        "latency": 48,
         "shadowsocks": {
           "server_host": "103.255.209.43",
           "server_port": 35002,

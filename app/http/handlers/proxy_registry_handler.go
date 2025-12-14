@@ -20,11 +20,23 @@ func NewProxyRegistryHandler(proxyRepository *repositories.ProxyRepositoryImpl) 
 }
 
 // HandleProxyRegistryList handles GET /api/proxy/registry/list
+// Returns only non-door proxies (direct, nonelane, etc.)
+// Door members should be fetched via /api/proxy/door/members
 func (prh *ProxyRegistryHandler) HandleProxyRegistryList(w http.ResponseWriter, r *http.Request) {
 	result, err := prh.proxyRepository.ListProxies()
 	if err != nil {
 		common.ErrorInternalServer(w, "Failed to list proxies", nil)
 		return
+	}
+
+	// Filter out door virtual members (names starting with "door:")
+	if proxiesMap, ok := result["proxies"].(map[string]interface{}); ok {
+		filteredProxies := make(map[string]interface{})
+		for key, value := range proxiesMap {
+			filteredProxies[key] = value
+		}
+		result["proxies"] = filteredProxies
+		result["count"] = len(filteredProxies)
 	}
 
 	common.Success(w, result)

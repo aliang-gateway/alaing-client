@@ -8,12 +8,10 @@ import (
 	"math/rand"
 	"os"
 	"strings"
-	"time"
 
 	"nursor.org/nursorgate/common/logger"
 	"nursor.org/nursorgate/outbound"
 	"nursor.org/nursorgate/processor/config"
-	"nursor.org/nursorgate/processor/dns"
 	geoip "nursor.org/nursorgate/processor/geoip"
 	"nursor.org/nursorgate/processor/inbound"
 	rules "nursor.org/nursorgate/processor/rules"
@@ -97,51 +95,38 @@ func ApplyConfig(cfg *Config) error {
 	}
 	logger.Debug("Phase 2: Door proxy collection registered")
 
-	// Phase 3: Set the active default proxy for routing decisions
+	// Phase 3: Initialize global DNS resolver
+	// Must be done after door and direct proxies are registered
+	registry := outbound.GetRegistry()
+	doorProxy, _ := registry.GetDoor()
+	directProxy, _ := registry.Get("direct")
+	if err := inbound.InitGlobalResolver(doorProxy, directProxy, cfg); err != nil {
+		logger.Warn(fmt.Sprintf("Phase 3 - Failed to initialize DNS resolver: %v", err))
+	} else {
+		logger.Debug("Phase 3: Global DNS resolver initialized")
+	}
+
+	// Phase 4: Set the active default proxy for routing decisions
 	// Determines which proxy is used when no specific routing rule applies
 	if err := setEffectiveDefaultProxy(cfg.CurrentProxy); err != nil {
-		return fmt.Errorf("phase 3 - failed to set default proxy: %w", err)
+		return fmt.Errorf("phase 4 - failed to set default proxy: %w", err)
 	}
-	logger.Debug("Phase 3: Default proxy set for routing")
+	logger.Debug("Phase 4: Default proxy set for routing")
 
-	// Phase 4: Initialize GeoIP service if configured
+	// Phase 5: Initialize GeoIP service if configured
 	if err := initializeGeoIP(cfg.RoutingRules); err != nil {
-		logger.Warn(fmt.Sprintf("Phase 4 - GeoIP initialization failed (non-fatal): %v", err))
+		logger.Warn(fmt.Sprintf("Phase 5 - GeoIP initialization failed (non-fatal): %v", err))
 	} else {
-		logger.Debug("Phase 4: GeoIP service initialized")
+		logger.Debug("Phase 5: GeoIP service initialized")
 	}
 
-	// Phase 5: Initialize routing rule engine
+	// Phase 6: Initialize routing rule engine
 	if err := initializeRuleEngine(cfg.RoutingRules); err != nil {
-		logger.Warn(fmt.Sprintf("Phase 5 - Rule engine initialization failed (non-fatal): %v", err))
+		logger.Warn(fmt.Sprintf("Phase 6 - Rule engine initialization failed (non-fatal): %v", err))
 	} else {
-		logger.Debug("Phase 5: Rule engine initialized")
+		logger.Debug("Phase 6: Rule engine initialized")
 	}
 
-	// Phase 6: Initialize DNS preloader
-	registry := outbound.GetRegistry()
-	directProxy, err := registry.Get("direct")
-	if err != nil {
-		return fmt.Errorf("failed to get direct proxy: %w", err)
-	}
-	doorProxy, err := registry.GetDoor()
-	if err != nil {
-		return fmt.Errorf("failed to get door proxy: %w", err)
-	}
-	resolver := dns.NewHybridResolver(&dns.DNSConfig{
-		Type:             dns.ResolverTypeHybrid,
-		PrimaryDNS:       cfg.DNSPreResolution.PrimaryDNS,
-		FallbackDNS:      cfg.DNSPreResolution.FallbackDNS,
-		SystemDNSEnabled: cfg.DNSPreResolution.SystemDNSFallback,
-		Timeout:          cfg.DNSPreResolution.GetTimeout(),
-		MaxTTL:           cfg.DNSPreResolution.GetMaxCacheTTL(),
-		CacheEnabled:     cfg.DNSPreResolution.CacheResults,
-		ConcurrentLimit:  cfg.DNSPreResolution.ConcurrentLimit,
-		RetryCount:       3,
-		RetryDelay:       500 * time.Millisecond,
-	}, doorProxy, directProxy)
-	dns.SetGlobalResolver(resolver)
-	inbound.InitDNSPreloader(resolver, cfg.DNSPreResolution)
 	logger.Info("Configuration applied successfully")
 	return nil
 }

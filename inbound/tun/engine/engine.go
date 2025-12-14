@@ -169,7 +169,6 @@ func netstack(k *config.EngineConf) (err error) {
 	// 使用混合DNS解析器，优先door代理，回退到direct代理
 	hybridResolver := dns.CreateDefaultHybridResolver(doorProxy, directProxy)
 	dns.SetGlobalResolver(hybridResolver)
-	dns.NewPreloader(hybridResolver, config.GetGlobalConfig().DNSPreResolution)
 	if _defaultDevice, err = parseDevice(k.Device, uint32(k.MTU)); err != nil {
 		return err
 	}

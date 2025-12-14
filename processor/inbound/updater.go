@@ -91,5 +91,12 @@ func registerInboundsToDoor(inbounds []InboundInfo) error {
 	}
 
 	logger.Info(fmt.Sprintf("Registering %d inbound members to Door proxy (with DNS pre-resolution)", len(members)))
-	return registry.RegisterDoorFromConfig(doorConfig)
+	if err := registry.RegisterDoorFromConfig(doorConfig); err != nil {
+		return err
+	}
+
+	// Sync global DNS resolver with updated door configuration
+	UpdateGlobalResolverWithDoorConfig(doorConfig)
+
+	return nil
 }

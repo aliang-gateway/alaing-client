@@ -427,7 +427,7 @@ async function loadProxyData() {
 
         console.log('原始数据:', { proxyListData, currentProxy, doorMembersData });
 
-        // 处理代理列表数据 - ListProxies 返回 { proxies: {...}, count: ... }
+        // 处理代理列表数据 - /api/proxy/list 现在只返回非door代理
         let allProxies = [];
         if (proxyListData) {
             if (proxyListData.proxies && typeof proxyListData.proxies === 'object') {
@@ -444,15 +444,23 @@ async function loadProxyData() {
 
         const members = Array.isArray(doorMembersData?.members) ? doorMembersData.members : [];
 
-        console.log('转换后的代理列表:', allProxies);
+        console.log('转换后的非door代理列表:', allProxies);
+        console.log('Door成员:', members);
         console.log('当前代理值:', currentProxy);
 
-        // 过滤出 door 的虚拟成员（名称格式为 door:xxx）
-        const doorMembers = allProxies.filter(proxy =>
-            proxy.name && proxy.name.startsWith('door:')
-        );
+        // 将door成员转换为代理格式并添加到allProxies
+        const doorMembers = members.map(member => ({
+            name: `door:${member.showname}`,
+            show_name: member.showname,
+            type: member.type,
+            addr: member.addr,
+            latency: member.latency
+        }));
 
-        console.log('真实 Door 代理:', allProxies.find(p => p.name === 'door'));
+        // 合并所有代理：非door代理 + door成员
+        allProxies = [...allProxies, ...doorMembers];
+
+        console.log('合并后的完整代理列表:', allProxies);
         console.log('Door 成员:', doorMembers);
 
         // 如果当前代理为空或未设置，默认设置为 door 代理
@@ -491,7 +499,7 @@ async function loadProxyData() {
         // 更新所有代理表格
         const tbody = document.getElementById('proxyTableBody');
         if (allProxies.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted">暂无代理</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted">暂无代理</td></tr>';
         } else {
             tbody.innerHTML = allProxies.map(proxy => {
                 // 判断是否是当前代理
@@ -508,6 +516,11 @@ async function loadProxyData() {
                         <td>
                             <button class="btn btn-sm btn-outline-primary" onclick="switchProxy('${proxy.name}')">
                                 ${isCurrent ? '✓ 当前' : '切换'}
+                            </button>
+                        </td>
+                        <td>
+                            <button class="btn btn-sm btn-outline-info" onclick="showProxyDetail('${proxy.name}')">
+                                <i class="bi bi-info-circle"></i> 详情
                             </button>
                         </td>
                     </tr>
@@ -539,10 +552,43 @@ async function loadProxyData() {
         appState.doorMembers = members;
     } catch (error) {
         console.error('加载代理数据失败:', error);
-        document.getElementById('proxyTableBody').innerHTML = '<tr><td colspan="4" class="text-center text-danger">加载失败: ' + error.message + '</td></tr>';
+        document.getElementById('proxyTableBody').innerHTML = '<tr><td colspan="5" class="text-center text-danger">加载失败: ' + error.message + '</td></tr>';
         document.getElementById('doorTableBody').innerHTML = '<tr><td colspan="4" class="text-center text-danger">加载失败: ' + error.message + '</td></tr>';
     }
 }
+
+// 显示代理详情
+async function showProxyDetail(proxyName) {
+    try {
+        const response = await apiGet(`/proxy/get?name=${encodeURIComponent(proxyName)}`);
+
+        // 更新Modal标题 - 去掉door:前缀显示
+        const displayName = proxyName.startsWith('door:') ? proxyName.substring(5) : proxyName;
+        document.getElementById('proxyDetailTitle').textContent = displayName;
+
+        // 格式化JSON并显示
+        const jsonStr = JSON.stringify(response, null, 2);
+        document.getElementById('proxyDetailJson').textContent = jsonStr;
+
+        // 显示Modal
+        const modal = new bootstrap.Modal(document.getElementById('proxyDetailModal'));
+        modal.show();
+    } catch (error) {
+        showError('获取代理详情失败: ' + error.message);
+    }
+}
+
+// 复制代理详情JSON到剪贴板
+document.getElementById('copyProxyDetailBtn')?.addEventListener('click', () => {
+    const jsonText = document.getElementById('proxyDetailJson').textContent;
+    navigator.clipboard.writeText(jsonText)
+        .then(() => {
+            showSuccess('JSON已复制到剪贴板');
+        })
+        .catch(error => {
+            showError('复制失败: ' + error.message);
+        });
+});
 
 async function switchProxy(proxyName) {
     try {

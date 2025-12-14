@@ -4,32 +4,75 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net"
 	"strings"
 	"time"
 
 	"nursor.org/nursorgate/common/logger"
+	"nursor.org/nursorgate/outbound/proxy"
 	"nursor.org/nursorgate/processor/config"
 	"nursor.org/nursorgate/processor/dns"
 )
 
-// Global DNS preloader instance
-var globalPreloader *dns.Preloader
+// Global DNS resolver instance
+var globalResolver dns.DNSResolverInterface
 
-// InitDNSPreloader initializes the global DNS preloader
-func InitDNSPreloader(resolver dns.DNSResolverInterface, preloadConfig *config.DNSPreResolutionConfig) {
-	globalPreloader = dns.NewPreloader(resolver, preloadConfig)
-	logger.Info("[DNS] Global preloader initialized")
+// InitGlobalResolver initializes the global DNS resolver
+// Should be called in ApplyConfig after door and direct proxies are registered
+func InitGlobalResolver(doorProxy, directProxy proxy.Proxy, cfg *config.Config) error {
+	if cfg == nil || cfg.DNSPreResolution == nil || !cfg.DNSPreResolution.Enabled {
+		logger.Info("[DNS] DNS resolution disabled in config")
+		return nil
+	}
+
+	// Create hybrid DNS resolver using door and direct proxies
+	hybridResolver := dns.NewHybridResolver(
+		&dns.DNSConfig{
+			Type:             dns.ResolverTypeHybrid,
+			PrimaryDNS:       cfg.DNSPreResolution.GetPrimaryDNS(),
+			FallbackDNS:      cfg.DNSPreResolution.GetFallbackDNS(),
+			SystemDNSEnabled: cfg.DNSPreResolution.SystemDNSFallback,
+			Timeout:          cfg.DNSPreResolution.GetTimeout(),
+			MaxTTL:           cfg.DNSPreResolution.GetMaxCacheTTL(),
+			CacheEnabled:     cfg.DNSPreResolution.CacheResults,
+		},
+		doorProxy,      // primary dialer (implements proxy.Dialer)
+		directProxy,    // fallback dialer (implements proxy.Dialer)
+	)
+
+	globalResolver = hybridResolver
+	logger.Info("[DNS] Global DNS resolver initialized successfully")
+	return nil
 }
 
-// GetDNSPreloader returns the global DNS preloader instance
-func GetDNSPreloader() *dns.Preloader {
-	return globalPreloader
+// GetGlobalResolver returns the global DNS resolver instance
+func GetGlobalResolver() dns.DNSResolverInterface {
+	return globalResolver
 }
 
-// ShutdownDNSPreloader shuts down the global DNS preloader
-func ShutdownDNSPreloader() {
-	globalPreloader = nil
-	logger.Info("[DNS] Global preloader shut down")
+// UpdateGlobalResolverWithDoorConfig updates the global resolver after door config changes
+func UpdateGlobalResolverWithDoorConfig(doorConfig *config.DoorProxyConfig) {
+	if globalResolver == nil {
+		return
+	}
+
+	if doorConfig == nil || len(doorConfig.Members) == 0 {
+		logger.Debug("[DNS] No door members, skipping resolver sync")
+		return
+	}
+
+	logger.Info(fmt.Sprintf("[DNS] Door config updated with %d members", len(doorConfig.Members)))
+}
+
+// CleanupGlobalResolver cleans up the global DNS resolver
+func CleanupGlobalResolver() {
+	if globalResolver != nil {
+		if clearable, ok := globalResolver.(interface{ ClearCache() }); ok {
+			clearable.ClearCache()
+		}
+		globalResolver = nil
+		logger.Info("[DNS] Global DNS resolver cleaned up")
+	}
 }
 
 // ConvertToProxyConfig converts InboundInfo to DoorProxyMember configuration
@@ -72,12 +115,13 @@ func ConvertVLESS(rawConfig interface{}, tag string) (*config.DoorProxyMember, e
 
 	// DNS pre-resolution for server host
 	resolvedHost := vlCfg.ServerHost
-	if globalPreloader != nil {
+	if globalResolver != nil && isHostName(vlCfg.ServerHost) {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
+		result, _ := globalResolver.ResolveIP(ctx, vlCfg.ServerHost)
+		cancel()
 
-		resolvedHost = globalPreloader.PreloadServerHost(ctx, vlCfg.ServerHost)
-		if resolvedHost != vlCfg.ServerHost {
+		if result != nil && result.Success && len(result.IPs) > 0 {
+			resolvedHost = result.IPs[0].String()
 			logger.Info(fmt.Sprintf("[DNS] VLESS %s: %s -> %s", tag, vlCfg.ServerHost, resolvedHost))
 		}
 	}
@@ -138,12 +182,13 @@ func ConvertShadowsocks(rawConfig interface{}, tag string) (*config.DoorProxyMem
 
 	// DNS pre-resolution for server host
 	resolvedHost := ssCfg.ServerHost
-	if globalPreloader != nil {
+	if globalResolver != nil && isHostName(ssCfg.ServerHost) {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
+		result, _ := globalResolver.ResolveIP(ctx, ssCfg.ServerHost)
+		cancel()
 
-		resolvedHost = globalPreloader.PreloadServerHost(ctx, ssCfg.ServerHost)
-		if resolvedHost != ssCfg.ServerHost {
+		if result != nil && result.Success && len(result.IPs) > 0 {
+			resolvedHost = result.IPs[0].String()
 			logger.Info(fmt.Sprintf("[DNS] Shadowsocks %s: %s -> %s", tag, ssCfg.ServerHost, resolvedHost))
 		}
 	}
@@ -212,18 +257,10 @@ func BatchConvertToProxyConfigs(inbounds []InboundInfo) ([]*config.DoorProxyMemb
 		}
 	}
 
-	// Perform batch DNS pre-resolution if preloader is available
-	if globalPreloader != nil && len(serverHosts) > 0 {
-		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-		defer cancel()
-
-		var domains []string
-		for host := range serverHosts {
-			domains = append(domains, host)
-		}
-
-		_ = globalPreloader.PreloadDomains(ctx, domains) // Preload results are cached internally
-		logger.Info(fmt.Sprintf("[DNS] Batch pre-resolution completed for %d domains", len(domains)))
+	// Perform batch DNS pre-resolution if resolver is available
+	if globalResolver != nil && len(serverHosts) > 0 {
+		logger.Info(fmt.Sprintf("[DNS] Batch DNS resolution ready for %d domains", len(serverHosts)))
+		// Individual resolution happens in ConvertVLESS/ConvertShadowsocks using globalResolver
 	}
 
 	// Convert each inbound with pre-resolved hosts
@@ -238,4 +275,20 @@ func BatchConvertToProxyConfigs(inbounds []InboundInfo) ([]*config.DoorProxyMemb
 	}
 
 	return members, nil
+}
+
+// isHostName checks if a string is a hostname (not an IP address)
+func isHostName(addr string) bool {
+	// Check if it's an IP address
+	if ip := net.ParseIP(addr); ip != nil {
+		return false
+	}
+	// If it contains colons, it might be IPv6 or an IP:port
+	if strings.Contains(addr, ":") {
+		if ip := net.ParseIP(strings.Split(addr, ":")[0]); ip != nil {
+			return false
+		}
+	}
+	// Otherwise, treat it as a hostname
+	return true
 }

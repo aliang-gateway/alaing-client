@@ -904,6 +904,25 @@
                     </div>
                 </div>
             </main>
+
+            <!-- 代理详情Modal -->
+            <div class="modal fade" id="proxyDetailModal" tabindex="-1">
+                <div class="modal-dialog modal-lg">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">代理详情 - <span id="proxyDetailTitle"></span></h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body">
+                            <pre id="proxyDetailJson" style="background: #f5f5f5; padding: 15px; border-radius: 5px; max-height: 500px; overflow-y: auto; font-size: 0.85rem;"></pre>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
+                            <button type="button" class="btn btn-primary" id="copyProxyDetailBtn">复制JSON</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 
