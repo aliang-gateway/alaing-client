@@ -9,9 +9,9 @@ import (
 
 // TCPConnHandler orchestrates the entire TCP connection lifecycle.
 // It handles protocol detection, routing decisions, and data relay
-// for connections from both TUN and HTTP inbound modules.
+// for connections from both TUN and HTTP proxyserver modules.
 type TCPConnHandler interface {
-	// Handle processes a single TCP connection from any inbound source.
+	// Handle processes a single TCP connection from any proxyserver source.
 	// It is responsible for:
 	// - Protocol detection (TLS on port 443, direct for others)
 	// - SNI extraction and certificate interception (for HTTPS)
@@ -30,7 +30,7 @@ type RelayManager interface {
 	// Relay establishes bidirectional data flow between originConn and remoteConn.
 	// It:
 	// - Copies data concurrently in both directions using io.CopyBuffer
-	// - Uses buffer pooling for efficiency (from inbound/tun/buffer)
+	// - Uses buffer pooling for efficiency (from proxyserver/tun/buffer)
 	// - Integrates with processor/statistic for connection tracking
 	// - Performs TCP half-close handling (CloseRead/CloseWrite)
 	// - Sets appropriate timeouts and cleanup handlers

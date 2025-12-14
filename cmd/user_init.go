@@ -6,12 +6,15 @@ import (
 	"nursor.org/nursorgate/common/logger"
 	auth "nursor.org/nursorgate/processor/auth"
 	"nursor.org/nursorgate/processor/config"
-	"nursor.org/nursorgate/processor/inbound"
+	"nursor.org/nursorgate/processor/proxyserver"
 )
 
 // InitializeUser 初始化用户信息和Token激活
 // 这个函数在启动时调用，负责处理Token激活和加载本地用户信息
 func InitializeUser(token string) {
+	// 清理旧的缓存文件（架构简化后不再使用）
+	proxyserver.CleanupLegacyCache()
+
 	// Step 1: 如果提供了token参数，尝试激活
 	if token != "" {
 		logger.Info("Token provided, attempting to activate...")
@@ -56,11 +59,11 @@ func loadLocalUserInfo() error {
 
 	// 加载完本地用户信息后，尝试更新Door代理信息
 	if userInfo.AccessToken != "" {
-		if err := inbound.UpdateDoorProxies(userInfo.AccessToken); err != nil {
-			logger.Warn(fmt.Sprintf("Failed to update inbound proxies on startup: %v", err))
+		if err := proxyserver.UpdateDoorProxies(userInfo.AccessToken); err != nil {
+			logger.Warn(fmt.Sprintf("Failed to update proxyserver proxies on startup: %v", err))
 			// 不返回错误，允许系统继续启动
 		} else {
-			logger.Info("Successfully updated inbound proxies on startup")
+			logger.Info("Successfully updated proxyserver proxies on startup")
 		}
 	}
 

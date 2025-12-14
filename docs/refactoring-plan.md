@@ -79,14 +79,14 @@ cursor-proxy/
 ### 1. Inbound层（入站流量）
 
 ```go
-// inbound/listener.go
+// proxyserver/listener.go
 type Listener interface {
     Start() error
     Stop() error
     GetConnections() <-chan Connection
 }
 
-// inbound/tun/device.go
+// proxyserver/tun/device.go
 type TunDevice struct {
     name string
     mtu  int

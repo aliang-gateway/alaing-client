@@ -1,10 +1,10 @@
 package services
 
 import (
-	"nursor.org/nursorgate/processor/inbound"
+	"nursor.org/nursorgate/outbound"
 )
 
-// InboundService provides inbound proxy management services
+// InboundService provides proxyserver proxy management services
 type InboundService struct{}
 
 // NewInboundService creates a new InboundService instance
@@ -12,14 +12,27 @@ func NewInboundService() *InboundService {
 	return &InboundService{}
 }
 
-// GetInboundStatus returns current inbound cache status
+// GetInboundStatus returns current door proxy status (simplified after removing cache layer)
 func (s *InboundService) GetInboundStatus() map[string]interface{} {
-	cachedInbounds, timestamp := inbound.GetCachedInbounds()
+	registry := outbound.GetRegistry()
+	if registry == nil {
+		return map[string]interface{}{
+			"status": "error",
+			"error":  "proxy registry not available",
+		}
+	}
+
+	// 获取门代理的当前成员数量
+	doorGroup := registry.GetDoorGroup()
+	memberCount := 0
+	if doorGroup != nil {
+		memberCount = doorGroup.Count()
+	}
 
 	return map[string]interface{}{
-		"status":      "success",
-		"count":       len(cachedInbounds),
-		"last_update": timestamp,
-		"has_cache":   inbound.HasCachedInbounds(),
+		"status":        "success",
+		"proxy_count":   memberCount,
+		"architecture":  "direct_api_fetch", // 说明使用直接API获取，无缓存
+		"cache_enabled": false,              // 架构简化后不使用缓存
 	}
 }

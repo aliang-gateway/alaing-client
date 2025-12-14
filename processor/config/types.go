@@ -1,6 +1,7 @@
 package config
 
 import (
+	"encoding/json"
 	"fmt"
 	"time"
 )
@@ -14,11 +15,10 @@ type BaseProxyConfig struct {
 
 // DoorProxyMember represents a member in a door proxy collection
 type DoorProxyMember struct {
-	ShowName    string             `json:"showname"` // 显示名称
-	Type        string             `json:"type"`     // vless/shadowsocks
-	Latency     int64              `json:"latency"`  // 延迟（毫秒）
-	VLESS       *VLESSConfig       `json:"vless,omitempty"`
-	Shadowsocks *ShadowsocksConfig `json:"shadowsocks,omitempty"`
+	ShowName string      `json:"showname"` // 显示名称
+	Type     string      `json:"type"`     // vless/shadowsocks/ss
+	Latency  int64       `json:"latency"`  // 延迟（毫秒）
+	Config   interface{} `json:"config"`   // 统一配置，通过type字段判断具体类型
 }
 
 // VLESSConfig represents VLESS protocol configuration
@@ -237,4 +237,42 @@ func (c *Config) Validate() error {
 	}
 
 	return nil
+}
+
+// GetVLESSConfig 获取 VLESS 配置
+func (d *DoorProxyMember) GetVLESSConfig() (*VLESSConfig, error) {
+	if d.Type != "vless" {
+		return nil, fmt.Errorf("not a vless config, type is: %s", d.Type)
+	}
+
+	configData, err := json.Marshal(d.Config)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal config: %w", err)
+	}
+
+	var config VLESSConfig
+	if err := json.Unmarshal(configData, &config); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal vless config: %w", err)
+	}
+
+	return &config, nil
+}
+
+// GetShadowsocksConfig 获取 Shadowsocks 配置
+func (d *DoorProxyMember) GetShadowsocksConfig() (*ShadowsocksConfig, error) {
+	if d.Type != "shadowsocks" && d.Type != "ss" {
+		return nil, fmt.Errorf("not a shadowsocks config, type is: %s", d.Type)
+	}
+
+	configData, err := json.Marshal(d.Config)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal config: %w", err)
+	}
+
+	var config ShadowsocksConfig
+	if err := json.Unmarshal(configData, &config); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal shadowsocks config: %w", err)
+	}
+
+	return &config, nil
 }

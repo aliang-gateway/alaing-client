@@ -15,7 +15,7 @@
         "showname": "Hong Kong Node 01",
         "type": "vless",
         "latency": 45,
-        "vless": {
+        "config": {
           "server_host": "node1.nursor.org",
           "server_port": 35001,
           "uuid": "74cddcdd-6d48-41cf-8e62-902e7c943fe7",
@@ -32,7 +32,7 @@
         "showname": "HK Shadowsocks-3",
         "type": "shadowsocks",
         "latency": 48,
-        "shadowsocks": {
+        "config": {
           "server_host": "103.255.209.43",
           "server_port": 35002,
           "method": "chacha20-ietf-poly1305",

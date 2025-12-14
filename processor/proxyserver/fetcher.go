@@ -1,10 +1,11 @@
-package inbound
+package proxyserver
 
 import (
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 
 	"nursor.org/nursorgate/common/logger"
@@ -16,8 +17,22 @@ const (
 	apiTimeout = 10 * time.Second
 )
 
-// FetchInbounds fetches user's inbound configurations from API
-func FetchInbounds(accessToken string) ([]InboundInfo, error) {
+// apiInboundResponse 内部API响应结构（保持与原始API兼容）
+type apiInboundResponse struct {
+	Code int            `json:"code"`
+	Msg  string         `json:"msg"`
+	Data []apiProxyInfo `json:"data"`
+}
+
+// apiProxyInfo 内部API代理信息结构
+type apiProxyInfo struct {
+	InboundType string      `json:"type"`
+	Tag         string      `json:"show_name"` // API字段名
+	Config      interface{} `json:"config"`
+}
+
+// FetchInbounds 从API获取用户代理配置，直接返回DoorProxyMember
+func FetchInbounds(accessToken string) ([]config.DoorProxyMember, error) {
 	if accessToken == "" {
 		return nil, fmt.Errorf("access token cannot be empty")
 	}
@@ -66,8 +81,8 @@ func FetchInbounds(accessToken string) ([]InboundInfo, error) {
 		return nil, fmt.Errorf("api returned status %d: %s", resp.StatusCode, string(body))
 	}
 
-	// Parse response
-	var response InboundResponse
+	// Parse response using internal structure
+	var response apiInboundResponse
 	if err := json.Unmarshal(body, &response); err != nil {
 		return nil, fmt.Errorf("failed to parse response: %w", err)
 	}
@@ -78,10 +93,22 @@ func FetchInbounds(accessToken string) ([]InboundInfo, error) {
 	}
 
 	if len(response.Data) == 0 {
-		logger.Warn("API returned empty inbound list")
-		return []InboundInfo{}, nil
+		logger.Warn("API returned empty proxyserver list")
+		return []config.DoorProxyMember{}, nil
 	}
 
-	logger.Info(fmt.Sprintf("Successfully fetched %d inbounds from API", len(response.Data)))
-	return response.Data, nil
+	// 直接转换为DoorProxyMember，无中间层
+	var members []config.DoorProxyMember
+	for _, info := range response.Data {
+		member := config.DoorProxyMember{
+			ShowName: info.Tag,                          // 统一使用ShowName字段
+			Type:     strings.ToLower(info.InboundType), // 统一为小写
+			Latency:  0,                                 // 初始值，后续会更新
+			Config:   info.Config,                       // 直接使用，无需转换
+		}
+		members = append(members, member)
+	}
+
+	logger.Info(fmt.Sprintf("Successfully fetched %d door proxy members from API", len(members)))
+	return members, nil
 }

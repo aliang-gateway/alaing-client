@@ -297,9 +297,9 @@ func (r *Registry) RegisterDoorFromConfig(doorCfg *proxyConfig.DoorProxyConfig) 
 
 		switch member.Type {
 		case "vless":
-			p, err = createVLESSProxy(member.VLESS)
-		case "shadowsocks":
-			p, err = createShadowsocksProxy(member.Shadowsocks)
+			p, err = createVLESSProxy(&member)
+		case "shadowsocks", "ss":
+			p, err = createShadowsocksProxy(&member)
 		default:
 			return fmt.Errorf("unsupported member type '%s' for member '%s'", member.Type, member.ShowName)
 		}
@@ -406,9 +406,15 @@ func (r *Registry) GetDoorGroup() *DoorProxyGroup {
 }
 
 // createVLESSProxy creates VLESS proxy instance from door member config
-func createVLESSProxy(cfg *proxyConfig.VLESSConfig) (proxy.Proxy, error) {
-	if cfg == nil {
-		return nil, fmt.Errorf("VLESS config cannot be nil")
+func createVLESSProxy(member *proxyConfig.DoorProxyMember) (proxy.Proxy, error) {
+	if member == nil {
+		return nil, fmt.Errorf("door member cannot be nil")
+	}
+
+	// 使用��的 GetVLESSConfig 方法获取配置
+	cfg, err := member.GetVLESSConfig()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get vless config: %w", err)
 	}
 
 	// Handle REALITY
@@ -437,10 +443,17 @@ func createVLESSProxy(cfg *proxyConfig.VLESSConfig) (proxy.Proxy, error) {
 }
 
 // createShadowsocksProxy creates Shadowsocks proxy instance from door member config
-func createShadowsocksProxy(cfg *proxyConfig.ShadowsocksConfig) (proxy.Proxy, error) {
-	if cfg == nil {
-		return nil, fmt.Errorf("Shadowsocks Config Cannot Be Empty")
+func createShadowsocksProxy(member *proxyConfig.DoorProxyMember) (proxy.Proxy, error) {
+	if member == nil {
+		return nil, fmt.Errorf("door member cannot be nil")
 	}
+
+	// 使用新的 GetShadowsocksConfig 方法获取配置
+	cfg, err := member.GetShadowsocksConfig()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get shadowsocks config: %w", err)
+	}
+
 	return shadowsocks.NewShadowsocksWithConfig(&shadowsocks.ShadowsocksConfig{
 		Server:   cfg.Server,
 		Port:     cfg.ServerPort,

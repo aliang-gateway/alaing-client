@@ -13,7 +13,7 @@ import (
 	"nursor.org/nursorgate/outbound"
 	"nursor.org/nursorgate/processor/config"
 	geoip "nursor.org/nursorgate/processor/geoip"
-	"nursor.org/nursorgate/processor/inbound"
+	"nursor.org/nursorgate/processor/proxyserver"
 	rules "nursor.org/nursorgate/processor/rules"
 )
 
@@ -100,7 +100,7 @@ func ApplyConfig(cfg *Config) error {
 	registry := outbound.GetRegistry()
 	doorProxy, _ := registry.GetDoor()
 	directProxy, _ := registry.Get("direct")
-	if err := inbound.InitGlobalResolver(doorProxy, directProxy, cfg); err != nil {
+	if err := proxyserver.InitGlobalResolver(doorProxy, directProxy, cfg); err != nil {
 		logger.Warn(fmt.Sprintf("Phase 3 - Failed to initialize DNS resolver: %v", err))
 	} else {
 		logger.Debug("Phase 3: Global DNS resolver initialized")
