@@ -137,14 +137,14 @@ func (d *DarwinInstaller) IsInstalled(certType string, certBytes []byte) (bool, 
 		commonName = getCertCommonName(certType)
 	}
 
-	logger.Info(fmt.Sprintf("Checking if certificate %s (CN: %s) is installed in System keychain", certType, commonName))
+	//logger.Info(fmt.Sprintf("Checking if certificate %s (CN: %s) is installed in System keychain", certType, commonName))
 
 	cmd := exec.Command("security", "find-certificate", "-c", commonName,
 		"/Library/Keychains/System.keychain")
 
 	err = cmd.Run()
 	if err == nil {
-		logger.Info(fmt.Sprintf("Certificate %s found in System keychain", commonName))
+		//logger.Info(fmt.Sprintf("Certificate %s found in System keychain", commonName))
 		return true, nil
 	}
 
@@ -285,7 +285,7 @@ func (d *DarwinInstaller) IsTrusted(certType string, certBytes []byte) (bool, er
 	// Check if the certificate CN appears in trust settings output
 	trustSettings := string(output)
 	if strings.Contains(trustSettings, commonName) {
-		logger.Debug(fmt.Sprintf("Certificate %s found in trust settings", commonName))
+		//logger.Debug(fmt.Sprintf("Certificate %s found in trust settings", commonName))
 		return true, nil
 	}
 

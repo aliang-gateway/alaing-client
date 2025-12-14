@@ -56,7 +56,6 @@ type Shadowsocks struct {
 	method   string
 	password string
 	username string
-	cipher   core.Cipher
 	obfsMode string
 	obfsHost string
 
@@ -84,13 +83,6 @@ func NewShadowsocksWithConfig(config *ShadowsocksConfig) (*Shadowsocks, error) {
 		return nil, errors.New("shadowsocks password cannot be empty")
 	}
 
-	// 创建密码对应的 Cipher
-	cipher, err := core.PickCipher(config.Method, nil, config.Password)
-	if err != nil {
-		logger.Error(fmt.Sprintf("[Shadowsocks] ✗ 加密方式初始化失败 %s: %v", config.Method, err))
-		return nil, fmt.Errorf("failed to initialize cipher: %w", err)
-	}
-
 	ss := &Shadowsocks{
 		Base: &proxy.Base{
 			Address:  fmt.Sprintf("%s:%d", config.Server, config.Port),
@@ -99,7 +91,6 @@ func NewShadowsocksWithConfig(config *ShadowsocksConfig) (*Shadowsocks, error) {
 		method:   config.Method,
 		password: config.Password,
 		username: config.Username,
-		cipher:   cipher,
 		obfsMode: config.ObfsMode,
 		obfsHost: config.ObfsHost,
 	}
@@ -143,13 +134,29 @@ func (ss *Shadowsocks) DialContext(ctx context.Context, metadata *M.Metadata) (c
 	// 设置 KeepAlive
 	proxy.SetKeepAlive(c)
 
+	// 为每个连接创建新的cipher实例，完全隔离状态
+	cipher, err := core.PickCipher(ss.method, nil, ss.password)
+	if err != nil {
+		logger.Error(fmt.Sprintf("[Shadowsocks] ✗ 创建cipher失败: %v", err))
+		c.Close()
+		return nil, fmt.Errorf("failed to create cipher: %w", err)
+	}
+
+	// 保存原始TCP连接，以便错误时清理
+	rawConn := c
+
 	// 延迟清理连接（如果出错）
-	defer func(c net.Conn) {
-		proxy.SafeConnClose(c, err)
-	}(c)
+	defer func() {
+		if err != nil {
+			// 只关闭原始TCP连接，让cipher.StreamConn()返回的包装器自行清理
+			if rawConn != nil {
+				rawConn.Close()
+			}
+		}
+	}()
 
 	// 使用加密包装连接
-	c = ss.cipher.StreamConn(c)
+	c = cipher.StreamConn(rawConn)
 
 	// 构建 SOCKS5 地址
 	socksAddr := proxy.SerializeSocksAddr(metadata)
@@ -200,8 +207,16 @@ func (ss *Shadowsocks) DialUDP(metadata *M.Metadata) (net.PacketConn, error) {
 		return nil, fmt.Errorf("resolve udp address %s: %w", ss.Addr(), err)
 	}
 
+	// 为这个UDP连接创建新的cipher实例
+	cipher, err := core.PickCipher(ss.method, nil, ss.password)
+	if err != nil {
+		pc.Close()
+		logger.Error(fmt.Sprintf("[Shadowsocks] ✗ UDP cipher创建失败: %v", err))
+		return nil, fmt.Errorf("failed to create cipher for UDP: %w", err)
+	}
+
 	// 使用加密包装 UDP 连接
-	pc = ss.cipher.PacketConn(pc)
+	pc = cipher.PacketConn(pc)
 
 	logger.Info(fmt.Sprintf("[Shadowsocks] ✓ UDP连接成功 目标: %s:%d", metadata.HostName, metadata.DstPort))
 
