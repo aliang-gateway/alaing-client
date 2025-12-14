@@ -10,7 +10,6 @@ import (
 
 	"nursor.org/nursorgate/common/logger"
 	"nursor.org/nursorgate/processor/config"
-	"nursor.org/nursorgate/processor/proxyserver"
 )
 
 const (
@@ -19,7 +18,11 @@ const (
 )
 
 // ActivateToken 激活Token并获取用户信息
-// 如果激活失败，尝试加载本地之前保存的用户信息
+// 激活成功返回用户信息（包含必要的credentials）
+// 注意：该函数仅处理Token激活，不处理proxyserver fetch
+// proxyserver fetch由上层调用者（通常是InitializeUser）处理，以便独立追踪fetch成功/失败
+//
+// 如果激活失败，尝试加载本地之前保存的用户信息作为fallback
 func ActivateToken(token string) (*UserInfo, error) {
 	if token == "" {
 		return nil, fmt.Errorf("token cannot be empty")
@@ -41,15 +44,7 @@ func ActivateToken(token string) (*UserInfo, error) {
 		// 更新运行时状态
 		SetInnerToken(userInfo.InnerToken)
 
-		// 获取并更新Door代理信息（网络优先策略）
-		if err := proxyserver.UpdateDoorProxies(userInfo.AccessToken); err != nil {
-			logger.Warn(fmt.Sprintf("Failed to update proxyserver proxies: %v", err))
-			// 不返回错误，因为激活已经成功，缺少代理不是致命错误
-		} else {
-			logger.Info("Successfully updated proxyserver proxies after token activation")
-		}
-
-		// 启动定时刷新
+		// 启动定时刷新（用于后续token更新）
 		startTokenRefresh()
 
 		config.SetUsingDefaultConfig(false)
@@ -67,16 +62,6 @@ func ActivateToken(token string) (*UserInfo, error) {
 
 		// 更新运行时状态
 		SetInnerToken(localUserInfo.InnerToken)
-
-		// 尝试更新Door代理信息（使用本地用户的AccessToken）
-		if localUserInfo.AccessToken != "" {
-			if err := proxyserver.UpdateDoorProxies(localUserInfo.AccessToken); err != nil {
-				logger.Warn(fmt.Sprintf("Failed to update proxyserver proxies from fallback user info: %v", err))
-				// 不返回错误，继续启动
-			} else {
-				logger.Info("Successfully updated proxyserver proxies from fallback user info")
-			}
-		}
 
 		// 启动定时刷新（尝试在后续刷新时重新激活）
 		startTokenRefresh()

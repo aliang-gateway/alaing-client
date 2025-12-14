@@ -23,6 +23,7 @@ type Handlers struct {
 	Stats         *handlers.StatsHandler
 	Cert          *handlers.CertHandler
 	Auth          *handlers.AuthHandler
+	Startup       *handlers.StartupHandler
 }
 
 // NewHandlers creates and initializes all handlers with their dependencies
@@ -52,6 +53,7 @@ func NewHandlers() *Handlers {
 		Stats:         handlers.NewStatsHandler(statistic.DefaultManager),
 		Cert:          handlers.NewCertHandler(certService),
 		Auth:          handlers.NewAuthHandler(),
+		Startup:       handlers.NewStartupHandler(),
 	}
 }
 
@@ -124,4 +126,8 @@ func RegisterRoutes(h *Handlers, mux *http.ServeMux) {
 	mux.HandleFunc("/api/dns/cache", h.DNSCache.GetCacheEntries)
 	mux.HandleFunc("/api/dns/stats", h.DNSCache.GetStatistics)
 	mux.HandleFunc("/api/dns/hotspots", h.DNSCache.GetHotspots)
+
+	// Startup Status API (/api/startup/*)
+	mux.HandleFunc("/api/startup/status", h.Startup.HandleStartupStatus)
+	mux.HandleFunc("/api/startup/detail", h.Startup.HandleStartupDetail)
 }

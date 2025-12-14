@@ -65,3 +65,20 @@ func SaveConfigToFile(cfg *Config, filePath string) error {
 	logger.Info(fmt.Sprintf("Configuration saved to: %s", filePath))
 	return nil
 }
+
+// ===== Test-Only Exports =====
+
+// ResetGlobalConfigForTest resets global config state for testing
+// This allows tests to run in isolation without state pollution
+func ResetGlobalConfigForTest() {
+	configMutex.Lock()
+	defer configMutex.Unlock()
+	globalConfig = nil
+
+	// Also reset the config state
+	state := GetConfigState()
+	state.mu.Lock()
+	defer state.mu.Unlock()
+	state.usingDefaultConfig = false
+	state.hasLocalUserInfo = false
+}

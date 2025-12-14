@@ -34,17 +34,10 @@ func registerInboundsToDoor(members []config.DoorProxyMember) error {
 		return fmt.Errorf("no members to register")
 	}
 
-	// DNS预解析和延迟测试（从converter.go迁移过来）
-	processedMembers, err := processMembersWithDNS(members)
-	if err != nil {
-		logger.Warn(fmt.Sprintf("DNS processing failed, using original members: %v", err))
-		processedMembers = members
-	}
-
 	// 创建Door配置
 	doorConfig := &config.DoorProxyConfig{
 		Type:    "door",
-		Members: processedMembers,
+		Members: members,
 	}
 
 	// 1. 更新全局配置（配置成为唯一真实来源）
@@ -59,7 +52,7 @@ func registerInboundsToDoor(members []config.DoorProxyMember) error {
 		return fmt.Errorf("proxy registry is not available")
 	}
 
-	logger.Info(fmt.Sprintf("Registering %d proxy members to Door proxy", len(processedMembers)))
+	logger.Info(fmt.Sprintf("Registering %d proxy members to Door proxy", len(members)))
 	if err := registry.RegisterDoorFromConfig(doorConfig); err != nil {
 		return err
 	}

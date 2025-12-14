@@ -21,8 +21,9 @@ func ChainHandlerFunc(handler http.HandlerFunc, middlewares ...func(http.Handler
 // GetDefaultMiddleware returns the default middleware stack for all routes
 func GetDefaultMiddleware() []func(http.Handler) http.Handler {
 	return []func(http.Handler) http.Handler{
-		TracingMiddleware,    // Outermost - first to process requests
-		LoggingMiddleware,    // Log all requests/responses
-		RecoveryMiddleware,   // Innermost - catch panics
+		TracingMiddleware,       // Outermost - first to process requests
+		StartupStatusMiddleware, // Gate APIs based on system startup status
+		LoggingMiddleware,       // Log all requests/responses
+		RecoveryMiddleware,      // Innermost - catch panics
 	}
 }
