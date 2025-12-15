@@ -1,6 +1,6 @@
 {
-  "api_server": "http://127.0.0.1:8000",
-  "nacos_server": "http://127.0.0.1:8848",
+  "api_server": "https://api.nonelane.com",
+  "nacos_server": "http://nacos.nursor.org",
   "currentProxy": "door",
   "baseProxies": {
     "nonelane": {

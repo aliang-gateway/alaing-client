@@ -97,7 +97,6 @@ func RegisterRoutes(h *Handlers, mux *http.ServeMux) {
 	mux.HandleFunc("/api/run/stop", h.Run.HandleRunStop)
 	mux.HandleFunc("/api/run/status", h.Run.HandleRunStatus)
 	mux.HandleFunc("/api/run/swift", h.Run.HandleRunSwift)
-	mux.HandleFunc("/api/run/mode", h.Run.HandleRunSwift) // Alias for /api/run/swift
 
 	// Routing Rules API (/api/rules/*)
 	mux.HandleFunc("/api/rules/geoip/status", h.Rules.HandleGetGeoIPStatus)

@@ -314,6 +314,59 @@ function hideLoading(element) {
     element.disabled = false;
 }
 
+// ============ 模态加载框 ============
+let modalLoadingInstance = null;
+
+/**
+ * 显示模态加载框
+ * @param {string} message - 提示文字 (默认: "加载中，请稍候...")
+ */
+function showModalLoading(message = '加载中，请稍候...') {
+    // 防止重复创建
+    if (modalLoadingInstance) {
+        return;
+    }
+
+    // 创建DOM结构
+    const overlay = document.createElement('div');
+    overlay.id = 'modal-loading-overlay';
+    overlay.className = 'modal-loading-overlay';
+    overlay.innerHTML = `
+        <div class="modal-loading-container">
+            <div class="modal-loading-spinner"></div>
+            <div class="modal-loading-text">${message}</div>
+        </div>
+    `;
+
+    // 插入到body
+    document.body.appendChild(overlay);
+    modalLoadingInstance = overlay;
+
+    // 防止背景滚动
+    document.body.style.overflow = 'hidden';
+}
+
+/**
+ * 隐藏模态加载框
+ */
+function hideModalLoading() {
+    if (!modalLoadingInstance) {
+        return;
+    }
+
+    // 添加淡出动画
+    modalLoadingInstance.classList.add('fade-out');
+
+    // 等待动画完成后移除
+    setTimeout(() => {
+        if (modalLoadingInstance && modalLoadingInstance.parentNode) {
+            modalLoadingInstance.parentNode.removeChild(modalLoadingInstance);
+            modalLoadingInstance = null;
+            document.body.style.overflow = '';
+        }
+    }, 200); // 与CSS动画时长一致
+}
+
 // 格式化日期时间
 function formatDateTime(isoString) {
     try {
@@ -821,19 +874,30 @@ document.getElementById('runStopBtn').addEventListener('click', () => {
 
 document.getElementById('runModeBtn').addEventListener('click', () => {
     const btn = event.target.closest('button');
-    const mode = document.querySelector('input[name="runMode"]:checked').value;
-    showLoading(btn);
-    apiPost('/run/mode', { mode: mode })
+    const currentMode = document.querySelector('input[name="runMode"]:checked').value;
+
+    var mode=currentMode;
+    if (currentMode=="http"){
+        mode="tun"
+    }else{
+        mode="http"
+    }
+    // 显示模态加载框（替换原来的 showLoading）
+    showModalLoading(`正在切换到 ${mode} 模式，请稍候...`);
+    
+    apiPost('/run/swift', { mode: mode })
         .then(() => {
+            hideModalLoading();
             showSuccess(`已切换到 ${mode} 模式`);
             loadRunStatus();
             loadDashboard();
         })
         .catch(error => {
+            hideModalLoading();
             showError('模式切换失败: ' + error.message);
         })
         .finally(() => {
-            hideLoading(btn);
+            btn.disabled = false;
         });
 });
 
