@@ -15,10 +15,12 @@ type BaseProxyConfig struct {
 
 // DoorProxyMember represents a member in a door proxy collection
 type DoorProxyMember struct {
-	ShowName string      `json:"showname"` // 显示名称
-	Type     string      `json:"type"`     // vless/shadowsocks/ss
-	Latency  int64       `json:"latency"`  // 延迟（毫秒）
-	Config   interface{} `json:"config"`   // 统一配置，通过type字段判断具体类型
+	ShowName   string      `json:"showname"`    // 显示名称
+	Type       string      `json:"type"`        // vless/shadowsocks/ss
+	Latency    int64       `json:"latency"`     // 延迟（毫秒）
+	LastUpdate int64       `json:"last_update"` // 最后更新时间戳
+	Status     string      `json:"status"`      // 状态：success/failed/unknown
+	Config     interface{} `json:"config"`      // 统一配置，通过type字段判断具体类型
 }
 
 // VLESSConfig represents VLESS protocol configuration

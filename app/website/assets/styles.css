@@ -806,3 +806,61 @@ body {
 .trust-status-info .badge {
     margin-left: 0.25rem;
 }
+
+/* ============ 延迟检测颜色编码 ============ */
+/* 延迟值颜色 - 优秀（<50ms）绿色 */
+.latency-excellent {
+    color: #28a745;
+    font-weight: 600;
+}
+
+/* 延迟值颜色 - 良好（50-150ms）浅绿 */
+.latency-good {
+    color: #20c997;
+    font-weight: 600;
+}
+
+/* 延迟值颜色 - 正常（150-300ms）黄色 */
+.latency-normal {
+    color: #ffc107;
+    font-weight: 600;
+}
+
+/* 延迟值颜色 - 缓慢（>300ms）橙色 */
+.latency-slow {
+    color: #fd7e14;
+    font-weight: 600;
+}
+
+/* 延迟值颜色 - 失败（-1）红色 */
+.latency-failed {
+    color: #dc3545;
+    font-weight: 600;
+}
+
+/* 延迟值颜色 - 未测试（0 或 null）灰色 */
+.latency-unknown {
+    color: #6c757d;
+    font-weight: 400;
+}
+
+/* 测试按钮加载状态 */
+#testLatencyBtn {
+    transition: all 0.3s ease;
+}
+
+#testLatencyBtn:disabled {
+    cursor: not-allowed;
+}
+
+#testLatencyBtn .spinner-border {
+    width: 1rem;
+    height: 1rem;
+    margin-right: 0.25rem;
+}
+
+/* 表格延迟列样式 */
+.table td:nth-child(4),
+.table th:nth-child(4) {
+    text-align: center;
+}

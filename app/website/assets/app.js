@@ -331,6 +331,21 @@ function formatDateTime(isoString) {
     }
 }
 
+// 格式化相对时间（从Unix时间戳）
+function formatRelativeTime(timestamp) {
+    if (!timestamp || timestamp === 0) return '未测试';
+
+    const now = Math.floor(Date.now() / 1000);
+    const diff = now - parseInt(timestamp);
+
+    if (diff < 0) return '刚才';
+    if (diff < 60) return '刚才';
+    if (diff < 3600) return Math.floor(diff / 60) + '分钟前';
+    if (diff < 86400) return Math.floor(diff / 3600) + '小时前';
+    if (diff < 2592000) return Math.floor(diff / 86400) + '天前';
+    return Math.floor(diff / 2592000) + '月前';
+}
+
 // ============ 仪表板功能 ============
 async function loadDashboard() {
     try {
@@ -466,6 +481,63 @@ document.getElementById('dashStopBtn').addEventListener('click', () => {
         });
 });
 
+// ============ 延迟测试功能 ============
+async function testProxyLatency() {
+    const btn = document.getElementById('testLatencyBtn');
+    if (!btn) return;
+
+    const originalText = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>测试中...';
+
+    try {
+        const result = await apiPost('/proxy/door/test-latency', {});
+
+        // 处理"testing"状态响应
+        if (result.status === 'testing') {
+            btn.innerHTML = '<i class="bi bi-hourglass-split"></i> 测试进行中';
+            btn.classList.add('btn-warning');
+            btn.classList.remove('btn-info');
+            setTimeout(() => {
+                btn.innerHTML = originalText;
+                btn.classList.remove('btn-warning');
+                btn.classList.add('btn-info');
+                btn.disabled = false;
+            }, 3000);
+            return;
+        }
+
+        // 测试完成，刷新代理数据
+        showSuccess('延迟测试完成');
+        await loadProxyData();
+
+        btn.innerHTML = '<i class="bi bi-check-circle"></i> 测试完成';
+        btn.classList.add('btn-success');
+        btn.classList.remove('btn-info');
+
+        setTimeout(() => {
+            btn.innerHTML = originalText;
+            btn.classList.remove('btn-success');
+            btn.classList.add('btn-info');
+            btn.disabled = false;
+        }, 2000);
+
+    } catch (error) {
+        console.error('Latency test failed:', error);
+        showError('延迟测试失败: ' + error.message);
+        btn.innerHTML = '<i class="bi bi-exclamation-circle"></i> 测试失败';
+        btn.classList.add('btn-danger');
+        btn.classList.remove('btn-info');
+
+        setTimeout(() => {
+            btn.innerHTML = originalText;
+            btn.classList.remove('btn-danger');
+            btn.classList.add('btn-info');
+            btn.disabled = false;
+        }, 3000);
+    }
+}
+
 // ============ 代理管理功能 ============
 async function loadProxyData() {
     try {
@@ -546,7 +618,7 @@ async function loadProxyData() {
         // 更新所有代理表格
         const tbody = document.getElementById('proxyTableBody');
         if (allProxies.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted">暂无代理</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted">暂无代理</td></tr>';
         } else {
             tbody.innerHTML = allProxies.map(proxy => {
                 // 判断是否是当前代理
@@ -555,11 +627,41 @@ async function loadProxyData() {
                 const displayName = proxy.name && proxy.name.startsWith('door:')
                     ? proxy.name.substring(5)
                     : proxy.name;
+
+                // 处理延迟显示
+                const latency = proxy.latency;
+                let latencyDisplay = '';
+                let latencyClass = '';
+
+                if (latency === -1) {
+                    latencyClass = 'latency-failed';
+                    latencyDisplay = '<span class="' + latencyClass + '">失败</span>';
+                } else if (latency === 0 || !latency) {
+                    latencyClass = 'latency-unknown';
+                    latencyDisplay = '<span class="' + latencyClass + '">未测试</span>';
+                } else if (latency < 50) {
+                    latencyClass = 'latency-excellent';
+                    latencyDisplay = '<span class="' + latencyClass + '">' + latency + 'ms</span>';
+                } else if (latency < 150) {
+                    latencyClass = 'latency-good';
+                    latencyDisplay = '<span class="' + latencyClass + '">' + latency + 'ms</span>';
+                } else if (latency < 300) {
+                    latencyClass = 'latency-normal';
+                    latencyDisplay = '<span class="' + latencyClass + '">' + latency + 'ms</span>';
+                } else {
+                    latencyClass = 'latency-slow';
+                    latencyDisplay = '<span class="' + latencyClass + '">' + latency + 'ms</span>';
+                }
+
+                // 最后更新时间
+                const lastUpdateTime = formatRelativeTime(proxy.last_update);
+
                 return `
                     <tr>
                         <td>${displayName || '-'}</td>
                         <td><span class="badge bg-primary">${proxy.type || 'Unknown'}</span></td>
                         <td>${proxy.addr || '-'}</td>
+                        <td class="text-center">${latencyDisplay} <small class="text-muted">(${lastUpdateTime})</small></td>
                         <td>
                             <button class="btn btn-sm btn-outline-primary" onclick="switchProxy('${proxy.name}')">
                                 ${isCurrent ? '✓ 当前' : '切换'}
@@ -653,6 +755,11 @@ document.getElementById('switchProxyBtn').addEventListener('click', () => {
         switchProxy(proxyName);
     }
 });
+
+// 延迟测试按钮事件监听
+if (document.getElementById('testLatencyBtn')) {
+    document.getElementById('testLatencyBtn').addEventListener('click', testProxyLatency);
+}
 
 // ============ 运行控制功能 ============
 async function loadRunStatus() {
@@ -1902,6 +2009,11 @@ document.querySelectorAll('.sidebar .nav-link').forEach(link => {
 document.addEventListener('DOMContentLoaded', () => {
     // 加载仪表板数据
     loadDashboard();
+
+    // 预加载用户信息（后台加载，用户点击"用户信息"时无需等待）
+    loadAuthUserInfo().catch(error => {
+        console.debug('Initial user info load failed (this is normal if no user is configured):', error);
+    });
 
     // 初始化按钮状态
     logWebSocket.updateConnectionStatus('disconnected');

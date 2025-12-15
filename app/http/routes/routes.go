@@ -24,6 +24,7 @@ type Handlers struct {
 	Cert          *handlers.CertHandler
 	Auth          *handlers.AuthHandler
 	Startup       *handlers.StartupHandler
+	Latency       *handlers.LatencyHandler
 }
 
 // NewHandlers creates and initializes all handlers with their dependencies
@@ -35,6 +36,7 @@ func NewHandlers() *Handlers {
 	tokenService := services.NewTokenService()
 	runService := services.NewRunService()
 	certService := services.NewCertService()
+	latencyService := services.NewLatencyService()
 
 	// Initialize repositories
 	proxyRepository := repositories.NewProxyRepository()
@@ -54,6 +56,7 @@ func NewHandlers() *Handlers {
 		Cert:          handlers.NewCertHandler(certService),
 		Auth:          handlers.NewAuthHandler(),
 		Startup:       handlers.NewStartupHandler(),
+		Latency:       handlers.NewLatencyHandler(latencyService),
 	}
 }
 
@@ -77,6 +80,7 @@ func RegisterRoutes(h *Handlers, mux *http.ServeMux) {
 	// Door proxy routes (/api/proxy/door/*)
 	mux.HandleFunc("/api/proxy/door/members", h.Door.HandleDoorMemberList)
 	mux.HandleFunc("/api/proxy/door/auto", h.Door.HandleDoorAutoSelect)
+	mux.HandleFunc("/api/proxy/door/test-latency", h.Latency.HandleTestAllMembers)
 
 	// Token routes (/api/token/*)
 	mux.HandleFunc("/api/token/get", h.Token.HandleTokenGet)

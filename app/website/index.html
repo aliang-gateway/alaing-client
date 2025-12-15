@@ -340,7 +340,12 @@
                     </div>
 
                     <div class="card mb-4">
-                        <div class="card-header">所有代理</div>
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <span>所有代理</span>
+                            <button type="button" class="btn btn-sm btn-info" id="testLatencyBtn">
+                                <i class="bi bi-speedometer2"></i> 测试延迟
+                            </button>
+                        </div>
                         <div class="card-body">
                             <div class="table-responsive">
                                 <table class="table">
@@ -349,13 +354,14 @@
                                             <th>名称</th>
                                             <th>类型</th>
                                             <th>地址</th>
+                                            <th>延迟</th>
                                             <th>操作</th>
                                             <th>详细</th>
                                         </tr>
                                     </thead>
                                     <tbody id="proxyTableBody">
                                         <tr>
-                                            <td colspan="4" class="text-center text-muted">加载中...</td>
+                                            <td colspan="6" class="text-center text-muted">加载中...</td>
                                         </tr>
                                     </tbody>
                                 </table>

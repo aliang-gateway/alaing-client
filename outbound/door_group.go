@@ -12,8 +12,9 @@ import (
 type DoorProxyMemberInfo struct {
 	ShowName   string
 	Proxy      proxy.Proxy
-	Latency    int64 // 延迟（毫秒）
-	LastUpdate int64 // 最后更新时间戳
+	Latency    int64  // 延迟（毫秒）
+	LastUpdate int64  // 最后更新时间戳
+	Status     string // 状态：success/failed/unknown
 }
 
 // DoorProxyGroup manages a collection of proxies for the door
@@ -33,7 +34,7 @@ func NewDoorProxyGroup() *DoorProxyGroup {
 }
 
 // AddMember adds a member to the door proxy group
-func (dpg *DoorProxyGroup) AddMember(showName string, proxy proxy.Proxy, latency int64) error {
+func (dpg *DoorProxyGroup) AddMember(showName string, proxy proxy.Proxy, latency int64, lastUpdate int64, status string) error {
 	if showName == "" {
 		return fmt.Errorf("showName cannot be empty")
 	}
@@ -44,11 +45,25 @@ func (dpg *DoorProxyGroup) AddMember(showName string, proxy proxy.Proxy, latency
 	dpg.mu.Lock()
 	defer dpg.mu.Unlock()
 
+	// 如果lastUpdate为0，使用当前时间
+	if lastUpdate == 0 {
+		lastUpdate = time.Now().Unix()
+	}
+	// 如果status为空，根据latency推断
+	if status == "" {
+		if latency >= 0 {
+			status = "success"
+		} else {
+			status = "unknown"
+		}
+	}
+
 	dpg.members[showName] = &DoorProxyMemberInfo{
 		ShowName:   showName,
 		Proxy:      proxy,
 		Latency:    latency,
-		LastUpdate: time.Now().Unix(),
+		LastUpdate: lastUpdate,
+		Status:     status,
 	}
 
 	return nil
@@ -158,7 +173,7 @@ func (dpg *DoorProxyGroup) EnableAutoSelect() {
 }
 
 // UpdateLatency updates the latency for a specific member
-func (dpg *DoorProxyGroup) UpdateLatency(showName string, latency int64) error {
+func (dpg *DoorProxyGroup) UpdateLatency(showName string, latency int64, status string) error {
 	dpg.mu.Lock()
 	defer dpg.mu.Unlock()
 
@@ -169,6 +184,7 @@ func (dpg *DoorProxyGroup) UpdateLatency(showName string, latency int64) error {
 
 	member.Latency = latency
 	member.LastUpdate = time.Now().Unix()
+	member.Status = status
 	return nil
 }
 

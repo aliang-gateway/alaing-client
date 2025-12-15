@@ -13,7 +13,9 @@ import (
 	"nursor.org/nursorgate/app"
 	"nursor.org/nursorgate/app/http/middleware"
 	"nursor.org/nursorgate/app/http/routes"
+	"nursor.org/nursorgate/app/http/services"
 	"nursor.org/nursorgate/common/logger"
+	"nursor.org/nursorgate/processor/latency"
 )
 
 var (
@@ -75,6 +77,13 @@ func registerAllRoutes() {
 	// Register all feature-grouped routes (using custom mux)
 	// registerRoutesWithMux(handlers)
 	routes.RegisterRoutes(handlers, mux)
+
+	// Initialize and start latency test manager
+	latencyService := services.NewLatencyService()
+	latencyManager := latency.NewLatencyTestManager(latencyService)
+	if err := latencyManager.Start(); err != nil {
+		logger.Error(fmt.Sprintf("Failed to start latency test manager: %v", err))
+	}
 
 	// Register static file server for web dashboard
 	registerStaticFiles()

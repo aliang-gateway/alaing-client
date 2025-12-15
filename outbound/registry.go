@@ -222,9 +222,12 @@ func (r *Registry) ListWithInfo() map[string]ProxyInfo {
 	info := make(map[string]ProxyInfo)
 	for name, p := range r.proxies {
 		info[name] = ProxyInfo{
-			Name: name,
-			Type: p.Proto().String(),
-			Addr: p.Addr(),
+			Name:       name,
+			Type:       p.Proto().String(),
+			Addr:       p.Addr(),
+			Latency:    0,
+			LastUpdate: 0,
+			Status:     "unknown",
 		}
 	}
 
@@ -236,9 +239,12 @@ func (r *Registry) ListWithInfo() map[string]ProxyInfo {
 			// 使用 "door:成员名" 作为键，以区分不同的 door 成员
 			memberKey := fmt.Sprintf("door:%s", member.ShowName)
 			info[memberKey] = ProxyInfo{
-				Name: memberKey,
-				Type: member.Proxy.Proto().String(),
-				Addr: member.Proxy.Addr(),
+				Name:       memberKey,
+				Type:       member.Proxy.Proto().String(),
+				Addr:       member.Proxy.Addr(),
+				Latency:    member.Latency,
+				LastUpdate: member.LastUpdate,
+				Status:     member.Status,
 			}
 		}
 	}
@@ -248,9 +254,12 @@ func (r *Registry) ListWithInfo() map[string]ProxyInfo {
 
 // ProxyInfo 代理信息
 type ProxyInfo struct {
-	Name string `json:"name"`
-	Type string `json:"type"`
-	Addr string `json:"addr"`
+	Name       string `json:"name"`
+	Type       string `json:"type"`
+	Addr       string `json:"addr"`
+	Latency    int64  `json:"latency"`
+	LastUpdate int64  `json:"last_update"`
+	Status     string `json:"status"`
 }
 
 // Count 返回已注册的代理数量
@@ -309,7 +318,7 @@ func (r *Registry) RegisterDoorFromConfig(doorCfg *proxyConfig.DoorProxyConfig) 
 		}
 
 		// 添加到 door group
-		if err := doorGroup.AddMember(member.ShowName, p, member.Latency); err != nil {
+		if err := doorGroup.AddMember(member.ShowName, p, member.Latency, member.LastUpdate, member.Status); err != nil {
 			return fmt.Errorf("failed to add member '%s': %w", member.ShowName, err)
 		}
 
@@ -363,7 +372,7 @@ func (r *Registry) ListDoorMembers() ([]DoorProxyMemberInfo, error) {
 }
 
 // UpdateDoorMemberLatency 更新 door 成员的延迟
-func (r *Registry) UpdateDoorMemberLatency(showName string, latency int64) error {
+func (r *Registry) UpdateDoorMemberLatency(showName string, latency int64, status string) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -371,7 +380,7 @@ func (r *Registry) UpdateDoorMemberLatency(showName string, latency int64) error
 		return fmt.Errorf("no door proxy group configured")
 	}
 
-	return r.doorGroup.UpdateLatency(showName, latency)
+	return r.doorGroup.UpdateLatency(showName, latency, status)
 }
 
 // GetDoorCurrentMember 获取当前选中的 door 成员名称
