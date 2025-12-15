@@ -1,11 +1,15 @@
 package handlers
 
 import (
+	"fmt"
 	"net/http"
 
 	"nursor.org/nursorgate/app/http/common"
 	"nursor.org/nursorgate/app/http/models"
 	"nursor.org/nursorgate/app/http/services"
+	"nursor.org/nursorgate/common/logger"
+	userAuth "nursor.org/nursorgate/processor/auth"
+	"nursor.org/nursorgate/processor/proxyserver"
 )
 
 // AuthHandler Token和用户认证处理器
@@ -35,6 +39,17 @@ func (h *AuthHandler) HandleActivateToken(w http.ResponseWriter, r *http.Request
 	}
 
 	result := h.authService.ActivateToken(req.Token)
+	go func() {
+		// 异步更新代理配置（不阻塞响应）
+		userInfo := userAuth.GetCurrentUserInfo()
+		if userInfo != nil && userInfo.AccessToken != "" {
+			if err := proxyserver.UpdateDoorProxies(userInfo.AccessToken); err != nil {
+				logger.Warn(fmt.Sprintf("Failed to fetch proxyserver config after token activation: %v", err))
+			} else {
+				logger.Info("Proxyserver config updated successfully after token activation")
+			}
+		}
+	}()
 	common.Success(w, result)
 }
 

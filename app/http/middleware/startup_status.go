@@ -36,8 +36,10 @@ func StartupStatusMiddleware(next http.Handler) http.Handler {
 
 		if status != runtime.READY {
 			// System not ready for proxy operations
-			respondSystemNotReady(w, status)
-			return
+			if path == "/api/run/start" {
+				respondSystemNotReady(w, status)
+				return
+			}
 		}
 
 		next.ServeHTTP(w, r)

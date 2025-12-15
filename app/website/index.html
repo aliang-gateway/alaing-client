@@ -68,17 +68,11 @@
                             </a>
                         </li>
                         <li class="nav-item">
-                            <a class="nav-link" href="#" data-page="tokens">
-                                <i class="bi bi-key"></i>
-                                Token
+                            <a class="nav-link" href="#" data-page="userinfo">
+                                <i class="bi bi-graph-up"></i>
+                                用户信息
                             </a>
                         </li>
-                        <!-- <li class="nav-item">
-                            <a class="nav-link" href="#" data-page="stats">
-                                <i class="bi bi-graph-up"></i>
-                                代理统计
-                            </a>
-                        </li> -->
                         <li class="nav-item">
                             <a class="nav-link" href="#" data-page="dnscache">
                                 <i class="bi bi-globe2"></i>
@@ -94,78 +88,6 @@
                 <!-- 仪表板页面 -->
                 <div id="dashboard-page" class="content-section active">
                     <h2 class="mb-4"><i class="bi bi-speedometer2"></i> 仪表板</h2>
-
-                    <!-- Token激活卡片 -->
-                    <div class="card mb-4">
-                        <div class="card-header">
-                            <i class="bi bi-key-fill me-2"></i> Token 激活
-                        </div>
-                        <div class="card-body">
-                            <div class="row mb-3">
-                                <div class="col-md-10">
-                                    <input type="text" class="form-control" id="authTokenInput" placeholder="输入激活 Token...">
-                                </div>
-                                <div class="col-md-2">
-                                    <button type="button" class="btn btn-primary w-100" id="authActivateBtn">
-                                        <i class="bi bi-play-fill"></i> 激活
-                                    </button>
-                                </div>
-                            </div>
-                            <div id="authActivateMessage" style="display: none;"></div>
-                        </div>
-                    </div>
-
-                    <!-- 用户信息卡片 -->
-                    <div class="card mb-4">
-                        <div class="card-header d-flex justify-content-between align-items-center">
-                            <span>
-                                <i class="bi bi-person-circle me-2"></i> 用户信息
-                            </span>
-                            <button type="button" class="btn btn-sm btn-danger" id="authLogoutBtn" style="display: none;">
-                                <i class="bi bi-box-arrow-right"></i> 登出
-                            </button>
-                        </div>
-                        <div class="card-body" id="authUserInfoContainer">
-                            <div class="text-center text-muted py-4">
-                                <p>暂无用户信息，请先激活 Token</p>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- 刷新状态卡片 -->
-                    <div class="card mb-4" id="authRefreshStatusCard" style="display: none;">
-                        <div class="card-header">
-                            <i class="bi bi-arrow-clockwise me-2"></i> 刷新状态
-                        </div>
-                        <div class="card-body">
-                            <div class="row g-3">
-                                <div class="col-md-4">
-                                    <div class="d-flex align-items-center">
-                                        <span class="me-2">自动刷新:</span>
-                                        <span id="authRefreshRunning" class="badge bg-secondary">未运行</span>
-                                    </div>
-                                </div>
-                                <div class="col-md-4">
-                                    <div class="d-flex align-items-center">
-                                        <span class="me-2">最后更新:</span>
-                                        <span id="authLastUpdate" class="text-muted">-</span>
-                                    </div>
-                                </div>
-                                <div class="col-md-4">
-                                    <div class="d-flex align-items-center">
-                                        <span class="me-2">刷新间隔:</span>
-                                        <span id="authRefreshInterval" class="text-muted">1 分钟</span>
-                                    </div>
-                                </div>
-                                <div class="col-12" id="authRefreshError" style="display: none;">
-                                    <div class="alert alert-warning mb-0" role="alert">
-                                        <i class="bi bi-exclamation-triangle-fill me-2"></i>
-                                        <span id="authRefreshErrorMsg"></span>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
 
                     <div class="row mb-4">
                         <div class="col-xl-3 col-md-6 mb-4">
@@ -557,24 +479,81 @@
                         </div>
                     </div>
 
-                    <div class="card">
-                        <div class="card-header">用户信息配置</div>
+                </div>
+
+                <!-- 用户信息页面 -->
+                <div id="userinfo-page" class="content-section">
+                    <h2 class="mb-4"><i class="bi bi-person-circle"></i> 用户信息</h2>
+
+                    <!-- Token激活卡片 -->
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            <i class="bi bi-key-fill me-2"></i> Token 激活
+                        </div>
                         <div class="card-body">
-                            <div class="mb-3">
-                                <label for="runUsername" class="form-label">用户名</label>
-                                <input type="text" class="form-control" id="runUsername" placeholder="输入用户名">
+                            <div class="row mb-3">
+                                <div class="col-md-10">
+                                    <input type="text" class="form-control" id="authTokenInput" placeholder="输入激活 Token...">
+                                </div>
+                                <div class="col-md-2">
+                                    <button type="button" class="btn btn-primary w-100" id="authActivateBtn">
+                                        <i class="bi bi-play-fill"></i> 激活
+                                    </button>
+                                </div>
                             </div>
-                            <div class="mb-3">
-                                <label for="runPassword" class="form-label">密码</label>
-                                <input type="password" class="form-control" id="runPassword" placeholder="输入密码">
-                            </div>
-                            <div class="mb-3">
-                                <label for="runUrl" class="form-label">服务器地址</label>
-                                <input type="text" class="form-control" id="runUrl" placeholder="输入服务器地址">
-                            </div>
-                            <button type="button" class="btn btn-success" id="runUserInfoBtn">
-                                <i class="bi bi-person-check"></i> 保存配置
+                            <div id="authActivateMessage" style="display: none;"></div>
+                        </div>
+                    </div>
+
+                    <!-- 用户信息卡片 -->
+                    <div class="card mb-4">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <span>
+                                <i class="bi bi-person-circle me-2"></i> 用户信息
+                            </span>
+                            <button type="button" class="btn btn-sm btn-danger" id="authLogoutBtn" style="display: none;">
+                                <i class="bi bi-box-arrow-right"></i> 登出
                             </button>
+                        </div>
+                        <div class="card-body" id="authUserInfoContainer">
+                            <div class="text-center text-muted py-4">
+                                <p>暂无用户信息，请先激活 Token</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 刷新状态卡片 -->
+                    <div class="card mb-4" id="authRefreshStatusCard" style="display: none;">
+                        <div class="card-header">
+                            <i class="bi bi-arrow-clockwise me-2"></i> 刷新状态
+                        </div>
+                        <div class="card-body">
+                            <div class="row g-3">
+                                <div class="col-md-4">
+                                    <div class="d-flex align-items-center">
+                                        <span class="me-2">自动刷新:</span>
+                                        <span id="authRefreshRunning" class="badge bg-secondary">未运行</span>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="d-flex align-items-center">
+                                        <span class="me-2">最后更新:</span>
+                                        <span id="authLastUpdate" class="text-muted">-</span>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="d-flex align-items-center">
+                                        <span class="me-2">刷新间隔:</span>
+                                        <span id="authRefreshInterval" class="text-muted">1 分钟</span>
+                                    </div>
+                                </div>
+                                <div class="col-12" id="authRefreshError" style="display: none;">
+                                    <div class="alert alert-warning mb-0" role="alert">
+                                        <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                                        <span id="authRefreshErrorMsg"></span>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -742,31 +721,6 @@
                     </div>
                 </div>
 
-                <!-- Token 页面 -->
-                <div id="tokens-page" class="content-section">
-                    <h2 class="mb-4"><i class="bi bi-key"></i> Token 管理</h2>
-
-                    <div class="card">
-                        <div class="card-header">访问 Token</div>
-                        <div class="card-body">
-                            <div class="mb-3">
-                                <label for="tokenOutput" class="form-label">当前 Token</label>
-                                <textarea class="form-control" id="tokenOutput" rows="5" placeholder="Token 将显示在这里"></textarea>
-                            </div>
-                            <div class="btn-group w-100">
-                                <button type="button" class="btn btn-primary" id="tokenRefreshBtn">
-                                    <i class="bi bi-arrow-clockwise"></i> 刷新
-                                </button>
-                                <button type="button" class="btn btn-success" id="tokenSaveBtn">
-                                    <i class="bi bi-save"></i> 保存
-                                </button>
-                                <button type="button" class="btn btn-secondary" id="tokenCopyBtn">
-                                    <i class="bi bi-clipboard"></i> 复制
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
 
                 <!-- 代理统计页面 -->
                 <div id="stats-page" class="content-section">

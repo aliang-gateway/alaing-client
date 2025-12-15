@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"errors"
 	"fmt"
 
 	"nursor.org/nursorgate/common/logger"
@@ -50,7 +51,7 @@ func InitializeUser(token string) error {
 			config.SetHasLocalUserInfo(false)
 			startupState.SetFetchSuccess(false)
 			startupState.SetStatus(runtime.UNCONFIGURED)
-			return fmt.Errorf(errMsg) // 返回错误，导致启动失败
+			return errors.New(errMsg)
 		}
 	} else {
 		// Step 2: 没有提供token，尝试加载本地用户信息

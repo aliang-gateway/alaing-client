@@ -1,5 +1,5 @@
 {
-  "api_server": "https://api.nonelane.com",
+  "api_server": "http://127.0.0.1:8000",
   "nonelane_core_server": "ai-gateway.nursor.org:443",
   "nacos_server": "http://nacos-config.nursor.org",
   "currentProxy": "door",
@@ -16,7 +16,7 @@
         "showname": "Forbiden",
         "type": "shadowsocks",
         "latency": 12,
-        "shadowsocks": {
+        "config": {
           "server_host": "127.0.0.1",
           "server_port": 12345,
           "method": "chacha20-ietf-poly1305",

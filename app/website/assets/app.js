@@ -669,33 +669,6 @@ document.getElementById('runModeBtn').addEventListener('click', () => {
         });
 });
 
-document.getElementById('runUserInfoBtn').addEventListener('click', () => {
-    const btn = event.target.closest('button');
-    const username = document.getElementById('runUsername').value;
-    const password = document.getElementById('runPassword').value;
-    const url = document.getElementById('runUrl').value;
-
-    if (!username || !password || !url) {
-        showError('请填写完整的用户信息');
-        return;
-    }
-
-    showLoading(btn);
-    apiPost('/run/userinfo', {
-        username: username,
-        password: password,
-        url: url
-    })
-        .then(() => {
-            showSuccess('用户信息更新成功');
-        })
-        .catch(error => {
-            showError('更新失败: ' + error.message);
-        })
-        .finally(() => {
-            hideLoading(btn);
-        });
-});
 
 // ============ 规则引擎功能 ============
 async function loadRulesData() {
@@ -1325,68 +1298,6 @@ document.getElementById('wsDisconnectBtn').addEventListener('click', () => {
     hideLoading(btn);
 });
 
-// ============ Token 管理 ============
-async function loadToken() {
-    try {
-        const token = await apiGet('/token/get');
-        document.getElementById('tokenOutput').value = token.token || '';
-    } catch (error) {
-        console.error('加载 Token 失败:', error);
-    }
-}
-
-document.getElementById('tokenRefreshBtn').addEventListener('click', () => {
-    const btn = event.target.closest('button');
-    showLoading(btn);
-    loadToken()
-        .then(() => {
-            showSuccess('Token 已刷新');
-        })
-        .catch(error => {
-            showError('刷新失败: ' + error.message);
-        })
-        .finally(() => {
-            hideLoading(btn);
-        });
-});
-
-document.getElementById('tokenSaveBtn').addEventListener('click', () => {
-    const btn = event.target.closest('button');
-    const token = document.getElementById('tokenOutput').value;
-
-    if (!token) {
-        showError('请输入 Token');
-        return;
-    }
-
-    showLoading(btn);
-    apiPost('/token/set', { token: token })
-        .then(() => {
-            showSuccess('Token 已保存');
-        })
-        .catch(error => {
-            showError('保存失败: ' + error.message);
-        })
-        .finally(() => {
-            hideLoading(btn);
-        });
-});
-
-document.getElementById('tokenCopyBtn').addEventListener('click', () => {
-    const token = document.getElementById('tokenOutput').value;
-    if (!token) {
-        showError('没有可复制的 Token');
-        return;
-    }
-
-    navigator.clipboard.writeText(token)
-        .then(() => {
-            showSuccess('Token 已复制到剪贴板');
-        })
-        .catch(error => {
-            showError('复制失败');
-        });
-});
 
 // ============ DNS 缓存管理 ============
 
@@ -1762,8 +1673,10 @@ function switchPage(page) {
         loadLogs();
         // 加载日志配置
         loadLogConfig();
-    } else if (page === 'tokens') {
-        loadToken();
+    } else if (page === 'userinfo') {
+        // 加载用户信息和刷新状态
+        loadAuthUserInfo();
+        loadRefreshStatus();
     } else if (page === 'stats') {
         loadStatsData();
         // 设置代理统计页面的定时刷新（每1.5秒）
@@ -2033,11 +1946,14 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // 页面加载时自动加载用户信息
-    loadAuthUserInfo();
-
-    // 定时刷新用户信息（每30秒）
-    setInterval(loadAuthUserInfo, 30000);
+    // 用户信息将在切换到 userinfo 页面时加载
+    // 定时刷新用户信息（每30秒）- 仅在 userinfo 页面时刷新
+    setInterval(() => {
+        if (appState.currentPage === 'userinfo') {
+            loadAuthUserInfo();
+            loadRefreshStatus();
+        }
+    }, 30000);
 
     // ===== Certificate Management =====
 

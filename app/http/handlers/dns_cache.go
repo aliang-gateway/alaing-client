@@ -13,7 +13,7 @@ import (
 
 // DNSCacheHandler handles DNS cache management API endpoints
 type DNSCacheHandler struct {
-	cache *cache.IPDomainCache
+	// cache is obtained dynamically via getCache() method
 }
 
 // NewDNSCacheHandler creates a new DNS cache handler
@@ -82,13 +82,20 @@ func (h *DNSCacheHandler) GetStatistics(w http.ResponseWriter, r *http.Request) 
 
 // GetHotspots returns hot domains and IPs
 func (h *DNSCacheHandler) GetHotspots(w http.ResponseWriter, r *http.Request) {
+	cache := h.getCache()
+	if cache == nil {
+		w.WriteHeader(http.StatusServiceUnavailable)
+		json.NewEncoder(w).Encode(map[string]string{"error": "DNS cache is not initialized"})
+		return
+	}
+
 	limitStr := r.URL.Query().Get("limit")
 	limit := 20
 	if l, err := strconv.Atoi(limitStr); err == nil && l > 0 {
 		limit = l
 	}
 
-	entries := h.getCache().GetAll()
+	entries := cache.GetAll()
 
 	// Find hotspot domains (top by hit count)
 	type DomainStat struct {
@@ -134,7 +141,7 @@ func (h *DNSCacheHandler) GetHotspots(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Get hotspot IPs
-	ipList := h.getCache().GetHotspotIPs(limit)
+	ipList := cache.GetHotspotIPs(limit)
 
 	type IPStat struct {
 		IP                string   `json:"ip"`
@@ -162,6 +169,13 @@ func (h *DNSCacheHandler) GetHotspots(w http.ResponseWriter, r *http.Request) {
 
 // QueryDomain queries a specific domain
 func (h *DNSCacheHandler) QueryDomain(w http.ResponseWriter, r *http.Request) {
+	cache := h.getCache()
+	if cache == nil {
+		w.WriteHeader(http.StatusServiceUnavailable)
+		json.NewEncoder(w).Encode(map[string]string{"error": "DNS cache is not initialized"})
+		return
+	}
+
 	domain := r.URL.Query().Get("domain")
 	if domain == "" {
 		w.WriteHeader(http.StatusBadRequest)
@@ -169,7 +183,7 @@ func (h *DNSCacheHandler) QueryDomain(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	entry, found := h.getCache().GetByDomain(domain)
+	entry, found := cache.GetByDomain(domain)
 	if !found {
 		w.WriteHeader(http.StatusNotFound)
 		json.NewEncoder(w).Encode(map[string]string{"error": "domain not found in cache"})
@@ -195,6 +209,13 @@ func (h *DNSCacheHandler) QueryDomain(w http.ResponseWriter, r *http.Request) {
 
 // ReverseQuery performs IP reverse query
 func (h *DNSCacheHandler) ReverseQuery(w http.ResponseWriter, r *http.Request) {
+	cache := h.getCache()
+	if cache == nil {
+		w.WriteHeader(http.StatusServiceUnavailable)
+		json.NewEncoder(w).Encode(map[string]string{"error": "DNS cache is not initialized"})
+		return
+	}
+
 	ipStr := r.URL.Query().Get("ip")
 	if ipStr == "" {
 		w.WriteHeader(http.StatusBadRequest)
@@ -217,8 +238,8 @@ func (h *DNSCacheHandler) ReverseQuery(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	entries := h.getCache().GetByIP(addr)
-	stats := h.getCache().GetIPStatistics(addr)
+	entries := cache.GetByIP(addr)
+	stats := cache.GetIPStatistics(addr)
 
 	type DomainInfo struct {
 		Domain   string   `json:"domain"`
@@ -228,19 +249,17 @@ func (h *DNSCacheHandler) ReverseQuery(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var domains []*DomainInfo
-	if entries != nil {
-		for _, entry := range entries {
-			sources := make([]string, len(entry.BindingSources))
-			for i, src := range entry.BindingSources {
-				sources[i] = string(src)
-			}
-			domains = append(domains, &DomainInfo{
-				Domain:   entry.Domain,
-				Route:    string(entry.Route),
-				Sources:  sources,
-				HitCount: entry.HitCount,
-			})
+	for _, entry := range entries {
+		sources := make([]string, len(entry.BindingSources))
+		for i, src := range entry.BindingSources {
+			sources[i] = string(src)
 		}
+		domains = append(domains, &DomainInfo{
+			Domain:   entry.Domain,
+			Route:    string(entry.Route),
+			Sources:  sources,
+			HitCount: entry.HitCount,
+		})
 	}
 
 	var result map[string]interface{}
@@ -269,6 +288,13 @@ func (h *DNSCacheHandler) ReverseQuery(w http.ResponseWriter, r *http.Request) {
 
 // DeleteEntry deletes a cache entry by domain
 func (h *DNSCacheHandler) DeleteEntry(w http.ResponseWriter, r *http.Request) {
+	cache := h.getCache()
+	if cache == nil {
+		w.WriteHeader(http.StatusServiceUnavailable)
+		json.NewEncoder(w).Encode(map[string]string{"error": "DNS cache is not initialized"})
+		return
+	}
+
 	domain := r.PathValue("domain")
 	if domain == "" {
 		w.WriteHeader(http.StatusBadRequest)
@@ -276,7 +302,7 @@ func (h *DNSCacheHandler) DeleteEntry(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.getCache().Delete(domain)
+	cache.Delete(domain)
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{
@@ -287,7 +313,14 @@ func (h *DNSCacheHandler) DeleteEntry(w http.ResponseWriter, r *http.Request) {
 
 // ClearAll clears all cache entries
 func (h *DNSCacheHandler) ClearAll(w http.ResponseWriter, r *http.Request) {
-	h.getCache().Clear()
+	cache := h.getCache()
+	if cache == nil {
+		w.WriteHeader(http.StatusServiceUnavailable)
+		json.NewEncoder(w).Encode(map[string]string{"error": "DNS cache is not initialized"})
+		return
+	}
+
+	cache.Clear()
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{

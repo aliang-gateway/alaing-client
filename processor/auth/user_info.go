@@ -1,7 +1,6 @@
 package user
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -171,59 +170,7 @@ func LoadUserInfo() (*UserInfo, error) {
 
 		return decryptedInfo, nil
 	}
-
-	// 新格式失败，尝试旧格式（字段级加密）
-	logger.Debug("New format decryption failed, attempting old format")
-
-	// 检查是否是旧格式（JSON结构）
-	var encryptedInfo UserInfo
-	if err := json.Unmarshal(data, &encryptedInfo); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal user info (both formats): %w", err)
-	}
-
-	// 尝试解密旧格式的字段
-	accessToken, accessTokenErr := DecryptField(encryptedInfo.AccessToken)
-	refreshToken, refreshTokenErr := DecryptField(encryptedInfo.RefreshToken)
-	innerToken, innerTokenErr := DecryptField(encryptedInfo.InnerToken)
-
-	// 如果字段级解密失败，说明不是旧格式
-	if accessTokenErr != nil || refreshTokenErr != nil || innerTokenErr != nil {
-		return nil, fmt.Errorf("user info file format not recognized (tried both new and old formats)")
-	}
-
-	// 成功解密旧格式，创建解密后的用户信息
-	decryptedInfo = &UserInfo{
-		AccessToken:  accessToken,
-		RefreshToken: refreshToken,
-		Username:     encryptedInfo.Username,
-		PlanName:     encryptedInfo.PlanName,
-		TrafficUsed:  encryptedInfo.TrafficUsed,
-		TrafficTotal: encryptedInfo.TrafficTotal,
-		AIAskUsed:    encryptedInfo.AIAskUsed,
-		AIAskTotal:   encryptedInfo.AIAskTotal,
-		StartTime:    encryptedInfo.StartTime,
-		EndTime:      encryptedInfo.EndTime,
-		PlanType:     encryptedInfo.PlanType,
-		InnerToken:   innerToken,
-		UpdatedAt:    encryptedInfo.UpdatedAt,
-	}
-
-	logger.Info("User info loaded from old format (field-level encryption), migrating to new format...")
-
-	// 自动迁移到新格式
-	if err := SaveUserInfo(decryptedInfo); err != nil {
-		logger.Warn(fmt.Sprintf("Failed to migrate user info to new format: %v", err))
-		// 继续返回解密的用户信息，迁移失败不应该阻止启动
-	} else {
-		logger.Info("User info successfully migrated to new format (whole-file encryption)")
-	}
-
-	// 更新内存中的用户信息
-	userInfoMutex.Lock()
-	currentUserInfo = decryptedInfo
-	userInfoMutex.Unlock()
-
-	return decryptedInfo, nil
+	return nil, fmt.Errorf("failed to load user info: %w", err)
 }
 
 // UpdateUserInfo 更新用户信息并保存
