@@ -32,23 +32,6 @@ func (rh *RunHandler) HandleRunStop(w http.ResponseWriter, r *http.Request) {
 	common.Success(w, result)
 }
 
-// HandleRunUserInfo handles POST /api/run/userInfo
-func (rh *RunHandler) HandleRunUserInfo(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		UserUUID   string `json:"user_uuid"`
-		InnerToken string `json:"inner_token"`
-		Username   string `json:"username"`
-		Password   string `json:"password"`
-	}
-	if err := common.DecodeRequest(r, &req); err != nil {
-		common.ErrorBadRequest(w, "Invalid request body", nil)
-		return
-	}
-
-	result := rh.runService.SetUserInfo(req.UserUUID, req.InnerToken, req.Username, req.Password)
-	common.Success(w, result)
-}
-
 // HandleRunStatus handles GET /api/run/status
 func (rh *RunHandler) HandleRunStatus(w http.ResponseWriter, r *http.Request) {
 	result := rh.runService.GetStatus()

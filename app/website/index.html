@@ -11,6 +11,8 @@
     <link href="/assets/bootstrap-icons.css" rel="stylesheet">
     <!-- 自定义样式 -->
     <link href="/assets/styles.css" rel="stylesheet">
+    <!-- Chart.js 用于实时流量图表 -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 </head>
 <body>
     <!-- 顶部导航栏 -->
@@ -262,6 +264,20 @@
                                         </tr>
                                     </tbody>
                                 </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 实时流量趋势图 -->
+                    <div class="card shadow mb-4">
+                        <div class="card-header py-3">
+                            <h6 class="m-0 font-weight-bold text-primary">
+                                <i class="bi bi-graph-up"></i> 实时流量监控
+                            </h6>
+                        </div>
+                        <div class="card-body">
+                            <div style="height: 350px; position: relative;">
+                                <canvas id="trafficChart"></canvas>
                             </div>
                         </div>
                     </div>

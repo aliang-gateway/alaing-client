@@ -23,7 +23,62 @@ const appState = {
     statusPollingInterval: null
 };
 
-// ============ API 客户端 ============
+// ============ 流量图表数据管理 ============
+const chartDataManager = {
+    maxPoints: 60,  // 保留60个数据点（90秒，1.5秒/点）
+
+    // 历史数据
+    data: {
+        timestamps: [],      // 时间戳（ms）
+        uploadSpeeds: [],    // Bytes/s
+        downloadSpeeds: []   // Bytes/s
+    },
+
+    // 上一次的累计值（用于计算速率）
+    lastValues: {
+        uploadTotal: 0,
+        downloadTotal: 0,
+        timestamp: 0
+    },
+
+    // 添加数据点
+    addPoint(uploadTotal, downloadTotal) {
+        const now = Date.now();
+        const timeDelta = (now - this.lastValues.timestamp) / 1000;  // 秒
+
+        // 计算速率（Bytes/s）
+        const uploadSpeed = timeDelta > 0 ?
+            Math.max(0, (uploadTotal - this.lastValues.uploadTotal) / timeDelta) : 0;
+        const downloadSpeed = timeDelta > 0 ?
+            Math.max(0, (downloadTotal - this.lastValues.downloadTotal) / timeDelta) : 0;
+
+        // 追加数据
+        this.data.timestamps.push(now);
+        this.data.uploadSpeeds.push(uploadSpeed);
+        this.data.downloadSpeeds.push(downloadSpeed);
+
+        // 保留最近N个点
+        if (this.data.timestamps.length > this.maxPoints) {
+            this.data.timestamps.shift();
+            this.data.uploadSpeeds.shift();
+            this.data.downloadSpeeds.shift();
+        }
+
+        // 保存当前值
+        this.lastValues.uploadTotal = uploadTotal;
+        this.lastValues.downloadTotal = downloadTotal;
+        this.lastValues.timestamp = now;
+    },
+
+    clear() {
+        this.data = { timestamps: [], uploadSpeeds: [], downloadSpeeds: [] };
+        this.lastValues = { uploadTotal: 0, downloadTotal: 0, timestamp: 0 };
+    }
+};
+
+// 全局图表实例
+let charts = {};
+
 const API_BASE = 'http://127.0.0.1:56431/api';
 
 async function apiCall(endpoint, options = {}) {
@@ -343,6 +398,12 @@ async function loadDashboard() {
         
         // 更新按钮状态
         updateButtonStates();
+
+        // 加载统计数据
+        await loadStatsData().catch(error => console.error('Failed to load stats:', error));
+
+        // 初始化图表
+        initChart();
     } catch (error) {
         console.error('加载仪表板数据失败:', error);
     }
@@ -1329,6 +1390,104 @@ function formatBytes(bytes, decimals = 2) {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
 }
 
+// ============ 图表管理函数 ============
+
+// 初始化流量趋势图表
+function initChart() {
+    if (document.getElementById('trafficChart')) {
+        const ctx = document.getElementById('trafficChart').getContext('2d');
+        charts.traffic = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: [],
+                datasets: [
+                    {
+                        label: '上传 (Bytes/s)',
+                        data: [],
+                        borderColor: '#dc3545',
+                        backgroundColor: 'rgba(220, 53, 69, 0.05)',
+                        borderWidth: 2,
+                        tension: 0.3,
+                        fill: true,
+                        pointRadius: 0,
+                        pointHoverRadius: 5
+                    },
+                    {
+                        label: '下载 (Bytes/s)',
+                        data: [],
+                        borderColor: '#0d6efd',
+                        backgroundColor: 'rgba(13, 110, 253, 0.05)',
+                        borderWidth: 2,
+                        tension: 0.3,
+                        fill: true,
+                        pointRadius: 0,
+                        pointHoverRadius: 5
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: { mode: 'index', intersect: false },
+                plugins: {
+                    legend: { display: true, position: 'top' },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                let label = context.dataset.label || '';
+                                if (label) {
+                                    label += ': ';
+                                }
+                                label += formatBytes(context.parsed.y) + '/s';
+                                return label;
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            callback: function(value) {
+                                return formatBytes(value) + '/s';
+                            }
+                        }
+                    },
+                    x: {
+                        ticks: {
+                            maxTicksLimit: 10
+                        }
+                    }
+                }
+            }
+        });
+    }
+}
+
+// 更新图表数据
+function updateChartData(statsData) {
+    // 添加新数据点
+    chartDataManager.addPoint(
+        statsData.uploadTotal || 0,
+        statsData.downloadTotal || 0
+    );
+
+    // 更新流量图
+    if (charts.traffic) {
+        const timeLabels = chartDataManager.data.timestamps.map(ts => {
+            const date = new Date(ts);
+            return date.toLocaleTimeString();
+        });
+
+        charts.traffic.data.labels = timeLabels;
+        charts.traffic.data.datasets[0].data = chartDataManager.data.uploadSpeeds;
+        charts.traffic.data.datasets[1].data = chartDataManager.data.downloadSpeeds;
+        charts.traffic.update('none'); // 不使用动画，防止图表卡顿
+    }
+}
+
+// ============ 统计数据加载 ============
+
 // 加载代理统计数据
 async function loadStatsData() {
     try {
@@ -1357,6 +1516,9 @@ async function loadStatsData() {
 
         // 更新代理分布表格
         renderStatsTable(response.byRoute);
+
+        // 更新图表数据
+        updateChartData(response);
     } catch (error) {
         console.error('Failed to load stats data:', error);
     }
@@ -1660,7 +1822,18 @@ function switchPage(page) {
     appState.currentPage = page;
 
     // 触发页面特定的初始化
-    if (page === 'proxy') {
+    if (page === 'dashboard') {
+        // 加载仪表板和统计数据
+        loadDashboard();
+        // 设置仪表板统计数据定时刷新（每1.5秒）
+        const dashboardStatsInterval = setInterval(() => {
+            if (appState.currentPage === 'dashboard') {
+                loadStatsData().catch(error => console.error('Failed to load stats:', error));
+            } else {
+                clearInterval(dashboardStatsInterval);
+            }
+        }, 1500);
+    } else if (page === 'proxy') {
         loadProxyData();
     } else if (page === 'run') {
         loadRunStatus();

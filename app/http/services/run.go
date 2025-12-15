@@ -8,7 +8,6 @@ import (
 	httpServer "nursor.org/nursorgate/inbound/http"
 	tun "nursor.org/nursorgate/inbound/tun/engine"
 	runner2 "nursor.org/nursorgate/inbound/tun/runner"
-	user "nursor.org/nursorgate/processor/auth"
 	"nursor.org/nursorgate/processor/config"
 )
 
@@ -172,37 +171,6 @@ func (rs *RunService) StopService() map[string]interface{} {
 	}
 
 	return response
-}
-
-// SetUserInfo sets user information (now optional, as user info is obtained through token activation)
-// Only sets provided parameters; empty parameters are ignored for backward compatibility
-func (rs *RunService) SetUserInfo(userUUID, innerToken, username, password string) map[string]interface{} {
-	// Only set parameters if provided (non-empty)
-	if innerToken != "" {
-		logger.SetUserInfo(innerToken)
-	}
-	if username != "" {
-		user.SetUsername(username)
-	}
-	if password != "" {
-		user.SetPassword(password)
-	}
-	if userUUID != "" {
-		user.SetUserUUID(userUUID)
-	}
-
-	// If at least one parameter was provided, log it
-	if userUUID != "" || innerToken != "" || username != "" || password != "" {
-		logger.Info("user info updated (parameters provided)")
-	} else {
-		logger.Debug("user info endpoint called with no parameters (user info is obtained from token activation)")
-	}
-
-	return map[string]interface{}{
-		"status":  "success",
-		"message": "User info processed (note: user information is automatically obtained through token activation at /api/auth/activate)",
-		"user_id": user.GetUserId(),
-	}
 }
 
 // GetStatus returns the current service status

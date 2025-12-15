@@ -91,7 +91,6 @@ func RegisterRoutes(h *Handlers, mux *http.ServeMux) {
 	// Run mode routes (/api/run/*)
 	mux.HandleFunc("/api/run/start", h.Run.HandleRunStart)
 	mux.HandleFunc("/api/run/stop", h.Run.HandleRunStop)
-	mux.HandleFunc("/api/run/userInfo", h.Run.HandleRunUserInfo)
 	mux.HandleFunc("/api/run/status", h.Run.HandleRunStatus)
 	mux.HandleFunc("/api/run/swift", h.Run.HandleRunSwift)
 	mux.HandleFunc("/api/run/mode", h.Run.HandleRunSwift) // Alias for /api/run/swift

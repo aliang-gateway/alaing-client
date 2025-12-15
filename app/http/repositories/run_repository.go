@@ -46,11 +46,6 @@ func (rr *RunRepositoryImpl) StopService() map[string]interface{} {
 	return rr.runService.StopService()
 }
 
-// SetUserInfo sets user information
-func (rr *RunRepositoryImpl) SetUserInfo(userUUID, innerToken, username, password string) map[string]interface{} {
-	return rr.runService.SetUserInfo(userUUID, innerToken, username, password)
-}
-
 // GetStatus returns the current service status
 func (rr *RunRepositoryImpl) GetStatus() map[string]interface{} {
 	return rr.runService.GetStatus()
