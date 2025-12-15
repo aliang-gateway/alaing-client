@@ -62,7 +62,7 @@ func TestInitializeUserNoTokenNoLocalUser(t *testing.T) {
 		"should have no local user info at start")
 
 	// Call InitializeUser with empty token
-	err = cmd.InitializeUser("")
+	err = cmd.InitializeUser("tRo0tlzBCo2XBAL8fE")
 
 	// Verify it returns nil (allows startup to continue)
 	assert.Nil(t, err,
