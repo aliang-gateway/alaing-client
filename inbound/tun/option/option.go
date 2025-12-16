@@ -3,12 +3,12 @@ package option
 import (
 	"fmt"
 
-	"golang.org/x/time/rate"
 	"github.com/sagernet/gvisor/pkg/tcpip"
 	"github.com/sagernet/gvisor/pkg/tcpip/network/ipv4"
 	"github.com/sagernet/gvisor/pkg/tcpip/network/ipv6"
 	"github.com/sagernet/gvisor/pkg/tcpip/stack"
 	"github.com/sagernet/gvisor/pkg/tcpip/transport/tcp"
+	"golang.org/x/time/rate"
 )
 
 const (
@@ -54,11 +54,13 @@ const (
 
 	// tcpDefaultBufferSize is the default size of the send buffer for
 	// a transport endpoint.
-	tcpDefaultSendBufferSize = tcp.DefaultSendBufferSize
+	// Increased to 256KB for better throughput (was tcp.DefaultSendBufferSize)
+	tcpDefaultSendBufferSize = 256 << 10 // 256 KB
 
 	// tcpDefaultReceiveBufferSize is the default size of the receive buffer
 	// for a transport endpoint.
-	tcpDefaultReceiveBufferSize = tcp.DefaultReceiveBufferSize
+	// Increased to 256KB for better throughput (was tcp.DefaultReceiveBufferSize)
+	tcpDefaultReceiveBufferSize = 256 << 10 // 256 KB
 )
 
 type Option func(*stack.Stack) error

@@ -1,6 +1,6 @@
 {
   "api_server": "https://api.nonelane.com",
-  "nacos_server": "http://nacos.nursor.org",
+  "nacos_server": "http://nacos-config.nursor.org",
   "currentProxy": "door",
   "baseProxies": {
     "nonelane": {

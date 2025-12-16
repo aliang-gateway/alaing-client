@@ -22,6 +22,11 @@ const (
 	tcpWaitTimeout = 60 * time.Second
 	// udpSessionTimeout is the default timeout for UDP sessions.
 	udpSessionTimeout = 60 * time.Second
+
+	// tcpWorkerCount is the number of TCP worker goroutines
+	tcpWorkerCount = 100
+	// udpWorkerCount is the number of UDP worker goroutines
+	udpWorkerCount = 50
 )
 
 var _ adapter.TransportHandler = (*Tunnel)(nil)
@@ -47,8 +52,8 @@ type Tunnel struct {
 
 func New(dialer proxy.Dialer, manager *statistic.Manager) *Tunnel {
 	return &Tunnel{
-		tcpQueue:   make(chan adapter.TCPConn),
-		udpQueue:   make(chan adapter.UDPConn),
+		tcpQueue:   make(chan adapter.TCPConn, 512),
+		udpQueue:   make(chan adapter.UDPConn, 128),
 		udpTimeout: atomic.NewDuration(udpSessionTimeout),
 		dialer:     dialer,
 		manager:    manager,
@@ -81,16 +86,49 @@ func (t *Tunnel) process(ctx context.Context) {
 			debug.PrintStack()
 		}
 	}()
-	for {
-		select {
-		case conn := <-t.tcpQueue:
-			go t.handleTCPConn(conn)
-		case conn := <-t.udpQueue:
-			go t.handleUDPConn(conn)
-		case <-ctx.Done():
-			return
-		}
+
+	// Start TCP worker pool
+	for i := 0; i < tcpWorkerCount; i++ {
+		go func(workerID int) {
+			defer func() {
+				if r := recover(); r != nil {
+					logger.Error(fmt.Sprintf("TCP worker %d panic: %v", workerID, r))
+					debug.PrintStack()
+				}
+			}()
+			for {
+				select {
+				case conn := <-t.tcpQueue:
+					t.handleTCPConn(conn)
+				case <-ctx.Done():
+					return
+				}
+			}
+		}(i)
 	}
+
+	// Start UDP worker pool
+	for i := 0; i < udpWorkerCount; i++ {
+		go func(workerID int) {
+			defer func() {
+				if r := recover(); r != nil {
+					logger.Error(fmt.Sprintf("UDP worker %d panic: %v", workerID, r))
+					debug.PrintStack()
+				}
+			}()
+			for {
+				select {
+				case conn := <-t.udpQueue:
+					t.handleUDPConn(conn)
+				case <-ctx.Done():
+					return
+				}
+			}
+		}(i)
+	}
+
+	// Wait for context cancellation
+	<-ctx.Done()
 }
 
 // ProcessAsync can be safely called multiple times, but will only be effective once.
