@@ -6,11 +6,15 @@ import (
 	"math/rand"
 	"net"
 	"net/http"
+	"net/url"
+	"strconv"
 	"sync"
 	"time"
 
 	"nursor.org/nursorgate/common/logger"
+	M "nursor.org/nursorgate/inbound/tun/metadata"
 	"nursor.org/nursorgate/outbound"
+	"nursor.org/nursorgate/outbound/proxy"
 )
 
 // LatencyService provides latency testing functionality for door proxy members
@@ -241,9 +245,14 @@ func (s *LatencyService) testMemberLatency(ctx context.Context, member *outbound
 func (s *LatencyService) measureLatency(ctx context.Context, member *outbound.DoorProxyMemberInfo, testURL string) int64 {
 	start := time.Now()
 
-	// Create a custom HTTP client that uses the target proxy
-	// Note: This is a simplified implementation that doesn't actually route through the proxy
-	// In a real implementation, you would need to configure the HTTP client to use the proxy
+	// Create a proxy-specific HTTP client that routes through the member's proxy
+	proxyClient, err := createProxyHTTPClient(member.Proxy, s.timeout, testURL)
+	if err != nil {
+		logger.Debug(fmt.Sprintf("Failed to create proxy client for %s: %v", member.ShowName, err))
+		return -1
+	}
+
+	// Create the request
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, testURL, nil)
 	if err != nil {
 		logger.Debug(fmt.Sprintf("Failed to create request for %s: %v", member.ShowName, err))
@@ -256,20 +265,77 @@ func (s *LatencyService) measureLatency(ctx context.Context, member *outbound.Do
 
 	req = req.WithContext(ctx)
 
-	// Make the request
-	resp, err := s.httpClient.Do(req)
+	// Make the request through the proxy
+	resp, err := proxyClient.Do(req)
 	if err != nil {
 		logger.Debug(fmt.Sprintf("Latency test failed for %s (URL: %s): %v", member.ShowName, testURL, err))
 		return -1
 	}
 	defer resp.Body.Close()
 
+	// Verify response status
+	if resp.StatusCode < 200 || resp.StatusCode >= 400 {
+		logger.Debug(fmt.Sprintf("Latency test for %s returned non-success status: %d", member.ShowName, resp.StatusCode))
+		return -1
+	}
+
 	elapsed := time.Since(start)
 	latencyMs := elapsed.Milliseconds()
 
-	logger.Debug(fmt.Sprintf("Latency test for %s: %d ms (attempt)", member.ShowName, latencyMs))
+	logger.Debug(fmt.Sprintf("✓ Latency test for %s via proxy %s: %d ms", member.ShowName, member.Proxy.Addr(), latencyMs))
 
 	return latencyMs
+}
+
+// createProxyHTTPClient creates an HTTP client that routes requests through a specific proxy
+// This allows latency testing to measure actual proxy performance rather than direct connections
+func createProxyHTTPClient(proxyInstance proxy.Proxy, timeout time.Duration, testURL string) (*http.Client, error) {
+	// Parse the test URL to extract host and port
+	u, err := url.Parse(testURL)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse test URL: %w", err)
+	}
+
+	host := u.Hostname()
+	port := u.Port()
+	if port == "" {
+		// Set default port based on scheme
+		if u.Scheme == "https" {
+			port = "443"
+		} else {
+			port = "80"
+		}
+	}
+
+	// Convert port to uint16
+	portNum, err := strconv.ParseUint(port, 10, 16)
+	if err != nil {
+		return nil, fmt.Errorf("invalid port number: %w", err)
+	}
+
+	// Create custom transport that uses the proxy's DialContext
+	transport := &http.Transport{
+		MaxIdleConns:        10,
+		MaxIdleConnsPerHost: 2,
+		IdleConnTimeout:     30 * time.Second,
+		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+			// Create metadata for proxy dialing
+			metadata := &M.Metadata{
+				Network:  M.TCP,
+				HostName: host,
+				DstPort:  uint16(portNum),
+			}
+
+			// Use the proxy's DialContext to establish connection
+			logger.Debug(fmt.Sprintf("Dialing %s:%d via proxy %s", host, portNum, proxyInstance.Addr()))
+			return proxyInstance.DialContext(ctx, metadata)
+		},
+	}
+
+	return &http.Client{
+		Timeout:   timeout,
+		Transport: transport,
+	}, nil
 }
 
 // GetTestURLs returns the list of test URLs

@@ -170,16 +170,23 @@ func initializeRuleEngineForTUN() error {
 		}
 
 		logger.Info("✓ Rule engine initialized with default DNS cache for TUN mode")
-		return nil
+	} else {
+		// 使用配置文件中的 routing rules
+		ruleEngine := rules.GetEngine()
+		err := ruleEngine.Initialize(globalCfg.RoutingRules)
+		if err != nil {
+			return fmt.Errorf("failed to initialize rule engine: %w", err)
+		}
+
+		logger.Info("✓ Rule engine initialized with custom routing rules for TUN mode")
 	}
 
-	// 使用配置文件中的 routing rules
-	ruleEngine := rules.GetEngine()
-	err := ruleEngine.Initialize(globalCfg.RoutingRules)
-	if err != nil {
-		return fmt.Errorf("failed to initialize rule engine: %w", err)
-	}
+	// 预加载 Nacos 配置，避免首次连接延迟
+	logger.Info("TUN: Preloading Nacos configuration...")
+	startTime := time.Now()
+	_ = model.NewAllowProxyDomain()
+	duration := time.Since(startTime)
+	logger.Info(fmt.Sprintf("✓ Nacos configuration loaded in %v", duration))
 
-	logger.Info("✓ Rule engine initialized with custom routing rules for TUN mode")
 	return nil
 }
