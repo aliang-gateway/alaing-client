@@ -79,7 +79,7 @@ func startWithRollback(state *StartupState) error {
 	}
 
 	// Step 3: 获取默认网关
-	_dfgw, err := GetDefaultGateway()
+	_dfgw, err := GetDefaultGatewayForTUN()
 	if err != nil {
 		return fmt.Errorf("获取默认网关失败: %w", err)
 	}

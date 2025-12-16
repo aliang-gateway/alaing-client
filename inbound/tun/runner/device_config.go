@@ -188,7 +188,10 @@ func getDefaultGatewayInUnix() (string, error) {
 	return "", fmt.Errorf("could not parse default gateway")
 }
 
-func getDefaultGateway() (string, error) {
+// GetDefaultGatewayForTUN tries to extract default gateway IP on all platforms.
+// It uses multiple fallback methods for Windows (PowerShell, netsh, ipconfig, route print)
+// and Unix-specific commands for macOS/Linux.
+func GetDefaultGatewayForTUN() (string, error) {
 	var defaultGateway string
 	var defaultRouteMetric int = 999999 // 设置一个较大的初始值
 
@@ -308,7 +311,7 @@ func getDefaultGateway() (string, error) {
 }
 
 func configureWindowsTunRoute() error {
-	defaultGateway, err := getDefaultGateway()
+	defaultGateway, err := GetDefaultGatewayForTUN()
 	if err != nil {
 		return err
 	}
