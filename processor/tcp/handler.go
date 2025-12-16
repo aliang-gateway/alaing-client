@@ -148,7 +148,17 @@ func (h *TCPConnectionHandler) handleTLS(
 		if len(cacheEntries) > 0 {
 			// Use the first entry's domain for routing
 			cachedEntry := cacheEntries[0]
-			metadata.HostName = cachedEntry.Domain
+			// Extract binding source from cache (use first source if multiple exist)
+			bindingSource := ""
+			if len(cachedEntry.BindingSources) > 0 {
+				bindingSource = string(cachedEntry.BindingSources[0])
+			}
+			metadata.SetHostNameFromCacheEntry(
+				cachedEntry.Domain,
+				M.BindingSource(bindingSource),
+				cachedEntry.CreatedAt,
+				cachedEntry.TimeToLive(),
+			)
 			cacheHit = true
 			logger.Debug(fmt.Sprintf("TLS: Found domain in cache for IP %s: %s (hit count: %d)",
 				metadata.DstIP, metadata.HostName, cachedEntry.HitCount))
@@ -167,8 +177,8 @@ func (h *TCPConnectionHandler) handleTLS(
 			logger.Debug(fmt.Sprintf("SNI extraction error: %v", err))
 			sni = ""
 		} else if sni != "" {
-			// Successfully extracted SNI, update metadata and record binding
-			metadata.HostName = sni
+			// Set hostname with SNI binding source
+			metadata.SetHostName(sni, M.BindingSourceSNI, 5*time.Minute)
 
 			// Check if this is a DoH (DNS over HTTPS) provider
 			// DoH traffic should be routed directly without proxy interception
@@ -179,16 +189,6 @@ func (h *TCPConnectionHandler) handleTLS(
 				return nil, nil, nil
 			}
 
-			// Record SNI binding information for DNS caching
-			// This allows future reverse lookups to find this domain-IP relationship
-			if metadata.DNSInfo == nil {
-				metadata.DNSInfo = &M.DNSInfo{
-					BindingSource: M.BindingSourceSNI,
-					BindingTime:   time.Now(),
-					CacheTTL:      5 * time.Minute,
-					ShouldCache:   true,
-				}
-			}
 			logger.Debug(fmt.Sprintf("TLS: Extracted SNI: %s", sni))
 		}
 	} else if metadata.HostName != "" {

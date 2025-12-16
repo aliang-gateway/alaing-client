@@ -16,6 +16,14 @@ const (
 	BindingSourceCONNECT BindingSource = "connect"
 )
 
+// Standard TTL values for different binding sources
+const (
+	DefaultSNITTL     = 5 * time.Minute  // SNI extraction TTL
+	DefaultHTTPTTL    = 10 * time.Minute // HTTP Host header TTL
+	DefaultCONNECTTTL = 10 * time.Minute // HTTP CONNECT TTL
+	DefaultDNSTTL     = 30 * time.Minute // DNS resolution TTL
+)
+
 // DNSInfo contains DNS-related binding information
 type DNSInfo struct {
 	// BindingSource indicates where the domain name comes from
@@ -91,4 +99,46 @@ func (a *Addr) Network() string {
 
 func (a *Addr) String() string {
 	return a.metadata.DestinationAddress()
+}
+
+// SetHostName sets the hostname with its binding source information.
+// This method ensures all hostname assignments are properly tracked for caching.
+// It automatically creates DNSInfo with the specified source and TTL.
+func (m *Metadata) SetHostName(hostname string, source BindingSource, cacheTTL time.Duration) {
+	m.HostName = hostname
+
+	// Only set DNSInfo if we have a valid hostname and source
+	if hostname != "" && source != "" {
+		m.DNSInfo = &DNSInfo{
+			BindingSource: source,
+			BindingTime:   time.Now(),
+			CacheTTL:      cacheTTL,
+			ShouldCache:   true,
+		}
+	}
+}
+
+// SetHostNameFromCacheEntry sets hostname from a DNS cache entry.
+// It preserves the original binding source information from the cache.
+// Parameters are extracted from cache.CacheEntry to avoid circular dependency:
+//   - domain: entry.Domain
+//   - source: entry.BindingSources[0] (first source if multiple exist)
+//   - bindingTime: entry.CreatedAt
+//   - cacheTTL: entry.TimeToLive()
+func (m *Metadata) SetHostNameFromCacheEntry(domain string, source BindingSource, bindingTime time.Time, cacheTTL time.Duration) {
+	if domain == "" {
+		return
+	}
+
+	m.HostName = domain
+
+	// Use the cached binding source information
+	if source != "" {
+		m.DNSInfo = &DNSInfo{
+			BindingSource: source,
+			BindingTime:   bindingTime,
+			CacheTTL:      cacheTTL,
+			ShouldCache:   true,
+		}
+	}
 }

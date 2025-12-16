@@ -9,6 +9,7 @@ import (
 	"net/netip"
 	"strconv"
 	"strings"
+	"time"
 
 	"nursor.org/nursorgate/common/logger"
 	M "nursor.org/nursorgate/inbound/tun/metadata"
@@ -85,7 +86,10 @@ func extractMetadataFromHTTP(req *http.Request, conn net.Conn) (*M.Metadata, err
 		hostOnly = host
 	}
 
-	metadata.HostName = hostOnly
+	// Set hostname with HTTP binding source
+	if hostOnly != "" {
+		metadata.SetHostName(hostOnly, M.BindingSourceHTTP, 10*time.Minute)
+	}
 	metadata.DstPort = port
 
 	// Try to parse host as IP

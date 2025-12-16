@@ -25,18 +25,11 @@ func ExtractMetadataFromCONNECT(req *http.Request, conn net.Conn) (*M.Metadata, 
 		return nil, err
 	}
 
-	metadata.HostName = host
-	metadata.DstPort = port
-
-	// Record CONNECT binding information for DNS caching
+	// Set hostname with CONNECT binding source
 	if host != "" {
-		metadata.DNSInfo = &M.DNSInfo{
-			BindingSource: M.BindingSourceCONNECT,
-			BindingTime:   time.Now(),
-			CacheTTL:      10 * time.Minute,
-			ShouldCache:   true,
-		}
+		metadata.SetHostName(host, M.BindingSourceCONNECT, 10*time.Minute)
 	}
+	metadata.DstPort = port
 
 	// Try to parse host as IP address
 	if ip := net.ParseIP(host); ip != nil {
@@ -109,18 +102,11 @@ func ExtractMetadataFromHTTP(req *http.Request, conn net.Conn) (*M.Metadata, err
 		hostOnly = host
 	}
 
-	metadata.HostName = hostOnly
-	metadata.DstPort = port
-
-	// Record HTTP Host header binding information for DNS caching
+	// Set hostname with HTTP binding source
 	if hostOnly != "" {
-		metadata.DNSInfo = &M.DNSInfo{
-			BindingSource: M.BindingSourceHTTP,
-			BindingTime:   time.Now(),
-			CacheTTL:      10 * time.Minute,
-			ShouldCache:   true,
-		}
+		metadata.SetHostName(hostOnly, M.BindingSourceHTTP, 10*time.Minute)
 	}
+	metadata.DstPort = port
 
 	// Try to parse host as IP
 	if ip := net.ParseIP(hostOnly); ip != nil {
