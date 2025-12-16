@@ -25,6 +25,7 @@ client/core-darwin-amd
 *.log
 **/cache/*
 !processor/cache/*
+!common/cache/*
 client/core-darwin-arm
 client/nursor-core-amd64.dll
 *_bin.exe*
