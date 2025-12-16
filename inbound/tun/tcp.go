@@ -27,19 +27,22 @@ const (
 	// TCP keep-alive probes to send before giving up
 	// and killing the connection if no response is
 	// obtained from the other end.
-	tcpKeepaliveCount = 3
+	// ✅ Increased from 3 to 5 for better stability
+	tcpKeepaliveCount = 5
 
 	// tcpKeepaliveIdle specifies the time a connection
 	// must remain idle before the first TCP keepalive
 	// packet is sent. Once this time is reached,
 	// tcpKeepaliveInterval option is used instead.
-	// Reduced to 15s to detect dead connections faster (most NAT gateways timeout at 30-60s)
-	tcpKeepaliveIdle = 15 * time.Second
+	// ✅ Increased to 60s (was 15s) to better match NAT gateway timeouts (60-300s)
+	// This prevents false positives on slow connections
+	tcpKeepaliveIdle = 60 * time.Second
 
 	// tcpKeepaliveInterval specifies the interval
 	// time between sending TCP keepalive packets.
-	// Reduced to 5s for faster failure detection (total: 15s idle + 3×5s = 30s)
-	tcpKeepaliveInterval = 5 * time.Second
+	// ✅ Increased to 15s (was 5s) for less aggressive probing
+	// Total timeout: 60s idle + 5×15s = 135s (more forgiving than 30s)
+	tcpKeepaliveInterval = 15 * time.Second
 )
 
 func withTCPHandler(handle func(adapter.TCPConn)) option.Option {

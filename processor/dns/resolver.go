@@ -21,6 +21,10 @@ type BaseResolver struct {
 	cacheMu   sync.RWMutex
 	cacheHits int64
 	cacheMiss int64
+
+	// 清理 goroutine 控制
+	cleanupCtx    context.Context
+	cleanupCancel context.CancelFunc
 }
 
 // cacheEntry DNS缓存条目
@@ -36,12 +40,17 @@ func NewBaseResolver(config *DNSConfig) *BaseResolver {
 		config = DefaultDNSConfig()
 	}
 
+	// 创建可取消的上下文
+	ctx, cancel := context.WithCancel(context.Background())
+
 	r := &BaseResolver{
-		config: config,
-		cache:  make(map[string]*cacheEntry),
+		config:        config,
+		cache:         make(map[string]*cacheEntry),
+		cleanupCtx:    ctx,
+		cleanupCancel: cancel,
 	}
 
-	// 启动缓存清理协程
+	// 启动缓存清理协程（可被取消）
 	go r.startCacheCleanup()
 
 	return r
@@ -245,6 +254,15 @@ func (r *BaseResolver) GetCacheStats() *CacheStats {
 }
 
 // lookup 内部解析方法
+//
+// 调用链:
+//  1. 检查是否为IP地址
+//  2. 检查缓存
+//  3. 调用 r.performLookup() ← 这里通过多态调用子类实现
+//     - BaseResolver.performLookup() → 系统DNS
+//     - HybridResolver.performLookup() → 混合解析（三级回退）
+//     - PrimaryResolver.performLookup() → Dialer DNS (通过代理)
+//  4. 缓存结果
 func (r *BaseResolver) lookup(ctx context.Context, domain string, preferIPv4 bool) ([]net.IP, error) {
 	domain = strings.ToLower(strings.TrimSpace(domain))
 
@@ -270,10 +288,18 @@ func (r *BaseResolver) lookup(ctx context.Context, domain string, preferIPv4 boo
 	}
 
 	// 执行实际解析（基类方法，子类应该重写）
+	// 通过多态调用具体的 performLookup() 实现
+	// 实际调用哪个实现取决于接收器的具体类型：
+	//   - 如果 r 是 *PrimaryResolver，调用 PrimaryResolver.performLookup()
+	//   - 如果 r 是 *HybridResolver，调用 HybridResolver.performLookup()
+	//   - 如果 r 是 *BaseResolver，调用 BaseResolver.performLookup()
+	logger.Debug(fmt.Sprintf("[DNS] Calling performLookup() for domain: %s, preferIPv4: %v", domain, preferIPv4))
 	ips, ttl, err := r.performLookup(ctx, domain, preferIPv4)
 	if err != nil {
+		logger.Debug(fmt.Sprintf("[DNS] performLookup() failed for %s: %v", domain, err))
 		return nil, err
 	}
+	logger.Debug(fmt.Sprintf("[DNS] performLookup() succeeded for %s: found %d IPs (TTL: %v)", domain, len(ips), ttl))
 
 	// 缓存结果
 	if r.config.CacheEnabled && len(ips) > 0 {
@@ -290,6 +316,8 @@ func (r *BaseResolver) lookup(ctx context.Context, domain string, preferIPv4 boo
 
 // performLookup 执行实际DNS解析（基类实现，使用系统解析器）
 func (r *BaseResolver) performLookup(ctx context.Context, domain string, preferIPv4 bool) ([]net.IP, time.Duration, error) {
+	logger.Debug(fmt.Sprintf("[DNS] BaseResolver.performLookup() called for %s (system DNS)", domain))
+
 	// 创建带超时的上下文
 	ctx, cancel := context.WithTimeout(ctx, r.config.Timeout)
 	defer cancel()
@@ -298,11 +326,17 @@ func (r *BaseResolver) performLookup(ctx context.Context, domain string, preferI
 		PreferGo: true,
 	}
 
+	startTime := time.Now()
+
 	if preferIPv4 {
 		ips, err := resolver.LookupIPAddr(ctx, domain)
+		duration := time.Since(startTime)
+
 		if err != nil {
+			logger.Debug(fmt.Sprintf("[DNS] System DNS lookup failed for %s (took %v): %v", domain, duration, err))
 			return nil, 0, err
 		}
+
 		var ipv4s []net.IP
 		for _, ipAddr := range ips {
 			if ipAddr.IP.To4() != nil {
@@ -312,12 +346,18 @@ func (r *BaseResolver) performLookup(ctx context.Context, domain string, preferI
 		if len(ipv4s) == 0 {
 			return nil, 0, fmt.Errorf("no IPv4 addresses found for %s", domain)
 		}
+
+		logger.Debug(fmt.Sprintf("[DNS] System DNS resolved %s: %d IPv4 addresses (took %v)", domain, len(ipv4s), duration))
 		return ipv4s, r.config.MaxTTL, nil
 	} else {
 		ips, err := resolver.LookupIPAddr(ctx, domain)
+		duration := time.Since(startTime)
+
 		if err != nil {
+			logger.Debug(fmt.Sprintf("[DNS] System DNS lookup failed for %s (took %v): %v", domain, duration, err))
 			return nil, 0, err
 		}
+
 		var ipv6s []net.IP
 		for _, ipAddr := range ips {
 			if ipAddr.IP.To4() == nil && ipAddr.IP.To16() != nil {
@@ -327,6 +367,8 @@ func (r *BaseResolver) performLookup(ctx context.Context, domain string, preferI
 		if len(ipv6s) == 0 {
 			return nil, 0, fmt.Errorf("no IPv6 addresses found for %s", domain)
 		}
+
+		logger.Debug(fmt.Sprintf("[DNS] System DNS resolved %s: %d IPv6 addresses (took %v)", domain, len(ipv6s), duration))
 		return ipv6s, r.config.MaxTTL, nil
 	}
 }
@@ -355,13 +397,19 @@ func (r *BaseResolver) setCached(key string, ips []net.IP, ttl time.Duration, so
 	}
 }
 
-// startCacheCleanup 启动缓存清理协程
+// startCacheCleanup 启动缓存清理协程（可被取消）
 func (r *BaseResolver) startCacheCleanup() {
 	ticker := time.NewTicker(time.Minute)
 	defer ticker.Stop()
 
-	for range ticker.C {
-		r.cleanExpiredCache()
+	for {
+		select {
+		case <-ticker.C:
+			r.cleanExpiredCache()
+		case <-r.cleanupCtx.Done():
+			logger.Debug("DNS cache cleanup goroutine 停止")
+			return
+		}
 	}
 }
 
@@ -375,6 +423,14 @@ func (r *BaseResolver) cleanExpiredCache() {
 		if now.After(entry.expiresAt) {
 			delete(r.cache, key)
 		}
+	}
+}
+
+// Close 关闭 resolver 并停止后台 goroutine
+func (r *BaseResolver) Close() {
+	if r.cleanupCancel != nil {
+		r.cleanupCancel()
+		logger.Debug("DNS resolver cleanup canceled")
 	}
 }
 

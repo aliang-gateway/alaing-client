@@ -51,13 +51,13 @@ func (h *TCPConnectionHandler) Handle(ctx context.Context, originConn net.Conn, 
 	// Ensure we close the origin connection when done
 	defer originConn.Close()
 
-	// Create timeout context
+	// Create timeout context (使用父 context 而非 Background)
 	timeout := time.Duration(DefaultTCPConnectTimeout) * time.Second
 	if deadline, ok := ctx.Deadline(); ok {
 		timeout = time.Until(deadline)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
 	// Detect protocol
@@ -139,7 +139,11 @@ func (h *TCPConnectionHandler) handleTLS(
 	// STEP 1: Attempt cache reverse lookup by destination IP
 	// This is the hot path - check if we've seen this IP-domain pair before
 	cache := rules.GetCache()
-	if cache != nil && !metadata.DstIP.IsUnspecified() && metadata.HostName == "" {
+	if cache == nil {
+		// 诊断日志：如果 cache 为 nil，说明 Rule Engine 未初始化
+		logger.Debug("TLS: DNS cache not initialized - Rule engine may not be configured. Will extract SNI directly.")
+		cacheHit = false
+	} else if !metadata.DstIP.IsUnspecified() && metadata.HostName == "" {
 		cacheEntries := cache.GetByIP(metadata.DstIP)
 		if len(cacheEntries) > 0 {
 			// Use the first entry's domain for routing

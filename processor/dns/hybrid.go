@@ -135,8 +135,11 @@ func (h *HybridResolver) ResolveWithFallback(ctx context.Context, domain string)
 
 // performLookup 重写基础解析器的performLookup方法
 func (h *HybridResolver) performLookup(ctx context.Context, domain string, preferIPv4 bool) ([]net.IP, time.Duration, error) {
+	logger.Debug(fmt.Sprintf("[DNS] HybridResolver.performLookup() called for %s", domain))
+
 	result, err := h.ResolveWithFallback(ctx, domain)
 	if err != nil {
+		logger.Debug(fmt.Sprintf("[DNS] HybridResolver.ResolveWithFallback() failed for %s: %v", domain, err))
 		return nil, 0, err
 	}
 
@@ -165,6 +168,7 @@ func (h *HybridResolver) performLookup(ctx context.Context, domain string, prefe
 		filteredIPs = result.IPs
 	}
 
+	logger.Debug(fmt.Sprintf("[DNS] HybridResolver resolved %s: %d IPs filtered from %d total", domain, len(filteredIPs), len(result.IPs)))
 	return filteredIPs, result.TTL, nil
 }
 
@@ -207,21 +211,51 @@ func (p *PrimaryResolver) GetType() DNSResolverType {
 	return ResolverTypePrimary
 }
 
-// performLookup 使用指定dialer执行DNS解析
+// performLookup 使用指定dialer执行DNS解析（PrimaryResolver的实现）
+//
+// ⚠️ 注意：这个方法被 BaseResolver.lookup() 通过多态调用
+//
+// 调用路径:
+//
+//	BaseResolver.lookup() [第297行]
+//	  → r.performLookup() [多态调用]
+//	  → PrimaryResolver.performLookup() [本方法]
+//	  → DialerResolverUtil.ResolveThroughDialer() [DNS-over-TCP via proxy]
+//
+// 功能:
+//   - 如果 dialer 已配置: 通过代理进行 DNS-over-TCP 查询
+//   - 如果 dialer 未配置: 回退到系统 DNS 解析
+//   - 如果代理 DNS 失败: 自动回退到系统 DNS 解析
 func (p *PrimaryResolver) performLookup(ctx context.Context, domain string, preferIPv4 bool) ([]net.IP, time.Duration, error) {
+	logger.Debug(fmt.Sprintf("[DNS] PrimaryResolver.performLookup() called for %s", domain))
+
 	// 使用TUN模块的DNS解析逻辑，但使用我们的dialer
 	if p.dialer == nil {
+		logger.Debug("[DNS] Dialer not configured, falling back to BaseResolver.performLookup()")
 		// 如果没有dialer，回退到系统解析器
 		return p.BaseResolver.performLookup(ctx, domain, preferIPv4)
 	}
+
+	logger.Debug("[DNS] Using dialer for DNS resolution (DNS-over-TCP via proxy)")
 
 	// 创建带超时的上下文
 	ctx, cancel := context.WithTimeout(ctx, p.config.Timeout)
 	defer cancel()
 
-	// 这里应该实现使用指定dialer的DNS解析逻辑
-	// 暂时回退到系统解析器，稍后实现完整的dialer集成
-	return p.BaseResolver.performLookup(ctx, domain, preferIPv4)
+	// 使用 dialer 执行 DNS 解析 (DNS-over-TCP via proxy)
+	startTime := time.Now()
+	util := NewDialerResolverUtil(p.dialer, p.config)
+	ips, err := util.ResolveThroughDialer(ctx, domain, preferIPv4)
+	duration := time.Since(startTime)
+
+	if err != nil {
+		logger.Debug(fmt.Sprintf("[DNS] DNS resolution via dialer failed for %s (took %v): %v, falling back to system resolver", domain, duration, err))
+		// Fallback to system resolver
+		return p.BaseResolver.performLookup(ctx, domain, preferIPv4)
+	}
+
+	logger.Debug(fmt.Sprintf("[DNS] DNS resolved via dialer for %s: %d IPs (took %v)", domain, len(ips), duration))
+	return ips, duration, nil
 }
 
 // SystemResolver 系统DNS解析器
@@ -239,6 +273,31 @@ func NewSystemResolver(config *DNSConfig) *SystemResolver {
 // GetType 返回解析器类型
 func (s *SystemResolver) GetType() DNSResolverType {
 	return ResolverTypeSystem
+}
+
+// Close 关闭混合解析器并停止所有后台 goroutine
+func (h *HybridResolver) Close() {
+	logger.Debug("Closing hybrid DNS resolver...")
+
+	// 关闭主解析器
+	if pr, ok := h.primaryResolver.(*PrimaryResolver); ok {
+		pr.Close()
+	}
+
+	// 关闭回退解析器
+	if fr, ok := h.fallbackResolver.(*PrimaryResolver); ok {
+		fr.Close()
+	}
+
+	// 关闭系统解析器
+	if sr, ok := h.systemResolver.(*BaseResolver); ok {
+		sr.Close()
+	}
+
+	// 关闭自身（BaseResolver）
+	h.BaseResolver.Close()
+
+	logger.Debug("Hybrid DNS resolver closed successfully")
 }
 
 // 工具函数

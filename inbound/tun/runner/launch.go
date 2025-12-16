@@ -1,6 +1,7 @@
 package runner
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os/exec"
@@ -25,7 +26,7 @@ type PSNetItem struct {
 
 func stopTun() {
 	logger.Info("Stopping TUN service...")
-	
+
 	// 2. 清理 TUN 路由
 	if err := CleanupTunRoute(); err != nil {
 		logger.Error("Failed to cleanup TUN route:", err)
@@ -323,27 +324,14 @@ func waitForTunDeviceReady(deviceName string, timeout time.Duration) error {
 			cmd = utils2.GetRunCommand("ip", "link", "show", deviceName)
 			checkString = "UP"
 		case "darwin": // macOS
-			// macOS uses ifconfig to check interface status
-			cmd = utils2.GetRunCommand("ifconfig", deviceName)
-			output, err := cmd.Output()
-			if err != nil {
-				// If the interface doesn't exist yet, ifconfig will return an error
-				if strings.Contains(err.Error(), "can't find interface") {
-					fmt.Printf("Interface %s not found yet (macOS), retrying...\n", deviceName)
-					time.Sleep(1 * time.Second) // Wait and retry
-					continue
-				}
-				return fmt.Errorf("failed to execute ifconfig command on macOS: %w", err)
+			// macOS 使用多步骤验证确保设备真正就绪
+			if err := checkMacOSTunReady(deviceName); err != nil {
+				logger.Debug(fmt.Sprintf("macOS TUN 设备检查失败: %v, 重试中...", err))
+				time.Sleep(500 * time.Millisecond)
+				continue
 			}
-
-			outputStr := string(output)
-			// Check for both UP and RUNNING flags in the output
-			if strings.Contains(outputStr, "UP") && strings.Contains(outputStr, "RUNNING") {
-				fmt.Printf("Interface %s status is good (macOS) - UP, RUNNING\n", deviceName)
-				return nil
-			} else {
-				fmt.Printf("Interface %s not yet UP or RUNNING (macOS): %s\n", deviceName, outputStr)
-			}
+			logger.Info(fmt.Sprintf("macOS TUN 设备 %s 已完全就绪", deviceName))
+			return nil
 
 		default:
 			return fmt.Errorf("unsupported operating system: %s", runtime.GOOS)
@@ -397,4 +385,62 @@ func waitForTunDeviceReady(deviceName string, timeout time.Duration) error {
 	}
 
 	return fmt.Errorf("等待 TUN 设备就绪超时. %s", outputStr)
+}
+
+// checkMacOSTunReady 检查 macOS TUN 设备是否真正就绪
+// 使用多步骤验证：接口标志、IP 地址、连通性测试、路由表
+func checkMacOSTunReady(deviceName string) error {
+	// Step 1: 检查接口是否存在并有 UP/RUNNING 标志
+	cmd := utils2.GetRunCommand("ifconfig", deviceName)
+	output, err := cmd.Output()
+	if err != nil {
+		if strings.Contains(err.Error(), "can't find interface") {
+			return fmt.Errorf("interface not found")
+		}
+		return fmt.Errorf("failed to execute ifconfig: %w", err)
+	}
+
+	outputStr := string(output)
+
+	// 检查 UP 标志
+	if !strings.Contains(outputStr, "UP") {
+		return fmt.Errorf("interface not UP")
+	}
+
+	// 检查 RUNNING 标志
+	if !strings.Contains(outputStr, "RUNNING") {
+		return fmt.Errorf("interface not RUNNING")
+	}
+
+	// Step 2: 验证接口 IP 地址配置是否正确（应该是 10.0.0.1 或 10.0.0.2）
+	hasCorrectIP := strings.Contains(outputStr, "10.0.0.1") || strings.Contains(outputStr, "10.0.0.2")
+	if !hasCorrectIP {
+		return fmt.Errorf("interface IP not configured correctly (expected 10.0.0.1 or 10.0.0.2)")
+	}
+
+	// Step 3: 实际连通性测试 - ping 到 TUN 网关（带超时）
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	// macOS 的 ping 命令参数：-c 1 (count), -t 1 (timeout in seconds)
+	pingCmd := exec.CommandContext(ctx, "ping", "-c", "1", "-t", "1", "10.0.0.2")
+	if err := pingCmd.Run(); err != nil {
+		return fmt.Errorf("connectivity test failed (ping to 10.0.0.2): %w", err)
+	}
+
+	// Step 4: 验证路由表中存在 TUN 路由
+	routeCmd := utils2.GetRunCommand("netstat", "-rn")
+	routeOutput, err := routeCmd.Output()
+	if err != nil {
+		// 路由检查失败不应阻止启动，只是警告
+		logger.Warn(fmt.Sprintf("无法检查路由表: %v", err))
+	} else {
+		// 检查至少有一条路由指向 TUN 网关
+		if !strings.Contains(string(routeOutput), "10.0.0.1") {
+			logger.Warn("路由表中未找到 TUN 网关路由，但设备可能仍可用")
+		}
+	}
+
+	// 所有检查通过
+	return nil
 }
