@@ -306,6 +306,12 @@ body {
     color: white;
 }
 
+.btn-danger:hover,
+.btn-danger:focus {
+    background-color: #D91700;
+    color: white;
+}
+
 .btn-warning {
     background-color: var(--bs-warning);
     color: var(--bs-dark);
@@ -327,6 +333,7 @@ body {
     padding: 0.375rem 0.625rem;
     border-radius: var(--border-radius-sm);
     font-weight: 500;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
 .badge.bg-primary {
@@ -621,7 +628,7 @@ body {
     animation: none;
 }
 
-#wsConnectionStatus.bg-success {
+#wsConnectionStatus.bg-danger {
     animation: pulse-success 2s infinite;
 }
 
@@ -937,4 +944,308 @@ body {
 @keyframes modalFadeOut {
     from { opacity: 1; }
     to { opacity: 0; }
+}
+
+/* ============ 新仪表板布局样式 ============ */
+/* 主容器 - Flexbox 两列布局 */
+.dashboard-container {
+    display: flex;
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+    min-height: 600px;
+}
+
+/* 左侧：关键指标区域 (30%) */
+.dashboard-metrics {
+    flex: 0 0 30%;
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+/* 关键指标网格 (2x4) */
+.metrics-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+}
+
+/* 单个指标卡片 */
+.metric-card {
+    background: white;
+    border-radius: var(--border-radius);
+    padding: 1rem;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+    display: flex;
+    align-items: center;
+    gap: 0.875rem;
+    transition: all 0.2s ease;
+    border-left: 3px solid transparent;
+}
+
+.metric-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+/* 指标卡片颜色变体 */
+.metric-card.metric-primary {
+    border-left-color: var(--bs-primary);
+}
+
+.metric-card.metric-success {
+    border-left-color: var(--bs-success);
+}
+
+.metric-card.metric-info {
+    border-left-color: var(--bs-info);
+}
+
+.metric-card.metric-warning {
+    border-left-color: var(--bs-warning);
+}
+
+/* 指标图标 */
+.metric-icon {
+    flex-shrink: 0;
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    font-size: 1.25rem;
+    background: linear-gradient(135deg, rgba(215, 114, 107, 0.1), rgba(215, 114, 107, 0.05));
+}
+
+.metric-card.metric-primary .metric-icon {
+    color: var(--bs-primary);
+}
+
+.metric-card.metric-success .metric-icon {
+    color: var(--bs-success);
+}
+
+.metric-card.metric-info .metric-icon {
+    color: var(--bs-info);
+}
+
+.metric-card.metric-warning .metric-icon {
+    color: var(--bs-warning);
+}
+
+/* 指标内容 */
+.metric-content {
+    flex: 1;
+    min-width: 0;
+}
+
+.metric-label {
+    font-size: 0.75rem;
+    color: #6c757d;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 0.25rem;
+}
+
+.metric-value {
+    font-size: 1.125rem;
+    font-weight: 700;
+    color: #2d3436;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* 系统信息卡片 */
+.system-info-card {
+    background: white;
+    border-radius: var(--border-radius);
+    padding: 1rem 1.25rem;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.system-info-header {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: #2d3436;
+    margin-bottom: 0.875rem;
+    display: flex;
+    align-items: center;
+}
+
+.system-info-content {
+    display: flex;
+    flex-direction: column;
+    gap: 0.625rem;
+}
+
+.info-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.875rem;
+}
+
+.info-label {
+    color: #6c757d;
+    font-weight: 500;
+}
+
+.info-item span:last-child {
+    font-weight: 600;
+    color: #2d3436;
+}
+
+/* 右侧：流量监控图表 (70%) */
+.dashboard-chart {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+}
+
+/* 图表卡片 */
+.chart-card {
+    background: white;
+    border-radius: var(--border-radius);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 500px;
+}
+
+/* 图表头部 */
+.chart-header {
+    padding: 1.25rem 1.5rem;
+    border-bottom: 1px solid #f0f0f0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.chart-title {
+    font-size: 1.125rem;
+    font-weight: 600;
+    color: #2d3436;
+    margin: 0;
+    display: flex;
+    align-items: center;
+}
+
+/* 图例 */
+.chart-legend {
+    display: flex;
+    gap: 1.5rem;
+    align-items: center;
+}
+
+.legend-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.875rem;
+    color: #6c757d;
+}
+
+.legend-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+}
+
+.legend-dot.legend-upload {
+    background-color: #ff6b6b;
+}
+
+.legend-dot.legend-download {
+    background-color: #4ecdc4;
+}
+
+/* 图表主体 */
+.chart-body {
+    flex: 1;
+    padding: 1.5rem;
+    position: relative;
+    min-height: 0;
+}
+
+.chart-body canvas {
+    width: 100% !important;
+    height: 100% !important;
+}
+
+/* 图表底部 */
+.chart-footer {
+    padding: 0.875rem 1.5rem;
+    border-top: 1px solid #f0f0f0;
+    background-color: #fafbfc;
+    border-radius: 0 0 var(--border-radius) var(--border-radius);
+}
+
+.chart-footer small {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+/* 响应式布局 */
+@media (max-width: 1400px) {
+    .dashboard-metrics {
+        flex: 0 0 35%;
+    }
+}
+
+@media (max-width: 1200px) {
+    .dashboard-container {
+        flex-direction: column;
+    }
+
+    .dashboard-metrics {
+        flex: 1;
+    }
+
+    .dashboard-chart {
+        min-height: 500px;
+    }
+
+    .metrics-grid {
+        grid-template-columns: repeat(4, 1fr);
+    }
+}
+
+@media (max-width: 768px) {
+    .metrics-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .dashboard-container {
+        gap: 1rem;
+    }
+
+    .chart-card {
+        min-height: 400px;
+    }
+
+    .metric-value {
+        font-size: 1rem;
+    }
+}
+
+@media (max-width: 576px) {
+    .metrics-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .chart-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 1rem;
+    }
+
+    .chart-legend {
+        align-self: stretch;
+        justify-content: space-around;
+    }
 }

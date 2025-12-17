@@ -46,15 +46,9 @@
                             </a>
                         </li>
                         <li class="nav-item">
-                            <a class="nav-link" href="#" data-page="proxy">
+                            <a class="nav-link" href="#" data-page="proxy-control">
                                 <i class="bi bi-globe"></i>
                                 代理管理
-                            </a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link" href="#" data-page="run">
-                                <i class="bi bi-gear"></i>
-                                运行控制
                             </a>
                         </li>
                         <li class="nav-item">
@@ -91,150 +85,146 @@
                 <div id="dashboard-page" class="content-section active">
                     <h2 class="mb-4"><i class="bi bi-speedometer2"></i> 仪表板</h2>
 
-                    <div class="row mb-4">
-                        <div class="col-xl-3 col-md-6 mb-4">
-                            <div class="card border-left-primary shadow h-100 py-2">
-                                <div class="card-body">
-                                    <div class="row no-gutters align-items-center">
-                                        <div class="col mr-2">
-                                            <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">
-                                                运行状态
-                                            </div>
-                                            <div class="h5 mb-0 font-weight-bold text-gray-800" id="dashRunStatus">-</div>
-                                        </div>
-                                        <div class="col-auto">
-                                            <i class="bi bi-hdd-network fa-2x text-gray-300"></i>
-                                        </div>
+                    <!-- 主布局容器 -->
+                    <div class="dashboard-container">
+                        <!-- 左侧：关键指标卡片 -->
+                        <div class="dashboard-metrics">
+                            <!-- 关键指标卡片组 (8个) -->
+                            <div class="metrics-grid">
+                                <!-- 运行状态 -->
+                                <div class="metric-card metric-primary">
+                                    <div class="metric-icon">
+                                        <i class="bi bi-hdd-network"></i>
+                                    </div>
+                                    <div class="metric-content">
+                                        <div class="metric-label">运行状态</div>
+                                        <div class="metric-value" id="dashRunStatus">-</div>
+                                    </div>
+                                </div>
+
+                                <!-- 当前代理 -->
+                                <div class="metric-card metric-success">
+                                    <div class="metric-icon">
+                                        <i class="bi bi-globe"></i>
+                                    </div>
+                                    <div class="metric-content">
+                                        <div class="metric-label">当前代理</div>
+                                        <div class="metric-value" id="dashCurrentProxy">-</div>
+                                    </div>
+                                </div>
+
+                                <!-- 运行模式 -->
+                                <div class="metric-card metric-info">
+                                    <div class="metric-icon">
+                                        <i class="bi bi-cpu"></i>
+                                    </div>
+                                    <div class="metric-content">
+                                        <div class="metric-label">运行模式</div>
+                                        <div class="metric-value" id="dashRunMode">-</div>
+                                    </div>
+                                </div>
+
+                                <!-- 规则状态 -->
+                                <div class="metric-card metric-warning">
+                                    <div class="metric-icon">
+                                        <i class="bi bi-shield-check"></i>
+                                    </div>
+                                    <div class="metric-content">
+                                        <div class="metric-label">规则状态</div>
+                                        <div class="metric-value" id="dashRuleStatus">-</div>
+                                    </div>
+                                </div>
+
+                                <!-- 总上传流量 -->
+                                <div class="metric-card metric-primary">
+                                    <div class="metric-icon">
+                                        <i class="bi bi-cloud-upload"></i>
+                                    </div>
+                                    <div class="metric-content">
+                                        <div class="metric-label">总上传</div>
+                                        <div class="metric-value" id="statsUploadTotal">-</div>
+                                    </div>
+                                </div>
+
+                                <!-- 总下载流量 -->
+                                <div class="metric-card metric-success">
+                                    <div class="metric-icon">
+                                        <i class="bi bi-cloud-download"></i>
+                                    </div>
+                                    <div class="metric-content">
+                                        <div class="metric-label">总下载</div>
+                                        <div class="metric-value" id="statsDownloadTotal">-</div>
+                                    </div>
+                                </div>
+
+                                <!-- 活跃连接数 -->
+                                <div class="metric-card metric-info">
+                                    <div class="metric-icon">
+                                        <i class="bi bi-link-45deg"></i>
+                                    </div>
+                                    <div class="metric-content">
+                                        <div class="metric-label">活跃连接</div>
+                                        <div class="metric-value" id="statsConnectionCount">-</div>
+                                    </div>
+                                </div>
+
+                                <!-- 总流量 -->
+                                <div class="metric-card metric-warning">
+                                    <div class="metric-icon">
+                                        <i class="bi bi-arrow-left-right"></i>
+                                    </div>
+                                    <div class="metric-content">
+                                        <div class="metric-label">总流量</div>
+                                        <div class="metric-value" id="statsTotalTraffic">-</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- 系统信息卡片 -->
+                            <div class="system-info-card">
+                                <div class="system-info-header">
+                                    <i class="bi bi-info-circle me-2"></i>系统信息
+                                </div>
+                                <div class="system-info-content">
+                                    <div class="info-item">
+                                        <span class="info-label">代理数量:</span>
+                                        <span id="dashProxyCount">0</span>
+                                    </div>
+                                    <div class="info-item">
+                                        <span class="info-label">Door成员:</span>
+                                        <span id="dashDoorCount">0</span>
+                                    </div>
+                                    <div class="info-item">
+                                        <span class="info-label">最后更新:</span>
+                                        <span id="dashLastUpdate">-</span>
                                     </div>
                                 </div>
                             </div>
                         </div>
 
-                        <div class="col-xl-3 col-md-6 mb-4">
-                            <div class="card border-left-success shadow h-100 py-2">
-                                <div class="card-body">
-                                    <div class="row no-gutters align-items-center">
-                                        <div class="col mr-2">
-                                            <div class="text-xs font-weight-bold text-success text-uppercase mb-1">
-                                                当前代理
-                                            </div>
-                                            <div class="h5 mb-0 font-weight-bold text-gray-800" id="dashCurrentProxy">-</div>
-                                        </div>
-                                        <div class="col-auto">
-                                            <i class="bi bi-globe fa-2x text-gray-300"></i>
-                                        </div>
+                        <!-- 右侧：实时流量监控图表 -->
+                        <div class="dashboard-chart">
+                            <div class="chart-card">
+                                <div class="chart-header">
+                                    <h5 class="chart-title">
+                                        <i class="bi bi-graph-up me-2"></i>实时流量监控
+                                    </h5>
+                                    <div class="chart-legend">
+                                        <span class="legend-item">
+                                            <span class="legend-dot legend-upload"></span> 上传
+                                        </span>
+                                        <span class="legend-item">
+                                            <span class="legend-dot legend-download"></span> 下载
+                                        </span>
                                     </div>
                                 </div>
-                            </div>
-                        </div>
-
-                        <div class="col-xl-3 col-md-6 mb-4">
-                            <div class="card border-left-info shadow h-100 py-2">
-                                <div class="card-body">
-                                    <div class="row no-gutters align-items-center">
-                                        <div class="col mr-2">
-                                            <div class="text-xs font-weight-bold text-info text-uppercase mb-1">
-                                                运行模式
-                                            </div>
-                                            <div class="h5 mb-0 font-weight-bold text-gray-800" id="dashRunMode">-</div>
-                                        </div>
-                                        <div class="col-auto">
-                                            <i class="bi bi-cpu fa-2x text-gray-300"></i>
-                                        </div>
-                                    </div>
+                                <div class="chart-body">
+                                    <canvas id="trafficChart"></canvas>
                                 </div>
-                            </div>
-                        </div>
-
-                        <div class="col-xl-3 col-md-6 mb-4">
-                            <div class="card border-left-warning shadow h-100 py-2">
-                                <div class="card-body">
-                                    <div class="row no-gutters align-items-center">
-                                        <div class="col mr-2">
-                                            <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">
-                                                规则状态
-                                            </div>
-                                            <div class="h5 mb-0 font-weight-bold text-gray-800" id="dashRuleStatus">-</div>
-                                        </div>
-                                        <div class="col-auto">
-                                            <i class="bi bi-shield-check fa-2x text-gray-300"></i>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    <p class="text-muted">实时监控各代理的流量、连接数和负载分布</p>
-                    <!-- 全局统计卡片 -->
-                    <div class="row mb-4">
-                        <div class="col-xl-3 col-md-6 mb-4">
-                            <div class="card border-left-primary shadow h-100 py-2">
-                                <div class="card-body">
-                                    <div class="row no-gutters align-items-center">
-                                        <div class="col mr-2">
-                                            <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">
-                                                总上传流量
-                                            </div>
-                                            <div class="h5 mb-0 font-weight-bold text-gray-800" id="statsUploadTotal">-</div>
-                                        </div>
-                                        <div class="col-auto">
-                                            <i class="bi bi-cloud-upload fa-2x text-gray-300"></i>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="col-xl-3 col-md-6 mb-4">
-                            <div class="card border-left-success shadow h-100 py-2">
-                                <div class="card-body">
-                                    <div class="row no-gutters align-items-center">
-                                        <div class="col mr-2">
-                                            <div class="text-xs font-weight-bold text-success text-uppercase mb-1">
-                                                总下载流量
-                                            </div>
-                                            <div class="h5 mb-0 font-weight-bold text-gray-800" id="statsDownloadTotal">-</div>
-                                        </div>
-                                        <div class="col-auto">
-                                            <i class="bi bi-cloud-download fa-2x text-gray-300"></i>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="col-xl-3 col-md-6 mb-4">
-                            <div class="card border-left-info shadow h-100 py-2">
-                                <div class="card-body">
-                                    <div class="row no-gutters align-items-center">
-                                        <div class="col mr-2">
-                                            <div class="text-xs font-weight-bold text-info text-uppercase mb-1">
-                                                活跃连接数
-                                            </div>
-                                            <div class="h5 mb-0 font-weight-bold text-gray-800" id="statsConnectionCount">-</div>
-                                        </div>
-                                        <div class="col-auto">
-                                            <i class="bi bi-link-45deg fa-2x text-gray-300"></i>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="col-xl-3 col-md-6 mb-4">
-                            <div class="card border-left-warning shadow h-100 py-2">
-                                <div class="card-body">
-                                    <div class="row no-gutters align-items-center">
-                                        <div class="col mr-2">
-                                            <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">
-                                                总流量
-                                            </div>
-                                            <div class="h5 mb-0 font-weight-bold text-gray-800" id="statsTotalTraffic">-</div>
-                                        </div>
-                                        <div class="col-auto">
-                                            <i class="bi bi-arrow-left-right fa-2x text-gray-300"></i>
-                                        </div>
-                                    </div>
+                                <div class="chart-footer">
+                                    <small class="text-muted">
+                                        <i class="bi bi-clock"></i> 数据每1.5秒自动刷新
+                                    </small>
                                 </div>
                             </div>
                         </div>
@@ -243,7 +233,7 @@
                     <!-- 代理类型分布表格 -->
                     <div class="card shadow mb-4">
                         <div class="card-header py-3">
-                            <h6 class="m-0 font-weight-bold text-primary"><i class="bi bi-table"></i> 代理类型分布</h6>
+                            <h6 class="m-0 font-weight-bold text-primary"><i class="bi bi-table me-2"></i> 代理类型分布</h6>
                         </div>
                         <div class="card-body">
                             <div class="table-responsive">
@@ -268,239 +258,217 @@
                         </div>
                     </div>
 
-                    <!-- 实时流量趋势图 -->
-                    <div class="card shadow mb-4">
-                        <div class="card-header py-3">
-                            <h6 class="m-0 font-weight-bold text-primary">
-                                <i class="bi bi-graph-up"></i> 实时流量监控
-                            </h6>
-                        </div>
-                        <div class="card-body">
-                            <div style="height: 350px; position: relative;">
-                                <canvas id="trafficChart"></canvas>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- 自动刷新提示 -->
-                    <div class="alert alert-info" role="alert">
-                        <i class="bi bi-info-circle"></i> 数据每1.5秒自动刷新一次
-                    </div>
-
-
-                    <div class="card">
-                        <div class="card-header">
-                            <i class="bi bi-clock-history me-2"></i>
-                            系统信息
-                        </div>
-                        <div class="card-body">
-                            <div class="row">
-                                <div class="col-md-3">
-                                    <strong>代理数量:</strong> <span id="dashProxyCount">0</span>
-                                </div>
-                                <div class="col-md-3">
-                                    <strong>Door 成员:</strong> <span id="dashDoorCount">0</span>
-                                </div>
-                                <div class="col-md-6 text-end">
-                                    <strong>最后更新:</strong> <span id="dashLastUpdate">-</span>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    
                 </div>
 
                 <!-- 代理管理页面 -->
-                <div id="proxy-page" class="content-section">
-                    <h2 class="mb-4"><i class="bi bi-globe"></i> 代理管理</h2>
+                <!-- 代理管理与运行控制合并页面 -->
+                <div id="proxy-control-page" class="content-section">
+                    <h2 class="mb-4"><i class="bi bi-globe"></i> 代理管理与运行控制</h2>
 
-                    <div class="card mb-4">
-                        <div class="card-header">当前代理信息</div>
-                        <div class="card-body">
-                            <div id="currentProxyDisplay" class="text-muted">加载中...</div>
-                        </div>
-                    </div>
+                    <!-- 标签页导航 -->
+                    <ul class="nav nav-tabs mb-4" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link active" id="proxy-tab" data-bs-toggle="tab" data-bs-target="#proxy-content" type="button" role="tab">
+                                <i class="bi bi-globe"></i> 代理管理
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="run-tab" data-bs-toggle="tab" data-bs-target="#run-content" type="button" role="tab">
+                                <i class="bi bi-gear"></i> 运行控制
+                            </button>
+                        </li>
+                    </ul>
 
-                    <div class="card mb-4">
-                        <div class="card-header">当前代理选择</div>
-                        <div class="card-body">
-                            <div class="row align-items-center">
-                                <div class="col-md-8">
-                                    <select class="form-select" id="proxySelect">
-                                        <option>加载中...</option>
-                                    </select>
+                    <!-- 标签页内容 -->
+                    <div class="tab-content">
+                        <!-- 代理管理标签页 -->
+                        <div class="tab-pane fade show active" id="proxy-content" role="tabpanel">
+                            <div class="card mb-4">
+                                <div class="card-header">当前代理信息</div>
+                                <div class="card-body">
+                                    <div id="currentProxyDisplay" class="text-muted">加载中...</div>
                                 </div>
-                                <div class="col-md-4">
-                                    <button type="button" class="btn btn-primary w-100" id="switchProxyBtn">
-                                        <i class="bi bi-arrow-left-right"></i> 切换代理
+                            </div>
+
+                            <div class="card mb-4">
+                                <div class="card-header">当前代理选择</div>
+                                <div class="card-body">
+                                    <div class="row align-items-center">
+                                        <div class="col-md-8">
+                                            <select class="form-select" id="proxySelect">
+                                                <option>加载中...</option>
+                                            </select>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <button type="button" class="btn btn-primary w-100" id="switchProxyBtn">
+                                                <i class="bi bi-arrow-left-right"></i> 切换代理
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="card mb-4">
+                                <div class="card-header d-flex justify-content-between align-items-center">
+                                    <span>所有代理</span>
+                                    <button type="button" class="btn btn-sm btn-info" id="testLatencyBtn">
+                                        <i class="bi bi-speedometer2"></i> 测试延迟
+                                    </button>
+                                </div>
+                                <div class="card-body">
+                                    <div class="table-responsive">
+                                        <table class="table">
+                                            <thead>
+                                                <tr>
+                                                    <th>名称</th>
+                                                    <th>类型</th>
+                                                    <th>地址</th>
+                                                    <th>延迟</th>
+                                                    <th>操作</th>
+                                                    <th>详细</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody id="proxyTableBody">
+                                                <tr>
+                                                    <td colspan="6" class="text-center text-muted">加载中...</td>
+                                                </tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="card mb-4">
+                                <div class="card-header">Door 成员管理</div>
+                                <div class="card-body">
+                                    <div class="table-responsive">
+                                        <table class="table">
+                                            <thead>
+                                                <tr>
+                                                    <th>成员名</th>
+                                                    <th>延迟</th>
+                                                    <th>类型</th>
+                                                    <th>操作</th>
+                                                    <th>详细</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody id="doorTableBody">
+                                                <tr>
+                                                    <td colspan="4" class="text-center text-muted">加载中...</td>
+                                                </tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Certificate Management Card -->
+                            <div class="card mb-4">
+                                <div class="card-header">证书管理</div>
+                                <div class="card-body">
+                                    <!-- Certificate Status Display -->
+                                    <div class="cert-status-section mb-3">
+                                        <h5>证书状态</h5>
+                                        <div id="cert-status-container">
+                                            <div class="alert alert-info" role="alert">
+                                                <i class="bi bi-hourglass-split"></i> 加载中...
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Certificate Selection -->
+                                    <div class="form-group mb-3">
+                                        <label for="cert-type-select">选择证书类型</label>
+                                        <select class="form-control" id="cert-type-select">
+                                            <option value="mitm-ca">MITM CA (客户端拦截)</option>
+                                            <option value="root-ca">Root CA (根证书)</option>
+                                            <option value="mtls-cert">mTLS Certificate (后端通信)</option>
+                                        </select>
+                                    </div>
+
+                                    <!-- Action Buttons -->
+                                    <div class="btn-group w-100" role="group" aria-label="Certificate actions">
+                                        <button type="button" class="btn btn-info btn-sm" id="btn-check-cert" title="检查系统中是否已安装证书">
+                                            <i class="bi bi-search"></i> 检查安装状态
+                                        </button>
+                                        <button type="button" class="btn btn-primary btn-sm" id="btn-export-cert" title="导出证书到 ~/.nonelane/">
+                                            <i class="bi bi-cloud-download"></i> 导出证书
+                                        </button>
+                                        <button type="button" class="btn btn-danger btn-sm" id="btn-download-cert" title="通过浏览器下载证书">
+                                            <i class="bi bi-download"></i> 下载证书
+                                        </button>
+                                        <button type="button" class="btn btn-warning btn-sm" id="btn-install-cert" title="安装证书到系统">
+                                            <i class="bi bi-lock"></i> 安装证书
+                                        </button>
+                                        <button type="button" class="btn btn-danger btn-sm" id="btn-remove-cert" title="从系统中移除证书">
+                                            <i class="bi bi-trash"></i> 移除证书
+                                        </button>
+                                    </div>
+
+                                    <!-- Status Message -->
+                                    <div id="cert-message" class="mt-3" style="display: none;">
+                                        <!-- 操作结果消息 -->
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 运行控制标签页 -->
+                        <div class="tab-pane fade" id="run-content" role="tabpanel">
+                            <div class="card mb-4">
+                                <div class="card-header">控制面板</div>
+                                <div class="card-body">
+                                    <div class="btn-group w-100 mb-3" role="group">
+                                        <button type="button" class="btn btn-danger btn-lg flex-grow-1" id="runStartBtn">
+                                            <i class="bi bi-play-fill"></i> 启动服务
+                                        </button>
+                                        <button type="button" class="btn btn-danger btn-lg flex-grow-1" id="runStopBtn">
+                                            <i class="bi bi-stop-fill"></i> 停止服务
+                                        </button>
+                                    </div>
+
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <strong>当前模式:</strong> <span id="runCurrentMode">-</span>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <strong>服务状态:</strong> <span id="runServiceStatus">-</span>
+                                        </div>
+                                    </div>
+                                    <hr>
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <strong>可用模式:</strong> <span id="runAvailableModes">-</span>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <strong>状态信息:</strong> <span id="runStatusInfo">-</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="card mb-4">
+                                <div class="card-header">模式切换</div>
+                                <div class="card-body">
+                                    <div class="form-check form-check-inline mb-3">
+                                        <input class="form-check-input" type="radio" name="runMode" id="runModeTun" value="tun" checked>
+                                        <label class="form-check-label" for="runModeTun">
+                                            <i class="bi bi-wifi"></i> TUN 模式
+                                        </label>
+                                    </div>
+                                    <div class="form-check form-check-inline mb-3">
+                                        <input class="form-check-input" type="radio" name="runMode" id="runModeHttp" value="http">
+                                        <label class="form-check-label" for="runModeHttp">
+                                            <i class="bi bi-router"></i> HTTP 模式
+                                        </label>
+                                    </div>
+                                    <button type="button" class="btn btn-primary" id="runModeBtn">
+                                        <i class="bi bi-arrow-repeat"></i> 切换模式
                                     </button>
                                 </div>
                             </div>
                         </div>
                     </div>
-
-                    <div class="card mb-4">
-                        <div class="card-header d-flex justify-content-between align-items-center">
-                            <span>所有代理</span>
-                            <button type="button" class="btn btn-sm btn-info" id="testLatencyBtn">
-                                <i class="bi bi-speedometer2"></i> 测试延迟
-                            </button>
-                        </div>
-                        <div class="card-body">
-                            <div class="table-responsive">
-                                <table class="table">
-                                    <thead>
-                                        <tr>
-                                            <th>名称</th>
-                                            <th>类型</th>
-                                            <th>地址</th>
-                                            <th>延迟</th>
-                                            <th>操作</th>
-                                            <th>详细</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody id="proxyTableBody">
-                                        <tr>
-                                            <td colspan="6" class="text-center text-muted">加载中...</td>
-                                        </tr>
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="card">
-                        <div class="card-header">Door 成员管理</div>
-                        <div class="card-body">
-                            <div class="table-responsive">
-                                <table class="table">
-                                    <thead>
-                                        <tr>
-                                            <th>成员名</th>
-                                            <th>延迟</th>
-                                            <th>类型</th>
-                                            <th>操作</th>
-                                            <th>详细</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody id="doorTableBody">
-                                        <tr>
-                                            <td colspan="4" class="text-center text-muted">加载中...</td>
-                                        </tr>
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Certificate Management Card -->
-                    <div class="card mb-4">
-                        <div class="card-header">证书管理</div>
-                        <div class="card-body">
-                            <!-- Certificate Status Display -->
-                            <div class="cert-status-section mb-3">
-                                <h5>证书状态</h5>
-                                <div id="cert-status-container">
-                                    <div class="alert alert-info" role="alert">
-                                        <i class="bi bi-hourglass-split"></i> 加载中...
-                                    </div>
-                                </div>
-                            </div>
-
-                            <!-- Certificate Selection -->
-                            <div class="form-group mb-3">
-                                <label for="cert-type-select">选择证书类型</label>
-                                <select class="form-control" id="cert-type-select">
-                                    <option value="mitm-ca">MITM CA (客户端拦截)</option>
-                                    <option value="root-ca">Root CA (根证书)</option>
-                                    <option value="mtls-cert">mTLS Certificate (后端通信)</option>
-                                </select>
-                            </div>
-
-                            <!-- Action Buttons -->
-                            <div class="btn-group w-100" role="group" aria-label="Certificate actions">
-                                <button type="button" class="btn btn-info btn-sm" id="btn-check-cert" title="检查系统中是否已安装证书">
-                                    <i class="bi bi-search"></i> 检查安装状态
-                                </button>
-                                <button type="button" class="btn btn-primary btn-sm" id="btn-export-cert" title="导出证书到 ~/.nonelane/">
-                                    <i class="bi bi-cloud-download"></i> 导出证书
-                                </button>
-                                <button type="button" class="btn btn-success btn-sm" id="btn-download-cert" title="通过浏览器下载证书">
-                                    <i class="bi bi-download"></i> 下载证书
-                                </button>
-                                <button type="button" class="btn btn-warning btn-sm" id="btn-install-cert" title="安装证书到系统">
-                                    <i class="bi bi-lock"></i> 安装证书
-                                </button>
-                                <button type="button" class="btn btn-danger btn-sm" id="btn-remove-cert" title="从系统中移除证书">
-                                    <i class="bi bi-trash"></i> 移除证书
-                                </button>
-                            </div>
-
-                            <!-- Status Message -->
-                            <div id="cert-message" class="mt-3" style="display: none;">
-                                <!-- 操作结果消息 -->
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- 运行控制页面 -->
-                <div id="run-page" class="content-section">
-                    <h2 class="mb-4"><i class="bi bi-gear"></i> 运行控制</h2>
-
-                    <div class="card mb-4">
-                        <div class="card-header">控制面板</div>
-                        <div class="card-body">
-                            <div class="btn-group w-100 mb-3" role="group">
-                                <button type="button" class="btn btn-success btn-lg flex-grow-1" id="runStartBtn">
-                                    <i class="bi bi-play-fill"></i> 启动服务
-                                </button>
-                                <button type="button" class="btn btn-danger btn-lg flex-grow-1" id="runStopBtn">
-                                    <i class="bi bi-stop-fill"></i> 停止服务
-                                </button>
-                            </div>
-
-                            <div class="row">
-                                <div class="col-md-6">
-                                    <strong>当前模式:</strong> <span id="runCurrentMode">-</span>
-                                </div>
-                                <div class="col-md-6">
-                                    <strong>服务状态:</strong> <span id="runServiceStatus">-</span>
-                                </div>
-                            </div>
-                            <hr>
-                            <div class="row">
-                                <div class="col-md-6">
-                                    <strong>可用模式:</strong> <span id="runAvailableModes">-</span>
-                                </div>
-                                <div class="col-md-6">
-                                    <strong>状态信息:</strong> <span id="runStatusInfo">-</span>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="card mb-4">
-                        <div class="card-header">模式切换</div>
-                        <div class="card-body">
-                            <div class="form-check form-check-inline mb-3">
-                                <input class="form-check-input" type="radio" name="runMode" id="runModeTun" value="tun" checked>
-                                <label class="form-check-label" for="runModeTun">
-                                    <i class="bi bi-wifi"></i> TUN 模式
-                                </label>
-                            </div>
-                            <div class="form-check form-check-inline mb-3">
-                                <input class="form-check-input" type="radio" name="runMode" id="runModeHttp" value="http">
-                                <label class="form-check-label" for="runModeHttp">
-                                    <i class="bi bi-router"></i> HTTP 模式
-                                </label>
-                            </div>
-                            <button type="button" class="btn btn-primary" id="runModeBtn">
-                                <i class="bi bi-arrow-repeat"></i> 切换模式
-                            </button>
-                        </div>
-                    </div>
-
                 </div>
 
                 <!-- 用户信息页面 -->
@@ -616,7 +584,7 @@
                                 </div>
                             </div>
                             <div class="btn-group">
-                                <button type="button" class="btn btn-success" id="rulesEnableBtn">
+                                <button type="button" class="btn btn-danger" id="rulesEnableBtn">
                                     <i class="bi bi-toggle-on"></i> 启用
                                 </button>
                                 <button type="button" class="btn btn-warning" id="rulesDisableBtn">
@@ -643,6 +611,184 @@
                             <button type="button" class="btn btn-danger" id="rulesClearCacheBtn">
                                 <i class="bi bi-trash"></i> 清空缓存
                             </button>
+                        </div>
+                    </div>
+
+                    <!-- 全局设置卡片 -->
+                    <div class="card mb-4">
+                        <div class="card-header">全局设置</div>
+                        <div class="card-body">
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <div class="form-check form-switch">
+                                        <input class="form-check-input" type="checkbox" id="geoipEnabledSwitch">
+                                        <label class="form-check-label" for="geoipEnabledSwitch">
+                                            <i class="bi bi-globe me-2"></i>启用 GeoIP 查询
+                                        </label>
+                                    </div>
+                                    <small class="text-muted d-block mt-2">根据用户地理位置判断是否走 Door 代理</small>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="form-check form-switch">
+                                        <input class="form-check-input" type="checkbox" id="nonelaneEnabledSwitch">
+                                        <label class="form-check-label" for="nonelaneEnabledSwitch">
+                                            <i class="bi bi-signpost-split me-2"></i>启用 NoneLane 代理
+                                        </label>
+                                    </div>
+                                    <small class="text-muted d-block mt-2">是否允许部分流量走 NoneLane 代理</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 路由规则配置卡片 -->
+                    <div class="card mb-4">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <span><i class="bi bi-diagram-3 me-2"></i>路由规则配置</span>
+                            <button type="button" class="btn btn-sm btn-success" id="rulesConfigSaveBtn">
+                                <i class="bi bi-save"></i> 保存配置
+                            </button>
+                        </div>
+                        <div class="card-body">
+                            <!-- 标签页导航 -->
+                            <ul class="nav nav-tabs mb-4" role="tablist">
+                                <li class="nav-item" role="presentation">
+                                    <button class="nav-link active" id="to-door-tab" data-bs-toggle="tab" data-bs-target="#to-door-content" type="button" role="tab">
+                                        <i class="bi bi-arrow-right-circle me-2"></i>To Door 规则
+                                    </button>
+                                </li>
+                                <li class="nav-item" role="presentation">
+                                    <button class="nav-link" id="blacklist-tab" data-bs-toggle="tab" data-bs-target="#blacklist-content" type="button" role="tab">
+                                        <i class="bi bi-slash-circle me-2"></i>黑名单
+                                    </button>
+                                </li>
+                                <li class="nav-item" role="presentation">
+                                    <button class="nav-link" id="nonelane-tab" data-bs-toggle="tab" data-bs-target="#nonelane-content" type="button" role="tab">
+                                        <i class="bi bi-arrow-right-circle me-2"></i>NoneLane 规则
+                                    </button>
+                                </li>
+                            </ul>
+
+                            <!-- 标签页内容 -->
+                            <div class="tab-content">
+                                <!-- To Door 规则标签页 -->
+                                <div class="tab-pane fade show active" id="to-door-content" role="tabpanel">
+                                    <button type="button" class="btn btn-primary btn-sm mb-3" id="addToDoorRuleBtn">
+                                        <i class="bi bi-plus-circle me-1"></i>添加规则
+                                    </button>
+                                    <div class="table-responsive">
+                                        <table class="table table-hover">
+                                            <thead class="table-light">
+                                                <tr>
+                                                    <th>类型</th>
+                                                    <th>条件</th>
+                                                    <th class="text-center" style="width: 100px;">启用</th>
+                                                    <th class="text-center" style="width: 120px;">操作</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody id="toDoorRulesBody">
+                                                <tr>
+                                                    <td colspan="4" class="text-center text-muted py-3">暂无规则</td>
+                                                </tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+
+                                <!-- 黑名单标签页 -->
+                                <div class="tab-pane fade" id="blacklist-content" role="tabpanel">
+                                    <button type="button" class="btn btn-primary btn-sm mb-3" id="addBlacklistRuleBtn">
+                                        <i class="bi bi-plus-circle me-1"></i>添加规则
+                                    </button>
+                                    <div class="table-responsive">
+                                        <table class="table table-hover">
+                                            <thead class="table-light">
+                                                <tr>
+                                                    <th>类型</th>
+                                                    <th>条件</th>
+                                                    <th class="text-center" style="width: 100px;">启用</th>
+                                                    <th class="text-center" style="width: 120px;">操作</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody id="blacklistRulesBody">
+                                                <tr>
+                                                    <td colspan="4" class="text-center text-muted py-3">暂无规则</td>
+                                                </tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+
+                                <!-- NoneLane 规则标签页 -->
+                                <div class="tab-pane fade" id="nonelane-content" role="tabpanel">
+                                    <button type="button" class="btn btn-primary btn-sm mb-3" id="addNonelaneRuleBtn">
+                                        <i class="bi bi-plus-circle me-1"></i>添加规则
+                                    </button>
+                                    <div class="table-responsive">
+                                        <table class="table table-hover">
+                                            <thead class="table-light">
+                                                <tr>
+                                                    <th>类型</th>
+                                                    <th>条件</th>
+                                                    <th class="text-center" style="width: 100px;">启用</th>
+                                                    <th class="text-center" style="width: 120px;">操作</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody id="nonelaneRulesBody">
+                                                <tr>
+                                                    <td colspan="4" class="text-center text-muted py-3">暂无规则</td>
+                                                </tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 规则编辑模态框 -->
+                    <div class="modal fade" id="ruleEditModal" tabindex="-1">
+                        <div class="modal-dialog">
+                            <div class="modal-content">
+                                <div class="modal-header">
+                                    <h5 class="modal-title" id="ruleEditModalTitle">添加规则</h5>
+                                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                </div>
+                                <div class="modal-body">
+                                    <form id="ruleEditForm">
+                                        <div class="mb-3">
+                                            <label for="ruleTypeSelect" class="form-label">规则类型</label>
+                                            <select class="form-select" id="ruleTypeSelect" required>
+                                                <option value="">-- 选择类型 --</option>
+                                                <option value="domain">域名 (Domain)</option>
+                                                <option value="ip">IP段 (CIDR)</option>
+                                                <option value="geoip">地理位置 (GeoIP)</option>
+                                            </select>
+                                            <small id="typeHelpText" class="form-text text-muted mt-2"></small>
+                                        </div>
+
+                                        <div class="mb-3">
+                                            <label for="ruleConditionInput" class="form-label">条件内容</label>
+                                            <input type="text" class="form-control" id="ruleConditionInput" placeholder="" required>
+                                            <div id="conditionError" class="invalid-feedback" style="display: none;"></div>
+                                        </div>
+
+                                        <div class="form-check mb-3">
+                                            <input class="form-check-input" type="checkbox" id="ruleEnabledCheckbox" checked>
+                                            <label class="form-check-label" for="ruleEnabledCheckbox">
+                                                启用此规则
+                                            </label>
+                                        </div>
+
+                                        <input type="hidden" id="ruleIdInput">
+                                        <input type="hidden" id="ruleSetInput">
+                                    </form>
+                                </div>
+                                <div class="modal-footer">
+                                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                                    <button type="button" class="btn btn-primary" id="ruleEditSaveBtn">保存规则</button>
+                                </div>
+                            </div>
                         </div>
                     </div>
 
@@ -723,7 +869,7 @@
                                 <span id="wsConnectionStatus" class="badge bg-secondary ms-2">未连接</span>
                             </span>
                             <div>
-                                <button type="button" class="btn btn-sm btn-success me-2" id="wsConnectBtn">
+                                <button type="button" class="btn btn-sm btn-danger me-2" id="wsConnectBtn">
                                     <i class="bi bi-plug"></i> 连接
                                 </button>
                                 <button type="button" class="btn btn-sm btn-warning me-2" id="wsDisconnectBtn">
@@ -780,7 +926,7 @@
                                 <div class="card-body">
                                     <div class="row no-gutters align-items-center">
                                         <div class="col mr-2">
-                                            <div class="text-xs font-weight-bold text-success text-uppercase mb-1">
+                                            <div class="text-xs font-weight-bold text-danger text-uppercase mb-1">
                                                 唯一域名
                                             </div>
                                             <div class="h5 mb-0 font-weight-bold text-gray-800" id="dnsUniqueDomains">-</div>

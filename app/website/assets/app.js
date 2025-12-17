@@ -565,12 +565,12 @@ async function testProxyLatency() {
         await loadProxyData();
 
         btn.innerHTML = '<i class="bi bi-check-circle"></i> 测试完成';
-        btn.classList.add('btn-success');
+        btn.classList.add('btn-danger');
         btn.classList.remove('btn-info');
 
         setTimeout(() => {
             btn.innerHTML = originalText;
-            btn.classList.remove('btn-success');
+            btn.classList.remove('btn-danger');
             btn.classList.add('btn-info');
             btn.disabled = false;
         }, 2000);
@@ -922,7 +922,7 @@ async function loadRulesData() {
 
         if (statusBadge && statusText) {
             if (isEnabled) {
-                statusBadge.className = 'badge bg-success';
+                statusBadge.className = 'badge bg-danger';
                 statusText.textContent = '启用';
             } else {
                 statusBadge.className = 'badge bg-danger';
@@ -1008,6 +1008,458 @@ function updateRulesStatistics(cacheData) {
         }
     }
 }
+
+// 加载路由配置
+async function loadRoutingConfig() {
+    try {
+        const config = await apiGet('/config/routing');
+        if (config) {
+            populateRulesUI(config);
+        }
+    } catch (error) {
+        console.error('加载路由配置失败:', error);
+        // 如果失败，可能是Nacos未配置或为空，使用默认配置
+        populateRulesUI({
+            to_door: { rules: [] },
+            black_list: { rules: [] },
+            none_lane: { rules: [] },
+            settings: { geoip_enabled: false, none_lane_enabled: false }
+        });
+    }
+}
+
+// 填充规则UI
+function populateRulesUI(config) {
+    // 更新全局设置开关
+    const geoipSwitch = document.getElementById('geoipEnabledSwitch');
+    const nonelaneSwitch = document.getElementById('nonelaneEnabledSwitch');
+
+    if (geoipSwitch) {
+        geoipSwitch.checked = config.settings?.geoip_enabled || false;
+    }
+    if (nonelaneSwitch) {
+        nonelaneSwitch.checked = config.settings?.none_lane_enabled || false;
+    }
+
+    // 填充To Door规则
+    populateRuleTable('toDoorRulesBody', config.to_door?.rules || [], 'to_door');
+
+    // 填充黑名单规则
+    populateRuleTable('blacklistRulesBody', config.black_list?.rules || [], 'black_list');
+
+    // 填充NoneLane规则
+    populateRuleTable('nonelaneRulesBody', config.none_lane?.rules || [], 'none_lane');
+
+    // 保存配置到appState供后续使用
+    appState.routingConfig = config;
+}
+
+// 填充规则表格
+function populateRuleTable(tableBodyId, rules, ruleSet) {
+    const tbody = document.getElementById(tableBodyId);
+    if (!tbody) return;
+
+    if (!rules || rules.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted py-3">暂无规则</td></tr>';
+        return;
+    }
+
+    tbody.innerHTML = rules.map((rule, index) => {
+        const typeText = getTypeText(rule.type);
+        const enabledChecked = rule.enabled ? 'checked' : '';
+
+        return `
+            <tr data-rule-id="${rule.id}">
+                <td><span class="badge bg-info">${typeText}</span></td>
+                <td><code>${escapeHtml(rule.condition)}</code></td>
+                <td class="text-center">
+                    <div class="form-check form-switch d-flex justify-content-center">
+                        <input class="form-check-input rule-toggle" type="checkbox" ${enabledChecked}
+                               data-rule-id="${rule.id}" data-rule-set="${ruleSet}">
+                    </div>
+                </td>
+                <td class="text-center">
+                    <button class="btn btn-sm btn-outline-primary edit-rule-btn"
+                            data-rule-id="${rule.id}" data-rule-set="${ruleSet}">
+                        <i class="bi bi-pencil"></i>
+                    </button>
+                    <button class="btn btn-sm btn-outline-danger delete-rule-btn ms-1"
+                            data-rule-id="${rule.id}" data-rule-set="${ruleSet}">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                </td>
+            </tr>
+        `;
+    }).join('');
+
+    // 绑定事件监听器
+    bindRuleTableEvents(tbody, ruleSet);
+}
+
+// 绑定规则表格事件
+function bindRuleTableEvents(tbody, ruleSet) {
+    // 启用/禁用切换
+    tbody.querySelectorAll('.rule-toggle').forEach(toggle => {
+        toggle.addEventListener('change', async (e) => {
+            const ruleId = e.target.dataset.ruleId;
+            const enabled = e.target.checked;
+            try {
+                await apiCall(`/config/routing/rules/${ruleId}/toggle`, {
+                    method: 'PUT',
+                    body: JSON.stringify({ enabled })
+                });
+                showSuccess('规则状态已更新');
+            } catch (error) {
+                showError('更新规则状态失败: ' + error.message);
+                e.target.checked = !enabled; // 回滚
+            }
+        });
+    });
+
+    // 编辑按钮
+    tbody.querySelectorAll('.edit-rule-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const ruleId = e.currentTarget.dataset.ruleId;
+            const ruleSet = e.currentTarget.dataset.ruleSet;
+            editRule(ruleId, ruleSet);
+        });
+    });
+
+    // 删除按钮
+    tbody.querySelectorAll('.delete-rule-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const ruleId = e.currentTarget.dataset.ruleId;
+            const ruleSet = e.currentTarget.dataset.ruleSet;
+            deleteRule(ruleId, ruleSet);
+        });
+    });
+}
+
+// 获取类型文本
+function getTypeText(type) {
+    const typeMap = {
+        'domain': '域名',
+        'ip': 'IP段',
+        'geoip': 'GeoIP'
+    };
+    return typeMap[type] || type;
+}
+
+// HTML转义函数
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+// 生成规则ID
+function generateRuleId(type) {
+    const timestamp = Math.floor(Date.now() / 1000);
+    return `rule_${type}_${timestamp}`;
+}
+
+// 添加规则
+function addRule(ruleSet) {
+    const modal = new bootstrap.Modal(document.getElementById('ruleEditModal'));
+
+    // 清空表单
+    document.getElementById('ruleTypeSelect').value = 'domain';
+    document.getElementById('ruleConditionInput').value = '';
+    document.getElementById('ruleEnabledCheckbox').checked = true;
+    document.getElementById('ruleIdInput').value = ''; // 空ID表示新建
+    document.getElementById('ruleSetInput').value = ruleSet;
+
+    // 更新模态框标题
+    document.getElementById('ruleEditModalTitle').textContent = '添加规则';
+
+    // 显示模态框
+    modal.show();
+}
+
+// 编辑规则
+function editRule(ruleId, ruleSet) {
+    // 从配置中找到规则
+    const config = appState.routingConfig;
+    if (!config) {
+        showError('配置未加载');
+        return;
+    }
+
+    let rule = null;
+    const ruleSetMap = {
+        'to_door': config.to_door?.rules || [],
+        'black_list': config.black_list?.rules || [],
+        'none_lane': config.none_lane?.rules || []
+    };
+
+    const rules = ruleSetMap[ruleSet];
+    if (rules) {
+        rule = rules.find(r => r.id === ruleId);
+    }
+
+    if (!rule) {
+        showError('规则未找到');
+        return;
+    }
+
+    // 填充表单
+    document.getElementById('ruleTypeSelect').value = rule.type;
+    document.getElementById('ruleConditionInput').value = rule.condition;
+    document.getElementById('ruleEnabledCheckbox').checked = rule.enabled;
+    document.getElementById('ruleIdInput').value = rule.id;
+    document.getElementById('ruleSetInput').value = ruleSet;
+
+    // 更新模态框标题
+    document.getElementById('ruleEditModalTitle').textContent = '编辑规则';
+
+    // 显示模态框
+    const modal = new bootstrap.Modal(document.getElementById('ruleEditModal'));
+    modal.show();
+}
+
+// 删除规则
+async function deleteRule(ruleId, ruleSet) {
+    if (!confirm('确定要删除此规则吗？')) {
+        return;
+    }
+
+    try {
+        const config = appState.routingConfig;
+        if (!config) {
+            showError('配置未加载');
+            return;
+        }
+
+        // 从配置中移除规则
+        const ruleSetMap = {
+            'to_door': config.to_door,
+            'black_list': config.black_list,
+            'none_lane': config.none_lane
+        };
+
+        const targetSet = ruleSetMap[ruleSet];
+        if (targetSet && targetSet.rules) {
+            targetSet.rules = targetSet.rules.filter(r => r.id !== ruleId);
+        }
+
+        // 保存配置
+        await apiPost('/config/routing', config);
+        showSuccess('规则已删除');
+
+        // 重新加载配置
+        loadRoutingConfig();
+    } catch (error) {
+        showError('删除规则失败: ' + error.message);
+    }
+}
+
+// 验证规则
+function validateRule(type, condition) {
+    if (!condition || condition.trim() === '') {
+        return '条件不能为空';
+    }
+
+    const trimmed = condition.trim();
+
+    switch (type) {
+        case 'domain':
+            // 域名格式：允许通配符 *.example.com 或 example.com
+            if (!/^(\*\.)?[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?)*$/.test(trimmed)) {
+                return '域名格式无效（例: *.google.com 或 example.com）';
+            }
+            break;
+
+        case 'ip':
+            // CIDR格式：192.168.0.0/16
+            const cidrRegex = /^(\d{1,3}\.){3}\d{1,3}\/\d{1,2}$/;
+            if (!cidrRegex.test(trimmed)) {
+                return 'IP段格式无效（例: 192.168.0.0/16）';
+            }
+            // 验证IP范围
+            const parts = trimmed.split('/');
+            const ipParts = parts[0].split('.');
+            if (ipParts.some(p => parseInt(p) > 255)) {
+                return 'IP地址范围无效';
+            }
+            const prefix = parseInt(parts[1]);
+            if (prefix < 0 || prefix > 32) {
+                return '子网掩码范围无效（0-32）';
+            }
+            break;
+
+        case 'geoip':
+            // 国家代码：2位大写字母
+            if (!/^[A-Z]{2}$/.test(trimmed)) {
+                return 'GeoIP格式无效（例: US, CN）';
+            }
+            break;
+
+        default:
+            return '未知的规则类型';
+    }
+
+    return null; // 验证通过
+}
+
+// 保存规则（来自模态框）
+async function saveRuleFromModal() {
+    const ruleId = document.getElementById('ruleIdInput').value;
+    const ruleSet = document.getElementById('ruleSetInput').value;
+    const type = document.getElementById('ruleTypeSelect').value;
+    const condition = document.getElementById('ruleConditionInput').value.trim();
+    const enabled = document.getElementById('ruleEnabledCheckbox').checked;
+
+    // 验证输入
+    const validationError = validateRule(type, condition);
+    if (validationError) {
+        const errorDiv = document.getElementById('conditionError');
+        errorDiv.textContent = validationError;
+        errorDiv.style.display = 'block';
+        document.getElementById('ruleConditionInput').classList.add('is-invalid');
+        return;
+    }
+
+    // 清除验证错误
+    document.getElementById('conditionError').style.display = 'none';
+    document.getElementById('ruleConditionInput').classList.remove('is-invalid');
+
+    try {
+        const config = appState.routingConfig;
+        if (!config) {
+            showError('配置未加载');
+            return;
+        }
+
+        // 准备规则对象
+        const rule = {
+            id: ruleId || generateRuleId(type),
+            type: type,
+            condition: condition,
+            enabled: enabled,
+            created_at: new Date().toISOString()
+        };
+
+        // 获取目标规则集
+        const ruleSetMap = {
+            'to_door': config.to_door,
+            'black_list': config.black_list,
+            'none_lane': config.none_lane
+        };
+
+        const targetSet = ruleSetMap[ruleSet];
+        if (!targetSet) {
+            showError('规则集未找到');
+            return;
+        }
+
+        if (!targetSet.rules) {
+            targetSet.rules = [];
+        }
+
+        if (ruleId) {
+            // 编辑现有规则
+            const index = targetSet.rules.findIndex(r => r.id === ruleId);
+            if (index !== -1) {
+                targetSet.rules[index] = rule;
+            }
+        } else {
+            // 添加新规则
+            targetSet.rules.push(rule);
+        }
+
+        // 保存配置到后端
+        await apiPost('/config/routing', config);
+        showSuccess(ruleId ? '规则已更新' : '规则已添加');
+
+        // 关闭模态框
+        const modal = bootstrap.Modal.getInstance(document.getElementById('ruleEditModal'));
+        modal.hide();
+
+        // 重新加载配置
+        loadRoutingConfig();
+    } catch (error) {
+        showError('保存规则失败: ' + error.message);
+    }
+}
+
+// 更新类型选择的帮助文本
+function updateRuleTypeHelpText() {
+    const type = document.getElementById('ruleTypeSelect').value;
+    const helpText = document.getElementById('typeHelpText');
+
+    const helpMap = {
+        'domain': '示例: *.google.com 或 example.com',
+        'ip': '示例: 192.168.0.0/16 或 10.0.0.0/8',
+        'geoip': '示例: US (美国), CN (中国), JP (日本) - 使用ISO 3166-1 alpha-2代码'
+    };
+
+    helpText.textContent = helpMap[type] || '';
+}
+
+// 保存全局配置
+async function saveGlobalRoutingConfig() {
+    try {
+        const config = appState.routingConfig;
+        if (!config) {
+            showError('配置未加载');
+            return;
+        }
+
+        // 更新全局设置
+        if (!config.settings) {
+            config.settings = {};
+        }
+
+        config.settings.geoip_enabled = document.getElementById('geoipEnabledSwitch').checked;
+        config.settings.none_lane_enabled = document.getElementById('nonelaneEnabledSwitch').checked;
+
+        // 保存到后端
+        await apiPost('/config/routing', config);
+        showSuccess('配置已保存');
+
+        // 重新加载配置
+        loadRoutingConfig();
+    } catch (error) {
+        showError('保存配置失败: ' + error.message);
+    }
+}
+
+// 事件监听器 - 添加规则按钮
+document.addEventListener('DOMContentLoaded', () => {
+    const addToDoorBtn = document.getElementById('addToDoorRuleBtn');
+    const addBlacklistBtn = document.getElementById('addBlacklistRuleBtn');
+    const addNonelaneBtn = document.getElementById('addNonelaneRuleBtn');
+
+    if (addToDoorBtn) {
+        addToDoorBtn.addEventListener('click', () => addRule('to_door'));
+    }
+    if (addBlacklistBtn) {
+        addBlacklistBtn.addEventListener('click', () => addRule('black_list'));
+    }
+    if (addNonelaneBtn) {
+        addNonelaneBtn.addEventListener('click', () => addRule('none_lane'));
+    }
+
+    // 规则编辑模态框保存按钮
+    const ruleEditSaveBtn = document.getElementById('ruleEditSaveBtn');
+    if (ruleEditSaveBtn) {
+        ruleEditSaveBtn.addEventListener('click', saveRuleFromModal);
+    }
+
+    // 规则类型选择变化
+    const ruleTypeSelect = document.getElementById('ruleTypeSelect');
+    if (ruleTypeSelect) {
+        ruleTypeSelect.addEventListener('change', updateRuleTypeHelpText);
+        // 初始化帮助文本
+        updateRuleTypeHelpText();
+    }
+
+    // 全局配置保存按钮
+    const rulesConfigSaveBtn = document.getElementById('rulesConfigSaveBtn');
+    if (rulesConfigSaveBtn) {
+        rulesConfigSaveBtn.addEventListener('click', saveGlobalRoutingConfig);
+    }
+});
 
 document.getElementById('rulesEnableBtn').addEventListener('click', () => {
     const btn = event.target.closest('button');
@@ -1264,7 +1716,7 @@ const logWebSocket = {
         switch (status) {
             case 'connected':
                 statusText = '实时连接';
-                statusClass = 'badge bg-success';
+                statusClass = 'badge bg-danger';
                 // 禁用连接按钮，启用断开按钮
                 if (connectBtn) {
                     connectBtn.disabled = true;
@@ -1575,8 +2027,8 @@ function initChart() {
                     {
                         label: '上传 (Bytes/s)',
                         data: [],
-                        borderColor: '#dc3545',
-                        backgroundColor: 'rgba(220, 53, 69, 0.05)',
+                        borderColor: '#ff6b6b',
+                        backgroundColor: 'rgba(255, 107, 107, 0.1)',
                         borderWidth: 2,
                         tension: 0.3,
                         fill: true,
@@ -1586,8 +2038,8 @@ function initChart() {
                     {
                         label: '下载 (Bytes/s)',
                         data: [],
-                        borderColor: '#0d6efd',
-                        backgroundColor: 'rgba(13, 110, 253, 0.05)',
+                        borderColor: '#4ecdc4',
+                        backgroundColor: 'rgba(78, 205, 196, 0.1)',
                         borderWidth: 2,
                         tension: 0.3,
                         fill: true,
@@ -1601,7 +2053,7 @@ function initChart() {
                 maintainAspectRatio: false,
                 interaction: { mode: 'index', intersect: false },
                 plugins: {
-                    legend: { display: true, position: 'top' },
+                    legend: { display: false },  // 使用自定义图例
                     tooltip: {
                         callbacks: {
                             label: function(context) {
@@ -2004,12 +2456,13 @@ function switchPage(page) {
                 clearInterval(dashboardStatsInterval);
             }
         }, 1500);
-    } else if (page === 'proxy') {
+    } else if (page === 'proxy-control') {
+        // 合并的代理管理与运行控制页面
         loadProxyData();
-    } else if (page === 'run') {
         loadRunStatus();
     } else if (page === 'rules') {
         loadRulesData();
+        loadRoutingConfig();
     } else if (page === 'logs') {
         // 连接 WebSocket 进行实时日志
         logWebSocket.connect();
@@ -2159,7 +2612,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     <div>
                         <strong>流量使用:</strong>
                         <div class="progress mt-2" style="height: 20px;">
-                            <div class="progress-bar ${trafficPercent > 90 ? 'bg-danger' : trafficPercent > 70 ? 'bg-warning' : 'bg-success'}"
+                            <div class="progress-bar ${trafficPercent > 90 ? 'bg-danger' : trafficPercent > 70 ? 'bg-warning' : 'bg-primary'}"
                                  role="progressbar"
                                  style="width: ${trafficPercent}%;"
                                  aria-valuenow="${trafficPercent}"
@@ -2410,11 +2863,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // 构建状态 badges (NEW)
         const exportedBadge = certStatus.is_exported
-            ? '<span class="badge bg-success"><i class="bi bi-check-circle"></i> 已导出</span>'
+            ? '<span class="badge bg-danger"><i class="bi bi-check-circle"></i> 已导出</span>'
             : '<span class="badge bg-danger"><i class="bi bi-x-circle"></i> 未导出</span>';
 
         const installedBadge = certStatus.is_installed
-            ? '<span class="badge bg-success"><i class="bi bi-check-circle"></i> 已安装</span>'
+            ? '<span class="badge bg-danger"><i class="bi bi-check-circle"></i> 已安装</span>'
             : '<span class="badge bg-danger"><i class="bi bi-x-circle"></i> 未安装</span>';
 
         const trustedBadge = certStatus.is_trusted
@@ -2478,7 +2931,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const badgeMap = {
             'not_found': '<span class="badge bg-danger">证书不存在</span>',
             'installed_not_trusted': '<span class="badge bg-warning">已安装但未信任</span>',
-            'system_trusted': '<span class="badge bg-success">系统信任</span>',
+            'system_trusted': '<span class="badge bg-danger">系统信任</span>',
             'unsupported_platform': '<span class="badge bg-secondary">不支持的平台</span>'
         };
         return badgeMap[trustStatus] || `<span class="badge bg-secondary">${trustStatus}</span>`;
