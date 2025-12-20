@@ -30,7 +30,7 @@ func (h *TrafficStatsHandler) HandleGetStats(w http.ResponseWriter, r *http.Requ
 	}
 
 	// 从URL路径中提取timescale参数
-	pathParts := strings.Split(strings.TrimPrefix(r.URL.Path, "/api/stats/"), "/")
+	pathParts := strings.Split(strings.TrimPrefix(r.URL.Path, "/api/stats/traffic/"), "/")
 	if len(pathParts) == 0 || pathParts[0] == "" {
 		common.ErrorBadRequest(w, "Missing timescale parameter", nil)
 		return

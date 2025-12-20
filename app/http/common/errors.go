@@ -8,15 +8,15 @@ const (
 	CodeSuccess = 0
 
 	// Client errors (100-199)
-	CodeBadRequest     = 100
-	CodeUnauthorized   = 101
-	CodeForbidden      = 102
-	CodeNotFound       = 103
-	CodeConflict       = 104
+	CodeBadRequest   = 100
+	CodeUnauthorized = 101
+	CodeForbidden    = 102
+	CodeNotFound     = 103
+	CodeConflict     = 104
 
 	// Logger errors (110-119)
-	CodeInvalidLogLevel      = 110
-	CodeInvalidLogConfig     = 111
+	CodeInvalidLogLevel       = 110
+	CodeInvalidLogConfig      = 111
 	CodeLogServiceUnavailable = 112
 
 	// Proxy errors (120-129)
@@ -25,10 +25,10 @@ const (
 	CodeInvalidProxyConfig = 122
 
 	// Run/Mode errors (130-139)
-	CodeInvalidRunMode       = 130
-	CodeModeTransitionFailed = 131
+	CodeInvalidRunMode        = 130
+	CodeModeTransitionFailed  = 131
 	CodeServiceAlreadyRunning = 132
-	CodeServiceNotRunning    = 133
+	CodeServiceNotRunning     = 133
 
 	// Config errors (140-149)
 	CodeInvalidConfigValue = 140

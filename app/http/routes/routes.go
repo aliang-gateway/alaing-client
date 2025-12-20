@@ -1,13 +1,14 @@
 package routes
 
 import (
+	"fmt"
 	"net/http"
 
 	"nursor.org/nursorgate/app/http/handlers"
 	"nursor.org/nursorgate/app/http/repositories"
 	"nursor.org/nursorgate/app/http/services"
 	"nursor.org/nursorgate/common/config"
-	"nursor.org/nursorgate/processor/statistic"
+	"nursor.org/nursorgate/common/logger"
 	processorconfig "nursor.org/nursorgate/processor/config"
 	"nursor.org/nursorgate/processor/stats"
 )
@@ -23,13 +24,15 @@ type Handlers struct {
 	Door          *handlers.DoorHandler
 	Rules         *handlers.RulesHandler
 	DNSCache      *handlers.DNSCacheHandler
-	Stats         *handlers.StatsHandler
 	Cert          *handlers.CertHandler
 	Auth          *handlers.AuthHandler
 	Startup       *handlers.StartupHandler
 	Latency       *handlers.LatencyHandler
 	Config        *handlers.ConfigHandler
 	TrafficStats  *handlers.TrafficStatsHandler
+
+	// Keep reference to stats collector for lifecycle management
+	statsCollector *stats.StatsCollector
 }
 
 // NewHandlers creates and initializes all handlers with their dependencies
@@ -62,22 +65,22 @@ func NewHandlers() *Handlers {
 
 	// Create handlers with dependency injection
 	return &Handlers{
-		Logger:        handlers.NewLogHandler(logService, logConfigService),
-		Proxy:         handlers.NewProxyHandler(proxyService),
-		ProxyRegistry: handlers.NewProxyRegistryHandler(proxyRepository),
-		Token:         handlers.NewTokenHandler(tokenService),
-		Run:           handlers.NewRunHandler(runService),
-		LogStream:     handlers.NewLogStreamHandler(),
-		Door:          handlers.NewDoorHandler(),
-		Rules:         handlers.NewRulesHandler(),
-		DNSCache:      handlers.NewDNSCacheHandler(),
-		Stats:         handlers.NewStatsHandler(statistic.DefaultManager),
-		Cert:          handlers.NewCertHandler(certService),
-		Auth:          handlers.NewAuthHandler(),
-		Startup:       handlers.NewStartupHandler(),
-		Latency:       handlers.NewLatencyHandler(latencyService),
-		Config:        handlers.NewConfigHandler(nacosClient),
-		TrafficStats:  handlers.NewTrafficStatsHandler(statsCollector),
+		Logger:         handlers.NewLogHandler(logService, logConfigService),
+		Proxy:          handlers.NewProxyHandler(proxyService),
+		ProxyRegistry:  handlers.NewProxyRegistryHandler(proxyRepository),
+		Token:          handlers.NewTokenHandler(tokenService),
+		Run:            handlers.NewRunHandler(runService),
+		LogStream:      handlers.NewLogStreamHandler(),
+		Door:           handlers.NewDoorHandler(),
+		Rules:          handlers.NewRulesHandler(),
+		DNSCache:       handlers.NewDNSCacheHandler(),
+		Cert:           handlers.NewCertHandler(certService),
+		Auth:           handlers.NewAuthHandler(),
+		Startup:        handlers.NewStartupHandler(),
+		Latency:        handlers.NewLatencyHandler(latencyService),
+		Config:         handlers.NewConfigHandler(nacosClient),
+		TrafficStats:   handlers.NewTrafficStatsHandler(statsCollector),
+		statsCollector: statsCollector,
 	}
 }
 
@@ -128,9 +131,6 @@ func RegisterRoutes(h *Handlers, mux *http.ServeMux) {
 	mux.HandleFunc("/api/rules/engine/enable", h.Rules.HandleEnableRuleEngine)
 	mux.HandleFunc("/api/rules/engine/disable", h.Rules.HandleDisableRuleEngine)
 
-	// Statistics API (/api/stats/*)
-	mux.HandleFunc("/api/stats", h.Stats.HandleGetStats)
-
 	// Certificate Management API (/api/cert/*)
 	mux.HandleFunc("/api/cert/status", h.Cert.HandleGetStatus)
 	mux.HandleFunc("/api/cert/export", h.Cert.HandleExport)
@@ -155,9 +155,9 @@ func RegisterRoutes(h *Handlers, mux *http.ServeMux) {
 	mux.HandleFunc("/api/startup/detail", h.Startup.HandleStartupDetail)
 
 	// Routing Config API (/api/config/routing)
-	mux.HandleFunc("/api/config/routing", h.Config.HandleGetRoutingConfig)
-	mux.HandleFunc("/api/config/routing", h.Config.HandleUpdateRoutingConfig)
+	mux.HandleFunc("/api/config/routing", h.Config.HandleRoutingConfig)
 	mux.HandleFunc("/api/config/routing/rules/", h.Config.HandleToggleRuleStatus)
+	mux.HandleFunc("/api/config/routing/auto-update", h.Config.HandleAutoUpdateStatus)
 
 	// Traffic Statistics API (/api/stats/traffic/*)
 	mux.HandleFunc("/api/stats/traffic/", h.TrafficStats.HandleGetStats)
@@ -166,3 +166,25 @@ func RegisterRoutes(h *Handlers, mux *http.ServeMux) {
 	mux.HandleFunc("/api/stats/traffic/cache/clear", h.TrafficStats.HandleClearCache)
 }
 
+// StartStatsCollector starts the traffic statistics collector background task
+func StartStatsCollector(h *Handlers) error {
+	if h.statsCollector == nil {
+		return fmt.Errorf("stats collector not initialized")
+	}
+
+	if err := h.statsCollector.Start(); err != nil {
+		logger.Error(fmt.Sprintf("Failed to start stats collector: %v", err))
+		return err
+	}
+
+	logger.Info("Traffic stats collector started successfully")
+	return nil
+}
+
+// StopStatsCollector stops the traffic statistics collector
+func StopStatsCollector(h *Handlers) {
+	if h.statsCollector != nil {
+		h.statsCollector.Stop()
+		logger.Info("Traffic stats collector stopped")
+	}
+}

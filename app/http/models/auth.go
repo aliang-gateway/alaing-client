@@ -21,8 +21,8 @@ type UserInfoResponse struct {
 
 // RefreshStatusResponse 刷新状态响应
 type RefreshStatusResponse struct {
-	IsRunning      bool   `json:"is_running"`
-	LastUpdateTime string `json:"last_update_time,omitempty"`
-	LastError      string `json:"last_error,omitempty"`
+	IsRunning       bool   `json:"is_running"`
+	LastUpdateTime  string `json:"last_update_time,omitempty"`
+	LastError       string `json:"last_error,omitempty"`
 	RefreshInterval string `json:"refresh_interval"`
 }

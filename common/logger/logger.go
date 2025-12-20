@@ -318,12 +318,12 @@ func Debug(v ...interface{}) {
 	GetMainLogger().Debug(v...)
 }
 
-func Info(v ...interface{})  {
+func Info(v ...interface{}) {
 	logf(INFO_COMPAT, "INFO", v...)
 	GetMainLogger().Info(v...)
 }
 
-func Warn(v ...interface{})  {
+func Warn(v ...interface{}) {
 	logf(WARN_COMPAT, "WARN", v...)
 	GetMainLogger().Warn(v...)
 }

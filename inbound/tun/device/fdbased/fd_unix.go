@@ -7,8 +7,8 @@ import (
 	"nursor.org/nursorgate/inbound/tun/device"
 	"strconv"
 
-	"golang.org/x/sys/unix"
 	"github.com/sagernet/gvisor/pkg/tcpip/stack"
+	"golang.org/x/sys/unix"
 )
 
 const defaultMTU = 1500

@@ -15,10 +15,10 @@ type RunStopRequest struct {
 // These parameters are optional and are primarily used for backward compatibility.
 // For new implementations, use /api/auth/activate to activate a token and get user info.
 type RunUserInfoRequest struct {
-	UserUUID   string `json:"user_uuid,omitempty"`     // Optional: normally auto-populated via token activation
-	InnerToken string `json:"inner_token,omitempty"`   // Optional: normally auto-populated via token activation
-	Username   string `json:"username,omitempty"`      // Optional: normally auto-populated via token activation
-	Password   string `json:"password,omitempty"`      // Optional: normally auto-populated via token activation
+	UserUUID   string `json:"user_uuid,omitempty"`   // Optional: normally auto-populated via token activation
+	InnerToken string `json:"inner_token,omitempty"` // Optional: normally auto-populated via token activation
+	Username   string `json:"username,omitempty"`    // Optional: normally auto-populated via token activation
+	Password   string `json:"password,omitempty"`    // Optional: normally auto-populated via token activation
 }
 
 // RunStatusResponse is the response body for getting run status

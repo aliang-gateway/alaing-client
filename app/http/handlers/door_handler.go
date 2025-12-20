@@ -50,7 +50,6 @@ func (dh *DoorHandler) HandleDoorMemberList(w http.ResponseWriter, r *http.Reque
 	})
 }
 
-
 // HandleDoorAutoSelect handles POST /api/proxy/door/auto
 func (dh *DoorHandler) HandleDoorAutoSelect(w http.ResponseWriter, r *http.Request) {
 	registry := outbound.GetRegistry()

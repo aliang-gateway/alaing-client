@@ -2,6 +2,7 @@ package model
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net"
 	"regexp"
@@ -9,97 +10,226 @@ import (
 	"time"
 )
 
-// RuleType 定义规则类型
+// RuleType represents the type of routing rule
 type RuleType string
 
 const (
-	RuleTypeDomain RuleType = "domain" // 域名匹配
-	RuleTypeIP     RuleType = "ip"     // IP段匹配 (CIDR)
-	RuleTypeGeoIP  RuleType = "geoip"  // GeoIP国家代码匹配
+	RuleTypeDomain RuleType = "domain" // Domain matching: *.google.com
+	RuleTypeIP     RuleType = "ip"     // IP CIDR matching: 192.168.0.0/16
+	RuleTypeGeoIP  RuleType = "geoip"  // GeoIP matching: US, CN (ISO 3166-1 alpha-2)
 )
 
-// RoutingRule 单条路由规则
+// RoutingRule represents a single routing rule
 type RoutingRule struct {
-	ID        string    `json:"id"`         // 规则唯一标识，格式: rule_{type}_{timestamp}
-	Type      RuleType  `json:"type"`       // 规则类型: domain, ip, geoip
-	Condition string    `json:"condition"`  // 匹配条件
-	Enabled   bool      `json:"enabled"`    // 是否启用
-	CreatedAt time.Time `json:"created_at"` // 创建时间
+	ID          string    `json:"id" validate:"required,max=128"`
+	Type        RuleType  `json:"type" validate:"required,oneof=domain ip geoip"`
+	Condition   string    `json:"condition" validate:"required,max=256"`
+	Enabled     bool      `json:"enabled" default:"true"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
+	Description string    `json:"description,omitempty" validate:"max=512"`
 }
 
-// RoutingRuleSet 路由规则集
-type RoutingRuleSet struct {
-	Rules []RoutingRule `json:"rules"` // 规则列表
-}
-
-// RulesSettings 规则全局设置
-type RulesSettings struct {
-	GeoIPEnabled    bool `json:"geoip_enabled"`     // 是否启用GeoIP判断
-	NoneLaneEnabled bool `json:"none_lane_enabled"` // 是否启用NoneLane代理
-}
-
-// RoutingRulesConfig 统一的路由规则配置模型
-type RoutingRulesConfig struct {
-	ToDoor    RoutingRuleSet `json:"to_door"`    // To Door代理规则集
-	BlackList RoutingRuleSet `json:"black_list"` // 黑名单规则集(内网IP段)
-	NoneLane  RoutingRuleSet `json:"none_lane"`  // NoneLane代理规则集
-	Settings  RulesSettings  `json:"settings"`   // 全局设置
-}
-
-// Validate 验证配置完整性和正确性
-func (rc *RoutingRulesConfig) Validate() error {
-	// 验证规则ID唯一性
-	idSet := make(map[string]bool)
-
-	// 验证所有规则集
-	allRuleSets := []struct {
-		name string
-		set  RoutingRuleSet
-	}{
-		{"to_door", rc.ToDoor},
-		{"black_list", rc.BlackList},
-		{"none_lane", rc.NoneLane},
+// Validate validates the RoutingRule
+func (r *RoutingRule) Validate() error {
+	// ID validation
+	if r.ID == "" {
+		return errors.New("id is required")
+	}
+	if len(r.ID) > 128 {
+		return errors.New("id too long (max 128)")
 	}
 
-	for _, rs := range allRuleSets {
-		for i, rule := range rs.set.Rules {
-			// 检查ID唯一性
-			if idSet[rule.ID] {
-				return fmt.Errorf("duplicate rule ID: %s in %s", rule.ID, rs.name)
-			}
-			idSet[rule.ID] = true
+	// Type validation
+	if r.Type != RuleTypeDomain && r.Type != RuleTypeIP && r.Type != RuleTypeGeoIP {
+		return errors.New("invalid rule type")
+	}
 
-			// 检查ID格式
-			if rule.ID == "" {
-				return fmt.Errorf("empty rule ID at %s.rules[%d]", rs.name, i)
-			}
-
-			// 检查Type有效性
-			if !isValidRuleType(rule.Type) {
-				return fmt.Errorf("invalid rule type '%s' at %s.rules[%d]", rule.Type, rs.name, i)
-			}
-
-			// 检查Condition非空
-			if rule.Condition == "" {
-				return fmt.Errorf("empty condition at %s.rules[%d]", rs.name, i)
-			}
-
-			// 根据类型验证Condition格式
-			if err := validateRuleCondition(rule); err != nil {
-				return fmt.Errorf("invalid condition at %s.rules[%d]: %w", rs.name, i, err)
-			}
+	// Condition validation (depends on Type)
+	switch r.Type {
+	case RuleTypeDomain:
+		if !isValidDomain(r.Condition) {
+			return errors.New("invalid domain format")
 		}
+	case RuleTypeIP:
+		if !isValidCIDR(r.Condition) {
+			return errors.New("invalid CIDR format")
+		}
+	case RuleTypeGeoIP:
+		if !isValidCountryCode(r.Condition) {
+			return errors.New("invalid country code (use ISO 3166-1 alpha-2)")
+		}
+	}
+
+	// Description validation
+	if len(r.Description) > 512 {
+		return errors.New("description too long (max 512)")
 	}
 
 	return nil
 }
 
-// ToJSON 序列化为JSON
+// Helper functions for validation
+func isValidDomain(domain string) bool {
+	// Support wildcard *.example.com and full domain example.com
+	if strings.HasPrefix(domain, "*.") {
+		domain = domain[2:] // Remove *.
+	}
+	// Basic DNS domain regex (simplified)
+	return regexp.MustCompile(`^[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?)*$`).MatchString(domain)
+}
+
+func isValidCIDR(cidr string) bool {
+	_, _, err := net.ParseCIDR(cidr)
+	return err == nil
+}
+
+func isValidCountryCode(code string) bool {
+	// ISO 3166-1 alpha-2 code (2 uppercase letters)
+	return regexp.MustCompile(`^[A-Z]{2}$`).MatchString(code)
+}
+
+// SetType represents the type of rule set
+type SetType string
+
+const (
+	SetTypeToDoor    SetType = "to_door"    // Door proxy rules
+	SetTypeBlacklist SetType = "black_list" // Blacklist rules (reserved)
+	SetTypeNoneLane  SetType = "none_lane"  // NoneLane rules
+)
+
+// RoutingRuleSet represents a collection of routing rules
+type RoutingRuleSet struct {
+	SetType   SetType       `json:"set_type" validate:"required,oneof=to_door black_list none_lane"`
+	Rules     []RoutingRule `json:"rules" validate:"dive"`
+	Count     int           `json:"count" validate:"min=0,max=10000"`
+	UpdatedAt time.Time     `json:"updated_at"`
+}
+
+// Validate validates the RoutingRuleSet
+func (rs *RoutingRuleSet) Validate() error {
+	// SetType validation
+	if rs.SetType != SetTypeToDoor && rs.SetType != SetTypeBlacklist && rs.SetType != SetTypeNoneLane {
+		return errors.New("invalid set type")
+	}
+
+	// Rules validation
+	if len(rs.Rules) > 10000 {
+		return errors.New("too many rules (max 10000)")
+	}
+
+	// Validate each rule
+	for i, rule := range rs.Rules {
+		if err := rule.Validate(); err != nil {
+			return fmt.Errorf("rule[%d] validation failed: %v", i, err)
+		}
+	}
+
+	// Count consistency check
+	rs.Count = len(rs.Rules)
+
+	return nil
+}
+
+// RulesSettings represents global routing settings
+type RulesSettings struct {
+	NoneLaneEnabled bool      `json:"none_lane_enabled" default:"true"`
+	DoorEnabled     bool      `json:"door_enabled" default:"true"`
+	GeoIPEnabled    bool      `json:"geoip_enabled" default:"false"`
+	AutoUpdate      bool      `json:"auto_update" default:"true"`
+	UpdatedAt       time.Time `json:"updated_at"`
+	LastNacosSync   time.Time `json:"last_nacos_sync,omitempty"`
+}
+
+// Validate validates the RulesSettings
+func (s *RulesSettings) Validate() error {
+	// No additional validation needed - all fields are booleans or timestamps
+	return nil
+}
+
+// RoutingRulesConfig represents the complete routing configuration
+type RoutingRulesConfig struct {
+	ToDoor    RoutingRuleSet `json:"to_door" validate:"required,dive"`
+	BlackList RoutingRuleSet `json:"black_list" validate:"required,dive"`
+	NoneLane  RoutingRuleSet `json:"none_lane" validate:"required,dive"`
+	Settings  RulesSettings  `json:"settings" validate:"required"`
+	Version   int            `json:"version" validate:"min=1"`
+	CreatedAt time.Time      `json:"created_at"`
+	UpdatedAt time.Time      `json:"updated_at"`
+}
+
+// Validate validates the RoutingRulesConfig
+func (rc *RoutingRulesConfig) Validate() error {
+	// Validate three rule sets
+	if err := rc.ToDoor.Validate(); err != nil {
+		return fmt.Errorf("to_door validation failed: %v", err)
+	}
+	if err := rc.BlackList.Validate(); err != nil {
+		return fmt.Errorf("black_list validation failed: %v", err)
+	}
+	if err := rc.NoneLane.Validate(); err != nil {
+		return fmt.Errorf("none_lane validation failed: %v", err)
+	}
+
+	// Validate settings
+	if err := rc.Settings.Validate(); err != nil {
+		return fmt.Errorf("settings validation failed: %v", err)
+	}
+
+	// Version validation
+	if rc.Version < 1 {
+		return errors.New("version must be >= 1")
+	}
+
+	// Timestamp consistency check
+	if rc.UpdatedAt.Before(rc.CreatedAt) {
+		return errors.New("updated_at cannot be before created_at")
+	}
+
+	return nil
+}
+
+// NewRoutingRulesConfig creates a new empty RoutingRulesConfig
+func NewRoutingRulesConfig() *RoutingRulesConfig {
+	now := time.Now()
+	return &RoutingRulesConfig{
+		ToDoor: RoutingRuleSet{
+			SetType:   SetTypeToDoor,
+			Rules:     []RoutingRule{},
+			Count:     0,
+			UpdatedAt: now,
+		},
+		BlackList: RoutingRuleSet{
+			SetType:   SetTypeBlacklist,
+			Rules:     []RoutingRule{},
+			Count:     0,
+			UpdatedAt: now,
+		},
+		NoneLane: RoutingRuleSet{
+			SetType:   SetTypeNoneLane,
+			Rules:     []RoutingRule{},
+			Count:     0,
+			UpdatedAt: now,
+		},
+		Settings: RulesSettings{
+			NoneLaneEnabled: true,
+			DoorEnabled:     true,
+			GeoIPEnabled:    false,
+			AutoUpdate:      true,
+			UpdatedAt:       now,
+		},
+		Version:   1,
+		CreatedAt: now,
+		UpdatedAt: now,
+	}
+}
+
+// ToJSON serializes to JSON
 func (rc *RoutingRulesConfig) ToJSON() ([]byte, error) {
 	return json.MarshalIndent(rc, "", "  ")
 }
 
-// NewRoutingRulesConfigFromJSON 从JSON反序列化并验证
+// NewRoutingRulesConfigFromJSON deserializes from JSON and validates
 func NewRoutingRulesConfigFromJSON(data []byte) (*RoutingRulesConfig, error) {
 	var rc RoutingRulesConfig
 	if err := json.Unmarshal(data, &rc); err != nil {
@@ -113,93 +243,7 @@ func NewRoutingRulesConfigFromJSON(data []byte) (*RoutingRulesConfig, error) {
 	return &rc, nil
 }
 
-// isValidRuleType 检查规则类型是否有效
-func isValidRuleType(t RuleType) bool {
-	switch t {
-	case RuleTypeDomain, RuleTypeIP, RuleTypeGeoIP:
-		return true
-	default:
-		return false
-	}
-}
-
-// validateRuleCondition 根据规则类型验证条件格式
-func validateRuleCondition(rule RoutingRule) error {
-	switch rule.Type {
-	case RuleTypeDomain:
-		return validateDomainPattern(rule.Condition)
-	case RuleTypeIP:
-		return validateCIDR(rule.Condition)
-	case RuleTypeGeoIP:
-		return validateCountryCode(rule.Condition)
-	default:
-		return fmt.Errorf("unknown rule type: %s", rule.Type)
-	}
-}
-
-// validateDomainPattern 验证域名模式 (支持通配符 *.example.com 或 example.com)
-func validateDomainPattern(pattern string) error {
-	if pattern == "" {
-		return fmt.Errorf("empty domain pattern")
-	}
-
-	// 允许通配符前缀 *.
-	pattern = strings.TrimPrefix(pattern, "*.")
-
-	// 基本域名验证 (允许字母、数字、连字符和点)
-	domainRegex := regexp.MustCompile(`^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$`)
-	if !domainRegex.MatchString(pattern) {
-		return fmt.Errorf("invalid domain pattern format")
-	}
-
-	return nil
-}
-
-// validateCIDR 验证CIDR格式 (如 192.168.0.0/16)
-func validateCIDR(cidr string) error {
-	_, _, err := net.ParseCIDR(cidr)
-	if err != nil {
-		return fmt.Errorf("invalid CIDR format: %w", err)
-	}
-	return nil
-}
-
-// validateCountryCode 验证ISO 3166-1 alpha-2国家代码 (2个字符)
-func validateCountryCode(code string) error {
-	if len(code) != 2 {
-		return fmt.Errorf("country code must be 2 characters (ISO 3166-1 alpha-2)")
-	}
-
-	// 检查是否都是字母
-	for _, c := range code {
-		if (c < 'A' || c > 'Z') && (c < 'a' || c > 'z') {
-			return fmt.Errorf("country code must contain only letters")
-		}
-	}
-
-	return nil
-}
-
-// NewDefaultRoutingRulesConfig 创建默认配置
-func NewDefaultRoutingRulesConfig() *RoutingRulesConfig {
-	return &RoutingRulesConfig{
-		ToDoor: RoutingRuleSet{
-			Rules: []RoutingRule{},
-		},
-		BlackList: RoutingRuleSet{
-			Rules: []RoutingRule{},
-		},
-		NoneLane: RoutingRuleSet{
-			Rules: []RoutingRule{},
-		},
-		Settings: RulesSettings{
-			GeoIPEnabled:    true,
-			NoneLaneEnabled: false,
-		},
-	}
-}
-
-// GenerateRuleID 生成规则ID
+// GenerateRuleID generates a rule ID
 func GenerateRuleID(ruleType RuleType) string {
 	timestamp := time.Now().Unix()
 	return fmt.Sprintf("rule_%s_%d", ruleType, timestamp)

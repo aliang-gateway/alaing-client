@@ -24,7 +24,7 @@ const (
 
 var (
 	// cacheDir stores the resolved cache directory path
-	cacheDir string
+	cacheDir     string
 	cacheDirOnce sync.Once
 )
 

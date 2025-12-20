@@ -947,38 +947,53 @@ body {
 }
 
 /* ============ 新仪表板布局样式 ============ */
-/* 主容器 - Flexbox 两列布局 */
-.dashboard-container {
-    display: flex;
-    gap: 1.5rem;
-    margin-bottom: 2rem;
-    min-height: 600px;
-}
-
-/* 左侧：关键指标区域 (30%) */
-.dashboard-metrics {
-    flex: 0 0 30%;
+/* 主容器 - Flexbox 垂直布局 (30%-50%-20%) */
+.dashboard-container-vertical {
     display: flex;
     flex-direction: column;
-    gap: 1.5rem;
+    height: calc(100vh - 200px);
+    min-height: 600px;
+    gap: 1rem;
 }
 
-/* 关键指标网格 (2x4) */
+/* 区域1：关键指标区域 (30%) */
+.metrics-section {
+    flex: 0 0 auto;
+    border-bottom: 1px solid #dee2e6;
+    padding-bottom: 1rem;
+    margin-bottom: 1rem;
+}
+
+/* 区域2：流量监控区域 (50%) */
+.traffic-section {
+    flex: 1 1 auto;
+    min-height: 400px;
+    margin-bottom: 1rem;
+}
+
+/* 区域3：其他内容区域 (20%) */
+.other-section {
+    flex: 0 0 auto;
+    border-top: 1px solid #dee2e6;
+    padding-top: 1rem;
+}
+
+/* 关键指标网格 (2行x4列) */
 .metrics-grid {
     display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 1rem;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 0.75rem;
 }
 
 /* 单个指标卡片 */
 .metric-card {
     background: white;
     border-radius: var(--border-radius);
-    padding: 1rem;
+    padding: 0.75rem;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
     display: flex;
     align-items: center;
-    gap: 0.875rem;
+    gap: 0.75rem;
     transition: all 0.2s ease;
     border-left: 3px solid transparent;
 }
@@ -998,7 +1013,7 @@ body {
 }
 
 .metric-card.metric-info {
-    border-left-color: var(--bs-info);
+    border-left-color: var(--bs-primary);
 }
 
 .metric-card.metric-warning {
@@ -1008,13 +1023,13 @@ body {
 /* 指标图标 */
 .metric-icon {
     flex-shrink: 0;
-    width: 40px;
-    height: 40px;
+    width: 32px;
+    height: 32px;
     display: flex;
     align-items: center;
     justify-content: center;
     border-radius: 50%;
-    font-size: 1.25rem;
+    font-size: 1.125rem;
     background: linear-gradient(135deg, rgba(215, 114, 107, 0.1), rgba(215, 114, 107, 0.05));
 }
 
@@ -1027,7 +1042,7 @@ body {
 }
 
 .metric-card.metric-info .metric-icon {
-    color: var(--bs-info);
+    color: var(--bs-primary);
 }
 
 .metric-card.metric-warning .metric-icon {
@@ -1041,16 +1056,16 @@ body {
 }
 
 .metric-label {
-    font-size: 0.75rem;
+    font-size: 0.7rem;
     color: #6c757d;
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.05em;
-    margin-bottom: 0.25rem;
+    margin-bottom: 0.2rem;
 }
 
 .metric-value {
-    font-size: 1.125rem;
+    font-size: 1rem;
     font-weight: 700;
     color: #2d3436;
     white-space: nowrap;

@@ -4,12 +4,20 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
+	"time"
 
 	"github.com/spf13/cobra"
 	httpServer "nursor.org/nursorgate/app/http"
+	"nursor.org/nursorgate/common/cache"
 	"nursor.org/nursorgate/common/logger"
+	"nursor.org/nursorgate/common/model"
 	auth "nursor.org/nursorgate/processor/auth"
+	"nursor.org/nursorgate/processor/config"
+	"nursor.org/nursorgate/processor/geoip"
+	"nursor.org/nursorgate/processor/nacos"
+	"nursor.org/nursorgate/processor/rules"
 	"nursor.org/nursorgate/processor/runtime"
 )
 
@@ -91,6 +99,36 @@ func runStart(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
+	// ✅ GLOBAL Rule Engine Initialization (Phase 5: US5)
+	// This should be done once at startup, NOT separately in HTTP and TUN modes
+	// InitializeGlobalRuleEngine handles:
+	// 1. Rule engine initialization (singleton)
+	// 2. GeoIP database loading (if enabled in config)
+	// 3. Nacos configuration preloading
+	if err := InitializeGlobalRuleEngine(); err != nil {
+		logger.Error(fmt.Sprintf("Failed to initialize global rule engine: %v", err))
+		// Don't fail startup - system can run with default configuration
+	}
+
+	// T061: Initialize Nacos configuration manager (T055-T063)
+	// This loads routing configuration and starts listener if auto_update=true
+	var nacosManager *nacos.ConfigManager
+	cfg := config.GetGlobalConfig()
+	if cfg != nil && cfg.NacosServer != "" {
+		logger.Info("Initializing Nacos configuration manager...")
+		manager, err := nacos.InitializeFromConfig(cfg.NacosServer)
+		if err != nil {
+			logger.Error(fmt.Sprintf("Failed to initialize Nacos: %v", err))
+			// Don't fail startup if Nacos initialization fails
+			// System can still run with default configuration
+		} else {
+			nacosManager = manager
+			logger.Info("Nacos configuration manager initialized successfully")
+		}
+	} else {
+		logger.Info("Nacos server not configured, skipping Nacos initialization")
+	}
+
 	// 启动服务器
 	logger.Info("Starting nonelane server...")
 
@@ -108,6 +146,11 @@ func runStart(cmd *cobra.Command, args []string) error {
 	// 等待信号
 	<-sigChan
 	logger.Info("Received shutdown signal, stopping server...")
+
+	// T062: Graceful shutdown - stop Nacos listener if initialized
+	if nacosManager != nil {
+		nacos.GracefulShutdown(nacosManager)
+	}
 
 	// 优雅关闭：停止Token定时刷新
 	auth.StopTokenRefresh()
@@ -172,4 +215,79 @@ func ResetGlobalStartupStateForTest() {
 // DetermineInitialStartupStatusForTest exports the internal function for testing
 func DetermineInitialStartupStatusForTest(tokenFlag string) runtime.StartupStatus {
 	return determineInitialStartupStatus(tokenFlag)
+}
+
+// InitializeGlobalRuleEngine initializes the global rule engine once at startup
+// This is the ONLY place where rule engine should be initialized
+// Replaces duplicate initialization in:
+// - app/http/server.go:initializeRuleEngine()
+// - inbound/tun/runner/start.go:initializeRuleEngineForTUN()
+func InitializeGlobalRuleEngine() error {
+	logger.Info("========================================")
+	logger.Info("Global Rule Engine Initialization")
+	logger.Info("========================================")
+
+	// Step 1: Create default routing rules configuration
+	logger.Info("Step 1: Creating default routing rules configuration...")
+	defaultRules := model.NewRoutingRulesConfig()
+
+	// Step 2: Initialize Rule Engine (singleton)
+	logger.Info("Step 2: Initializing rule engine...")
+	ruleEngine := rules.GetEngine()
+	if err := ruleEngine.Initialize(defaultRules); err != nil {
+		return fmt.Errorf("failed to initialize rule engine: %w", err)
+	}
+	logger.Info("✓ Rule engine initialized")
+
+	// Step 3: Load GeoIP database if enabled
+	logger.Info("Step 3: Loading GeoIP database...")
+	if defaultRules.Settings.GeoIPEnabled {
+		if err := initializeGeoIPDatabase(); err != nil {
+			logger.Warn(fmt.Sprintf("Failed to load GeoIP database (non-fatal): %v", err))
+			logger.Warn("GeoIP routing will be disabled")
+			// Disable GeoIP in geoip service
+			geoipService := geoip.GetService()
+			geoipService.Disable()
+		} else {
+			logger.Info("✓ GeoIP database loaded successfully")
+		}
+	} else {
+		logger.Info("GeoIP routing is disabled in configuration (Settings.GeoIPEnabled=false)")
+	}
+
+	// Step 4: Preload Nacos configuration
+	logger.Info("Step 4: Preloading Nacos configuration...")
+	startTime := time.Now()
+	_ = model.NewAllowProxyDomain()
+	duration := time.Since(startTime)
+	logger.Info(fmt.Sprintf("✓ Nacos configuration loaded in %v", duration))
+
+	logger.Info("========================================")
+	logger.Info("✅ Global Rule Engine Initialization Complete")
+	logger.Info("========================================")
+
+	return nil
+}
+
+// initializeGeoIPDatabase loads the GeoIP database from default location
+// Default path: ~/.nonelane/GeoLite2-Country.mmdb
+func initializeGeoIPDatabase() error {
+	// Get home directory
+	homeDir, err := cache.ExpandHomePath("~")
+	if err != nil {
+		return fmt.Errorf("failed to get home directory: %w", err)
+	}
+
+	// GeoIP database path: ~/.nonelane/GeoLite2-Country.mmdb
+	geoipPath := filepath.Join(homeDir, ".nonelane", "GeoLite2-Country.mmdb")
+
+	// Load database
+	logger.Info(fmt.Sprintf("Loading GeoIP database from: %s", geoipPath))
+	geoipService := geoip.GetService()
+	if err := geoipService.LoadDatabase(geoipPath); err != nil {
+		return fmt.Errorf("failed to load GeoIP database: %w", err)
+	}
+
+	logger.Info(fmt.Sprintf("✓ GeoIP database loaded from %s", geoipPath))
+	return nil
 }

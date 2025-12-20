@@ -80,7 +80,7 @@ func GetUserInfoPath() (string, error) {
 		return "", fmt.Errorf("failed to get home directory: %w", err)
 	}
 	configDir := filepath.Join(homeDir, ".nonelane")
-	logger.Debug("get user info path: %s", configDir)
+	logger.Debug(fmt.Sprintf("get user info path: %s", configDir))
 	return filepath.Join(configDir, "userinfo.json"), nil
 }
 

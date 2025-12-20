@@ -44,7 +44,14 @@ func (h *DNSCacheHandler) GetCacheEntries(w http.ResponseWriter, r *http.Request
 		limit = l
 	}
 
-	entries := h.getCache().GetAll()
+	cache := h.getCache()
+	if cache == nil {
+		w.WriteHeader(http.StatusServiceUnavailable)
+		json.NewEncoder(w).Encode(map[string]string{"error": "DNS cache is not initialized"})
+		return
+	}
+
+	entries := cache.GetAll()
 
 	// Sort entries
 	h.sortEntries(entries, sortBy)
@@ -74,7 +81,14 @@ func (h *DNSCacheHandler) GetCacheEntries(w http.ResponseWriter, r *http.Request
 
 // GetStatistics returns cache statistics
 func (h *DNSCacheHandler) GetStatistics(w http.ResponseWriter, r *http.Request) {
-	stats := h.getCache().Stats()
+	cache := h.getCache()
+	if cache == nil {
+		w.WriteHeader(http.StatusServiceUnavailable)
+		json.NewEncoder(w).Encode(map[string]string{"error": "DNS cache is not initialized"})
+		return
+	}
+
+	stats := cache.Stats()
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(stats)

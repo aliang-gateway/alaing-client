@@ -12,9 +12,7 @@ import (
 	"nursor.org/nursorgate/common/logger"
 	"nursor.org/nursorgate/outbound"
 	"nursor.org/nursorgate/processor/config"
-	geoip "nursor.org/nursorgate/processor/geoip"
 	"nursor.org/nursorgate/processor/proxyserver"
-	rules "nursor.org/nursorgate/processor/rules"
 )
 
 // Embed the default configuration
@@ -112,20 +110,6 @@ func ApplyConfig(cfg *Config) error {
 		return fmt.Errorf("phase 4 - failed to set default proxy: %w", err)
 	}
 	logger.Debug("Phase 4: Default proxy set for routing")
-
-	// Phase 5: Initialize GeoIP service if configured
-	if err := initializeGeoIP(cfg.RoutingRules); err != nil {
-		logger.Warn(fmt.Sprintf("Phase 5 - GeoIP initialization failed (non-fatal): %v", err))
-	} else {
-		logger.Debug("Phase 5: GeoIP service initialized")
-	}
-
-	// Phase 6: Initialize routing rule engine
-	if err := initializeRuleEngine(cfg.RoutingRules); err != nil {
-		logger.Warn(fmt.Sprintf("Phase 6 - Rule engine initialization failed (non-fatal): %v", err))
-	} else {
-		logger.Debug("Phase 6: Rule engine initialized")
-	}
 
 	logger.Info("Configuration applied successfully")
 	return nil
@@ -306,70 +290,5 @@ func LoadAndApplyConfig(configPath string) error {
 	}
 
 	logger.Info(fmt.Sprintf("Config loaded and applied successfully from: %s", configPath))
-	return nil
-}
-
-// initializeGeoIP 初始化 GeoIP 服务
-func initializeGeoIP(routingRules *config.RoutingRulesConfig) error {
-	if routingRules == nil || routingRules.GeoIP == nil {
-		logger.Info("GeoIP routing not configured, service disabled")
-		return nil
-	}
-
-	geoipCfg := routingRules.GeoIP
-	if !geoipCfg.Enabled {
-		logger.Info("GeoIP service disabled in config")
-		return nil
-	}
-
-	if geoipCfg.DatabasePath == "" {
-		return fmt.Errorf("GeoIP enabled but database path not specified")
-	}
-
-	// 加载 GeoIP 数据库
-	service := geoip.GetService()
-	if err := service.LoadDatabase(geoipCfg.DatabasePath); err != nil {
-		return fmt.Errorf("failed to load GeoIP database: %w", err)
-	}
-
-	logger.Info(fmt.Sprintf("GeoIP service initialized successfully (database: %s, chinaDirect: %v)",
-		geoipCfg.DatabasePath, geoipCfg.ChinaDirect))
-
-	return nil
-}
-
-// initializeRuleEngine 初始化路由规则引擎
-func initializeRuleEngine(routingRules *config.RoutingRulesConfig) error {
-	if routingRules == nil {
-		logger.Info("Routing rules not configured, rule engine disabled")
-		return nil
-	}
-
-	// 获取规则引擎实例
-	engine := rules.GetEngine()
-
-	// 初始化规则引擎
-	if err := engine.Initialize(routingRules); err != nil {
-		return fmt.Errorf("failed to initialize rule engine: %w", err)
-	}
-
-	logger.Info("Routing rule engine initialized successfully")
-
-	// 打印配置摘要
-	if routingRules.GeoIP != nil && routingRules.GeoIP.Enabled {
-		logger.Info(fmt.Sprintf("  - GeoIP routing: enabled (chinaDirect=%v)", routingRules.GeoIP.ChinaDirect))
-	}
-	if routingRules.BypassRules != nil && routingRules.BypassRules.Enabled {
-		logger.Info(fmt.Sprintf("  - Bypass rules: enabled (%d domains, %d suffixes, %d IP ranges)",
-			len(routingRules.BypassRules.Domains),
-			len(routingRules.BypassRules.DomainSuffixes),
-			len(routingRules.BypassRules.IPRanges)))
-	}
-	if routingRules.IPDomainCache != nil && routingRules.IPDomainCache.Enabled {
-		logger.Info(fmt.Sprintf("  - IP-Domain cache: enabled (max=%d, TTL=%s)",
-			routingRules.IPDomainCache.MaxEntries,
-			routingRules.IPDomainCache.TTL))
-	}
-
 	return nil
 }

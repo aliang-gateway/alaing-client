@@ -13,14 +13,14 @@ import (
 // - Context propagation
 type Metadata struct {
 	// Connection identification
-	Network  string       // "tcp"
-	SrcIP    netip.Addr   // Source IP (client)
-	SrcPort  uint16       // Source port (client)
-	DstIP    netip.Addr   // Destination IP (target server)
-	DstPort  uint16       // Destination port (target server)
-	MidIP    netip.Addr   // Middle IP (our local address when connecting out)
-	MidPort  uint16       // Middle port (our local port when connecting out)
-	HostName string       // Extracted domain name (from SNI or HTTP headers)
+	Network  string     // "tcp"
+	SrcIP    netip.Addr // Source IP (client)
+	SrcPort  uint16     // Source port (client)
+	DstIP    netip.Addr // Destination IP (target server)
+	DstPort  uint16     // Destination port (target server)
+	MidIP    netip.Addr // Middle IP (our local address when connecting out)
+	MidPort  uint16     // Middle port (our local port when connecting out)
+	HostName string     // Extracted domain name (from SNI or HTTP headers)
 }
 
 // SourceAddress returns the source IP and port as a string
@@ -89,16 +89,16 @@ func (w *WrappedConn) String() string {
 // Constants for error detection and handling
 const (
 	// DoH (DNS-over-HTTPS) provider domains
-	DoHProviderGoogle       = "dns.google"
-	DoHProviderCloudflare   = "cloudflare-dns.com"
-	DoHProviderOpenDNS      = "doh.opendns.com"
-	DoHProviderQuad9        = "doh.quad9.net"
-	DoHProviderCleanBrowse  = "doh.cleanbrowsing.org"
-	DoHProviderGoogle8      = "8.8.8.8"
-	DoHProviderGoogle9      = "8.8.4.4"
-	DoHProviderCloudflare1  = "1.1.1.1"
-	DoHProviderCloudflare2  = "1.0.0.1"
-	DoHProviderQuad9ip      = "9.9.9.9"
+	DoHProviderGoogle      = "dns.google"
+	DoHProviderCloudflare  = "cloudflare-dns.com"
+	DoHProviderOpenDNS     = "doh.opendns.com"
+	DoHProviderQuad9       = "doh.quad9.net"
+	DoHProviderCleanBrowse = "doh.cleanbrowsing.org"
+	DoHProviderGoogle8     = "8.8.8.8"
+	DoHProviderGoogle9     = "8.8.4.4"
+	DoHProviderCloudflare1 = "1.1.1.1"
+	DoHProviderCloudflare2 = "1.0.0.1"
+	DoHProviderQuad9ip     = "9.9.9.9"
 
 	// Common ports
 	PortHTTP  = 80

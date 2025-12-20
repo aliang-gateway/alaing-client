@@ -48,7 +48,7 @@ func DialContext(ctx context.Context, network, address string) (net.Conn, error)
 
 func DialContextWithOptions(ctx context.Context, network, address string, opts *Options) (net.Conn, error) {
 	d := &net.Dialer{
-		Timeout:   DefaultDialTimeout,   // Add timeout to prevent infinite waiting
+		Timeout:   DefaultDialTimeout,     // Add timeout to prevent infinite waiting
 		KeepAlive: DefaultKeepAlivePeriod, // Add keepalive for better connection management
 		Control: func(network, address string, c syscall.RawConn) error {
 			return setSocketOptions(network, address, c, opts)

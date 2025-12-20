@@ -28,8 +28,8 @@ func NewLatencyTestManager(latencyService *services.LatencyService) *LatencyTest
 	return &LatencyTestManager{
 		latencyService: latencyService,
 		stopChan:       make(chan struct{}),
-		testInterval:   60 * time.Second,  // Test every 60 seconds
-		minInterval:    60 * time.Second,  // Minimum 60 seconds between tests
+		testInterval:   60 * time.Second, // Test every 60 seconds
+		minInterval:    60 * time.Second, // Minimum 60 seconds between tests
 		isRunning:      false,
 		lastTestTime:   0,
 	}

@@ -5,6 +5,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"nursor.org/nursorgate/common/logger"
+	"nursor.org/nursorgate/common/version"
 )
 
 // 添加其他有用的命令
@@ -14,7 +15,15 @@ var versionCmd = &cobra.Command{
 	Short: "Print the version number",
 	Long:  `Print the version number of nonelane`,
 	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Println("nonelane v1.0.0")
+		if version.Version == "" {
+			fmt.Println("nonelane version: unknown")
+		} else {
+			fmt.Printf("nonelane %s\n", version.Version)
+		}
+		if version.GitCommit != "" {
+			fmt.Printf("commit: %s\n", version.GitCommit)
+		}
+		fmt.Printf("build: %s\n", version.BuildString())
 	},
 }
 

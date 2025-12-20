@@ -44,13 +44,13 @@ type LegacyHybridResolver struct {
 func NewLegacyHybridResolver(primaryDNS, fallbackDNS string, primaryDialer, fallbackDialer proxy.Dialer, timeout, maxTTL time.Duration) *LegacyHybridResolver {
 	// 创建混合DNS配置
 	config := &DNSConfig{
-		Type:            ResolverTypeHybrid,
-		PrimaryDNS:      primaryDNS,
-		FallbackDNS:     fallbackDNS,
+		Type:             ResolverTypeHybrid,
+		PrimaryDNS:       primaryDNS,
+		FallbackDNS:      fallbackDNS,
 		SystemDNSEnabled: true,
-		Timeout:         timeout,
-		MaxTTL:          maxTTL,
-		CacheEnabled:    true,
+		Timeout:          timeout,
+		MaxTTL:           maxTTL,
+		CacheEnabled:     true,
 	}
 
 	// 创建混合解析器

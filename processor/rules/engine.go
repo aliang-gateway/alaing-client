@@ -4,13 +4,11 @@ import (
 	"fmt"
 	"net"
 	"sync"
-	"time"
 
 	"nursor.org/nursorgate/common/logger"
 	"nursor.org/nursorgate/common/model"
 	M "nursor.org/nursorgate/inbound/tun/metadata"
 	"nursor.org/nursorgate/processor/cache"
-	"nursor.org/nursorgate/processor/config"
 	"nursor.org/nursorgate/processor/geoip"
 )
 
@@ -19,7 +17,6 @@ type RuleEngine struct {
 	mu            sync.RWMutex
 	geoipService  *geoip.Service
 	ipDomainCache *cache.IPDomainCache
-	bypassRules   *BypassRules
 	nacosRouter   *model.AllowProxyDomain
 	chinaDirect   bool // Whether Chinese IPs should route directly
 	enabled       bool // Whether rule engine is enabled
@@ -52,7 +49,8 @@ func GetCache() *cache.IPDomainCache {
 }
 
 // Initialize initializes the rule engine with configuration
-func (e *RuleEngine) Initialize(config *config.RoutingRulesConfig) error {
+// TODO(US2): Full implementation will be completed in Phase 4 - User Story 2
+func (e *RuleEngine) Initialize(config *model.RoutingRulesConfig) error {
 	if config == nil {
 		logger.Info("Routing rules config is nil, rule engine disabled")
 		return nil
@@ -61,44 +59,14 @@ func (e *RuleEngine) Initialize(config *config.RoutingRulesConfig) error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 
-	// Initialize GeoIP service reference
+	// Initialize GeoIP service reference (will be fully configured in US2)
 	e.geoipService = geoip.GetService()
-	if config.GeoIP != nil {
-		e.chinaDirect = config.GeoIP.ChinaDirect
-	}
-
-	// Initialize IP-Domain cache
-	if config.IPDomainCache != nil && config.IPDomainCache.Enabled {
-		ttl, err := time.ParseDuration(config.IPDomainCache.TTL)
-		if err != nil {
-			logger.Warn(fmt.Sprintf("Invalid cache TTL '%s', using default 5m", config.IPDomainCache.TTL))
-			ttl = 5 * time.Minute
-		}
-
-		maxEntries := config.IPDomainCache.MaxEntries
-		if maxEntries <= 0 {
-			maxEntries = 10000
-		}
-
-		e.ipDomainCache = cache.NewIPDomainCache(maxEntries, ttl)
-		logger.Info(fmt.Sprintf("IP-Domain cache initialized (max: %d, TTL: %v)", maxEntries, ttl))
-	}
-
-	// Initialize bypass rules
-	if config.BypassRules != nil {
-		bypassRules, err := NewBypassRules(config.BypassRules)
-		if err != nil {
-			return fmt.Errorf("failed to initialize bypass rules: %w", err)
-		}
-		e.bypassRules = bypassRules
-		logger.Info("Bypass rules initialized")
-	}
 
 	// Initialize Nacos router
 	e.nacosRouter = model.NewAllowProxyDomain()
 
 	e.enabled = true
-	logger.Info("Rule engine initialized successfully")
+	logger.Info("Rule engine initialized successfully (stub - full implementation in US2)")
 	return nil
 }
 
@@ -118,10 +86,7 @@ func (e *RuleEngine) EvaluateRoute(ctx *EvaluationContext) (*RuleResult, error) 
 		}, nil
 	}
 
-	// Priority 1: Check bypass rules (highest priority)
-	if result := e.checkBypassRules(ctx); result != nil {
-		return result, nil
-	}
+	// TODO(US2): Implement routing decision logic with priority: NoneLane > Door > GeoIP > Direct
 
 	// Priority 2: Check cache (avoid repeated SNI extraction)
 	if result := e.checkCache(ctx); result != nil {
@@ -147,34 +112,13 @@ func (e *RuleEngine) EvaluateRoute(ctx *EvaluationContext) (*RuleResult, error) 
 	return e.defaultRoute(ctx), nil
 }
 
-// checkBypassRules checks if the connection matches bypass rules
+// checkBypassRules removed - will be reimplemented as part of routing decision engine in US2
+/*
 func (e *RuleEngine) checkBypassRules(ctx *EvaluationContext) *RuleResult {
-	if e.bypassRules == nil || !e.bypassRules.IsEnabled() {
-		return nil
-	}
-
-	// Check IP bypass
-	if e.bypassRules.MatchIP(ctx.DstIP) {
-		return &RuleResult{
-			Route:       cache.RouteDirect,
-			MatchedRule: "bypass_ip",
-			RequiresSNI: false,
-			Reason:      fmt.Sprintf("IP %s matches bypass rules", ctx.DstIP),
-		}
-	}
-
-	// Check domain bypass
-	if ctx.Domain != "" && e.bypassRules.MatchDomain(ctx.Domain) {
-		return &RuleResult{
-			Route:       cache.RouteDirect,
-			MatchedRule: "bypass_domain",
-			RequiresSNI: false,
-			Reason:      fmt.Sprintf("Domain %s matches bypass rules", ctx.Domain),
-		}
-	}
-
+	// TODO(US2): Reimplement this with new model
 	return nil
 }
+*/
 
 // checkCache checks if the routing decision is cached
 func (e *RuleEngine) checkCache(ctx *EvaluationContext) *RuleResult {

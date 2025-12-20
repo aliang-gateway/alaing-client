@@ -78,6 +78,11 @@ func registerAllRoutes() {
 	// registerRoutesWithMux(handlers)
 	routes.RegisterRoutes(handlers, mux)
 
+	// NOTE: Rule engine initialization has been MOVED to cmd/start.go:InitializeGlobalRuleEngine()
+	// This ensures the singleton rule engine is initialized only ONCE at startup
+	// Previously this was duplicated in both HTTP mode and TUN mode
+	logger.Info("HTTP: Rule engine has been initialized globally (see cmd/start.go)")
+
 	// Initialize and start latency test manager
 	latencyService := services.NewLatencyService()
 	latencyManager := latency.NewLatencyTestManager(latencyService)
@@ -85,9 +90,21 @@ func registerAllRoutes() {
 		logger.Error(fmt.Sprintf("Failed to start latency test manager: %v", err))
 	}
 
+	// Initialize and start stats collector
+	if handlers.TrafficStats != nil {
+		logger.Info("Starting traffic stats collector...")
+		// Note: statsCollector is created in routes.NewHandlers()
+		// We need to access it through a package-level function
+		routes.StartStatsCollector(handlers)
+	}
+
 	// Register static file server for web dashboard
 	registerStaticFiles()
 }
+
+// initializeRuleEngine has been REMOVED - replaced by cmd/start.go:InitializeGlobalRuleEngine()
+// This function was causing duplicate initialization of the singleton rule engine
+// See: cmd/start.go for the new centralized initialization
 
 // registerStaticFiles 注册静态文件服务（使用 embed 嵌入的文件）
 func registerStaticFiles() {
@@ -139,6 +156,14 @@ func registerStaticFiles() {
 
 	// 注册根路径处理器，支持 SPA 路由
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		// API路径返回404 JSON，防止返回HTML
+		if strings.HasPrefix(r.URL.Path, "/api/") {
+			w.Header().Set("Content-Type", "application/json; charset=utf-8")
+			w.WriteHeader(http.StatusNotFound)
+			w.Write([]byte(`{"code":404,"msg":"API endpoint not found","data":null}`))
+			return
+		}
+
 		// 处理根路径
 		if r.URL.Path == "/" {
 			path := "/index.html"

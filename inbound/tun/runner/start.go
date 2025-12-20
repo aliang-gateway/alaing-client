@@ -11,7 +11,6 @@ import (
 	"nursor.org/nursorgate/common/model"
 	"nursor.org/nursorgate/inbound/tun/engine"
 	"nursor.org/nursorgate/processor/config"
-	"nursor.org/nursorgate/processor/rules"
 )
 
 // StartupState 追踪 TUN 启动过程中已完成的步骤
@@ -72,11 +71,10 @@ func startWithRollback(state *StartupState) error {
 	}
 	state.engineStarted = true
 
-	// Step 2.5: 初始化 Rule Engine（包括 DNS cache）
-	if err := initializeRuleEngineForTUN(); err != nil {
-		logger.Warn(fmt.Sprintf("TUN: Rule engine 初始化失败（非致命）: %v", err))
-		// 不返回错误，允许 TUN 继续启动（降级为无 cache 模式）
-	}
+	// NOTE: Rule engine initialization has been MOVED to cmd/start.go:InitializeGlobalRuleEngine()
+	// This ensures the singleton rule engine is initialized only ONCE at startup
+	// Previously this was duplicated in both HTTP mode and TUN mode
+	logger.Info("TUN: Rule engine has been initialized globally (see cmd/start.go)")
 
 	// Step 3: 获取默认网关
 	_dfgw, err := GetDefaultGatewayForTUN()
@@ -146,47 +144,6 @@ func Stop() {
 	TunSignal <- syscall.SIGTERM // 或其他自定义信号
 }
 
-// initializeRuleEngineForTUN 为 TUN 模式初始化 Rule Engine（包括 DNS cache）
-func initializeRuleEngineForTUN() error {
-	// 从全局配置获取 routing rules
-	globalCfg := config.GetGlobalConfig()
-	if globalCfg == nil || globalCfg.RoutingRules == nil {
-		logger.Info("TUN: Routing rules not configured, using default DNS cache")
-
-		// 使用默认配置初始化 cache
-		// 如果没有配置文件，仍然为 TUN 模式创建 DNS cache
-		defaultRules := &config.RoutingRulesConfig{
-			IPDomainCache: &config.CacheConfig{
-				Enabled:    true,
-				MaxEntries: 10000,
-				TTL:        "5m",
-			},
-		}
-
-		ruleEngine := rules.GetEngine()
-		err := ruleEngine.Initialize(defaultRules)
-		if err != nil {
-			return fmt.Errorf("failed to initialize rule engine with default config: %w", err)
-		}
-
-		logger.Info("✓ Rule engine initialized with default DNS cache for TUN mode")
-	} else {
-		// 使用配置文件中的 routing rules
-		ruleEngine := rules.GetEngine()
-		err := ruleEngine.Initialize(globalCfg.RoutingRules)
-		if err != nil {
-			return fmt.Errorf("failed to initialize rule engine: %w", err)
-		}
-
-		logger.Info("✓ Rule engine initialized with custom routing rules for TUN mode")
-	}
-
-	// 预加载 Nacos 配置，避免首次连接延迟
-	logger.Info("TUN: Preloading Nacos configuration...")
-	startTime := time.Now()
-	_ = model.NewAllowProxyDomain()
-	duration := time.Since(startTime)
-	logger.Info(fmt.Sprintf("✓ Nacos configuration loaded in %v", duration))
-
-	return nil
-}
+// initializeRuleEngineForTUN has been REMOVED - replaced by cmd/start.go:InitializeGlobalRuleEngine()
+// This function was causing duplicate initialization of the singleton rule engine
+// See: cmd/start.go for the new centralized initialization

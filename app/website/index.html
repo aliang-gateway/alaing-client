@@ -85,10 +85,10 @@
                 <div id="dashboard-page" class="content-section active">
                     <h2 class="mb-4"><i class="bi bi-speedometer2"></i> 仪表板</h2>
 
-                    <!-- 主布局容器 -->
-                    <div class="dashboard-container">
-                        <!-- 左侧：关键指标卡片 -->
-                        <div class="dashboard-metrics">
+                    <!-- 主布局容器 - 垂直布局 -->
+                    <div class="dashboard-container-vertical">
+                        <!-- 区域1：关键指标卡片 (30%) -->
+                        <div class="metrics-section">
                             <!-- 关键指标卡片组 (8个) -->
                             <div class="metrics-grid">
                                 <!-- 运行状态 -->
@@ -202,19 +202,27 @@
                             </div>
                         </div>
 
-                        <!-- 右侧：实时流量监控图表 -->
-                        <div class="dashboard-chart">
+                        <!-- 区域2：实时流量监控图表 (50%) -->
+                        <div class="traffic-section">
                             <div class="chart-card">
                                 <div class="chart-header">
-                                    <h5 class="chart-title">
-                                        <i class="bi bi-graph-up me-2"></i>实时流量监控
-                                    </h5>
+                                    <div style="display: flex; justify-content: space-between; align-items: center; width: 100%; margin-bottom: 1rem;">
+                                        <h5 class="chart-title" style="margin: 0;">
+                                            <i class="bi bi-graph-up me-2"></i>实时流量监控
+                                        </h5>
+                                        <!-- 时间刻度选择按钮 -->
+                                        <div class="timescale-buttons" style="display: flex; gap: 0.5rem;">
+                                            <button class="btn btn-sm btn-outline-primary active" data-timescale="1s" title="1秒粒度">1秒</button>
+                                            <button class="btn btn-sm btn-outline-primary" data-timescale="5s" title="5秒粒度">5秒</button>
+                                            <button class="btn btn-sm btn-outline-primary" data-timescale="15s" title="15秒粒度">15秒</button>
+                                        </div>
+                                    </div>
                                     <div class="chart-legend">
                                         <span class="legend-item">
-                                            <span class="legend-dot legend-upload"></span> 上传
+                                            <span class="legend-dot legend-upload"></span> 上传速率: <span id="statsUploadRate">-</span>
                                         </span>
                                         <span class="legend-item">
-                                            <span class="legend-dot legend-download"></span> 下载
+                                            <span class="legend-dot legend-download"></span> 下载速率: <span id="statsDownloadRate">-</span>
                                         </span>
                                     </div>
                                 </div>
@@ -223,15 +231,15 @@
                                 </div>
                                 <div class="chart-footer">
                                     <small class="text-muted">
-                                        <i class="bi bi-clock"></i> 数据每1.5秒自动刷新
+                                        <i class="bi bi-clock"></i> 数据每1秒自动刷新，支持1秒/5秒/15秒粒度切换
                                     </small>
                                 </div>
                             </div>
                         </div>
-                    </div>
 
-                    <!-- 代理类型分布表格 -->
-                    <div class="card shadow mb-4">
+                        <!-- 区域3：代理类型分布 (20%) -->
+                        <div class="other-section">
+                            <div class="card shadow h-100">
                         <div class="card-header py-3">
                             <h6 class="m-0 font-weight-bold text-primary"><i class="bi bi-table me-2"></i> 代理类型分布</h6>
                         </div>
@@ -254,6 +262,8 @@
                                         </tr>
                                     </tbody>
                                 </table>
+                            </div>
+                        </div>
                             </div>
                         </div>
                     </div>

@@ -5,11 +5,11 @@ package tun
 import (
 	"fmt"
 
-	"golang.org/x/sys/unix"
 	"github.com/sagernet/gvisor/pkg/rawfile"
 	"github.com/sagernet/gvisor/pkg/tcpip/link/fdbased"
 	"github.com/sagernet/gvisor/pkg/tcpip/link/tun"
 	"github.com/sagernet/gvisor/pkg/tcpip/stack"
+	"golang.org/x/sys/unix"
 	"nursor.org/nursorgate/inbound/tun/device"
 )
 

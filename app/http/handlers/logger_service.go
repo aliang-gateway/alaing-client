@@ -1,8 +1,8 @@
 package handlers
 
 import (
-	"sync/atomic"
 	"nursor.org/nursorgate/common/logger"
+	"sync/atomic"
 )
 
 // LogService handles log retrieval and management operations

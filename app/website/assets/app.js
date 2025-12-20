@@ -2038,8 +2038,8 @@ function initChart() {
                     {
                         label: '下载 (Bytes/s)',
                         data: [],
-                        borderColor: '#4ecdc4',
-                        backgroundColor: 'rgba(78, 205, 196, 0.1)',
+                        borderColor: '#ff9999',
+                        backgroundColor: 'rgba(255, 153, 153, 0.1)',
                         borderWidth: 2,
                         tension: 0.3,
                         fill: true,
@@ -2975,4 +2975,172 @@ document.addEventListener('DOMContentLoaded', () => {
         // 初始启动轮询
         certStatusPolling = setInterval(loadCertStatus, 10000);
     }
+});
+
+// ============ P3: Real-time Traffic Statistics ============
+
+// Current timescale state
+let currentTimescale = '1s';
+let trafficStatsRefreshInterval = null;
+
+// Refresh traffic statistics from backend
+async function refreshTrafficStats() {
+    try {
+        // Fetch historical stats for chart
+        const statsResponse = await fetch(`/api/stats/traffic/${currentTimescale}`);
+        if (!statsResponse.ok) {
+            console.error('Failed to fetch traffic stats:', statsResponse.status);
+            return;
+        }
+
+        const statsResult = await statsResponse.json();
+        if (statsResult.success && statsResult.data && statsResult.data.stats) {
+            updateTrafficChart(statsResult.data.stats);
+        }
+
+        // Fetch current stats for active connections display
+        const currentResponse = await fetch('/api/stats/traffic/current');
+        if (currentResponse.ok) {
+            const currentResult = await currentResponse.json();
+            if (currentResult.success && currentResult.data) {
+                updateConnectionInfo(currentResult.data.active_connections);
+                updateCurrentRates(currentResult.data.upload_rate, currentResult.data.download_rate);
+            }
+        }
+    } catch (error) {
+        console.error('Error refreshing traffic stats:', error);
+    }
+}
+
+// Update traffic chart with new data from backend
+function updateTrafficChart(statsArray) {
+    if (!charts.traffic || !statsArray || statsArray.length === 0) {
+        return;
+    }
+
+    // Prepare data arrays
+    const uploads = [];
+    const downloads = [];
+    const timestamps = [];
+
+    for (let i = 0; i < statsArray.length; i++) {
+        const stat = statsArray[i];
+        const date = new Date(stat.timestamp * 1000);
+        timestamps.push(formatTime(date));
+        uploads.push(stat.upload_bytes);
+        downloads.push(stat.download_bytes);
+    }
+
+    // Update chart data (use 'none' mode for smooth update without animation)
+    charts.traffic.data.labels = timestamps;
+    charts.traffic.data.datasets[0].data = uploads;
+    charts.traffic.data.datasets[1].data = downloads;
+    charts.traffic.update('none');
+}
+
+// Format time for chart labels (HH:MM:SS)
+function formatTime(date) {
+    const hours = String(date.getHours()).padStart(2, '0');
+    const minutes = String(date.getMinutes()).padStart(2, '0');
+    const seconds = String(date.getSeconds()).padStart(2, '0');
+    return `${hours}:${minutes}:${seconds}`;
+}
+
+// Update active connections display
+function updateConnectionInfo(connectionCount) {
+    const element = document.getElementById('statsConnectionCount');
+    if (element) {
+        element.textContent = connectionCount || '0';
+    }
+}
+
+// Update current upload/download rates
+function updateCurrentRates(uploadRate, downloadRate) {
+    const uploadElement = document.getElementById('statsUploadRate');
+    const downloadElement = document.getElementById('statsDownloadRate');
+
+    if (uploadElement) {
+        uploadElement.textContent = formatBytes(uploadRate || 0) + '/s';
+    }
+    if (downloadElement) {
+        downloadElement.textContent = formatBytes(downloadRate || 0) + '/s';
+    }
+}
+
+// Initialize real-time monitoring on dashboard page
+function initRealTimeMonitoring() {
+    // Stop any existing interval
+    if (trafficStatsRefreshInterval) {
+        clearInterval(trafficStatsRefreshInterval);
+    }
+
+    // Initial refresh
+    refreshTrafficStats();
+
+    // Set up interval for continuous refresh (every 1 second)
+    trafficStatsRefreshInterval = setInterval(refreshTrafficStats, 1000);
+
+    // Setup timescale buttons
+    const timescaleButtons = document.querySelectorAll('[data-timescale]');
+    timescaleButtons.forEach(btn => {
+        btn.addEventListener('click', function() {
+            const newTimescale = this.getAttribute('data-timescale');
+            switchTrafficTimescale(newTimescale);
+        });
+    });
+}
+
+// Switch traffic monitoring timescale
+function switchTrafficTimescale(newTimescale) {
+    if (['1s', '5s', '15s'].includes(newTimescale)) {
+        currentTimescale = newTimescale;
+
+        // Update button visual state
+        document.querySelectorAll('[data-timescale]').forEach(btn => {
+            btn.classList.remove('active');
+            if (btn.getAttribute('data-timescale') === newTimescale) {
+                btn.classList.add('active');
+            }
+        });
+
+        // Immediately refresh with new timescale
+        refreshTrafficStats();
+    }
+}
+
+// Stop real-time monitoring (cleanup)
+function stopRealTimeMonitoring() {
+    if (trafficStatsRefreshInterval) {
+        clearInterval(trafficStatsRefreshInterval);
+        trafficStatsRefreshInterval = null;
+    }
+}
+
+// Cleanup on page unload
+window.addEventListener('beforeunload', function() {
+    stopRealTimeMonitoring();
+});
+
+// Start monitoring when dashboard page becomes active
+document.addEventListener('DOMContentLoaded', function() {
+    // Check if we're on the dashboard page
+    const dashboardPage = document.getElementById('dashboard-page');
+    if (dashboardPage && dashboardPage.classList.contains('active')) {
+        initRealTimeMonitoring();
+    }
+
+    // Listen for page navigation to dashboard
+    const navLinks = document.querySelectorAll('.nav-link');
+    navLinks.forEach(link => {
+        link.addEventListener('click', function() {
+            const targetPage = this.getAttribute('data-page');
+            if (targetPage === 'dashboard') {
+                // Delay to allow page transition
+                setTimeout(initRealTimeMonitoring, 100);
+            } else {
+                // Stop monitoring when leaving dashboard
+                stopRealTimeMonitoring();
+            }
+        });
+    });
 });

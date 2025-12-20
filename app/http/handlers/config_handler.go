@@ -63,7 +63,7 @@ func (h *ConfigHandler) HandleGetRoutingConfig(w http.ResponseWriter, r *http.Re
 	// 如果配置为空，返回默认配置
 	if configContent == "" {
 		logger.Warn("Routing config is empty in Nacos, returning default config")
-		defaultConfig := model.NewDefaultRoutingRulesConfig()
+		defaultConfig := model.NewRoutingRulesConfig()
 		common.Success(w, defaultConfig)
 		return
 	}
@@ -142,6 +142,19 @@ func (h *ConfigHandler) HandleUpdateRoutingConfig(w http.ResponseWriter, r *http
 		"message":    "Configuration updated successfully",
 		"applied_at": fmt.Sprintf("%d", r.Context().Value("timestamp")),
 	})
+}
+
+// HandleRoutingConfig is a method dispatcher that routes to GET or POST handlers
+// GET/POST /api/config/routing
+func (h *ConfigHandler) HandleRoutingConfig(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case http.MethodGet:
+		h.HandleGetRoutingConfig(w, r)
+	case http.MethodPost:
+		h.HandleUpdateRoutingConfig(w, r)
+	default:
+		common.Error(w, http.StatusMethodNotAllowed, "Method not allowed", nil)
+	}
 }
 
 // HandleToggleRuleStatus 切换规则启用/禁用状态
@@ -259,4 +272,149 @@ func (h *ConfigHandler) HandleToggleRuleStatus(w http.ResponseWriter, r *http.Re
 		"rule_id": ruleID,
 		"enabled": req.Enabled,
 	})
+}
+
+// HandleGetAutoUpdateStatus handles GET /api/config/routing/auto-update
+// T053: Returns the current auto_update status
+func (h *ConfigHandler) HandleGetAutoUpdateStatus(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		common.Error(w, http.StatusMethodNotAllowed, "Method not allowed", nil)
+		return
+	}
+
+	// Get Nacos client
+	nacosClient, ok := h.nacosClient.(config_client.IConfigClient)
+	if !ok || nacosClient == nil {
+		common.ErrorServiceUnavailable(w, "Configuration service is not available")
+		return
+	}
+
+	// Read current config from Nacos
+	configContent, err := nacosClient.GetConfig(vo.ConfigParam{
+		DataId: NacosRoutingRulesDataID,
+		Group:  NacosDefaultGroup,
+	})
+
+	if err != nil {
+		logger.Error(fmt.Sprintf("Failed to get routing config from Nacos: %v", err))
+		common.ErrorInternalServer(w, "Failed to load configuration", map[string]interface{}{
+			"error": err.Error(),
+		})
+		return
+	}
+
+	// If empty, return default (auto_update = true by default)
+	if configContent == "" {
+		common.Success(w, map[string]interface{}{
+			"auto_update": true,
+			"source":      "default",
+		})
+		return
+	}
+
+	// Parse config
+	config, err := model.NewRoutingRulesConfigFromJSON([]byte(configContent))
+	if err != nil {
+		logger.Error(fmt.Sprintf("Failed to parse routing config: %v", err))
+		common.ErrorInternalServer(w, "Invalid configuration format", map[string]interface{}{
+			"error": err.Error(),
+		})
+		return
+	}
+
+	common.Success(w, map[string]interface{}{
+		"auto_update":    config.Settings.AutoUpdate,
+		"last_sync_time": config.Settings.LastNacosSync,
+		"updated_at":     config.Settings.UpdatedAt,
+	})
+}
+
+// HandleEnableAutoUpdate handles PUT /api/config/routing/auto-update
+// T051: Enables auto_update and triggers sync from Nacos
+func (h *ConfigHandler) HandleEnableAutoUpdate(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPut {
+		common.Error(w, http.StatusMethodNotAllowed, "Method not allowed", nil)
+		return
+	}
+
+	// Get Nacos client
+	nacosClient, ok := h.nacosClient.(config_client.IConfigClient)
+	if !ok || nacosClient == nil {
+		common.ErrorServiceUnavailable(w, "Configuration service is not available")
+		return
+	}
+
+	// Read current config from Nacos
+	configContent, err := nacosClient.GetConfig(vo.ConfigParam{
+		DataId: NacosRoutingRulesDataID,
+		Group:  NacosDefaultGroup,
+	})
+
+	if err != nil {
+		logger.Error(fmt.Sprintf("Failed to get routing config from Nacos: %v", err))
+		common.ErrorInternalServer(w, "Failed to load configuration", map[string]interface{}{
+			"error": err.Error(),
+		})
+		return
+	}
+
+	var config *model.RoutingRulesConfig
+	if configContent == "" {
+		config = model.NewRoutingRulesConfig()
+	} else {
+		config, err = model.NewRoutingRulesConfigFromJSON([]byte(configContent))
+		if err != nil {
+			logger.Error(fmt.Sprintf("Failed to parse routing config: %v", err))
+			common.ErrorInternalServer(w, "Invalid configuration format", map[string]interface{}{
+				"error": err.Error(),
+			})
+			return
+		}
+	}
+
+	// Enable auto_update
+	config.Settings.AutoUpdate = true
+
+	// Serialize and publish back to Nacos
+	configJSON, err := config.ToJSON()
+	if err != nil {
+		common.ErrorInternalServer(w, "Failed to serialize configuration", map[string]interface{}{
+			"error": err.Error(),
+		})
+		return
+	}
+
+	success, err := nacosClient.PublishConfig(vo.ConfigParam{
+		DataId:  NacosRoutingRulesDataID,
+		Group:   NacosDefaultGroup,
+		Content: string(configJSON),
+	})
+
+	if err != nil || !success {
+		logger.Error(fmt.Sprintf("Failed to enable auto_update in Nacos: %v", err))
+		common.ErrorInternalServer(w, "Failed to update configuration", map[string]interface{}{
+			"error": err,
+		})
+		return
+	}
+
+	logger.Info("Auto-update enabled successfully")
+	common.Success(w, map[string]interface{}{
+		"message":     "Auto-update enabled successfully",
+		"auto_update": true,
+	})
+}
+
+// HandleAutoUpdateStatus is a dispatcher that routes to GET or PUT handlers
+// GET /api/config/routing/auto-update - returns current status
+// PUT /api/config/routing/auto-update - enables auto-update
+func (h *ConfigHandler) HandleAutoUpdateStatus(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case http.MethodGet:
+		h.HandleGetAutoUpdateStatus(w, r)
+	case http.MethodPut:
+		h.HandleEnableAutoUpdate(w, r)
+	default:
+		common.Error(w, http.StatusMethodNotAllowed, "Method not allowed", nil)
+	}
 }
