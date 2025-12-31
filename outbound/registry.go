@@ -10,6 +10,7 @@ import (
 	"nursor.org/nursorgate/outbound/proxy/direct"
 	"nursor.org/nursorgate/outbound/proxy/nonelane"
 	"nursor.org/nursorgate/outbound/proxy/shadowsocks"
+	"nursor.org/nursorgate/outbound/proxy/shadowtls"
 	"nursor.org/nursorgate/outbound/proxy/vless"
 	proxyConfig "nursor.org/nursorgate/processor/config"
 )
@@ -472,6 +473,7 @@ func createVLESSProxy(member *proxyConfig.DoorProxyMember) (proxy.Proxy, error) 
 }
 
 // createShadowsocksProxy creates Shadowsocks proxy instance from door member config
+// If plugin is "shadow-tls", creates a ShadowTLS proxy instead of regular Shadowsocks
 func createShadowsocksProxy(member *proxyConfig.DoorProxyMember) (proxy.Proxy, error) {
 	if member == nil {
 		return nil, fmt.Errorf("door member cannot be nil")
@@ -483,6 +485,13 @@ func createShadowsocksProxy(member *proxyConfig.DoorProxyMember) (proxy.Proxy, e
 		return nil, fmt.Errorf("failed to get shadowsocks config: %w", err)
 	}
 
+	// Check if plugin is shadow-tls and create appropriate proxy type
+	if cfg.Plugin == "shadow-tls" {
+		// Create ShadowTLS proxy
+		return shadowtls.New(cfg)
+	}
+
+	// Create standard Shadowsocks proxy
 	return shadowsocks.NewShadowsocksWithConfig(&shadowsocks.ShadowsocksConfig{
 		Server:   cfg.Server,
 		Port:     cfg.ServerPort,

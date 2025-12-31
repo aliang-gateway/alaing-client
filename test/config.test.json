@@ -16,8 +16,8 @@
         "type": "vless",
         "latency": 45,
         "config": {
-          "server_host": "node1.nursor.org",
-          "server_port": 35001,
+          "server_host": "node2.nursor.org",
+          "server_port": 443,
           "uuid": "74cddcdd-6d48-41cf-8e62-902e7c943fe7",
           "flow": "xtls-rprx-vision",
           "tls_enabled": false,

@@ -45,6 +45,69 @@ type ShadowsocksConfig struct {
 	Username   string `json:"username,omitempty"`
 	ObfsMode   string `json:"obfs_mode,omitempty"`
 	ObfsHost   string `json:"obfs_host,omitempty"`
+
+	// ShadowTLS plugin support
+	Plugin     string                 `json:"plugin,omitempty"`
+	PluginOpts *ShadowTLSPluginOpts   `json:"plugin_opts,omitempty"`
+}
+
+// ShadowTLSPluginOpts represents ShadowTLS plugin configuration
+type ShadowTLSPluginOpts struct {
+	Host     string `json:"host"`     // TLS camouflage domain (e.g., www.bing.com)
+	Password string `json:"password"` // ShadowTLS authentication password
+	Version  int    `json:"version"`  // Protocol version (1, 2, or 3)
+}
+
+// Validate validates ShadowTLS plugin options
+func (o *ShadowTLSPluginOpts) Validate() error {
+	if o == nil {
+		return fmt.Errorf("plugin_opts is required when plugin='shadow-tls'")
+	}
+	if o.Host == "" {
+		return fmt.Errorf("plugin_opts.host is required")
+	}
+	if o.Password == "" {
+		return fmt.Errorf("plugin_opts.password is required and cannot be empty")
+	}
+	if len(o.Password) < 8 {
+		return fmt.Errorf("plugin_opts.password must be at least 8 characters")
+	}
+	if o.Version != 1 && o.Version != 2 && o.Version != 3 {
+		return fmt.Errorf("plugin_opts.version must be 1, 2, or 3")
+	}
+	return nil
+}
+
+// Validate validates Shadowsocks configuration including plugin settings
+func (c *ShadowsocksConfig) Validate() error {
+	if c.Server == "" {
+		return fmt.Errorf("server_host is required")
+	}
+	if c.ServerPort == 0 {
+		return fmt.Errorf("server_port is required")
+	}
+	if c.Method == "" {
+		return fmt.Errorf("method is required")
+	}
+	if c.Password == "" {
+		return fmt.Errorf("password is required")
+	}
+
+	// Validate plugin configuration
+	if c.Plugin != "" {
+		if c.Plugin == "shadow-tls" {
+			if c.PluginOpts == nil {
+				return fmt.Errorf("plugin_opts is required when plugin='shadow-tls'")
+			}
+			if err := c.PluginOpts.Validate(); err != nil {
+				return err
+			}
+		} else {
+			return fmt.Errorf("unsupported plugin: %s", c.Plugin)
+		}
+	}
+
+	return nil
 }
 
 // Validate validates the proxy configuration

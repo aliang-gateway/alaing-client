@@ -15,6 +15,7 @@ const (
 	HY2
 	VLESS
 	Nonelane
+	ShadowTLS
 )
 
 type Proto uint8
@@ -39,6 +40,8 @@ func (proto Proto) String() string {
 		return "vless"
 	case Nonelane:
 		return "nonelane"
+	case ShadowTLS:
+		return "shadowtls"
 
 	default:
 		return fmt.Sprintf("proto(%d)", proto)
