@@ -12,7 +12,7 @@
     "type": "door",
     "members": [
       {
-        "showname": "Hong Kong Node 01",
+        "showname": "Japan Node 01",
         "type": "vless",
         "latency": 45,
         "config": {
@@ -25,19 +25,6 @@
           "sni": "www.microsoft.com",
           "public_key": "sAtJcW2xLIUWRE-_7KHGEAtvHx-P1sDbjrrgrt4_XCo",
           "short_ids": ["ef","b79e62","7d87a3","f4bfb2","ecdc"]
-        }
-      },
-
-      {
-        "showname": "HK Shadowsocks-3",
-        "type": "shadowsocks",
-        "latency": 48,
-        "config": {
-          "server_host": "103.255.209.43",
-          "server_port": 35002,
-          "method": "chacha20-ietf-poly1305",
-          "password": "ciLfKJczFXlhqABmWO6tFEMNkfMR9ZB6V/fFmjmIOBA="
-
         }
       }
     ]

@@ -276,21 +276,33 @@ function updateRulesButtonStates() {
 
 // ============ 通知功能 ============
 function showNotification(message, type = 'success') {
+    // 确保通知容器存在
+    let container = document.getElementById('notification-container');
+    if (!container) {
+        container = document.createElement('div');
+        container.id = 'notification-container';
+        document.body.appendChild(container);
+    }
+
     const alertClass = type === 'success' ? 'alert-success' : 'alert-danger';
+    const notificationId = 'notification-' + Date.now();
     const alertHtml = `
-        <div class="alert ${alertClass} alert-dismissible fade show notification" role="alert">
+        <div class="alert ${alertClass} alert-dismissible fade show notification" role="alert" id="${notificationId}">
             ${message}
             <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
         </div>
     `;
 
-    document.body.insertAdjacentHTML('beforeend', alertHtml);
+    container.insertAdjacentHTML('beforeend', alertHtml);
 
     // 自动移除通知
     setTimeout(() => {
-        const alert = document.querySelector('.notification:last-child');
+        const alert = document.getElementById(notificationId);
         if (alert) {
-            alert.remove();
+            // 添加淡出动画
+            alert.classList.add('removing');
+            // 等待动画完成后移除元素
+            setTimeout(() => alert.remove(), 300); // 等待淡出动画完成
         }
     }, 5000);
 }
@@ -1982,6 +1994,47 @@ document.getElementById('wsDisconnectBtn').addEventListener('click', () => {
     hideLoading(btn);
 });
 
+// 全屏按钮事件
+document.getElementById('logsFullscreenBtn').addEventListener('click', () => {
+    const logsPage = document.getElementById('logs-page');
+    const fullscreenBtn = document.getElementById('logsFullscreenBtn');
+    const btnIcon = fullscreenBtn.querySelector('i');
+
+    if (logsPage.classList.contains('fullscreen-mode')) {
+        // 退出全屏
+        logsPage.classList.remove('fullscreen-mode');
+        if (document.exitFullscreen) {
+            document.exitFullscreen().catch(err => {
+                console.log('Exit fullscreen failed:', err);
+            });
+        }
+        btnIcon.className = 'bi bi-fullscreen';
+        fullscreenBtn.innerHTML = '<i class="bi bi-fullscreen"></i> 全屏';
+    } else {
+        // 进入全屏
+        logsPage.classList.add('fullscreen-mode');
+        if (document.documentElement.requestFullscreen) {
+            document.documentElement.requestFullscreen().catch(err => {
+                console.log('Fullscreen request failed:', err);
+            });
+        }
+        btnIcon.className = 'bi bi-arrows-fullscreen';
+        fullscreenBtn.innerHTML = '<i class="bi bi-arrows-fullscreen"></i> 退出全屏';
+    }
+});
+
+// 监听全屏状态变化（用户按ESC退出全屏时同步UI状态）
+document.addEventListener('fullscreenchange', () => {
+    const logsPage = document.getElementById('logs-page');
+    const fullscreenBtn = document.getElementById('logsFullscreenBtn');
+
+    if (!document.fullscreenElement && logsPage.classList.contains('fullscreen-mode')) {
+        // 用户通过ESC退出了全屏，同步UI状态
+        logsPage.classList.remove('fullscreen-mode');
+        fullscreenBtn.innerHTML = '<i class="bi bi-fullscreen"></i> 全屏';
+    }
+});
+
 
 // ============ DNS 缓存管理 ============
 
@@ -2015,9 +2068,25 @@ function formatBytes(bytes, decimals = 2) {
 
 // ============ 图表管理函数 ============
 
+// 销毁所有图表实例（用���完全重置或页面卸载）
+function destroyCharts() {
+    Object.values(charts).forEach(chart => {
+        if (chart && typeof chart.destroy === 'function') {
+            chart.destroy();
+        }
+    });
+    charts = {};
+}
+
 // 初始化流量趋势图表
 function initChart() {
     if (document.getElementById('trafficChart')) {
+        // 销毁已存在的图表实例，避免重复创建导致的错误
+        if (charts.traffic && typeof charts.traffic.destroy === 'function') {
+            charts.traffic.destroy();
+            charts.traffic = null;
+        }
+
         const ctx = document.getElementById('trafficChart').getContext('2d');
         charts.traffic = new Chart(ctx, {
             type: 'line',
@@ -2114,7 +2183,7 @@ function updateChartData(statsData) {
 // 加载代理统计数据
 async function loadStatsData() {
     try {
-        const response = await apiGet('/stats');
+        const response = await apiGet('/stats/traffic/current');
         if (!response) {
             console.error('Failed to load stats data');
             return;
@@ -2435,7 +2504,7 @@ function switchPage(page) {
     }
 
     // 更新菜单活跃状态
-    document.querySelectorAll('.sidebar .nav-link').forEach(link => {
+    document.querySelectorAll('.tab-item').forEach(link => {
         link.classList.remove('active');
         if (link.dataset.page === page) {
             link.classList.add('active');
@@ -2502,14 +2571,12 @@ function switchPage(page) {
 
 // 页面清理函数
 function cleanupCurrentPage() {
-    if (appState.currentPage === 'logs') {
-        // 断开 WebSocket 连接
-        logWebSocket.disconnect();
-    }
+    // WebSocket 保持持久连接，不再断开
+    // 这样可以持续接收日志，即使用户切换到其他页面
 }
 
 // ============ 菜单导航事件 ============
-document.querySelectorAll('.sidebar .nav-link').forEach(link => {
+document.querySelectorAll('.tab-item').forEach(link => {
     link.addEventListener('click', (e) => {
         e.preventDefault();
         const page = link.dataset.page;
@@ -2522,6 +2589,150 @@ document.querySelectorAll('.sidebar .nav-link').forEach(link => {
     });
 });
 
+// ============ 用户认证管理 (全局函数) ============
+
+// 加载用户信息
+async function loadAuthUserInfo() {
+    try {
+        const response = await apiGet('/auth/userinfo');
+        if (response.status === 'no_user') {
+            displayNoUserInfo();
+            return;
+        }
+
+        const userInfo = response.data;
+        displayUserInfo(userInfo);
+        loadRefreshStatus();
+    } catch (error) {
+        console.error('Failed to load user info:', error);
+        displayNoUserInfo();
+    }
+}
+
+// 显示用户信息
+function displayUserInfo(userInfo) {
+    const container = document.getElementById('authUserInfoContainer');
+    const trafficPercent = userInfo.traffic_total > 0
+        ? Math.round((userInfo.traffic_used / userInfo.traffic_total) * 100)
+        : 0;
+
+    const trafficUsedGB = (userInfo.traffic_used / (1024 * 1024 * 1024)).toFixed(2);
+    const trafficTotalGB = (userInfo.traffic_total / (1024 * 1024 * 1024)).toFixed(2);
+
+    container.innerHTML = `
+        <div class="row g-3">
+            <div class="col-md-6">
+                <div>
+                    <strong>用户名:</strong> ${userInfo.username}
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div>
+                    <strong>计划名称:</strong> ${userInfo.plan_name}
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div>
+                    <strong>计划类型:</strong> ${userInfo.plan_type}
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div>
+                    <strong>有效期:</strong> ${userInfo.start_time} 至 ${userInfo.end_time}
+                </div>
+            </div>
+            <div class="col-12">
+                <div>
+                    <strong>流量使用:</strong>
+                    <div class="progress mt-2" style="height: 20px;">
+                        <div class="progress-bar ${trafficPercent > 90 ? 'bg-danger' : trafficPercent > 70 ? 'bg-warning' : 'bg-primary'}"
+                             role="progressbar"
+                             style="width: ${trafficPercent}%;"
+                             aria-valuenow="${trafficPercent}"
+                             aria-valuemin="0"
+                             aria-valuemax="100">
+                            ${trafficUsedGB}GB / ${trafficTotalGB}GB (${trafficPercent}%)
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div>
+                    <strong>AI 提问:</strong> ${userInfo.ai_ask_used} / ${userInfo.ai_ask_total}
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div>
+                    <strong>最后更新:</strong> ${formatDateTime(userInfo.updated_at)}
+                </div>
+            </div>
+        </div>
+    `;
+
+    // 显示登出按钮
+    document.getElementById('authLogoutBtn').style.display = 'inline-block';
+
+    // 显示刷新状态卡片
+    document.getElementById('authRefreshStatusCard').style.display = 'block';
+}
+
+// 显示无用户信息
+function displayNoUserInfo() {
+    const container = document.getElementById('authUserInfoContainer');
+    container.innerHTML = `
+        <div class="text-center text-muted py-4">
+            <p>暂无用户信息，请先激活 Token</p>
+        </div>
+    `;
+
+    // 隐藏登出按钮
+    document.getElementById('authLogoutBtn').style.display = 'none';
+
+    // 隐藏刷新状态卡片
+    document.getElementById('authRefreshStatusCard').style.display = 'none';
+}
+
+// 加载刷新状态
+async function loadRefreshStatus() {
+    try {
+        const response = await apiGet('/auth/refresh-status');
+        if (response.status === 'success') {
+            updateRefreshStatus(response.data);
+        }
+    } catch (error) {
+        console.error('Failed to load refresh status:', error);
+    }
+}
+
+// 更新刷新状态显示
+function updateRefreshStatus(status) {
+    const runningBadge = document.getElementById('authRefreshRunning');
+    const lastUpdateEl = document.getElementById('authLastUpdate');
+    const refreshIntervalEl = document.getElementById('authRefreshInterval');
+    const errorEl = document.getElementById('authRefreshError');
+    const errorMsgEl = document.getElementById('authRefreshErrorMsg');
+
+    // 更新运行状态
+    runningBadge.className = status.is_running ? 'badge bg-success' : 'badge bg-secondary';
+    runningBadge.textContent = status.is_running ? '运行中' : '未运行';
+
+    // 更新最后更新时间
+    if (status.last_update_time) {
+        lastUpdateEl.textContent = formatDateTime(status.last_update_time);
+    }
+
+    // 更新刷新间隔
+    refreshIntervalEl.textContent = status.refresh_interval || '1 分钟';
+
+    // 更新错误显示
+    if (status.last_error) {
+        errorEl.style.display = 'block';
+        errorMsgEl.textContent = status.last_error;
+    } else {
+        errorEl.style.display = 'none';
+    }
+}
+
 // ============ 页面加载完成后初始化 ============
 document.addEventListener('DOMContentLoaded', () => {
     // 加载仪表板数据
@@ -2532,8 +2743,9 @@ document.addEventListener('DOMContentLoaded', () => {
         console.debug('Initial user info load failed (this is normal if no user is configured):', error);
     });
 
-    // 初始化按钮状态
-    logWebSocket.updateConnectionStatus('disconnected');
+    // 自动连接日志 WebSocket（持久连接，不因页面切换而断开）
+    console.log('Auto-connecting to log WebSocket on page load...');
+    logWebSocket.connect();
 
     // 初始化全局状态
     updateGlobalStatus();
@@ -2556,108 +2768,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // ===== 用户认证管理 =====
-
-    // 加载用户信息
-    async function loadAuthUserInfo() {
-        try {
-            const response = await apiGet('/auth/userinfo');
-            if (response.status === 'no_user') {
-                displayNoUserInfo();
-                return;
-            }
-
-            const userInfo = response.data;
-            displayUserInfo(userInfo);
-            loadRefreshStatus();
-        } catch (error) {
-            console.error('Failed to load user info:', error);
-            displayNoUserInfo();
-        }
-    }
-
-    // 显示用户信息
-    function displayUserInfo(userInfo) {
-        const container = document.getElementById('authUserInfoContainer');
-        const trafficPercent = userInfo.traffic_total > 0
-            ? Math.round((userInfo.traffic_used / userInfo.traffic_total) * 100)
-            : 0;
-
-        const trafficUsedGB = (userInfo.traffic_used / (1024 * 1024 * 1024)).toFixed(2);
-        const trafficTotalGB = (userInfo.traffic_total / (1024 * 1024 * 1024)).toFixed(2);
-
-        container.innerHTML = `
-            <div class="row g-3">
-                <div class="col-md-6">
-                    <div>
-                        <strong>用户名:</strong> ${userInfo.username}
-                    </div>
-                </div>
-                <div class="col-md-6">
-                    <div>
-                        <strong>计划名称:</strong> ${userInfo.plan_name}
-                    </div>
-                </div>
-                <div class="col-md-6">
-                    <div>
-                        <strong>计划类型:</strong> ${userInfo.plan_type}
-                    </div>
-                </div>
-                <div class="col-md-6">
-                    <div>
-                        <strong>有效期:</strong> ${userInfo.start_time} 至 ${userInfo.end_time}
-                    </div>
-                </div>
-                <div class="col-12">
-                    <div>
-                        <strong>流量使用:</strong>
-                        <div class="progress mt-2" style="height: 20px;">
-                            <div class="progress-bar ${trafficPercent > 90 ? 'bg-danger' : trafficPercent > 70 ? 'bg-warning' : 'bg-primary'}"
-                                 role="progressbar"
-                                 style="width: ${trafficPercent}%;"
-                                 aria-valuenow="${trafficPercent}"
-                                 aria-valuemin="0"
-                                 aria-valuemax="100">
-                                ${trafficUsedGB}GB / ${trafficTotalGB}GB (${trafficPercent}%)
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-md-6">
-                    <div>
-                        <strong>AI 提问:</strong> ${userInfo.ai_ask_used} / ${userInfo.ai_ask_total}
-                    </div>
-                </div>
-                <div class="col-md-6">
-                    <div>
-                        <strong>最后更新:</strong> ${formatDateTime(userInfo.updated_at)}
-                    </div>
-                </div>
-            </div>
-        `;
-
-        // 显示登出按钮
-        document.getElementById('authLogoutBtn').style.display = 'inline-block';
-
-        // 显示刷新状态卡片
-        document.getElementById('authRefreshStatusCard').style.display = 'block';
-    }
-
-    // 显示无用户信息
-    function displayNoUserInfo() {
-        const container = document.getElementById('authUserInfoContainer');
-        container.innerHTML = `
-            <div class="text-center text-muted py-4">
-                <p>暂无用户信息，请先激活 Token</p>
-            </div>
-        `;
-
-        // 隐藏登出按钮
-        document.getElementById('authLogoutBtn').style.display = 'none';
-
-        // 隐藏刷新状态卡片
-        document.getElementById('authRefreshStatusCard').style.display = 'none';
-    }
+    // ===== 用户认证管理事件监听器 =====
 
     // 激活Token
     document.getElementById('authActivateBtn').addEventListener('click', async () => {
@@ -2685,47 +2796,6 @@ document.addEventListener('DOMContentLoaded', () => {
             hideLoading(btn);
         }
     });
-
-    // 加载刷新状态
-    async function loadRefreshStatus() {
-        try {
-            const response = await apiGet('/auth/refresh-status');
-            if (response.status === 'success') {
-                updateRefreshStatus(response.data);
-            }
-        } catch (error) {
-            console.error('Failed to load refresh status:', error);
-        }
-    }
-
-    // 更新刷新状态显示
-    function updateRefreshStatus(status) {
-        const runningBadge = document.getElementById('authRefreshRunning');
-        const lastUpdateEl = document.getElementById('authLastUpdate');
-        const refreshIntervalEl = document.getElementById('authRefreshInterval');
-        const errorEl = document.getElementById('authRefreshError');
-        const errorMsgEl = document.getElementById('authRefreshErrorMsg');
-
-        // 更新运行状态
-        runningBadge.className = status.is_running ? 'badge bg-success' : 'badge bg-secondary';
-        runningBadge.textContent = status.is_running ? '运行中' : '未运行';
-
-        // 更新最后更新时间
-        if (status.last_update_time) {
-            lastUpdateEl.textContent = formatDateTime(status.last_update_time);
-        }
-
-        // 更新刷新间隔
-        refreshIntervalEl.textContent = status.refresh_interval || '1 分钟';
-
-        // 更新错误显示
-        if (status.last_error) {
-            errorEl.style.display = 'block';
-            errorMsgEl.textContent = status.last_error;
-        } else {
-            errorEl.style.display = 'none';
-        }
-    }
 
     // 登出
     document.getElementById('authLogoutBtn').addEventListener('click', async () => {

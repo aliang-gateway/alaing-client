@@ -58,7 +58,7 @@ func (lh *LatencyHandler) HandleTestAllMembers(w http.ResponseWriter, r *http.Re
 
 	// Check if too soon since last test (prevent spam)
 	now := time.Now().Unix()
-	if now-lh.lastTestTime < 60 {
+	if now-lh.lastTestTime < 10 {
 		logger.Info(fmt.Sprintf("Last test was %d seconds ago, skipping", now-lh.lastTestTime))
 		common.Success(w, TestingResponse{
 			Status:  "testing",

@@ -6,24 +6,9 @@ import (
 
 var (
 	mu          sync.RWMutex
-	userId      int
 	accessToken []string
 	innerToken  string
 )
-
-// SetUserId 设置用户ID（线程安全）
-func SetUserId(uid int) {
-	mu.Lock()
-	defer mu.Unlock()
-	userId = uid
-}
-
-// GetUserId 获取用户ID（线程安全）
-func GetUserId() int {
-	mu.RLock()
-	defer mu.RUnlock()
-	return userId
-}
 
 func SetInnerToken(token string) {
 	mu.Lock()
