@@ -11,6 +11,8 @@ import (
 	httpServer "nursor.org/nursorgate/app/http"
 	"nursor.org/nursorgate/cmd"
 	"nursor.org/nursorgate/common/logger"
+	authuser "nursor.org/nursorgate/processor/auth"
+	"nursor.org/nursorgate/processor/runtime"
 )
 
 // TestHTTPProxyWithConfig starts HTTP proxy with specified config file
@@ -39,6 +41,70 @@ func TestHTTPProxyWithConfig(t *testing.T) {
 			t.Fatalf("Failed to load config: %v", err)
 		}
 	}
+
+	// Try to load local user info
+	logger.Info("")
+	logger.Info(strings.Repeat("-", 70))
+	logger.Info("Checking local user info...")
+	logger.Info(strings.Repeat("-", 70))
+	userInfoPath, err := authuser.GetUserInfoPath()
+	if err != nil {
+		logger.Warn(fmt.Sprintf("Failed to get user info path: %v", err))
+	} else {
+		logger.Debug(fmt.Sprintf("User info path: %s", userInfoPath))
+	}
+
+	// Check if user info file exists
+	if _, err := os.Stat(userInfoPath); os.IsNotExist(err) {
+		logger.Warn(fmt.Sprintf("No local user info found at: %s", userInfoPath))
+		logger.Info("You can activate a token later via HTTP API or use --token flag")
+	} else {
+		runtime.GetStartupState().SetStatus(runtime.READY)
+		logger.Info(fmt.Sprintf("Found local user info file: %s", userInfoPath))
+		userInfo, loadErr := authuser.LoadUserInfo()
+		if loadErr != nil {
+			logger.Error(fmt.Sprintf("Failed to load user info: %v", loadErr))
+			logger.Info("The file may be corrupted or from an incompatible version")
+		} else {
+			logger.Info("✓ User info loaded successfully!")
+			logger.Info("")
+			logger.Info("User Details:")
+			logger.Info(fmt.Sprintf("  Username:     %s", userInfo.Username))
+			logger.Info(fmt.Sprintf("  Plan Name:     %s", userInfo.PlanName))
+			logger.Info(fmt.Sprintf("  Plan Type:     %s", userInfo.PlanType))
+			logger.Info(fmt.Sprintf("  Valid Period:  %s to %s", userInfo.StartTime, userInfo.EndTime))
+
+			// Calculate traffic usage
+			trafficUsedGB := float64(userInfo.TrafficUsed) / (1024 * 1024 * 1024)
+			trafficTotalGB := float64(userInfo.TrafficTotal) / (1024 * 1024 * 1024)
+			var trafficPercent int
+			if userInfo.TrafficTotal > 0 {
+				trafficPercent = int(float64(userInfo.TrafficUsed) / float64(userInfo.TrafficTotal) * 100)
+			}
+			logger.Info(fmt.Sprintf("  Traffic Usage: %.2fGB / %.2fGB (%d%%)",
+				trafficUsedGB, trafficTotalGB, trafficPercent))
+
+			// AI Ask usage
+			logger.Info(fmt.Sprintf("  AI Questions: %d / %d", userInfo.AIAskUsed, userInfo.AIAskTotal))
+
+			// Token info
+			if userInfo.AccessToken != "" {
+				logger.Info("  Access Token: ✓ Available")
+			} else {
+				logger.Warn("  Access Token: ✗ Not available")
+			}
+			if userInfo.RefreshToken != "" {
+				logger.Info("  Refresh Token: ✓ Available")
+			} else {
+				logger.Warn("  Refresh Token: ✗ Not available")
+			}
+
+			logger.Info("")
+			logger.Info("Last Updated: " + userInfo.UpdatedAt.Format("2006-01-02 15:04:05"))
+		}
+	}
+	logger.Info(strings.Repeat("-", 70))
+	logger.Info("")
 
 	logger.Info("")
 	logger.Info(strings.Repeat("=", 70))
@@ -91,6 +157,68 @@ func TestHTTPProxyDefault(t *testing.T) {
 	logger.Info(strings.Repeat("=", 70))
 	logger.Info("HTTP Proxy Server Test (Default Configuration)")
 	logger.Info(strings.Repeat("=", 70))
+	logger.Info("")
+
+	// Try to load local user info
+	logger.Info(strings.Repeat("-", 70))
+	logger.Info("Checking local user info...")
+	logger.Info(strings.Repeat("-", 70))
+	userInfoPath, err := authuser.GetUserInfoPath()
+	if err != nil {
+		logger.Warn(fmt.Sprintf("Failed to get user info path: %v", err))
+	} else {
+		logger.Debug(fmt.Sprintf("User info path: %s", userInfoPath))
+	}
+
+	// Check if user info file exists
+	if _, err := os.Stat(userInfoPath); os.IsNotExist(err) {
+		logger.Warn(fmt.Sprintf("No local user info found at: %s", userInfoPath))
+		logger.Info("You can activate a token later via HTTP API or use --token flag")
+	} else {
+		logger.Info(fmt.Sprintf("Found local user info file: %s", userInfoPath))
+		userInfo, loadErr := authuser.LoadUserInfo()
+		if loadErr != nil {
+			logger.Error(fmt.Sprintf("Failed to load user info: %v", loadErr))
+			logger.Info("The file may be corrupted or from an incompatible version")
+		} else {
+			logger.Info("✓ User info loaded successfully!")
+			logger.Info("")
+			logger.Info("User Details:")
+			logger.Info(fmt.Sprintf("  Username:     %s", userInfo.Username))
+			logger.Info(fmt.Sprintf("  Plan Name:     %s", userInfo.PlanName))
+			logger.Info(fmt.Sprintf("  Plan Type:     %s", userInfo.PlanType))
+			logger.Info(fmt.Sprintf("  Valid Period:  %s to %s", userInfo.StartTime, userInfo.EndTime))
+
+			// Calculate traffic usage
+			trafficUsedGB := float64(userInfo.TrafficUsed) / (1024 * 1024 * 1024)
+			trafficTotalGB := float64(userInfo.TrafficTotal) / (1024 * 1024 * 1024)
+			var trafficPercent int
+			if userInfo.TrafficTotal > 0 {
+				trafficPercent = int(float64(userInfo.TrafficUsed) / float64(userInfo.TrafficTotal) * 100)
+			}
+			logger.Info(fmt.Sprintf("  Traffic Usage: %.2fGB / %.2fGB (%d%%)",
+				trafficUsedGB, trafficTotalGB, trafficPercent))
+
+			// AI Ask usage
+			logger.Info(fmt.Sprintf("  AI Questions: %d / %d", userInfo.AIAskUsed, userInfo.AIAskTotal))
+
+			// Token info
+			if userInfo.AccessToken != "" {
+				logger.Info("  Access Token: ✓ Available")
+			} else {
+				logger.Warn("  Access Token: ✗ Not available")
+			}
+			if userInfo.RefreshToken != "" {
+				logger.Info("  Refresh Token: ✓ Available")
+			} else {
+				logger.Warn("  Refresh Token: ✗ Not available")
+			}
+
+			logger.Info("")
+			logger.Info("Last Updated: " + userInfo.UpdatedAt.Format("2006-01-02 15:04:05"))
+		}
+	}
+	logger.Info(strings.Repeat("-", 70))
 	logger.Info("")
 
 	logger.Info("HTTP Proxy Server listening on: http://127.0.0.1:56432")

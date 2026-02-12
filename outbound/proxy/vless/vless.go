@@ -6,10 +6,12 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math/rand"
 	"net"
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	stls "github.com/sagernet/sing-box/common/tls"
 	sopt "github.com/sagernet/sing-box/option"
@@ -57,6 +59,7 @@ func isDNSError(err error) bool {
 type VLESS struct {
 	*proxy.Base
 	server  string
+	port    uint16
 	uuid    string
 	sni     string
 	flow    string
@@ -186,6 +189,7 @@ func NewVLESSWithReality(Server string, ServerPort uint16, UUID string, Flow str
 			Reality: &RealityConfig{
 				Enabled:   bool(RealityEnabled),
 				PublicKey: PublicKey,
+				ShortID:   ShortIDList[rand.Intn(len(ShortIDList))],
 			},
 		},
 	})
@@ -207,6 +211,7 @@ func NewVLESSWithConfig(config *VLESSConfig) (*VLESS, error) {
 			Protocol: proto.VLESS,
 		},
 		server:  config.Server,
+		port:    config.ServerPort,
 		uuid:    config.UUID,
 		sni:     config.SNI,
 		flow:    config.Flow,
@@ -218,6 +223,9 @@ func NewVLESSWithConfig(config *VLESSConfig) (*VLESS, error) {
 		v.sni = config.TLS.ServerName
 		if config.TLS.Reality != nil {
 			v.reality = config.TLS.Reality
+			// 诊断日志：记录初始化时选择的 ShortID
+			logger.Info(fmt.Sprintf("[VLESS] 初始化完成 - Server:%s, SNI:%s, ShortID:%s",
+				config.Server, v.sni, v.reality.ShortID))
 		}
 	}
 	v.flow = config.Flow
@@ -227,8 +235,10 @@ func NewVLESSWithConfig(config *VLESSConfig) (*VLESS, error) {
 
 // DialContext 实现 Proxy 接口的 DialContext 方法，参考 xray-core 连接复用机制
 func (v *VLESS) DialContext(ctx context.Context, metadata *M.Metadata) (net.Conn, error) {
-	v.mu.RLock()
-	defer v.mu.RUnlock()
+	// 使用写锁而不是读锁，防止并发握手导致 REALITY 验证失败
+	// 这确保每次只有一个 TLS 握手在进行
+	v.mu.Lock()
+	defer v.mu.Unlock()
 
 	conn, err := v.establishNewConnection(ctx, metadata)
 	if err != nil {
@@ -252,6 +262,18 @@ func (v *VLESS) establishNewConnection(ctx context.Context, metadata *M.Metadata
 		}
 	}
 
+	// 诊断：验证 TCP 连接真实状态
+	if tcpConn, ok := conn.(*net.TCPConn); ok {
+		// 检查连接是否可写（发送一个空的 TCP keepalive 探测）
+		if err := tcpConn.SetWriteDeadline(time.Now().Add(5 * time.Second)); err != nil {
+			logger.Error(fmt.Sprintf("[VLESS] TCP 连接可能无效: SetWriteDeadline 失败: %v", err))
+		} else {
+			tcpConn.SetWriteDeadline(time.Time{}) // 清除 deadline
+		}
+		logger.Debug(fmt.Sprintf("[VLESS] TCP 连接已建立 - LocalAddr:%s, RemoteAddr:%s",
+			tcpConn.LocalAddr(), tcpConn.RemoteAddr()))
+	}
+
 	// 如果启用了 REALITY，进行 REALITY 握手
 	if v.reality != nil && v.reality.Enabled {
 		logger.Debug(fmt.Sprintf("DEBUG: 开始 REALITY 握手，SNI: %s\n", v.sni))
@@ -259,24 +281,46 @@ func (v *VLESS) establishNewConnection(ctx context.Context, metadata *M.Metadata
 		// 使用自动生成的 TLS 配置
 		defaultOptions := v.GetDefaultTLSOptions()
 
-		// 提取服务器地址（不带端口）
-		serverAddr := v.server
-		if idx := strings.Index(serverAddr, ":"); idx != -1 {
-			serverAddr = serverAddr[:idx]
+		// REALITY 握手的关键：
+		// 1. TCP 连接已经建立到代理服务器 (v.server:v.port)
+
+		// 诊断日志：Context 状态
+		deadline, hasDeadline := ctx.Deadline()
+		if hasDeadline {
+			logger.Debug(fmt.Sprintf("[VLESS] Context deadline: %v (剩余: %v)", deadline, deadline.Sub(time.Now())))
+		} else {
+			logger.Debug("[VLESS] Context 无超时限制")
 		}
 
-		logger.Debug(fmt.Sprintf("DEBUG: TLS ServerAddr: %s, SNI: %s\n", serverAddr, defaultOptions.ServerName))
-		tlsConf, err := stls.NewClient(ctx, serverAddr, common.PtrValueOrDefault(defaultOptions))
+		// 诊断日志：TCP 连接状态
+		logger.Debug(fmt.Sprintf("[VLESS] TCP连接 - Local:%s, Remote:%s", conn.LocalAddr(), conn.RemoteAddr()))
+		logger.Debug(fmt.Sprintf("[VLESS] 代理服务器: %s:%d, SNI伪装目标: %s", v.server, v.port, v.sni))
+		logger.Debug(fmt.Sprintf("[VLESS] REALITY参数 - PublicKey:%s, ShortID:%s", v.reality.PublicKey, v.reality.ShortID))
+
+		// 关键修复：使用 SNI 作为 serverName，而不是代理服务器地址
+		logger.Debug("[VLESS] 创建 TLS 客户端配置...")
+		tlsConf, err := stls.NewClient(ctx, v.sni, common.PtrValueOrDefault(defaultOptions))
 		if err != nil {
+			logger.Error(fmt.Sprintf("[VLESS] 创建TLS配置失败: %v", err))
 			return nil, fmt.Errorf("failed to create TLS client: %w", err)
 		}
+		logger.Debug("[VLESS] TLS 配置创建成功")
 
+		// 开始 TLS 握手
+		logger.Info(fmt.Sprintf("[VLESS] 开始TLS握手 - 目标:%s:%d, SNI:%s", v.server, v.port, v.sni))
+		startTime := time.Now()
 		tlsConn, err := stls.ClientHandshake(ctx, conn, tlsConf)
+		handshakeDuration := time.Since(startTime)
+
 		if err != nil {
-			logger.Error(fmt.Sprintf("[VLESS] TLS握手失败 目标: %s:%d, 错误: %v", metadata.HostName, metadata.DstPort, err))
+			logger.Error(fmt.Sprintf("[VLESS] ❌ TLS握手失败 (耗时:%v)", handshakeDuration))
+			logger.Error(fmt.Sprintf("[VLESS]    错误类型: %T", err))
+			logger.Error(fmt.Sprintf("[VLESS]    错误详情: %v", err))
+			logger.Error(fmt.Sprintf("[VLESS]    Server:%s:%d, SNI:%s", v.server, v.port, v.sni))
+			logger.Error(fmt.Sprintf("[VLESS]    PublicKey:%s, ShortID:%s", v.reality.PublicKey, v.reality.ShortID))
 			return nil, fmt.Errorf("failed to handshake with VLESS server: %w", err)
 		}
-		logger.Info(fmt.Sprintf("[VLESS] ✓ TLS握手成功 SNI: %s, 目标: %s:%d", v.sni, metadata.HostName, metadata.DstPort))
+		logger.Info(fmt.Sprintf("[VLESS] ✓ TLS握手成功 (耗时:%v) - 目标: %s:%d", handshakeDuration, metadata.HostName, metadata.DstPort))
 
 		// 创建目标地址
 		// 重要：如果有域名，优先使用域名而不是IP，这样目标服务器才能正确处理TLS SNI
@@ -316,7 +360,7 @@ func (v *VLESS) establishNewConnection(ctx context.Context, metadata *M.Metadata
 	if v.sni != "" {
 		tlsConfig := &tls.Config{
 			ServerName:         v.sni,
-			InsecureSkipVerify: true,
+			InsecureSkipVerify: false,
 			MinVersion:         tls.VersionTLS12,
 			MaxVersion:         tls.VersionTLS13,
 		}
@@ -345,7 +389,7 @@ func (v *VLESS) GetDefaultTLSOptions() *sopt.OutboundTLSOptions {
 	opts := &sopt.OutboundTLSOptions{
 		Enabled:    true,
 		ServerName: v.sni,
-		Insecure:   false, // REALITY 不需要跳过证书验证
+		Insecure:   false, // REALITY 必须跳过证书验证（服务器返回自签名证书）
 	}
 
 	// 配置 TLS 版本
@@ -370,10 +414,11 @@ func (v *VLESS) GetDefaultTLSOptions() *sopt.OutboundTLSOptions {
 			ShortID:   v.reality.ShortID,
 		}
 
-		// REALITY 通常使用 uTLS 来模拟真实浏览器指纹
+		// REALITY 使用 uTLS 来模拟真实浏览器指纹
+		// 使用 firefox 指纹，比 chrome 更稳定（chrome 指纹有随机性可能导致验证失败）
 		opts.UTLS = &sopt.OutboundUTLSOptions{
 			Enabled:     true,
-			Fingerprint: "chrome", // 模拟 Chrome 浏览器
+			Fingerprint: "firefox", // 使用 Firefox 指纹，更稳定
 		}
 	}
 

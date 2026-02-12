@@ -40,7 +40,6 @@ func NewHandlers() *Handlers {
 	// Initialize services
 	logService := services.NewLogService()
 	logConfigService := services.NewLogConfigService()
-	proxyService := services.NewProxyService()
 	tokenService := services.NewTokenService()
 	runService := services.NewRunService()
 	certService := services.NewCertService()
@@ -66,7 +65,7 @@ func NewHandlers() *Handlers {
 	// Create handlers with dependency injection
 	return &Handlers{
 		Logger:         handlers.NewLogHandler(logService, logConfigService),
-		Proxy:          handlers.NewProxyHandler(proxyService),
+		Proxy:          handlers.NewProxyHandler(),
 		ProxyRegistry:  handlers.NewProxyRegistryHandler(proxyRepository),
 		Token:          handlers.NewTokenHandler(tokenService),
 		Run:            handlers.NewRunHandler(runService),

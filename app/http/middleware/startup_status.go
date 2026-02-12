@@ -58,6 +58,7 @@ func isConfigurationAPI(path string) bool {
 		"/api/token/get",           // Get token
 		"/api/token/set",           // Set token
 		"/api/logs",                // Logs access (for diagnosis)
+		"/api/run/status",
 	}
 
 	for _, endpoint := range configEndpoints {

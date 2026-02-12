@@ -24,7 +24,13 @@
           "reality_enabled": true,
           "sni": "www.microsoft.com",
           "public_key": "sAtJcW2xLIUWRE-_7KHGEAtvHx-P1sDbjrrgrt4_XCo",
-          "short_ids": ["ef","b79e62","7d87a3","f4bfb2","ecdc"]
+          "short_ids": [
+            "ef",
+            "b79e62",
+            "7d87a3",
+            "f4bfb2",
+            "ecdc"
+          ]
         }
       }
     ]
@@ -40,7 +46,6 @@
       "domains": [
         "*.apple.com",
         "*.icloud.com",
-        "*.microsoft.com",
         "*.windowsupdate.com"
       ],
       "domainSuffixes": [

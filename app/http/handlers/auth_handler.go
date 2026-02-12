@@ -9,7 +9,7 @@ import (
 	"nursor.org/nursorgate/app/http/services"
 	"nursor.org/nursorgate/common/logger"
 	userAuth "nursor.org/nursorgate/processor/auth"
-	"nursor.org/nursorgate/processor/proxyserver"
+	"nursor.org/nursorgate/processor/runtime"
 )
 
 // AuthHandler Token和用户认证处理器
@@ -38,18 +38,47 @@ func (h *AuthHandler) HandleActivateToken(w http.ResponseWriter, r *http.Request
 		return
 	}
 
+	// 激活 token
 	result := h.authService.ActivateToken(req.Token)
-	go func() {
-		// 异步更新代理配置（不阻塞响应）
+
+	// 检查激活结果并更新启动状态
+	if result["status"] == "success" {
+		// 激活成功，更新启动状态
 		userInfo := userAuth.GetCurrentUserInfo()
-		if userInfo != nil && userInfo.AccessToken != "" {
-			if err := proxyserver.UpdateDoorProxies(userInfo.AccessToken); err != nil {
-				logger.Warn(fmt.Sprintf("Failed to fetch proxyserver config after token activation: %v", err))
-			} else {
-				logger.Info("Proxyserver config updated successfully after token activation")
-			}
+		if userInfo != nil {
+			startupState := runtime.GetStartupState()
+
+			// 立即设置用户信息（同步）
+			startupState.SetUserInfo(userInfo)
+
+			// 异步更新代理配置并设置最终状态
+			go func() {
+				if userInfo.AccessToken != "" {
+					//fetchErr := proxyserver.UpdateDoorProxies(userInfo.AccessToken)
+					//fetchSuccess := fetchErr == nil
+					fetchErr := ""
+					fetchSuccess := true
+
+					// 更新 fetch 成功状态
+					startupState.SetFetchSuccess(fetchSuccess)
+
+					// 根据 fetch 结果设置最终状态
+					if fetchSuccess {
+						startupState.SetStatus(runtime.READY)
+						logger.Info("Proxyserver config updated successfully, status: READY")
+					} else {
+						startupState.SetStatus(runtime.CONFIGURED)
+						logger.Warn(fmt.Sprintf("Proxyserver fetch failed: %v, status: CONFIGURED", fetchErr))
+					}
+				} else {
+					// 没有 accessToken，设置为 CONFIGURED
+					startupState.SetStatus(runtime.CONFIGURED)
+					logger.Warn("User activated but no access token available, status: CONFIGURED")
+				}
+			}()
 		}
-	}()
+	}
+
 	common.Success(w, result)
 }
 

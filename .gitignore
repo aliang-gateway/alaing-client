@@ -41,3 +41,4 @@ nursorgate2
 nursorgate-darwin-arm64
 nursorgate-final
 .serena
+*.pyc
