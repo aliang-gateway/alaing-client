@@ -271,11 +271,11 @@ func registerDoorProxy(cfg *config.Config) error {
 }
 
 // LoadAndApplyConfig 加载并应用配置文件
+// 注意：如果用户显式指定了配置文件路径但文件不存在，应返回错误
 func LoadAndApplyConfig(configPath string) error {
 	// 检查文件是否存在
 	if _, err := os.Stat(configPath); os.IsNotExist(err) {
-		logger.Warn(fmt.Sprintf("Config file not found: %s, using defaults", configPath))
-		return nil
+		return fmt.Errorf("config file not found: %s", configPath)
 	}
 
 	// 加载配置
@@ -288,6 +288,9 @@ func LoadAndApplyConfig(configPath string) error {
 	if err := ApplyConfig(cfg); err != nil {
 		return fmt.Errorf("failed to apply config: %w", err)
 	}
+
+	// 标记使用的是自定义配置（非默认配置）
+	setUseDefaultConfig(false)
 
 	logger.Info(fmt.Sprintf("Config loaded and applied successfully from: %s", configPath))
 	return nil
