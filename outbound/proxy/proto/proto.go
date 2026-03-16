@@ -8,14 +8,13 @@ const (
 	Direct Proto = iota
 	Reject
 	HTTP
-	//Socks4
-	//Socks5
 	Shadowsocks
 	//Relay
 	HY2
 	VLESS
 	Nonelane
 	ShadowTLS
+	Socks5
 )
 
 type Proto uint8
@@ -28,10 +27,6 @@ func (proto Proto) String() string {
 		return "reject"
 	case HTTP:
 		return "http"
-	//case Socks4:
-	//	return "socks4"
-	//case Socks5:
-	//	return "socks5"
 	case Shadowsocks:
 		return "ss"
 	case HY2:
@@ -42,6 +37,8 @@ func (proto Proto) String() string {
 		return "nonelane"
 	case ShadowTLS:
 		return "shadowtls"
+	case Socks5:
+		return "socks5"
 
 	default:
 		return fmt.Sprintf("proto(%d)", proto)

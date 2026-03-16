@@ -16,7 +16,7 @@ type BaseProxyConfig struct {
 // DoorProxyMember represents a member in a door proxy collection
 type DoorProxyMember struct {
 	ShowName   string      `json:"showname"`    // 显示名称
-	Type       string      `json:"type"`        // vless/shadowsocks/ss
+	Type       string      `json:"type"`        // vless/shadowsocks/ss/socks5
 	Latency    int64       `json:"latency"`     // 延迟（毫秒）
 	LastUpdate int64       `json:"last_update"` // 最后更新时间戳
 	Status     string      `json:"status"`      // 状态：success/failed/unknown
@@ -47,8 +47,30 @@ type ShadowsocksConfig struct {
 	ObfsHost   string `json:"obfs_host,omitempty"`
 
 	// ShadowTLS plugin support
-	Plugin     string                 `json:"plugin,omitempty"`
-	PluginOpts *ShadowTLSPluginOpts   `json:"plugin_opts,omitempty"`
+	Plugin     string               `json:"plugin,omitempty"`
+	PluginOpts *ShadowTLSPluginOpts `json:"plugin_opts,omitempty"`
+}
+
+// Socks5Config represents SOCKS5 protocol configuration
+type Socks5Config struct {
+	Server     string `json:"server_host"`
+	ServerPort uint16 `json:"server_port"`
+	Username   string `json:"username,omitempty"`
+	Password   string `json:"password,omitempty"`
+}
+
+// Validate validates SOCKS5 configuration
+func (c *Socks5Config) Validate() error {
+	if c.Server == "" {
+		return fmt.Errorf("server_host is required")
+	}
+	if c.ServerPort == 0 {
+		return fmt.Errorf("server_port is required")
+	}
+	if (c.Username == "") != (c.Password == "") {
+		return fmt.Errorf("username and password must be provided together")
+	}
+	return nil
 }
 
 // ShadowTLSPluginOpts represents ShadowTLS plugin configuration
@@ -128,6 +150,9 @@ func (c *BaseProxyConfig) Validate() error {
 		// The actual members are stored separately in the door proxy config
 	case "vless", "shadowsocks":
 		// These types are only valid as door proxy members
+		return fmt.Errorf("type '%s' is only valid as a door proxy member", c.Type)
+	case "socks5":
+		// Only valid as door proxy member
 		return fmt.Errorf("type '%s' is only valid as a door proxy member", c.Type)
 	default:
 		return fmt.Errorf("unsupported proxy type: %s", c.Type)
@@ -307,6 +332,25 @@ func (d *DoorProxyMember) GetShadowsocksConfig() (*ShadowsocksConfig, error) {
 	var config ShadowsocksConfig
 	if err := json.Unmarshal(configData, &config); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal shadowsocks config: %w", err)
+	}
+
+	return &config, nil
+}
+
+// GetSocks5Config 获取 SOCKS5 配置
+func (d *DoorProxyMember) GetSocks5Config() (*Socks5Config, error) {
+	if d.Type != "socks5" && d.Type != "socks" {
+		return nil, fmt.Errorf("not a socks5 config, type is: %s", d.Type)
+	}
+
+	configData, err := json.Marshal(d.Config)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal config: %w", err)
+	}
+
+	var config Socks5Config
+	if err := json.Unmarshal(configData, &config); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal socks5 config: %w", err)
 	}
 
 	return &config, nil

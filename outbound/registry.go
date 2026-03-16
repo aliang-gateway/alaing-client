@@ -11,6 +11,7 @@ import (
 	"nursor.org/nursorgate/outbound/proxy/nonelane"
 	"nursor.org/nursorgate/outbound/proxy/shadowsocks"
 	"nursor.org/nursorgate/outbound/proxy/shadowtls"
+	"nursor.org/nursorgate/outbound/proxy/socks5"
 	"nursor.org/nursorgate/outbound/proxy/vless"
 	proxyConfig "nursor.org/nursorgate/processor/config"
 )
@@ -310,6 +311,8 @@ func (r *Registry) RegisterDoorFromConfig(doorCfg *proxyConfig.DoorProxyConfig) 
 			p, err = createVLESSProxy(&member)
 		case "shadowsocks", "ss":
 			p, err = createShadowsocksProxy(&member)
+		case "socks5", "socks":
+			p, err = createSocks5Proxy(&member)
 		default:
 			return fmt.Errorf("unsupported member type '%s' for member '%s'", member.Type, member.ShowName)
 		}
@@ -501,4 +504,22 @@ func createShadowsocksProxy(member *proxyConfig.DoorProxyMember) (proxy.Proxy, e
 		ObfsMode: cfg.ObfsMode,
 		ObfsHost: cfg.ObfsHost,
 	})
+}
+
+// createSocks5Proxy creates SOCKS5 proxy instance from door member config
+func createSocks5Proxy(member *proxyConfig.DoorProxyMember) (proxy.Proxy, error) {
+	if member == nil {
+		return nil, fmt.Errorf("door member cannot be nil")
+	}
+
+	cfg, err := member.GetSocks5Config()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get socks5 config: %w", err)
+	}
+	if err := cfg.Validate(); err != nil {
+		return nil, fmt.Errorf("invalid socks5 config: %w", err)
+	}
+
+	addr := fmt.Sprintf("%s:%d", cfg.Server, cfg.ServerPort)
+	return socks5.New(addr, cfg.Username, cfg.Password)
 }

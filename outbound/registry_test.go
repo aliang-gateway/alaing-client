@@ -259,3 +259,143 @@ func TestProtocolSelectionLogic(t *testing.T) {
 		})
 	}
 }
+
+// TestCreateSocks5Proxy tests SOCKS5 proxy creation and validation
+func TestCreateSocks5Proxy(t *testing.T) {
+	tests := []struct {
+		name         string
+		member       *config.DoorProxyMember
+		expectedType proto.Proto
+		wantErr      bool
+		errMsg       string
+	}{
+		{
+			name: "create socks5 proxy without auth",
+			member: &config.DoorProxyMember{
+				ShowName: "SOCKS5 NoAuth",
+				Type:     "socks5",
+				Config: map[string]interface{}{
+					"server_host": "127.0.0.1",
+					"server_port": 1080,
+				},
+			},
+			expectedType: proto.Socks5,
+			wantErr:      false,
+		},
+		{
+			name: "create socks5 proxy with auth",
+			member: &config.DoorProxyMember{
+				ShowName: "SOCKS5 Auth",
+				Type:     "socks5",
+				Config: map[string]interface{}{
+					"server_host": "127.0.0.1",
+					"server_port": 1080,
+					"username":    "user",
+					"password":    "pass",
+				},
+			},
+			expectedType: proto.Socks5,
+			wantErr:      false,
+		},
+		{
+			name: "fail missing server_host",
+			member: &config.DoorProxyMember{
+				ShowName: "SOCKS5 Invalid",
+				Type:     "socks5",
+				Config: map[string]interface{}{
+					"server_port": 1080,
+				},
+			},
+			wantErr: true,
+			errMsg:  "server_host is required",
+		},
+		{
+			name: "fail username without password",
+			member: &config.DoorProxyMember{
+				ShowName: "SOCKS5 Invalid",
+				Type:     "socks5",
+				Config: map[string]interface{}{
+					"server_host": "127.0.0.1",
+					"server_port": 1080,
+					"username":    "user",
+				},
+			},
+			wantErr: true,
+			errMsg:  "username and password must be provided together",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			p, err := createSocks5Proxy(tt.member)
+
+			if (err != nil) != tt.wantErr {
+				t.Errorf("createSocks5Proxy() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+
+			if err != nil && tt.errMsg != "" {
+				if !strings.Contains(err.Error(), tt.errMsg) {
+					t.Errorf("createSocks5Proxy() error message = %v, should contain %v", err.Error(), tt.errMsg)
+				}
+			}
+
+			if err == nil {
+				if p == nil {
+					t.Error("createSocks5Proxy() returned nil proxy without error")
+					return
+				}
+				if p.Proto() != tt.expectedType {
+					t.Errorf("createSocks5Proxy() proto = %v, want %v", p.Proto(), tt.expectedType)
+				}
+				if p.Addr() == "" {
+					t.Error("createSocks5Proxy() returned proxy with empty address")
+				}
+			}
+		})
+	}
+}
+
+// TestDoorProxyRegistrationWithSocks5 tests registering door proxy members with SOCKS5
+func TestDoorProxyRegistrationWithSocks5(t *testing.T) {
+	doorCfg := &config.DoorProxyConfig{
+		Type: "door",
+		Members: []config.DoorProxyMember{
+			{
+				ShowName: "SOCKS5 Node",
+				Type:     "socks5",
+				Latency:  50,
+				Status:   "success",
+				Config: map[string]interface{}{
+					"server_host": "127.0.0.1",
+					"server_port": 1080,
+				},
+			},
+		},
+	}
+
+	reg := &Registry{
+		proxies: make(map[string]proxy.Proxy),
+	}
+
+	err := reg.RegisterDoorFromConfig(doorCfg)
+	if err != nil {
+		t.Fatalf("RegisterDoorFromConfig() failed: %v", err)
+	}
+
+	if reg.doorGroup == nil {
+		t.Fatal("door group not registered")
+	}
+
+	if reg.doorGroup.Count() != 1 {
+		t.Errorf("expected 1 door member, got %d", reg.doorGroup.Count())
+	}
+
+	s5Proxy, err := reg.GetDoor("SOCKS5 Node")
+	if err != nil {
+		t.Fatalf("GetDoor(SOCKS5 Node) failed: %v", err)
+	}
+	if s5Proxy.Proto() != proto.Socks5 {
+		t.Errorf("expected Socks5 proxy, got %v", s5Proxy.Proto())
+	}
+}

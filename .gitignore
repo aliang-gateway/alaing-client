@@ -42,3 +42,4 @@ nursorgate-darwin-arm64
 nursorgate-final
 .serena
 *.pyc
+.agents/

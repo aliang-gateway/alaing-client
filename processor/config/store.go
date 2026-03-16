@@ -197,6 +197,13 @@ func GetProxyConfigInfo(proxyName string) (map[string]interface{}, error) {
 				result["config_error"] = fmt.Sprintf("failed to extract Shadowsocks config: %v", err)
 			}
 
+		case "socks5", "socks":
+			if s5Cfg, err := member.GetSocks5Config(); err == nil {
+				result["config"] = s5Cfg
+			} else {
+				result["config_error"] = fmt.Sprintf("failed to extract SOCKS5 config: %v", err)
+			}
+
 		default:
 			result["config"] = member.Config
 		}

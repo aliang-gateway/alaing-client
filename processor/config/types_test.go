@@ -240,3 +240,81 @@ func TestShadowsocksConfigValidate(t *testing.T) {
 		})
 	}
 }
+
+// TestSocks5ConfigValidate tests Socks5Config.Validate()
+func TestSocks5ConfigValidate(t *testing.T) {
+	tests := []struct {
+		name    string
+		config  *Socks5Config
+		wantErr bool
+		errMsg  string
+	}{
+		{
+			name: "valid without auth",
+			config: &Socks5Config{
+				Server:     "127.0.0.1",
+				ServerPort: 1080,
+			},
+			wantErr: false,
+		},
+		{
+			name: "valid with auth",
+			config: &Socks5Config{
+				Server:     "127.0.0.1",
+				ServerPort: 1080,
+				Username:   "user",
+				Password:   "pass",
+			},
+			wantErr: false,
+		},
+		{
+			name: "missing server_host",
+			config: &Socks5Config{
+				ServerPort: 1080,
+			},
+			wantErr: true,
+			errMsg:  "server_host is required",
+		},
+		{
+			name: "missing server_port",
+			config: &Socks5Config{
+				Server: "127.0.0.1",
+			},
+			wantErr: true,
+			errMsg:  "server_port is required",
+		},
+		{
+			name: "username without password",
+			config: &Socks5Config{
+				Server:     "127.0.0.1",
+				ServerPort: 1080,
+				Username:   "user",
+			},
+			wantErr: true,
+			errMsg:  "username and password must be provided together",
+		},
+		{
+			name: "password without username",
+			config: &Socks5Config{
+				Server:     "127.0.0.1",
+				ServerPort: 1080,
+				Password:   "pass",
+			},
+			wantErr: true,
+			errMsg:  "username and password must be provided together",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.config.Validate()
+			if (err != nil) != tt.wantErr {
+				t.Errorf("Validate() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if err != nil && tt.errMsg != "" && err.Error() != tt.errMsg {
+				t.Errorf("Validate() error message = %v, want %v", err.Error(), tt.errMsg)
+			}
+		})
+	}
+}
