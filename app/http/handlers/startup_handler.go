@@ -118,8 +118,8 @@ func getStatusDescription(status runtime.StartupStatus) string {
 	descriptions := map[runtime.StartupStatus]string{
 		runtime.UNCONFIGURED: "System awaiting configuration - no token and no local user info found",
 		runtime.CONFIGURING:  "System configuring - token provided, activation in progress",
-		runtime.CONFIGURED:   "System configured - user info loaded but proxyserver fetch incomplete",
-		runtime.READY:        "System ready - all components initialized and proxyserver configured",
+		runtime.CONFIGURED:   "System configured - user info loaded but not started",
+		runtime.READY:        "System ready - user authenticated",
 	}
 
 	if desc, ok := descriptions[status]; ok {
@@ -131,9 +131,9 @@ func getStatusDescription(status runtime.StartupStatus) string {
 // getFetchStatusMessage returns a message about fetch status
 func getFetchStatusMessage(success bool) string {
 	if success {
-		return "Proxyserver configuration successfully fetched and applied"
+		return "User authenticated"
 	}
-	return "Proxyserver configuration fetch failed - system may have limited functionality"
+	return "User not authenticated"
 }
 
 // getSuggestedActions returns suggested actions based on current status
@@ -145,11 +145,11 @@ func getSuggestedActions(status runtime.StartupStatus) []string {
 		},
 		runtime.CONFIGURING: {
 			"GET /api/startup/status - Check activation progress",
-			"Wait for token activation and proxyserver fetch to complete",
+			"Wait for token activation to complete",
 		},
 		runtime.CONFIGURED: {
-			"System has user info but proxyserver fetch failed",
-			"Proxy functionality may be limited",
+			"System has user info but proxy not started",
+			"Call /api/run/start to start proxy",
 			"POST /api/auth/activate - Retry with fresh token",
 		},
 		runtime.READY: {
@@ -172,28 +172,27 @@ func getStatusTransitionInfo(status runtime.StartupStatus) map[string]interface{
 			"description": "Initial state - no configuration",
 			"possible_transitions": []string{
 				"→ CONFIGURING (token provided)",
-				"→ CONFIGURED (local user info found)",
+				"→ READY (local user info found)",
 			},
 		},
 		runtime.CONFIGURING: {
 			"description": "Activation in progress",
 			"possible_transitions": []string{
-				"→ READY (token activation + fetch success)",
-				"→ CONFIGURED (token activation success but fetch failed)",
+				"→ READY (token activation success)",
 				"→ UNCONFIGURED (token activation failed, no local fallback)",
 			},
 		},
 		runtime.CONFIGURED: {
-			"description": "User info available but proxyserver incomplete",
+			"description": "User info available but proxy not started",
 			"possible_transitions": []string{
-				"→ READY (proxyserver fetch succeeds, e.g., after token refresh)",
+				"→ READY (start proxy)",
 				"→ UNCONFIGURED (user info deleted)",
 			},
 		},
 		runtime.READY: {
 			"description": "System ready for proxy operations",
 			"possible_transitions": []string{
-				"→ CONFIGURED (proxyserver fetch fails)",
+				"→ CONFIGURED (user logs out)",
 				"→ UNCONFIGURED (user logout or info deleted)",
 			},
 		},

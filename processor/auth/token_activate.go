@@ -19,8 +19,7 @@ const (
 
 // ActivateToken 激活Token并获取用户信息
 // 激活成功返回用户信息（包含必要的credentials）
-// 注意：该函数仅处理Token激活，不处理proxyserver fetch
-// proxyserver fetch由上层调用者（通常是InitializeUser）处理，以便独立追踪fetch成功/失败
+// 注意：该函数仅处理Token激活，不处理登录后启动流程
 //
 // 如果激活失败，尝试加载本地之前保存的用户信息作为fallback
 func ActivateToken(token string) (*UserInfo, error) {

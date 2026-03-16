@@ -88,6 +88,16 @@ func (r *Registry) RegisterNonelane(serverAddr string) error {
 	return nil
 }
 
+// CreateSocksProxy creates a SOCKS5 proxy instance from address and optional auth.
+// This is used for the simplified outbound path (nonelane + socks + direct).
+func CreateSocksProxy(addr, username, password string) (proxy.Proxy, error) {
+	if addr == "" {
+		return nil, fmt.Errorf("socks proxy addr cannot be empty")
+	}
+
+	return socks5.New(addr, username, password)
+}
+
 // Register 注册一个代理实例
 // name: 代理名称，用于后续查找和切换
 // p: 代理实例

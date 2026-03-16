@@ -28,20 +28,20 @@ func SetHttpLogLevel(level LogLevel) {
 
 // HttpDebug logs debug message to HTTP logger
 func HttpDebug(v ...interface{}) {
-	GetHTTPLogger().Debug(v...)
+	GetMainLogger().Debug(v...)
 }
 
 // HttpInfo logs info message to HTTP logger
 func HttpInfo(v ...interface{}) {
-	GetHTTPLogger().Info(v...)
+	GetMainLogger().Info(v...)
 }
 
 // HttpWarn logs warn message to HTTP logger
 func HttpWarn(v ...interface{}) {
-	GetHTTPLogger().Warn(v...)
+	GetMainLogger().Warn(v...)
 }
 
 // HttpError logs error message to HTTP logger
 func HttpError(v ...interface{}) {
-	GetHTTPLogger().Error(v...)
+	GetMainLogger().Error(v...)
 }

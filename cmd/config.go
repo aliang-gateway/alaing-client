@@ -87,29 +87,35 @@ func ApplyConfig(cfg *Config) error {
 	}
 	logger.Debug("Phase 1: Built-in proxies registered")
 
-	// Phase 2: Register door proxy collection if configured
+	// Phase 2: Register optional SOCKS proxy (if configured)
+	if err := registerSocksProxy(cfg); err != nil {
+		return fmt.Errorf("phase 2 - socks proxy registration failed: %w", err)
+	}
+	logger.Debug("Phase 2: Optional SOCKS proxy registered")
+
+	// Phase 3: Register door proxy collection if configured (legacy/optional)
 	if err := registerDoorProxy(cfg); err != nil {
-		return fmt.Errorf("phase 2 - door proxy registration failed: %w", err)
+		return fmt.Errorf("phase 3 - door proxy registration failed: %w", err)
 	}
-	logger.Debug("Phase 2: Door proxy collection registered")
+	logger.Debug("Phase 3: Door proxy collection registered")
 
-	// Phase 3: Initialize global DNS resolver
-	// Must be done after door and direct proxies are registered
+	// Phase 4: Initialize global DNS resolver
+	// Must be done after proxies are registered
 	registry := outbound.GetRegistry()
-	doorProxy, _ := registry.GetDoor()
+	primaryProxy, _ := registry.Get("socks")
 	directProxy, _ := registry.Get("direct")
-	if err := proxyserver.InitGlobalResolver(doorProxy, directProxy, cfg); err != nil {
-		logger.Warn(fmt.Sprintf("Phase 3 - Failed to initialize DNS resolver: %v", err))
+	if err := proxyserver.InitGlobalResolver(primaryProxy, directProxy, cfg); err != nil {
+		logger.Warn(fmt.Sprintf("Phase 4 - Failed to initialize DNS resolver: %v", err))
 	} else {
-		logger.Debug("Phase 3: Global DNS resolver initialized")
+		logger.Debug("Phase 4: Global DNS resolver initialized")
 	}
 
-	// Phase 4: Set the active default proxy for routing decisions
+	// Phase 5: Set the active default proxy for routing decisions
 	// Determines which proxy is used when no specific routing rule applies
 	if err := setEffectiveDefaultProxy(cfg.CurrentProxy); err != nil {
-		return fmt.Errorf("phase 4 - failed to set default proxy: %w", err)
+		return fmt.Errorf("phase 5 - failed to set default proxy: %w", err)
 	}
-	logger.Debug("Phase 4: Default proxy set for routing")
+	logger.Debug("Phase 5: Default proxy set for routing")
 
 	logger.Info("Configuration applied successfully")
 	return nil
@@ -240,6 +246,34 @@ func registerBuiltinProxies(cfg *Config) error {
 		config.SetCursorAiGatewayHost(coreServer)
 	}
 
+	return nil
+}
+
+// registerSocksProxy registers optional SOCKS5 proxy
+func registerSocksProxy(cfg *config.Config) error {
+	if cfg.SocksProxy == nil {
+		logger.Debug("No socks proxy configured")
+		return nil
+	}
+
+	// Validate config (already validated in cfg.Validate, but keep safe)
+	if err := cfg.SocksProxy.Validate(); err != nil {
+		return fmt.Errorf("invalid socks proxy config: %w", err)
+	}
+
+	addr := fmt.Sprintf("%s:%d", cfg.SocksProxy.Server, cfg.SocksProxy.ServerPort)
+	proxyInstance := outbound.GetRegistry()
+
+	socksProxy, err := outbound.CreateSocksProxy(addr, cfg.SocksProxy.Username, cfg.SocksProxy.Password)
+	if err != nil {
+		return fmt.Errorf("failed to create socks proxy: %w", err)
+	}
+
+	if err := proxyInstance.Register("socks", socksProxy); err != nil {
+		return fmt.Errorf("failed to register socks proxy: %w", err)
+	}
+
+	logger.Info(fmt.Sprintf("SOCKS proxy registered at %s", addr))
 	return nil
 }
 

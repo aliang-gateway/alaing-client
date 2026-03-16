@@ -5,174 +5,43 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"sync"
+	"time"
 
 	"nursor.org/nursorgate/app/http/common"
 	"nursor.org/nursorgate/common/logger"
 	"nursor.org/nursorgate/common/model"
-
-	"github.com/nacos-group/nacos-sdk-go/clients/config_client"
-	"github.com/nacos-group/nacos-sdk-go/vo"
 )
 
-const (
-	NacosRoutingRulesDataID = "routing-rules"
-	NacosDefaultGroup       = "DEFAULT_GROUP"
+var (
+	routingConfigStoreMu sync.RWMutex
+	routingConfigStore   = model.NewRoutingRulesConfig()
 )
 
-// ConfigHandler 配置管理处理器
-type ConfigHandler struct {
-	nacosClient interface{}
+// ConfigHandler provides a local (non-Nacos) routing-config compatibility API.
+type ConfigHandler struct{}
+
+func NewConfigHandler() *ConfigHandler {
+	return &ConfigHandler{}
 }
 
-// NewConfigHandler 创建新的配置处理器实例
-func NewConfigHandler(nacosClient interface{}) *ConfigHandler {
-	return &ConfigHandler{
-		nacosClient: nacosClient,
-	}
-}
-
-// HandleGetRoutingConfig 获取路由规则配置
-// GET /api/config/routing
-func (h *ConfigHandler) HandleGetRoutingConfig(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		common.Error(w, http.StatusMethodNotAllowed, "Method not allowed", nil)
-		return
-	}
-
-	// 类型断言获取Nacos客户端
-	nacosClient, ok := h.nacosClient.(config_client.IConfigClient)
-	if !ok || nacosClient == nil {
-		common.ErrorServiceUnavailable(w, "Configuration service is not available")
-		return
-	}
-
-	// 从Nacos读取配置
-	configContent, err := nacosClient.GetConfig(vo.ConfigParam{
-		DataId: NacosRoutingRulesDataID,
-		Group:  NacosDefaultGroup,
-	})
-
-	if err != nil {
-		logger.Error(fmt.Sprintf("Failed to get routing config from Nacos: %v", err))
-		common.ErrorInternalServer(w, "Failed to load configuration from Nacos", map[string]interface{}{
-			"error": err.Error(),
-		})
-		return
-	}
-
-	// 如果配置为空，返回默认配置
-	if configContent == "" {
-		logger.Warn("Routing config is empty in Nacos, returning default config")
-		defaultConfig := model.NewRoutingRulesConfig()
-		common.Success(w, defaultConfig)
-		return
-	}
-
-	// 反序列化为RoutingRulesConfig对象
-	config, err := model.NewRoutingRulesConfigFromJSON([]byte(configContent))
-	if err != nil {
-		logger.Error(fmt.Sprintf("Failed to parse routing config: %v", err))
-		common.ErrorInternalServer(w, "Invalid configuration format in Nacos", map[string]interface{}{
-			"error": err.Error(),
-		})
-		return
-	}
-
-	common.Success(w, config)
-}
-
-// HandleUpdateRoutingConfig 更新路由规则配置
-// POST /api/config/routing
-func (h *ConfigHandler) HandleUpdateRoutingConfig(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		common.Error(w, http.StatusMethodNotAllowed, "Method not allowed", nil)
-		return
-	}
-
-	// 类型断言获取Nacos客户端
-	nacosClient, ok := h.nacosClient.(config_client.IConfigClient)
-	if !ok || nacosClient == nil {
-		common.ErrorServiceUnavailable(w, "Configuration service is not available")
-		return
-	}
-
-	// 解析请求体
-	var config model.RoutingRulesConfig
-	if err := json.NewDecoder(r.Body).Decode(&config); err != nil {
-		common.ErrorBadRequest(w, "Invalid JSON format", map[string]interface{}{
-			"error": err.Error(),
-		})
-		return
-	}
-
-	// 验证配置
-	if err := config.Validate(); err != nil {
-		common.ErrorBadRequest(w, "Configuration validation failed", map[string]interface{}{
-			"error": err.Error(),
-		})
-		return
-	}
-
-	// 序列化为JSON
-	configJSON, err := config.ToJSON()
-	if err != nil {
-		common.ErrorInternalServer(w, "Failed to serialize configuration", map[string]interface{}{
-			"error": err.Error(),
-		})
-		return
-	}
-
-	// 写入Nacos
-	success, err := nacosClient.PublishConfig(vo.ConfigParam{
-		DataId:  NacosRoutingRulesDataID,
-		Group:   NacosDefaultGroup,
-		Content: string(configJSON),
-	})
-
-	if err != nil || !success {
-		logger.Error(fmt.Sprintf("Failed to publish routing config to Nacos: %v", err))
-		common.ErrorInternalServer(w, "Failed to save configuration to Nacos", map[string]interface{}{
-			"error": err,
-		})
-		return
-	}
-
-	logger.Info("Routing configuration updated successfully")
-	common.Success(w, map[string]interface{}{
-		"message":    "Configuration updated successfully",
-		"applied_at": fmt.Sprintf("%d", r.Context().Value("timestamp")),
-	})
-}
-
-// HandleRoutingConfig is a method dispatcher that routes to GET or POST handlers
-// GET/POST /api/config/routing
 func (h *ConfigHandler) HandleRoutingConfig(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
-		h.HandleGetRoutingConfig(w, r)
+		h.handleGetRoutingConfig(w)
 	case http.MethodPost:
-		h.HandleUpdateRoutingConfig(w, r)
+		h.handleUpdateRoutingConfig(w, r)
 	default:
 		common.Error(w, http.StatusMethodNotAllowed, "Method not allowed", nil)
 	}
 }
 
-// HandleToggleRuleStatus 切换规则启用/禁用状态
-// PUT /api/config/routing/rules/{ruleId}/toggle
 func (h *ConfigHandler) HandleToggleRuleStatus(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPut {
 		common.Error(w, http.StatusMethodNotAllowed, "Method not allowed", nil)
 		return
 	}
 
-	// 类型断言获取Nacos客户端
-	nacosClient, ok := h.nacosClient.(config_client.IConfigClient)
-	if !ok || nacosClient == nil {
-		common.ErrorServiceUnavailable(w, "Configuration service is not available")
-		return
-	}
-
-	// 从URL路径中提取ruleId
 	pathParts := strings.Split(strings.TrimPrefix(r.URL.Path, "/api/config/routing/rules/"), "/")
 	if len(pathParts) < 2 {
 		common.ErrorBadRequest(w, "Invalid URL format", nil)
@@ -180,57 +49,26 @@ func (h *ConfigHandler) HandleToggleRuleStatus(w http.ResponseWriter, r *http.Re
 	}
 	ruleID := pathParts[0]
 
-	// 解析请求体
 	var req struct {
 		Enabled bool `json:"enabled"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		common.ErrorBadRequest(w, "Invalid JSON format", map[string]interface{}{
-			"error": err.Error(),
-		})
+		common.ErrorBadRequest(w, "Invalid JSON format", map[string]interface{}{"error": err.Error()})
 		return
 	}
 
-	// 从Nacos读取当前配置
-	configContent, err := nacosClient.GetConfig(vo.ConfigParam{
-		DataId: NacosRoutingRulesDataID,
-		Group:  NacosDefaultGroup,
-	})
+	routingConfigStoreMu.Lock()
+	defer routingConfigStoreMu.Unlock()
 
-	if err != nil {
-		logger.Error(fmt.Sprintf("Failed to get routing config from Nacos: %v", err))
-		common.ErrorInternalServer(w, "Failed to load configuration", map[string]interface{}{
-			"error": err.Error(),
-		})
-		return
-	}
-
-	// 反序列化
-	config, err := model.NewRoutingRulesConfigFromJSON([]byte(configContent))
-	if err != nil {
-		common.ErrorInternalServer(w, "Invalid configuration format", map[string]interface{}{
-			"error": err.Error(),
-		})
-		return
-	}
-
-	// 查找并更新规则
+	cfg := cloneRoutingConfigLocked()
 	ruleFound := false
-	allRuleSets := []struct {
-		name string
-		set  *model.RoutingRuleSet
-	}{
-		{"to_door", &config.ToDoor},
-		{"black_list", &config.BlackList},
-		{"none_lane", &config.NoneLane},
-	}
-
-	for _, rs := range allRuleSets {
-		for i := range rs.set.Rules {
-			if rs.set.Rules[i].ID == ruleID {
-				rs.set.Rules[i].Enabled = req.Enabled
+	ruleSets := []*model.RoutingRuleSet{&cfg.ToDoor, &cfg.BlackList, &cfg.NoneLane}
+	for _, rs := range ruleSets {
+		for i := range rs.Rules {
+			if rs.Rules[i].ID == ruleID {
+				rs.Rules[i].Enabled = req.Enabled
+				rs.Rules[i].UpdatedAt = time.Now()
 				ruleFound = true
-				logger.Info(fmt.Sprintf("Rule %s in %s toggled to enabled=%v", ruleID, rs.name, req.Enabled))
 				break
 			}
 		}
@@ -244,29 +82,8 @@ func (h *ConfigHandler) HandleToggleRuleStatus(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	// 序列化并写回Nacos
-	configJSON, err := config.ToJSON()
-	if err != nil {
-		common.ErrorInternalServer(w, "Failed to serialize configuration", map[string]interface{}{
-			"error": err.Error(),
-		})
-		return
-	}
-
-	success, err := nacosClient.PublishConfig(vo.ConfigParam{
-		DataId:  NacosRoutingRulesDataID,
-		Group:   NacosDefaultGroup,
-		Content: string(configJSON),
-	})
-
-	if err != nil || !success {
-		logger.Error(fmt.Sprintf("Failed to publish updated config to Nacos: %v", err))
-		common.ErrorInternalServer(w, "Failed to save configuration", map[string]interface{}{
-			"error": err,
-		})
-		return
-	}
-
+	cfg.UpdatedAt = time.Now()
+	routingConfigStore = cfg
 	common.Success(w, map[string]interface{}{
 		"message": "Rule toggled successfully",
 		"rule_id": ruleID,
@@ -274,147 +91,63 @@ func (h *ConfigHandler) HandleToggleRuleStatus(w http.ResponseWriter, r *http.Re
 	})
 }
 
-// HandleGetAutoUpdateStatus handles GET /api/config/routing/auto-update
-// T053: Returns the current auto_update status
-func (h *ConfigHandler) HandleGetAutoUpdateStatus(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		common.Error(w, http.StatusMethodNotAllowed, "Method not allowed", nil)
-		return
-	}
-
-	// Get Nacos client
-	nacosClient, ok := h.nacosClient.(config_client.IConfigClient)
-	if !ok || nacosClient == nil {
-		common.ErrorServiceUnavailable(w, "Configuration service is not available")
-		return
-	}
-
-	// Read current config from Nacos
-	configContent, err := nacosClient.GetConfig(vo.ConfigParam{
-		DataId: NacosRoutingRulesDataID,
-		Group:  NacosDefaultGroup,
-	})
-
-	if err != nil {
-		logger.Error(fmt.Sprintf("Failed to get routing config from Nacos: %v", err))
-		common.ErrorInternalServer(w, "Failed to load configuration", map[string]interface{}{
-			"error": err.Error(),
-		})
-		return
-	}
-
-	// If empty, return default (auto_update = true by default)
-	if configContent == "" {
-		common.Success(w, map[string]interface{}{
-			"auto_update": true,
-			"source":      "default",
-		})
-		return
-	}
-
-	// Parse config
-	config, err := model.NewRoutingRulesConfigFromJSON([]byte(configContent))
-	if err != nil {
-		logger.Error(fmt.Sprintf("Failed to parse routing config: %v", err))
-		common.ErrorInternalServer(w, "Invalid configuration format", map[string]interface{}{
-			"error": err.Error(),
-		})
-		return
-	}
-
-	common.Success(w, map[string]interface{}{
-		"auto_update":    config.Settings.AutoUpdate,
-		"last_sync_time": config.Settings.LastNacosSync,
-		"updated_at":     config.Settings.UpdatedAt,
-	})
-}
-
-// HandleEnableAutoUpdate handles PUT /api/config/routing/auto-update
-// T051: Enables auto_update and triggers sync from Nacos
-func (h *ConfigHandler) HandleEnableAutoUpdate(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPut {
-		common.Error(w, http.StatusMethodNotAllowed, "Method not allowed", nil)
-		return
-	}
-
-	// Get Nacos client
-	nacosClient, ok := h.nacosClient.(config_client.IConfigClient)
-	if !ok || nacosClient == nil {
-		common.ErrorServiceUnavailable(w, "Configuration service is not available")
-		return
-	}
-
-	// Read current config from Nacos
-	configContent, err := nacosClient.GetConfig(vo.ConfigParam{
-		DataId: NacosRoutingRulesDataID,
-		Group:  NacosDefaultGroup,
-	})
-
-	if err != nil {
-		logger.Error(fmt.Sprintf("Failed to get routing config from Nacos: %v", err))
-		common.ErrorInternalServer(w, "Failed to load configuration", map[string]interface{}{
-			"error": err.Error(),
-		})
-		return
-	}
-
-	var config *model.RoutingRulesConfig
-	if configContent == "" {
-		config = model.NewRoutingRulesConfig()
-	} else {
-		config, err = model.NewRoutingRulesConfigFromJSON([]byte(configContent))
-		if err != nil {
-			logger.Error(fmt.Sprintf("Failed to parse routing config: %v", err))
-			common.ErrorInternalServer(w, "Invalid configuration format", map[string]interface{}{
-				"error": err.Error(),
-			})
-			return
-		}
-	}
-
-	// Enable auto_update
-	config.Settings.AutoUpdate = true
-
-	// Serialize and publish back to Nacos
-	configJSON, err := config.ToJSON()
-	if err != nil {
-		common.ErrorInternalServer(w, "Failed to serialize configuration", map[string]interface{}{
-			"error": err.Error(),
-		})
-		return
-	}
-
-	success, err := nacosClient.PublishConfig(vo.ConfigParam{
-		DataId:  NacosRoutingRulesDataID,
-		Group:   NacosDefaultGroup,
-		Content: string(configJSON),
-	})
-
-	if err != nil || !success {
-		logger.Error(fmt.Sprintf("Failed to enable auto_update in Nacos: %v", err))
-		common.ErrorInternalServer(w, "Failed to update configuration", map[string]interface{}{
-			"error": err,
-		})
-		return
-	}
-
-	logger.Info("Auto-update enabled successfully")
-	common.Success(w, map[string]interface{}{
-		"message":     "Auto-update enabled successfully",
-		"auto_update": true,
-	})
-}
-
-// HandleAutoUpdateStatus is a dispatcher that routes to GET or PUT handlers
-// GET /api/config/routing/auto-update - returns current status
-// PUT /api/config/routing/auto-update - enables auto-update
 func (h *ConfigHandler) HandleAutoUpdateStatus(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
-		h.HandleGetAutoUpdateStatus(w, r)
+		routingConfigStoreMu.RLock()
+		defer routingConfigStoreMu.RUnlock()
+		common.Success(w, map[string]interface{}{
+			"auto_update": false,
+			"source":      "local",
+			"updated_at":  routingConfigStore.UpdatedAt,
+		})
 	case http.MethodPut:
-		h.HandleEnableAutoUpdate(w, r)
+		// Compatibility endpoint: auto-update is no longer supported in simplified mode.
+		common.Success(w, map[string]interface{}{
+			"message":     "Auto-update is disabled in simplified mode",
+			"auto_update": false,
+		})
 	default:
 		common.Error(w, http.StatusMethodNotAllowed, "Method not allowed", nil)
 	}
+}
+
+func (h *ConfigHandler) handleGetRoutingConfig(w http.ResponseWriter) {
+	routingConfigStoreMu.RLock()
+	defer routingConfigStoreMu.RUnlock()
+	common.Success(w, routingConfigStore)
+}
+
+func (h *ConfigHandler) handleUpdateRoutingConfig(w http.ResponseWriter, r *http.Request) {
+	var cfg model.RoutingRulesConfig
+	if err := json.NewDecoder(r.Body).Decode(&cfg); err != nil {
+		common.ErrorBadRequest(w, "Invalid JSON format", map[string]interface{}{"error": err.Error()})
+		return
+	}
+	if err := cfg.Validate(); err != nil {
+		common.ErrorBadRequest(w, "Configuration validation failed", map[string]interface{}{"error": err.Error()})
+		return
+	}
+
+	routingConfigStoreMu.Lock()
+	defer routingConfigStoreMu.Unlock()
+	cfg.UpdatedAt = time.Now()
+	routingConfigStore = &cfg
+	logger.Info("Routing configuration updated (local store)")
+	common.Success(w, map[string]interface{}{
+		"message": "Configuration updated successfully",
+		"source":  "local",
+	})
+}
+
+func cloneRoutingConfigLocked() *model.RoutingRulesConfig {
+	data, err := routingConfigStore.ToJSON()
+	if err != nil {
+		return model.NewRoutingRulesConfig()
+	}
+	cfg, err := model.NewRoutingRulesConfigFromJSON(data)
+	if err != nil {
+		return model.NewRoutingRulesConfig()
+	}
+	return cfg
 }

@@ -256,11 +256,12 @@ type DoorProxyConfig struct {
 // Config 完整配置结构
 type Config struct {
 	APIServer        string                      `json:"api_server"`             // 必须配置：Token激活、刷新、Inbound的基础URL
-	NacosServer      string                      `json:"nacos_server,omitempty"` // Nacos配置中心，可选，默认为 "http://nacos-config.nursor.org"
 	CurrentProxy     string                      `json:"currentProxy"`
 	BaseProxies      map[string]*BaseProxyConfig `json:"baseProxies"`
 	DoorProxy        *DoorProxyConfig            `json:"doorProxy,omitempty"`        // Door 代理集合配置
 	DNSPreResolution *DNSPreResolutionConfig     `json:"dnsPreResolution,omitempty"` // DNS预解析配置
+	SocksProxy       *Socks5Config               `json:"socksProxy,omitempty"`       // 可选：默认 SOCKS5 出站
+	SNIAllowlist     []string                    `json:"sni_allowlist,omitempty"`   // SNI 允许列表（命中则 MITM 并转发到 Nonelane）
 }
 
 // GetTokenActivateURL returns the complete Token activation URL
@@ -293,6 +294,12 @@ func (c *Config) Validate() error {
 	if c.DNSPreResolution != nil {
 		if err := c.DNSPreResolution.Validate(); err != nil {
 			return fmt.Errorf("invalid DNS pre-resolution configuration: %w", err)
+		}
+	}
+
+	if c.SocksProxy != nil {
+		if err := c.SocksProxy.Validate(); err != nil {
+			return fmt.Errorf("invalid socksProxy configuration: %w", err)
 		}
 	}
 

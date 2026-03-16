@@ -17,8 +17,8 @@ func TestGetService(t *testing.T) {
 func TestService_LoadDatabase(t *testing.T) {
 	service := &Service{}
 
-	// Test with non-existent file
-	err := service.LoadDatabase("~/.nonelane/GeoLite2-Country.mmdb")
+	// Use a guaranteed-invalid file path so test is deterministic.
+	err := service.LoadDatabase("/definitely/nonexistent/path/GeoLite2-Country.mmdb")
 	assert.Error(t, err, "Should fail with non-existent database path")
 	assert.False(t, service.IsEnabled(), "Service should not be enabled after failed load")
 

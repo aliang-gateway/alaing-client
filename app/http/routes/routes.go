@@ -7,9 +7,7 @@ import (
 	"nursor.org/nursorgate/app/http/handlers"
 	"nursor.org/nursorgate/app/http/repositories"
 	"nursor.org/nursorgate/app/http/services"
-	"nursor.org/nursorgate/common/config"
 	"nursor.org/nursorgate/common/logger"
-	processorconfig "nursor.org/nursorgate/processor/config"
 	"nursor.org/nursorgate/processor/stats"
 )
 
@@ -48,17 +46,6 @@ func NewHandlers() *Handlers {
 	// Initialize repositories
 	proxyRepository := repositories.NewProxyRepository()
 
-	// Initialize Nacos client for config handler
-	nacosServer := "http://nacos-config.nursor.org"
-	if cfg := processorconfig.GetGlobalConfig(); cfg != nil && cfg.NacosServer != "" {
-		nacosServer = cfg.NacosServer
-	}
-	nacosConfig, _ := config.NewNacosClient(nacosServer, "5afe4eb9-d3ee-4b37-a072-7ea04421467a", 80)
-	var nacosClient interface{}
-	if nacosConfig != nil {
-		nacosClient = nacosConfig.GetConfigClient()
-	}
-
 	// Initialize stats collector
 	statsCollector := stats.NewStatsCollector()
 
@@ -77,7 +64,7 @@ func NewHandlers() *Handlers {
 		Auth:           handlers.NewAuthHandler(),
 		Startup:        handlers.NewStartupHandler(),
 		Latency:        handlers.NewLatencyHandler(latencyService),
-		Config:         handlers.NewConfigHandler(nacosClient),
+		Config:         handlers.NewConfigHandler(),
 		TrafficStats:   handlers.NewTrafficStatsHandler(statsCollector),
 		statsCollector: statsCollector,
 	}
@@ -153,7 +140,7 @@ func RegisterRoutes(h *Handlers, mux *http.ServeMux) {
 	mux.HandleFunc("/api/startup/status", h.Startup.HandleStartupStatus)
 	mux.HandleFunc("/api/startup/detail", h.Startup.HandleStartupDetail)
 
-	// Routing Config API (/api/config/routing)
+	// Routing Config compatibility API (/api/config/routing/*)
 	mux.HandleFunc("/api/config/routing", h.Config.HandleRoutingConfig)
 	mux.HandleFunc("/api/config/routing/rules/", h.Config.HandleToggleRuleStatus)
 	mux.HandleFunc("/api/config/routing/auto-update", h.Config.HandleAutoUpdateStatus)

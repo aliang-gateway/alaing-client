@@ -40,7 +40,7 @@ func TestDetermineInitialStartupStatus_WhenNoTokenNoLocalUser_ReturnsUnconfigure
 	}
 }
 
-func TestDetermineInitialStartupStatus_WhenNoTokenWithLocalUserAndDefaultConfig_ReturnsConfigured(t *testing.T) {
+func TestDetermineInitialStartupStatus_WhenNoTokenWithLocalUserAndDefaultConfig_ReturnsReady(t *testing.T) {
 	tempHome := t.TempDir()
 	t.Setenv("HOME", tempHome)
 
@@ -59,8 +59,8 @@ func TestDetermineInitialStartupStatus_WhenNoTokenWithLocalUserAndDefaultConfig_
 	})
 
 	status := DetermineInitialStartupStatusForTest("")
-	if status != runtime.CONFIGURED {
-		t.Fatalf("expected %s, got %s", runtime.CONFIGURED, status)
+	if status != runtime.READY {
+		t.Fatalf("expected %s, got %s", runtime.READY, status)
 	}
 }
 

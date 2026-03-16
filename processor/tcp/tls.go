@@ -8,10 +8,9 @@ import (
 	"strings"
 
 	"nursor.org/nursorgate/common/logger"
-	"nursor.org/nursorgate/common/model"
 	M "nursor.org/nursorgate/inbound/tun/metadata"
-	"nursor.org/nursorgate/processor/cache"
 	cert_client "nursor.org/nursorgate/processor/cert/client"
+	"nursor.org/nursorgate/processor/config"
 	"nursor.org/nursorgate/processor/rules"
 	tls_helper "nursor.org/nursorgate/processor/tls"
 	watcher "nursor.org/nursorgate/processor/watcher"
@@ -85,27 +84,24 @@ func (h *DefaultTLSHandler) PerformMITM(ctx context.Context, originConn net.Conn
 	return tlsConn, nil
 }
 
-// DetermineRoute checks if a domain should be routed to cursor, door, or direct.
-// It uses the domain allowlist from model.AllowProxyDomain.
+// DetermineRoute checks if a domain should be routed to nonelane (MITM), socks, or direct.
+// It uses the SNI allowlist from config.
 func (h *DefaultTLSHandler) DetermineRoute(serverName string) ProxyRoute {
 	if serverName == "" {
+		return h.defaultFallbackRoute()
+	}
+
+	cfg := config.GetGlobalConfig()
+	if cfg == nil {
 		return RouteDirect
 	}
 
-	router := model.NewAllowProxyDomain()
-
 	// Check if allowed to cursor proxy (MITM interception)
-	if router.IsAllowToCursor(serverName) {
+	if rules.IsDomainAllowed(serverName, cfg.SNIAllowlist) {
 		return RouteToCursor
 	}
 
-	// Check if allowed to door proxy (gateway)
-	if router.IsAllowToAnyDoor(serverName) {
-		return RouteToDoor
-	}
-
-	// Default to direct connection
-	return RouteDirect
+	return h.defaultFallbackRoute()
 }
 
 // IsDoHProvider checks if a domain is a DNS-over-HTTPS provider.
@@ -193,49 +189,24 @@ type WrappedConnWithTLS struct {
 // This method leverages:
 // 1. Bypass rules (user-configured direct routes)
 // 2. IP-Domain cache (avoid repeated SNI extraction)
-// 3. Nacos rules (Cursor MITM and Door acceleration)
+// 3. SNI allowlist (MITM to Nonelane)
 // 4. GeoIP routing (country-based decisions)
 //
 // Returns both the routing decision and whether SNI extraction is required.
 func (h *DefaultTLSHandler) DetermineRouteWithContext(metadata *M.Metadata) (ProxyRoute, bool) {
-
-	engine := rules.GetEngine()
-
-	// If rule engine is disabled or not initialized, fallback to old logic
-	if engine == nil || !engine.IsEnabled() {
-		return h.DetermineRoute(metadata.HostName), true
-	}
-
-	// Build evaluation context
-	ctx := &rules.EvaluationContext{
-		DstIP:    metadata.DstIP,
-		DstPort:  metadata.DstPort,
-		SrcIP:    metadata.SrcIP,
-		Domain:   metadata.HostName,
-		Protocol: "tcp",
-	}
-
-	// Evaluate routing rules
-	result, err := engine.EvaluateRoute(ctx)
-	if err != nil {
-		logger.Warn(fmt.Sprintf("Rule engine error: %v, fallback to old logic", err))
-		return h.DetermineRoute(metadata.HostName), true
-	}
+	route := h.DetermineRoute(metadata.HostName)
+	requiresSNI := metadata.DstPort == 443 && metadata.HostName == ""
 
 	// Log decision for debugging
-	logger.Debug(fmt.Sprintf("Route decision: %s (rule: %s, reason: %s, requiresSNI: %v)",
-		result.Route, result.MatchedRule, result.Reason, result.RequiresSNI))
+	logger.Debug(fmt.Sprintf("Route decision: %v (requiresSNI: %v)", route, requiresSNI))
 
-	// Convert cache.RouteDecision to ProxyRoute
-	var proxyRoute ProxyRoute
-	switch result.Route {
-	case cache.RouteToCursor:
-		proxyRoute = RouteToCursor
-	case cache.RouteToDoor:
-		proxyRoute = RouteToDoor
-	default:
-		proxyRoute = RouteDirect
+	return route, requiresSNI
+}
+
+func (h *DefaultTLSHandler) defaultFallbackRoute() ProxyRoute {
+	cfg := config.GetGlobalConfig()
+	if cfg != nil && cfg.SocksProxy != nil {
+		return RouteToDoor
 	}
-
-	return proxyRoute, result.RequiresSNI
+	return RouteDirect
 }

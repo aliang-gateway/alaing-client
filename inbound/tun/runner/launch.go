@@ -301,7 +301,7 @@ func checkLinuxTunStatus(ifname string) error {
 		return fmt.Errorf("获取接口状态失败: %w", err)
 	}
 
-	logger.Debug("TUN 设备状态: %s", string(output))
+	logger.Debug("TUN 设备状态: ", string(output))
 	return nil
 }
 

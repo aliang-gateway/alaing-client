@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"fmt"
 	"net/http"
 
 	"nursor.org/nursorgate/app/http/common"
@@ -51,31 +50,10 @@ func (h *AuthHandler) HandleActivateToken(w http.ResponseWriter, r *http.Request
 			// 立即设置用户信息（同步）
 			startupState.SetUserInfo(userInfo)
 
-			// 异步更新代理配置并设置最终状态
-			go func() {
-				if userInfo.AccessToken != "" {
-					//fetchErr := proxyserver.UpdateDoorProxies(userInfo.AccessToken)
-					//fetchSuccess := fetchErr == nil
-					fetchErr := ""
-					fetchSuccess := true
-
-					// 更新 fetch 成功状态
-					startupState.SetFetchSuccess(fetchSuccess)
-
-					// 根据 fetch 结果设置最终状态
-					if fetchSuccess {
-						startupState.SetStatus(runtime.READY)
-						logger.Info("Proxyserver config updated successfully, status: READY")
-					} else {
-						startupState.SetStatus(runtime.CONFIGURED)
-						logger.Warn(fmt.Sprintf("Proxyserver fetch failed: %v, status: CONFIGURED", fetchErr))
-					}
-				} else {
-					// 没有 accessToken，设置为 CONFIGURED
-					startupState.SetStatus(runtime.CONFIGURED)
-					logger.Warn("User activated but no access token available, status: CONFIGURED")
-				}
-			}()
+			// 登录成功即视为可启动
+			startupState.SetFetchSuccess(true)
+			startupState.SetStatus(runtime.READY)
+			logger.Info("User activated successfully, status: READY")
 		}
 	}
 

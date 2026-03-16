@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 )
 
@@ -44,6 +45,7 @@ func TestGetCacheDir(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Reset cache for testing
 			cacheDir = ""
+			cacheDirOnce = sync.Once{}
 
 			// Set environment variable
 			oldEnv := os.Getenv(CacheDirEnvVar)
@@ -60,6 +62,7 @@ func TestGetCacheDir(t *testing.T) {
 				}
 				// Reset cache for other tests
 				cacheDir = ""
+				cacheDirOnce = sync.Once{}
 			}()
 
 			dir, err := GetCacheDir()
@@ -83,6 +86,7 @@ func TestGetCacheSubdir(t *testing.T) {
 		os.Unsetenv(CacheDirEnvVar)
 		os.RemoveAll(tempDir)
 		cacheDir = ""
+		cacheDirOnce = sync.Once{}
 	}()
 
 	tests := []struct {
@@ -142,6 +146,7 @@ func TestGetCacheFile(t *testing.T) {
 		os.Unsetenv(CacheDirEnvVar)
 		os.RemoveAll(tempDir)
 		cacheDir = ""
+		cacheDirOnce = sync.Once{}
 	}()
 
 	tests := []struct {
@@ -267,6 +272,7 @@ func TestCacheDirPermissions(t *testing.T) {
 		os.Unsetenv(CacheDirEnvVar)
 		os.RemoveAll(tempDir)
 		cacheDir = ""
+		cacheDirOnce = sync.Once{}
 	}()
 
 	// Create the cache directory
@@ -302,6 +308,7 @@ func TestCacheDirPermissions(t *testing.T) {
 // BenchmarkGetCacheDir benchmarks cache directory resolution
 func BenchmarkGetCacheDir(b *testing.B) {
 	cacheDir = "" // Reset cache
+	cacheDirOnce = sync.Once{}
 	for i := 0; i < b.N; i++ {
 		GetCacheDir()
 	}

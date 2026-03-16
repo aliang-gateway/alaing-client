@@ -13,8 +13,8 @@ import (
 var globalResolver dns.DNSResolverInterface
 
 // InitGlobalResolver initializes the global DNS resolver
-// Should be called in ApplyConfig after door and direct proxies are registered
-func InitGlobalResolver(doorProxy, directProxy proxy.Proxy, cfg *config.Config) error {
+// Should be called in ApplyConfig after proxies are registered
+func InitGlobalResolver(primaryProxy, fallbackProxy proxy.Proxy, cfg *config.Config) error {
 	if cfg == nil || cfg.DNSPreResolution == nil || !cfg.DNSPreResolution.Enabled {
 		logger.Info("[DNS] DNS resolution disabled in config")
 		return nil
@@ -31,8 +31,8 @@ func InitGlobalResolver(doorProxy, directProxy proxy.Proxy, cfg *config.Config) 
 			MaxTTL:           cfg.DNSPreResolution.GetMaxCacheTTL(),
 			CacheEnabled:     cfg.DNSPreResolution.CacheResults,
 		},
-		doorProxy,   // primary dialer (implements proxy.Dialer)
-		directProxy, // fallback dialer (implements proxy.Dialer)
+		primaryProxy,  // primary dialer (implements proxy.Dialer)
+		fallbackProxy, // fallback dialer (implements proxy.Dialer)
 	)
 
 	globalResolver = hybridResolver

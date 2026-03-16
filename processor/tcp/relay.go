@@ -14,7 +14,7 @@ import (
 
 const (
 	// defaultRelayBufferSize is the buffer size for bidirectional relay
-	// This matches the size used in proxyserver/tun/buffer
+	// This matches the size used in tun/buffer
 	defaultRelayBufferSize = 32 * 1024
 )
 

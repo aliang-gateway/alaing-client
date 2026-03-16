@@ -1,16 +1,16 @@
 package runner
 
 import (
+	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"net"
 	"os/exec"
 	"regexp"
 	"runtime"
 	"strings"
-
-	"bytes"
-	"io"
 
 	"golang.org/x/text/encoding/simplifiedchinese"
 	"golang.org/x/text/transform"
@@ -88,9 +88,9 @@ func configureWindowsTunInterface(ifname string) error {
 
 	for _, cmd := range commands {
 		if err := utils2.RunCommand(cmd[0], cmd[1:]...); err != nil {
-			errStr := fmt.Sprintf("netsh command failed: %w", err)
+			errStr := fmt.Sprintf("netsh command failed: %v", err)
 			logger.Error(errStr)
-			return fmt.Errorf(errStr)
+			return errors.New(errStr)
 		}
 	}
 	return nil
@@ -98,9 +98,9 @@ func configureWindowsTunInterface(ifname string) error {
 
 func configureDarwinTunInterface(ifname string) error {
 	if err := utils2.RunCommand("ifconfig", ifname, "10.0.0.1", "10.0.0.2", "up"); err != nil {
-		errStr := fmt.Sprintf("ifconfig failed: %w", err)
+		errStr := fmt.Sprintf("ifconfig failed: %v", err)
 		logger.Error(errStr)
-		return fmt.Errorf(errStr)
+		return errors.New(errStr)
 	}
 	return nil
 }
@@ -200,7 +200,7 @@ func GetDefaultGatewayForTUN() (string, error) {
 	}
 	defaultGateway, err := GetDefaultGatewayWithPowerShell()
 	if err != nil {
-		logger.Error(fmt.Printf("Failure in method GetDefaultGatewayWithPowerShell,  %v", err))
+		logger.Error("Failure in method GetDefaultGatewayWithPowerShell: ", err)
 	}
 
 	if defaultGateway == "" {
@@ -208,12 +208,12 @@ func GetDefaultGatewayForTUN() (string, error) {
 		cmd := utils2.GetRunCommand("netsh", "interface", "ipv4", "show", "route")
 		output, err := cmd.CombinedOutput()
 		if err != nil {
-			logger.Error(fmt.Printf("failed to get current routes with 'netsh interface': %w", err))
+			logger.Error("failed to get current routes with 'netsh interface': ", err)
 		} else {
 			// 转换输出编码
 			outputStr, err := utils2.AutoConvertEncoding(output)
 			if err != nil {
-				logger.Error(fmt.Printf("failed to convert encoding: %w", err))
+				logger.Error("failed to convert encoding: ", err)
 			} else {
 				// 解析输出找到默认路由
 				lines := strings.Split(outputStr, "\n")
@@ -257,11 +257,11 @@ func GetDefaultGatewayForTUN() (string, error) {
 		cmd := utils2.GetRunCommand("ipconfig")
 		output, err := cmd.CombinedOutput()
 		if err != nil {
-			logger.Error(fmt.Printf("failed to excute 'ipconfig': %w", err))
+			logger.Error("failed to excute 'ipconfig': ", err)
 		} else {
 			outputStr, err := utils2.AutoConvertEncoding(output)
 			if err != nil {
-				logger.Error(fmt.Printf("failed to convert `ipconfig` encoding: %w", err))
+				logger.Error("failed to convert `ipconfig` encoding: ", err)
 			} else {
 				// 查找默认网关
 				lines := strings.Split(outputStr, "\n")
@@ -291,7 +291,7 @@ func GetDefaultGatewayForTUN() (string, error) {
 
 		outputStr, err := utils2.AutoConvertEncoding(output)
 		if err != nil {
-			logger.Error(fmt.Printf("failed to convert route print encoding: %w", err))
+			logger.Error("failed to convert route print encoding: ", err)
 		} else {
 			lines := strings.Split(outputStr, "\n")
 			for _, line := range lines {
@@ -379,9 +379,9 @@ func configureDarwinTunRoute() error {
 	// 执行路由命令
 	for _, r := range routes {
 		if err := utils2.RunCommand(r[0], r[1:]...); err != nil {
-			errStr := fmt.Sprintf("route add failed: %w", err)
+			errStr := fmt.Sprintf("route add failed: %v", err)
 			logger.Error(errStr)
-			return fmt.Errorf(errStr)
+			return errors.New(errStr)
 		}
 	}
 	return nil
@@ -441,9 +441,9 @@ func configureLinuxTunRoute() error {
 
 	for _, cmd := range commands {
 		if err := utils2.RunCommand(cmd[0], cmd[1:]...); err != nil {
-			errStr := fmt.Sprintf("ip route add failed: %w", err)
+			errStr := fmt.Sprintf("ip route add failed: %v", err)
 			logger.Error(errStr)
-			return fmt.Errorf(errStr)
+			return errors.New(errStr)
 		}
 	}
 

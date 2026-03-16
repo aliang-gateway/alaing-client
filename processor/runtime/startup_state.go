@@ -58,14 +58,14 @@ func (s *StartupState) GetStatus() StartupStatus {
 	return s.status
 }
 
-// SetFetchSuccess marks whether proxyserver fetch succeeded
+// SetFetchSuccess marks whether user authentication is successful
 func (s *StartupState) SetFetchSuccess(success bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.fetchSuccess = success
 }
 
-// GetFetchSuccess returns whether proxyserver fetch succeeded
+// GetFetchSuccess returns whether user authentication is successful
 func (s *StartupState) GetFetchSuccess() bool {
 	s.mu.RLock()
 	defer s.mu.RUnlock()

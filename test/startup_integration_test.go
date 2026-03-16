@@ -46,10 +46,10 @@ func TestRunServiceWithDefaultConfig(t *testing.T) {
 	// 验证消息
 	if msg, ok := result["msg"]; !ok {
 		t.Fatal("Result should contain 'msg' field")
-	} else if msg != "需要激活配置。请提供 --config 或 --token 参数。" {
+	} else if msg != "需要先登录后再启动网关。" {
 		t.Fatalf("Message mismatch: got '%v'", msg)
 	}
-	t.Log("✓ Step 6: Error message verified - '需要激活配置。请提供 --config 或 --token 参数。'")
+	t.Log("✓ Step 6: Error message verified - '需要先登录后再启动网关。'")
 
 	// 打印完整响应
 	t.Logf("\nFull API response when using default config:\n%+v\n", result)
@@ -79,11 +79,10 @@ func TestRunServiceWithoutDefaultConfig(t *testing.T) {
 		t.Fatal("Result should not be nil")
 	}
 
-	// 验证不是 activation_required 错误
-	if errorType, ok := result["error"]; ok && errorType == "activation_required" {
-		t.Fatal("Should not get 'activation_required' error when not using default config")
+	if errorType, ok := result["error"]; !ok || errorType != "activation_required" {
+		t.Fatalf("Should get 'activation_required' error when not ready: %+v", result)
 	}
-	t.Log("✓ Step 4: No 'activation_required' error (as expected)")
+	t.Log("✓ Step 4: 'activation_required' error verified (not ready)")
 
 	t.Logf("\nAPI response when not using default config:\n%+v\n", result)
 	t.Log("✓ Non-default config startup test PASSED!")
@@ -140,13 +139,13 @@ func TestCompleteStartupFlow(t *testing.T) {
 
 	// 步骤 2.3: 用户尝试调用 /api/run/start
 	result2 := runService2.StartService()
-	if errorType, ok := result2["error"]; ok && errorType == "activation_required" {
-		t.Fatalf("Should not get 'activation_required' error with real config: %+v", result2)
+	if errorType, ok := result2["error"]; !ok || errorType != "activation_required" {
+		t.Fatalf("Expected 'activation_required' when not ready even with real config: %+v", result2)
 	}
-	t.Log("✓ 2.3: /api/run/start can proceed (no 'activation_required' error)")
+	t.Log("✓ 2.3: /api/run/start returns 'activation_required' when not ready")
 	t.Logf("   Response: %+v\n", result2)
 
 	t.Log("\n=== All Startup Scenarios Tested Successfully ===")
-	t.Log("✓ Default config blocks proxy startup via API")
-	t.Log("✓ Real config allows proxy startup via API")
+	t.Log("✓ Default config blocks proxy startup via API when not ready")
+	t.Log("✓ Real config also requires ready/login state before startup")
 }

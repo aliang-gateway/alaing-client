@@ -1,64 +1,17 @@
 {
   "api_server": "https://api.nonelane.com",
-  "nonelane_core_server": "ai-gateway.nursor.org:443",
-  "nacos_server": "http://nacos-config.nursor.org",
-  "currentProxy": "door",
+  "currentProxy": "direct",
   "baseProxies": {
     "nonelane": {
       "type": "nonelane",
       "core_server": "test-ai-gateway.nursor.org:18889"
     }
   },
-  "doorProxy": {
-    "type": "door",
-    "members": [
-      {
-        "showname": "Forbiden",
-        "type": "shadowsocks",
-        "latency": 12,
-        "config": {
-          "server_host": "127.0.0.1",
-          "server_port": 12345,
-          "method": "chacha20-ietf-poly1305",
-          "password": "passwordhere-please"
-
-        }
-      }
-    ]
+  "socksProxy": {
+    "server_host": "127.0.0.1",
+    "server_port": 1080
   },
-  "routingRules": {
-    "geoip": {
-      "enabled": true,
-      "databasePath": "~/.nonelane/GeoLite2-Country.mmdb",
-      "chinaDirect": true
-    },
-    "bypassRules": {
-      "enabled": true,
-      "domains": [
-        "*.apple.com",
-        "*.icloud.com",
-        "*.microsoft.com",
-        "*.windowsupdate.com"
-      ],
-      "domainSuffixes": [
-        ".cn",
-        ".gov.cn",
-        ".edu.cn"
-      ],
-      "ipRanges": [
-        "192.168.0.0/16",
-        "10.0.0.0/8",
-        "172.16.0.0/12",
-        "127.0.0.0/8",
-        "169.254.0.0/16"
-      ]
-    },
-    "ipDomainCache": {
-      "enabled": true,
-      "maxEntries": 10000,
-      "ttl": "5m"
-    }
-  },
+  "sni_allowlist": [],
   "dnsPreResolution": {
     "enabled": true,
     "timeout": "10s",

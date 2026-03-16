@@ -12,7 +12,6 @@ require (
 	github.com/gorilla/schema v1.4.1
 	github.com/gorilla/websocket v1.5.3
 	github.com/miekg/dns v1.1.68
-	github.com/nacos-group/nacos-sdk-go v1.1.6
 	github.com/oschwald/geoip2-golang v1.9.0
 	github.com/sagernet/gvisor v0.0.0-20250325023245-7a9c0f5725fb
 	github.com/sagernet/sing v0.7.13

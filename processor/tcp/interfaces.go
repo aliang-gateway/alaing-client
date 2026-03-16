@@ -9,9 +9,9 @@ import (
 
 // TCPConnHandler orchestrates the entire TCP connection lifecycle.
 // It handles protocol detection, routing decisions, and data relay
-// for connections from both TUN and HTTP proxyserver modules.
+// for connections from both TUN and HTTP proxy modules.
 type TCPConnHandler interface {
-	// Handle processes a single TCP connection from any proxyserver source.
+	// Handle processes a single TCP connection from any proxy source.
 	// It is responsible for:
 	// - Protocol detection (TLS on port 443, direct for others)
 	// - SNI extraction and certificate interception (for HTTPS)
@@ -30,7 +30,7 @@ type RelayManager interface {
 	// Relay establishes bidirectional data flow between originConn and remoteConn.
 	// It:
 	// - Copies data concurrently in both directions using io.CopyBuffer
-	// - Uses buffer pooling for efficiency (from proxyserver/tun/buffer)
+	// - Uses buffer pooling for efficiency (from tun/buffer)
 	// - Integrates with processor/statistic for connection tracking
 	// - Performs TCP half-close handling (CloseRead/CloseWrite)
 	// - Sets appropriate timeouts and cleanup handlers
@@ -69,17 +69,13 @@ type TLSHandler interface {
 	// 4. Return the established TLS connection
 	PerformMITM(ctx context.Context, originConn net.Conn, serverName string) (net.Conn, error)
 
-	// DetermineRoute checks if domain should be routed to cursor proxy, door proxy, or direct.
-	// Uses domain allowlist/blocklist from model.AllowProxyDomain.
+	// DetermineRoute checks if domain should be routed to nonelane (MITM), socks, or direct.
+	// Uses SNI allowlist from config.
 	// This is the legacy method without rule engine context.
 	DetermineRoute(serverName string) ProxyRoute
 
-	// DetermineRouteWithContext uses the rule engine to make intelligent routing decisions.
-	// This method leverages:
-	// 1. Bypass rules (user-configured direct routes)
-	// 2. IP-Domain cache (avoid repeated SNI extraction)
-	// 3. Nacos rules (Cursor MITM and Door acceleration)
-	// 4. GeoIP routing (country-based decisions)
+	// DetermineRouteWithContext makes routing decisions with metadata context.
+	// It can leverage cached SNI bindings and the SNI allowlist.
 	//
 	// Returns:
 	// - proxyRoute: The routing decision (RouteToCursor, RouteToDoor, RouteDirect)

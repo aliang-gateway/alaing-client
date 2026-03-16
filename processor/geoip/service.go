@@ -190,10 +190,11 @@ func (s *Service) Close() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	s.enabled = false
+
 	if s.reader != nil {
 		err := s.reader.Close()
 		s.reader = nil
-		s.enabled = false
 		return err
 	}
 	return nil

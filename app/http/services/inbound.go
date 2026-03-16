@@ -4,7 +4,7 @@ import (
 	"nursor.org/nursorgate/processor/config"
 )
 
-// InboundService provides proxyserver proxy management services
+// InboundService provides inbound proxy management services
 type InboundService struct{}
 
 // NewInboundService creates a new InboundService instance

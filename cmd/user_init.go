@@ -7,7 +7,6 @@ import (
 	"nursor.org/nursorgate/common/logger"
 	auth "nursor.org/nursorgate/processor/auth"
 	"nursor.org/nursorgate/processor/config"
-	"nursor.org/nursorgate/processor/proxyserver"
 	"nursor.org/nursorgate/processor/runtime"
 )
 
@@ -30,19 +29,10 @@ func InitializeUser(token string) error {
 			config.SetHasLocalUserInfo(true)
 			startupState.SetUserInfo(userInfo)
 
-			// 自动fetch proxyserver配置
-			fetchSuccess := proxyserver.UpdateDoorProxies(userInfo.AccessToken) == nil
-			startupState.SetFetchSuccess(fetchSuccess)
-
-			if fetchSuccess {
-				// Fetch成功 → 系统就绪
-				startupState.SetStatus(runtime.READY)
-				logger.Info("Proxyserver configuration fetched successfully, status: READY")
-			} else {
-				// Fetch失败但Token激活成功 → 配置态（有用户信息但代理配置不完整）
-				startupState.SetStatus(runtime.CONFIGURED)
-				logger.Warn("Token activated but proxyserver fetch failed, status: CONFIGURED")
-			}
+			// 登录成功即视为可启动
+			startupState.SetFetchSuccess(true)
+			startupState.SetStatus(runtime.READY)
+			logger.Info("User activated successfully, status: READY")
 			return nil // 激活成功，继续启动
 		} else {
 			// 激活失败 → 返回error导致启动失败
@@ -62,7 +52,7 @@ func InitializeUser(token string) error {
 				// 标记为有本地用户信息
 				config.SetHasLocalUserInfo(true)
 				startupState.SetUserInfo(userInfo)
-				logger.Debug("Local user info loaded and proxyserver fetch handled in loadLocalUserInfo()")
+				logger.Debug("Local user info loaded")
 			}
 		} else {
 			logger.Debug("No local user info found, starting without user authentication")
@@ -89,26 +79,9 @@ func loadLocalUserInfo() error {
 	// 获取启动状态以跟踪fetch结果
 	startupState := runtime.GetStartupState()
 
-	// 加载完本地用户信息后，尝试更新Door代理信息
-	if userInfo.AccessToken != "" {
-		fetchErr := proxyserver.UpdateDoorProxies(userInfo.AccessToken)
-		fetchSuccess := fetchErr == nil
-
-		startupState.SetFetchSuccess(fetchSuccess)
-
-		if fetchSuccess {
-			logger.Info("Successfully updated proxyserver proxies on startup, status: READY")
-			startupState.SetStatus(runtime.READY)
-		} else {
-			logger.Warn(fmt.Sprintf("Failed to update proxyserver proxies on startup: %v", fetchErr))
-			logger.Warn("System has local user info but proxyserver fetch failed, status: CONFIGURED")
-			startupState.SetStatus(runtime.CONFIGURED)
-			// 不返回错误，允许系统继续启动
-		}
-	} else {
-		logger.Warn("Local user info loaded but AccessToken is empty, status: CONFIGURED")
-		startupState.SetStatus(runtime.CONFIGURED)
-	}
+	// 有本地用户信息即可进入 READY
+	startupState.SetFetchSuccess(true)
+	startupState.SetStatus(runtime.READY)
 
 	return nil
 }

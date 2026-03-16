@@ -4,11 +4,12 @@ import (
 	"fmt"
 	"net"
 	"sync"
+	"time"
 
 	"nursor.org/nursorgate/common/logger"
-	"nursor.org/nursorgate/common/model"
 	M "nursor.org/nursorgate/inbound/tun/metadata"
 	"nursor.org/nursorgate/processor/cache"
+	"nursor.org/nursorgate/processor/config"
 	"nursor.org/nursorgate/processor/geoip"
 )
 
@@ -17,7 +18,6 @@ type RuleEngine struct {
 	mu            sync.RWMutex
 	geoipService  *geoip.Service
 	ipDomainCache *cache.IPDomainCache
-	nacosRouter   *model.AllowProxyDomain
 	chinaDirect   bool // Whether Chinese IPs should route directly
 	enabled       bool // Whether rule engine is enabled
 }
@@ -50,33 +50,31 @@ func GetCache() *cache.IPDomainCache {
 
 // Initialize initializes the rule engine with configuration
 // TODO(US2): Full implementation will be completed in Phase 4 - User Story 2
-func (e *RuleEngine) Initialize(config *model.RoutingRulesConfig) error {
-	if config == nil {
-		logger.Info("Routing rules config is nil, rule engine disabled")
-		return nil
-	}
-
+func (e *RuleEngine) Initialize(cfg *config.Config) error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 
-	// Initialize GeoIP service reference (will be fully configured in US2)
+	_ = cfg
+
+	// Initialize GeoIP service reference (optional)
 	e.geoipService = geoip.GetService()
 
-	// Initialize Nacos router
-	e.nacosRouter = model.NewAllowProxyDomain()
+	// Initialize IP-domain cache with safe defaults
+	if e.ipDomainCache == nil {
+		e.ipDomainCache = cache.NewIPDomainCache(10000, 5*time.Minute)
+	}
 
 	e.enabled = true
-	logger.Info("Rule engine initialized successfully (stub - full implementation in US2)")
+	logger.Info("Rule engine initialized successfully")
 	return nil
 }
 
 // EvaluateRoute evaluates routing rules for a connection
 // Priority order:
-// 1. Bypass rules (user-defined direct routes)
-// 2. IP-Domain cache (previously evaluated routes)
-// 3. Nacos rules (Cursor MITM and Door acceleration domains)
-// 4. GeoIP rules (country-based routing)
-// 5. Default (requires SNI if port 443)
+// 1. IP-Domain cache (previously evaluated routes)
+// 2. SNI allowlist (MITM to Nonelane)
+// 3. GeoIP rules (optional)
+// 4. Default (SOCKS if configured, otherwise direct)
 func (e *RuleEngine) EvaluateRoute(ctx *EvaluationContext) (*RuleResult, error) {
 	if !e.enabled {
 		return &RuleResult{
@@ -93,16 +91,15 @@ func (e *RuleEngine) EvaluateRoute(ctx *EvaluationContext) (*RuleResult, error) 
 		return result, nil
 	}
 
-	// Priority 3: Check Nacos rules if domain is known
+	// Priority 3: Check allowlist
 	if ctx.Domain != "" {
-		if result := e.checkNacosRules(ctx); result != nil {
-			// Cache the result for future lookups
+		if result := e.checkAllowlist(ctx); result != nil {
 			e.cacheResult(ctx, result)
 			return result, nil
 		}
 	}
 
-	// Priority 4: Check GeoIP (country-based routing)
+	// Priority 4: Check GeoIP (country-based routing, optional)
 	if result := e.checkGeoIP(ctx); result != nil {
 		e.cacheResult(ctx, result)
 		return result, nil
@@ -155,32 +152,29 @@ func (e *RuleEngine) checkCache(ctx *EvaluationContext) *RuleResult {
 	return nil
 }
 
-// checkNacosRules checks Nacos domain acceleration rules
-func (e *RuleEngine) checkNacosRules(ctx *EvaluationContext) *RuleResult {
-	if e.nacosRouter == nil || ctx.Domain == "" {
+// checkAllowlist checks local SNI allowlist and default SOCKS fallback.
+func (e *RuleEngine) checkAllowlist(ctx *EvaluationContext) *RuleResult {
+	cfg := config.GetGlobalConfig()
+	if cfg == nil || ctx.Domain == "" {
 		return nil
 	}
 
-	e.mu.RLock()
-	defer e.mu.RUnlock()
-
-	// Check if domain should route to Cursor MITM (highest priority for Cursor AI)
-	if e.nacosRouter.IsAllowToCursor(ctx.Domain) {
+	if IsDomainAllowed(ctx.Domain, cfg.SNIAllowlist) {
 		return &RuleResult{
 			Route:       cache.RouteToCursor,
-			MatchedRule: "nacos_cursor",
+			MatchedRule: "sni_allowlist",
 			RequiresSNI: false,
-			Reason:      fmt.Sprintf("Domain %s matched Cursor MITM rules", ctx.Domain),
+			Reason:      fmt.Sprintf("Domain %s matched SNI allowlist", ctx.Domain),
 		}
 	}
 
-	// Check if domain should route to Door proxy
-	if e.nacosRouter.IsAllowToAnyDoor(ctx.Domain) {
+	// Default for non-allowlist domain: route to SOCKS if enabled, else direct
+	if cfg.SocksProxy != nil {
 		return &RuleResult{
 			Route:       cache.RouteToDoor,
-			MatchedRule: "nacos_door",
+			MatchedRule: "default_socks",
 			RequiresSNI: false,
-			Reason:      fmt.Sprintf("Domain %s matched Door acceleration rules", ctx.Domain),
+			Reason:      "Default route to SOCKS proxy",
 		}
 	}
 
@@ -235,11 +229,16 @@ func (e *RuleEngine) defaultRoute(ctx *EvaluationContext) *RuleResult {
 	// For TLS traffic (port 443) without domain, we need SNI extraction
 	requiresSNI := ctx.DstPort == 443 && ctx.Domain == ""
 
+	defaultRoute := cache.RouteDirect
+	if cfg := config.GetGlobalConfig(); cfg != nil && cfg.SocksProxy != nil {
+		defaultRoute = cache.RouteToDoor
+	}
+
 	return &RuleResult{
-		Route:       cache.RouteDirect,
+		Route:       defaultRoute,
 		MatchedRule: "default",
 		RequiresSNI: requiresSNI,
-		Reason:      "No rules matched, using default direct route",
+		Reason:      "No rules matched, using default route",
 	}
 }
 

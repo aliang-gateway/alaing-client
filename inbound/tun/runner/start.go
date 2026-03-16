@@ -8,7 +8,6 @@ import (
 
 	"go.uber.org/automaxprocs/maxprocs"
 	"nursor.org/nursorgate/common/logger"
-	"nursor.org/nursorgate/common/model"
 	"nursor.org/nursorgate/inbound/tun/engine"
 	"nursor.org/nursorgate/processor/config"
 )
@@ -28,9 +27,6 @@ func Start() {
 			RunStatusChan <- map[string]string{"status": "failed", "message": fmt.Sprintf("Recovered from panic in Start: %v", r)}
 		}
 	}()
-
-	domains := model.NewAllowProxyDomain()
-	logger.Info(fmt.Sprintf("domain is: %v", domains))
 
 	maxprocs.Set(maxprocs.Logger(func(string, ...any) {}))
 

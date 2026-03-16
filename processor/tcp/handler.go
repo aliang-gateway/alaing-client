@@ -74,11 +74,9 @@ func (h *TCPConnectionHandler) Handle(ctx context.Context, originConn net.Conn, 
 	case ProtocolTLS:
 		remoteConn, newOriginConn, err = h.handleTLS(ctx, originConn, metadata)
 	case ProtocolHTTP:
-		metadata.Route = "RouteDirect" // HTTP defaults to direct connection
-		remoteConn, err = h.dialDirect(ctx, metadata)
+		remoteConn, err = h.dialViaSocksOrDirect(ctx, metadata)
 	default:
-		metadata.Route = "RouteDirect" // Other protocols default to direct connection
-		remoteConn, err = h.dialDirect(ctx, metadata)
+		remoteConn, err = h.dialViaSocksOrDirect(ctx, metadata)
 	}
 
 	if err != nil {
@@ -258,13 +256,19 @@ func (h *TCPConnectionHandler) handleTLS(
 		// Store route decision in metadata for caching
 		metadata.Route = "RouteToDoor"
 
-		// Route through door proxy (VLESS/Shadowsocks)
-		doorProxy, err := outbound.GetRegistry().GetDoor()
+		// Route through SOCKS proxy if configured, else fall back to direct
+		socksProxy, err := outbound.GetRegistry().Get("socks")
 		if err != nil {
-			return nil, nil, err
+			logger.Warn(fmt.Sprintf("SOCKS proxy not configured, falling back to direct: %v", err))
+			metadata.Route = "RouteDirect"
+			remote, err := h.dialDirect(ctx, metadata)
+			if err != nil {
+				return nil, nil, err
+			}
+			return remote, wrapped, nil
 		}
 
-		remote, err := doorProxy.DialContext(ctx, metadata)
+		remote, err := socksProxy.DialContext(ctx, metadata)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -295,4 +299,16 @@ func (h *TCPConnectionHandler) dialDirect(ctx context.Context, metadata *M.Metad
 	}
 
 	return conn, nil
+}
+
+// dialViaSocksOrDirect routes traffic through SOCKS if available, otherwise direct.
+func (h *TCPConnectionHandler) dialViaSocksOrDirect(ctx context.Context, metadata *M.Metadata) (net.Conn, error) {
+	socksProxy, err := outbound.GetRegistry().Get("socks")
+	if err == nil {
+		metadata.Route = "RouteToDoor"
+		return socksProxy.DialContext(ctx, metadata)
+	}
+
+	metadata.Route = "RouteDirect"
+	return h.dialDirect(ctx, metadata)
 }
