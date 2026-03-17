@@ -22,8 +22,6 @@ func NewProxyRegistryHandler(proxyRepository *repositories.ProxyRepositoryImpl) 
 }
 
 // HandleProxyRegistryList handles GET /api/proxy/registry/list
-// Returns all proxies including direct, nonelane, custom proxies, and door virtual members (door:xxx format)
-// Also includes current proxy information and door auto-select mode status
 func (prh *ProxyRegistryHandler) HandleProxyRegistryList(w http.ResponseWriter, r *http.Request) {
 	result, err := prh.proxyRepository.ListProxies()
 	if err != nil {
@@ -31,62 +29,18 @@ func (prh *ProxyRegistryHandler) HandleProxyRegistryList(w http.ResponseWriter, 
 		return
 	}
 
-	// Get current proxy information from registry
 	registry := outbound.GetRegistry()
-	currentProxyName := ""
-	currentProxyType := ""
-	currentProxyAddr := ""
-	currentProxyShowName := ""
-
-	// Check if door auto-select is enabled first
-	isDoorAutoMode := registry.IsDoorAutoSelect()
-
-	// Try to get current door member
-	currentMember := registry.GetDoorCurrentMember()
-	if currentMember != "" {
-		// Current is a door member
-		currentProxyName = "door:" + currentMember
-		currentProxyShowName = currentMember
-
-		// Get door proxy to extract type and addr
-		if doorProxy, err := registry.GetDoor(); err == nil {
-			currentProxyType = doorProxy.Proto().String()
-			currentProxyAddr = doorProxy.Addr()
-		}
-	} else if isDoorAutoMode {
-		// Door auto-select is enabled, so current is door proxy in auto mode
-		if doorProxy, err := registry.GetDoor(); err == nil {
-			currentProxyName = "door"
-			currentProxyType = doorProxy.Proto().String()
-			currentProxyAddr = doorProxy.Addr()
-		}
-	} else {
-		// For non-door proxies, use the hardcoded default (direct)
-		if defaultProxy, err := registry.GetHardcodedDefault(); err == nil {
-			currentProxyName = "direct"
-			currentProxyType = defaultProxy.Proto().String()
-			currentProxyAddr = defaultProxy.Addr()
-		}
-	}
-
-	// Build response with all information
 	responseData := map[string]interface{}{
-		"proxies":           result["proxies"],
-		"count":             result["count"],
-		"is_door_auto_mode": isDoorAutoMode,
+		"proxies": result["proxies"],
+		"count":   result["count"],
 	}
 
-	// Add current proxy information if available
-	if currentProxyName != "" {
-		currentProxyInfo := map[string]interface{}{
-			"name": currentProxyName,
-			"type": currentProxyType,
-			"addr": currentProxyAddr,
+	if defaultProxy, err := registry.GetHardcodedDefault(); err == nil {
+		responseData["current_proxy"] = map[string]interface{}{
+			"name": "direct",
+			"type": defaultProxy.Proto().String(),
+			"addr": defaultProxy.Addr(),
 		}
-		if currentProxyShowName != "" {
-			currentProxyInfo["show_name"] = currentProxyShowName
-		}
-		responseData["current_proxy"] = currentProxyInfo
 	}
 
 	common.Success(w, responseData)
@@ -94,14 +48,10 @@ func (prh *ProxyRegistryHandler) HandleProxyRegistryList(w http.ResponseWriter, 
 
 // HandleProxyRegistryGet handles GET /api/proxy/registry/get
 // Query parameter: name (required) - get specific proxy by name
-// Returns complete proxy configuration information including all config details
 // Supported formats:
 //   - "direct" - direct proxy
 //   - "nonelane" - nonelane proxy
 //   - "custom_name" - custom proxy
-//   - "door:ShowName" - door proxy member (e.g., "door:日本 Tokyo")
-//
-// Returns configuration from globalConfig along with runtime proxy information
 func (prh *ProxyRegistryHandler) HandleProxyRegistryGet(w http.ResponseWriter, r *http.Request) {
 	name := common.GetQueryParamString(r, "name", "")
 	if name == "" {

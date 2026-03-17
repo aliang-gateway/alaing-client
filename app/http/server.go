@@ -13,9 +13,7 @@ import (
 	"nursor.org/nursorgate/app"
 	"nursor.org/nursorgate/app/http/middleware"
 	"nursor.org/nursorgate/app/http/routes"
-	"nursor.org/nursorgate/app/http/services"
 	"nursor.org/nursorgate/common/logger"
-	"nursor.org/nursorgate/processor/latency"
 )
 
 var (
@@ -82,13 +80,6 @@ func registerAllRoutes() {
 	// This ensures the singleton rule engine is initialized only ONCE at startup
 	// Previously this was duplicated in both HTTP mode and TUN mode
 	logger.Info("HTTP: Rule engine has been initialized globally (see cmd/start.go)")
-
-	// Initialize and start latency test manager
-	latencyService := services.NewLatencyService()
-	latencyManager := latency.NewLatencyTestManager(latencyService)
-	if err := latencyManager.Start(); err != nil {
-		logger.Error(fmt.Sprintf("Failed to start latency test manager: %v", err))
-	}
 
 	// Initialize and start stats collector
 	if handlers.TrafficStats != nil {

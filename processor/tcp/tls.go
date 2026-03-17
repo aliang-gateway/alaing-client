@@ -206,7 +206,7 @@ func (h *DefaultTLSHandler) DetermineRouteWithContext(metadata *M.Metadata) (Pro
 func (h *DefaultTLSHandler) defaultFallbackRoute() ProxyRoute {
 	cfg := config.GetGlobalConfig()
 	if cfg != nil && cfg.SocksProxy != nil {
-		return RouteToDoor
+		return RouteToSocks
 	}
 	return RouteDirect
 }

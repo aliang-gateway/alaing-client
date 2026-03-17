@@ -1,8 +1,6 @@
 package proxyserver
 
 import (
-	"fmt"
-
 	"nursor.org/nursorgate/common/logger"
 	"nursor.org/nursorgate/outbound/proxy"
 	"nursor.org/nursorgate/processor/config"
@@ -20,7 +18,7 @@ func InitGlobalResolver(primaryProxy, fallbackProxy proxy.Proxy, cfg *config.Con
 		return nil
 	}
 
-	// Create hybrid DNS resolver using door and direct proxies
+	// Create hybrid DNS resolver using primary and fallback proxies
 	hybridResolver := dns.NewHybridResolver(
 		&dns.DNSConfig{
 			Type:             dns.ResolverTypeHybrid,
@@ -43,18 +41,4 @@ func InitGlobalResolver(primaryProxy, fallbackProxy proxy.Proxy, cfg *config.Con
 // GetGlobalResolver returns the global DNS resolver instance
 func GetGlobalResolver() dns.DNSResolverInterface {
 	return globalResolver
-}
-
-// UpdateGlobalResolverWithDoorConfig updates the global resolver after door config changes
-func UpdateGlobalResolverWithDoorConfig(doorConfig *config.DoorProxyConfig) {
-	if globalResolver == nil {
-		return
-	}
-
-	if doorConfig == nil || len(doorConfig.Members) == 0 {
-		logger.Debug("[DNS] No door members, skipping resolver sync")
-		return
-	}
-
-	logger.Info(fmt.Sprintf("[DNS] Door config updated with %d members", len(doorConfig.Members)))
 }

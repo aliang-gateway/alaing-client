@@ -252,9 +252,9 @@ func (h *TCPConnectionHandler) handleTLS(
 
 		return remote, mitmed, nil
 
-	case RouteToDoor:
+	case RouteToSocks:
 		// Store route decision in metadata for caching
-		metadata.Route = "RouteToDoor"
+		metadata.Route = "RouteToSocks"
 
 		// Route through SOCKS proxy if configured, else fall back to direct
 		socksProxy, err := outbound.GetRegistry().Get("socks")
@@ -305,7 +305,7 @@ func (h *TCPConnectionHandler) dialDirect(ctx context.Context, metadata *M.Metad
 func (h *TCPConnectionHandler) dialViaSocksOrDirect(ctx context.Context, metadata *M.Metadata) (net.Conn, error) {
 	socksProxy, err := outbound.GetRegistry().Get("socks")
 	if err == nil {
-		metadata.Route = "RouteToDoor"
+		metadata.Route = "RouteToSocks"
 		return socksProxy.DialContext(ctx, metadata)
 	}
 

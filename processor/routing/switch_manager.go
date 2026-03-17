@@ -11,7 +11,7 @@ import (
 type SwitchManager struct {
 	mu              sync.RWMutex
 	noneLaneEnabled bool
-	doorEnabled     bool
+	socksEnabled    bool
 	geoIPEnabled    bool
 	lastUpdatedAt   int64
 	enabledAt       map[string]int64 // Track when each switch was last changed
@@ -27,7 +27,7 @@ func GetSwitchManager() *SwitchManager {
 	switchOnce.Do(func() {
 		defaultSwitchManager = &SwitchManager{
 			noneLaneEnabled: true,
-			doorEnabled:     true,
+			socksEnabled:    true,
 			geoIPEnabled:    false,
 			enabledAt:       make(map[string]int64),
 		}
@@ -56,13 +56,13 @@ func (sm *SwitchManager) UpdateSwitches(config *model.RoutingRulesConfig) {
 		sm.noneLaneEnabled = settings.NoneLaneEnabled
 	}
 
-	if sm.doorEnabled != settings.DoorEnabled {
-		if settings.DoorEnabled {
-			logger.Info("Global switch: Door ENABLED")
+	if sm.socksEnabled != settings.SocksEnabled {
+		if settings.SocksEnabled {
+			logger.Info("Global switch: SOCKS ENABLED")
 		} else {
-			logger.Info("Global switch: Door DISABLED")
+			logger.Info("Global switch: SOCKS DISABLED")
 		}
-		sm.doorEnabled = settings.DoorEnabled
+		sm.socksEnabled = settings.SocksEnabled
 	}
 
 	if sm.geoIPEnabled != settings.GeoIPEnabled {
@@ -82,11 +82,11 @@ func (sm *SwitchManager) IsNoneLaneEnabled() bool {
 	return sm.noneLaneEnabled
 }
 
-// IsDoorEnabled returns the Door switch status
-func (sm *SwitchManager) IsDoorEnabled() bool {
+// IsSocksEnabled returns the SOCKS switch status
+func (sm *SwitchManager) IsSocksEnabled() bool {
 	sm.mu.RLock()
 	defer sm.mu.RUnlock()
-	return sm.doorEnabled
+	return sm.socksEnabled
 }
 
 // IsGeoIPEnabled returns the GeoIP switch status
@@ -111,17 +111,17 @@ func (sm *SwitchManager) SetNoneLaneEnabled(enabled bool) {
 	}
 }
 
-// SetDoorEnabled sets the Door switch
-func (sm *SwitchManager) SetDoorEnabled(enabled bool) {
+// SetSocksEnabled sets the SOCKS switch
+func (sm *SwitchManager) SetSocksEnabled(enabled bool) {
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
 
-	if sm.doorEnabled != enabled {
-		sm.doorEnabled = enabled
+	if sm.socksEnabled != enabled {
+		sm.socksEnabled = enabled
 		if enabled {
-			logger.Info("Global switch: Door ENABLED (manual)")
+			logger.Info("Global switch: SOCKS ENABLED (manual)")
 		} else {
-			logger.Info("Global switch: Door DISABLED (manual)")
+			logger.Info("Global switch: SOCKS DISABLED (manual)")
 		}
 	}
 }
@@ -148,7 +148,7 @@ func (sm *SwitchManager) GetStatus() model.RulesSettings {
 
 	return model.RulesSettings{
 		NoneLaneEnabled: sm.noneLaneEnabled,
-		DoorEnabled:     sm.doorEnabled,
+		SocksEnabled:    sm.socksEnabled,
 		GeoIPEnabled:    sm.geoIPEnabled,
 	}
 }
@@ -159,7 +159,7 @@ func (sm *SwitchManager) DisableAll() {
 	defer sm.mu.Unlock()
 
 	sm.noneLaneEnabled = false
-	sm.doorEnabled = false
+	sm.socksEnabled = false
 	sm.geoIPEnabled = false
 	logger.Info("Global switches: ALL DISABLED")
 }
@@ -170,7 +170,7 @@ func (sm *SwitchManager) EnableAll() {
 	defer sm.mu.Unlock()
 
 	sm.noneLaneEnabled = true
-	sm.doorEnabled = true
+	sm.socksEnabled = true
 	sm.geoIPEnabled = true
 	logger.Info("Global switches: ALL ENABLED")
 }
@@ -181,7 +181,7 @@ func (sm *SwitchManager) ResetToDefaults() {
 	defer sm.mu.Unlock()
 
 	sm.noneLaneEnabled = true
-	sm.doorEnabled = true
+	sm.socksEnabled = true
 	sm.geoIPEnabled = false
-	logger.Info("Global switches: RESET to defaults (NoneLane=ON, Door=ON, GeoIP=OFF)")
+	logger.Info("Global switches: RESET to defaults (NoneLane=ON, SOCKS=ON, GeoIP=OFF)")
 }

@@ -1,7 +1,6 @@
 package config
 
 import (
-	"encoding/json"
 	"fmt"
 	"time"
 )
@@ -11,16 +10,6 @@ type BaseProxyConfig struct {
 	Type string `json:"type"`
 	// Nonelane 代理专用
 	CoreServer string `json:"core_server,omitempty"`
-}
-
-// DoorProxyMember represents a member in a door proxy collection
-type DoorProxyMember struct {
-	ShowName   string      `json:"showname"`    // 显示名称
-	Type       string      `json:"type"`        // vless/shadowsocks/ss/socks5
-	Latency    int64       `json:"latency"`     // 延迟（毫秒）
-	LastUpdate int64       `json:"last_update"` // 最后更新时间戳
-	Status     string      `json:"status"`      // 状态：success/failed/unknown
-	Config     interface{} `json:"config"`      // 统一配置，通过type字段判断具体类型
 }
 
 // VLESSConfig represents VLESS protocol configuration
@@ -145,15 +134,6 @@ func (c *BaseProxyConfig) Validate() error {
 	case "nonelane":
 		// Nonelane (mTLS) proxy - CoreServer is optional with default value
 		// If not provided, default will be used in registry
-	case "door":
-		// Door proxy type - validation will be done during registration process
-		// The actual members are stored separately in the door proxy config
-	case "vless", "shadowsocks":
-		// These types are only valid as door proxy members
-		return fmt.Errorf("type '%s' is only valid as a door proxy member", c.Type)
-	case "socks5":
-		// Only valid as door proxy member
-		return fmt.Errorf("type '%s' is only valid as a door proxy member", c.Type)
 	default:
 		return fmt.Errorf("unsupported proxy type: %s", c.Type)
 	}
@@ -247,21 +227,14 @@ func (c *DNSPreResolutionConfig) Validate() error {
 	return nil
 }
 
-// DoorProxyConfig Door 代理集合专用配置
-type DoorProxyConfig struct {
-	Type    string            `json:"type"`
-	Members []DoorProxyMember `json:"members,omitempty"`
-}
-
 // Config 完整配置结构
 type Config struct {
-	APIServer        string                      `json:"api_server"`             // 必须配置：Token激活、刷新、Inbound的基础URL
+	APIServer        string                      `json:"api_server"` // 必须配置：Token激活、刷新、Inbound的基础URL
 	CurrentProxy     string                      `json:"currentProxy"`
 	BaseProxies      map[string]*BaseProxyConfig `json:"baseProxies"`
-	DoorProxy        *DoorProxyConfig            `json:"doorProxy,omitempty"`        // Door 代理集合配置
 	DNSPreResolution *DNSPreResolutionConfig     `json:"dnsPreResolution,omitempty"` // DNS预解析配置
 	SocksProxy       *Socks5Config               `json:"socksProxy,omitempty"`       // 可选：默认 SOCKS5 出站
-	SNIAllowlist     []string                    `json:"sni_allowlist,omitempty"`   // SNI 允许列表（命中则 MITM 并转发到 Nonelane）
+	SNIAllowlist     []string                    `json:"sni_allowlist,omitempty"`    // SNI 允许列表（命中则 MITM 并转发到 Nonelane）
 }
 
 // GetTokenActivateURL returns the complete Token activation URL
@@ -304,61 +277,4 @@ func (c *Config) Validate() error {
 	}
 
 	return nil
-}
-
-// GetVLESSConfig 获取 VLESS 配置
-func (d *DoorProxyMember) GetVLESSConfig() (*VLESSConfig, error) {
-	if d.Type != "vless" {
-		return nil, fmt.Errorf("not a vless config, type is: %s", d.Type)
-	}
-
-	configData, err := json.Marshal(d.Config)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal config: %w", err)
-	}
-
-	var config VLESSConfig
-	if err := json.Unmarshal(configData, &config); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal vless config: %w", err)
-	}
-
-	return &config, nil
-}
-
-// GetShadowsocksConfig 获取 Shadowsocks 配置
-func (d *DoorProxyMember) GetShadowsocksConfig() (*ShadowsocksConfig, error) {
-	if d.Type != "shadowsocks" && d.Type != "ss" {
-		return nil, fmt.Errorf("not a shadowsocks config, type is: %s", d.Type)
-	}
-
-	configData, err := json.Marshal(d.Config)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal config: %w", err)
-	}
-
-	var config ShadowsocksConfig
-	if err := json.Unmarshal(configData, &config); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal shadowsocks config: %w", err)
-	}
-
-	return &config, nil
-}
-
-// GetSocks5Config 获取 SOCKS5 配置
-func (d *DoorProxyMember) GetSocks5Config() (*Socks5Config, error) {
-	if d.Type != "socks5" && d.Type != "socks" {
-		return nil, fmt.Errorf("not a socks5 config, type is: %s", d.Type)
-	}
-
-	configData, err := json.Marshal(d.Config)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal config: %w", err)
-	}
-
-	var config Socks5Config
-	if err := json.Unmarshal(configData, &config); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal socks5 config: %w", err)
-	}
-
-	return &config, nil
 }

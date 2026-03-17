@@ -78,7 +78,7 @@ type TLSHandler interface {
 	// It can leverage cached SNI bindings and the SNI allowlist.
 	//
 	// Returns:
-	// - proxyRoute: The routing decision (RouteToCursor, RouteToDoor, RouteDirect)
+	// - proxyRoute: The routing decision (RouteToCursor, RouteToSocks, RouteDirect)
 	// - requiresSNI: Whether SNI extraction is needed for final decision
 	DetermineRouteWithContext(metadata *M.Metadata) (ProxyRoute, bool)
 }
@@ -121,8 +121,8 @@ type ConnectionProvider interface {
 	// GetDefaultDialer returns the default dialer for direct connections
 	GetDefaultDialer() ProxyDialer
 
-	// GetDoorProxy returns the door proxy (gateway proxy) for routing
-	GetDoorProxy() (ProxyDialer, error)
+	// GetSocksProxy returns the SOCKS proxy for routing
+	GetSocksProxy() (ProxyDialer, error)
 
 	// IsDoHProvider checks if the domain is a DNS-over-HTTPS provider
 	IsDoHProvider(domain string) bool
@@ -130,8 +130,8 @@ type ConnectionProvider interface {
 	// IsAllowedToCursor checks if domain should be routed to cursor proxy
 	IsAllowedToCursor(domain string) bool
 
-	// IsAllowedToAnyDoor checks if domain should be routed to door proxy
-	IsAllowedToAnyDoor(domain string) bool
+	// IsAllowedToAnySocks checks if domain should be routed to SOCKS proxy
+	IsAllowedToAnySocks(domain string) bool
 }
 
 // Protocol represents the detected connection protocol
@@ -148,7 +148,7 @@ type ProxyRoute int
 
 const (
 	RouteToCursor ProxyRoute = iota
-	RouteToDoor
+	RouteToSocks
 	RouteDirect
 )
 

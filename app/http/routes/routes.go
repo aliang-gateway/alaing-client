@@ -19,13 +19,11 @@ type Handlers struct {
 	Token         *handlers.TokenHandler
 	Run           *handlers.RunHandler
 	LogStream     *handlers.LogStreamHandler
-	Door          *handlers.DoorHandler
 	Rules         *handlers.RulesHandler
 	DNSCache      *handlers.DNSCacheHandler
 	Cert          *handlers.CertHandler
 	Auth          *handlers.AuthHandler
 	Startup       *handlers.StartupHandler
-	Latency       *handlers.LatencyHandler
 	Config        *handlers.ConfigHandler
 	TrafficStats  *handlers.TrafficStatsHandler
 
@@ -41,7 +39,6 @@ func NewHandlers() *Handlers {
 	tokenService := services.NewTokenService()
 	runService := services.NewRunService()
 	certService := services.NewCertService()
-	latencyService := services.NewLatencyService()
 
 	// Initialize repositories
 	proxyRepository := repositories.NewProxyRepository()
@@ -57,13 +54,11 @@ func NewHandlers() *Handlers {
 		Token:          handlers.NewTokenHandler(tokenService),
 		Run:            handlers.NewRunHandler(runService),
 		LogStream:      handlers.NewLogStreamHandler(),
-		Door:           handlers.NewDoorHandler(),
 		Rules:          handlers.NewRulesHandler(),
 		DNSCache:       handlers.NewDNSCacheHandler(),
 		Cert:           handlers.NewCertHandler(certService),
 		Auth:           handlers.NewAuthHandler(),
 		Startup:        handlers.NewStartupHandler(),
-		Latency:        handlers.NewLatencyHandler(latencyService),
 		Config:         handlers.NewConfigHandler(),
 		TrafficStats:   handlers.NewTrafficStatsHandler(statsCollector),
 		statsCollector: statsCollector,
@@ -86,11 +81,6 @@ func RegisterRoutes(h *Handlers, mux *http.ServeMux) {
 	// Proxy registry routes (/api/proxy/registry/*)
 	mux.HandleFunc("/api/proxy/list", h.ProxyRegistry.HandleProxyRegistryList)
 	mux.HandleFunc("/api/proxy/get", h.ProxyRegistry.HandleProxyRegistryGet)
-
-	// Door proxy routes (/api/proxy/door/*)
-	mux.HandleFunc("/api/proxy/door/members", h.Door.HandleDoorMemberList)
-	mux.HandleFunc("/api/proxy/door/auto", h.Door.HandleDoorAutoSelect)
-	mux.HandleFunc("/api/proxy/door/test-latency", h.Latency.HandleTestAllMembers)
 
 	// Token routes (/api/token/*)
 	mux.HandleFunc("/api/token/get", h.Token.HandleTokenGet)

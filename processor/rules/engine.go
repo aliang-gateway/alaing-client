@@ -84,7 +84,7 @@ func (e *RuleEngine) EvaluateRoute(ctx *EvaluationContext) (*RuleResult, error) 
 		}, nil
 	}
 
-	// TODO(US2): Implement routing decision logic with priority: NoneLane > Door > GeoIP > Direct
+	// TODO(US2): Implement routing decision logic with priority: NoneLane > SOCKS > GeoIP > Direct
 
 	// Priority 2: Check cache (avoid repeated SNI extraction)
 	if result := e.checkCache(ctx); result != nil {
@@ -171,7 +171,7 @@ func (e *RuleEngine) checkAllowlist(ctx *EvaluationContext) *RuleResult {
 	// Default for non-allowlist domain: route to SOCKS if enabled, else direct
 	if cfg.SocksProxy != nil {
 		return &RuleResult{
-			Route:       cache.RouteToDoor,
+			Route:       cache.RouteToSocks,
 			MatchedRule: "default_socks",
 			RequiresSNI: false,
 			Reason:      "Default route to SOCKS proxy",
@@ -207,7 +207,7 @@ func (e *RuleEngine) checkGeoIP(ctx *EvaluationContext) *RuleResult {
 			}
 		} else {
 			return &RuleResult{
-				Route:       cache.RouteToDoor,
+				Route:       cache.RouteToSocks,
 				MatchedRule: "geoip_china",
 				RequiresSNI: false,
 				Reason:      fmt.Sprintf("IP %s is in China (accelerated route)", ctx.DstIP),
@@ -215,9 +215,9 @@ func (e *RuleEngine) checkGeoIP(ctx *EvaluationContext) *RuleResult {
 		}
 	}
 
-	// Foreign IP - accelerate via Door proxy
+	// Foreign IP - accelerate via SOCKS proxy
 	return &RuleResult{
-		Route:       cache.RouteToDoor,
+		Route:       cache.RouteToSocks,
 		MatchedRule: "geoip_foreign",
 		RequiresSNI: false,
 		Reason:      fmt.Sprintf("IP %s is outside China (accelerated)", ctx.DstIP),
@@ -231,7 +231,7 @@ func (e *RuleEngine) defaultRoute(ctx *EvaluationContext) *RuleResult {
 
 	defaultRoute := cache.RouteDirect
 	if cfg := config.GetGlobalConfig(); cfg != nil && cfg.SocksProxy != nil {
-		defaultRoute = cache.RouteToDoor
+		defaultRoute = cache.RouteToSocks
 	}
 
 	return &RuleResult{
@@ -321,8 +321,8 @@ func (e *RuleEngine) StoreBinding(metadata *M.Metadata) {
 	switch metadata.Route {
 	case "RouteToCursor":
 		route = cache.RouteToCursor
-	case "RouteToDoor":
-		route = cache.RouteToDoor
+	case "RouteToSocks":
+		route = cache.RouteToSocks
 	case "RouteDirect":
 		route = cache.RouteDirect
 	default:

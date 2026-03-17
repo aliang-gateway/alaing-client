@@ -14,8 +14,8 @@ const (
 	// RouteToCursor routes traffic through Cursor MITM proxy (Nonelane)
 	RouteToCursor RouteDecision = "cursor"
 
-	// RouteToDoor routes traffic through Door proxy (VLESS/Shadowsocks nodes)
-	RouteToDoor RouteDecision = "door"
+	// RouteToSocks routes traffic through SOCKS proxy
+	RouteToSocks RouteDecision = "socks"
 
 	// RouteDirect routes traffic directly without proxy
 	RouteDirect RouteDecision = "direct"

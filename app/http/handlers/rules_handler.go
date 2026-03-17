@@ -122,7 +122,7 @@ func (rh *RulesHandler) HandleGetRuleEngineStatus(w http.ResponseWriter, r *http
 		"engineEnabled":    engine != nil && engine.IsEnabled(),
 		"geoipEnabled":     geoipService != nil && geoipService.IsEnabled(),
 		"noneLaneEnabled":  switchStatus.NoneLaneEnabled,
-		"doorEnabled":      switchStatus.DoorEnabled,
+		"socksEnabled":     switchStatus.SocksEnabled,
 		"geoipRuleEnabled": switchStatus.GeoIPEnabled,
 	}
 
@@ -176,13 +176,13 @@ func (rh *RulesHandler) HandleGetGlobalSwitchStatus(w http.ResponseWriter, r *ht
 
 	common.Success(w, map[string]interface{}{
 		"noneLaneEnabled": status.NoneLaneEnabled,
-		"doorEnabled":     status.DoorEnabled,
+		"socksEnabled":    status.SocksEnabled,
 		"geoipEnabled":    status.GeoIPEnabled,
 	})
 }
 
 // T041: HandleSetGlobalSwitch handles POST /api/rules/switches/{switch_name}
-// Controls individual global switches (nonelane, door, geoip)
+// Controls individual global switches (nonelane, socks, geoip)
 func (rh *RulesHandler) HandleSetGlobalSwitch(w http.ResponseWriter, r *http.Request) {
 	switchMgr := routing.GetSwitchManager()
 
@@ -222,10 +222,10 @@ func (rh *RulesHandler) HandleSetGlobalSwitch(w http.ResponseWriter, r *http.Req
 			"status":  "success",
 		})
 
-	case "door":
-		switchMgr.SetDoorEnabled(req.Enabled)
+	case "socks":
+		switchMgr.SetSocksEnabled(req.Enabled)
 		common.Success(w, map[string]interface{}{
-			"switch":  "door",
+			"switch":  "socks",
 			"enabled": req.Enabled,
 			"status":  "success",
 		})
@@ -239,7 +239,7 @@ func (rh *RulesHandler) HandleSetGlobalSwitch(w http.ResponseWriter, r *http.Req
 		})
 
 	default:
-		common.ErrorBadRequest(w, "Invalid switch name. Must be one of: nonelane, door, geoip", map[string]interface{}{
+		common.ErrorBadRequest(w, "Invalid switch name. Must be one of: nonelane, socks, geoip", map[string]interface{}{
 			"provided": switchName,
 		})
 	}
@@ -253,7 +253,7 @@ func (rh *RulesHandler) HandleBulkSwitchControl(w http.ResponseWriter, r *http.R
 	// Parse request body
 	var req struct {
 		NoneLaneEnabled *bool `json:"nonelane_enabled"`
-		DoorEnabled     *bool `json:"door_enabled"`
+		SocksEnabled    *bool `json:"socks_enabled"`
 		GeoIPEnabled    *bool `json:"geoip_enabled"`
 	}
 
@@ -268,8 +268,8 @@ func (rh *RulesHandler) HandleBulkSwitchControl(w http.ResponseWriter, r *http.R
 	if req.NoneLaneEnabled != nil {
 		switchMgr.SetNoneLaneEnabled(*req.NoneLaneEnabled)
 	}
-	if req.DoorEnabled != nil {
-		switchMgr.SetDoorEnabled(*req.DoorEnabled)
+	if req.SocksEnabled != nil {
+		switchMgr.SetSocksEnabled(*req.SocksEnabled)
 	}
 	if req.GeoIPEnabled != nil {
 		switchMgr.SetGeoIPEnabled(*req.GeoIPEnabled)
@@ -280,7 +280,7 @@ func (rh *RulesHandler) HandleBulkSwitchControl(w http.ResponseWriter, r *http.R
 	common.Success(w, map[string]interface{}{
 		"status":          "success",
 		"noneLaneEnabled": status.NoneLaneEnabled,
-		"doorEnabled":     status.DoorEnabled,
+		"socksEnabled":    status.SocksEnabled,
 		"geoipEnabled":    status.GeoIPEnabled,
 	})
 }

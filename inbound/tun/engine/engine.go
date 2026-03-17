@@ -156,18 +156,16 @@ func netstack(k *config.EngineConf) (err error) {
 	// 设置代理到 tunnel 的 dialer（用于 direct dialing）
 	tunnel.T().SetDialer(_defaultProxy)
 
-	// 从注册中心获取门代理（可选，用于 DNS 和特殊路由）
-	doorProxy, err := proxyRegistry.GetRegistry().GetDoor()
-	if err != nil {
-		logger.Debug(fmt.Sprintf("No door proxy configured: %v", err))
-		doorProxy = nil
-	}
-
 	// 获取direct代理用于回退
 	registry := outbound.GetRegistry()
 	directProxy, err := registry.Get("direct")
-	// 使用混合DNS解析器，优先door代理，回退到direct代理
-	hybridResolver := dns.CreateDefaultHybridResolver(doorProxy, directProxy)
+	if err != nil {
+		logger.Warn(fmt.Sprintf("Direct proxy not available for DNS resolver: %v", err))
+		directProxy = nil
+	}
+
+	// 使用混合DNS解析器，主/回退均使用 direct（无 door）
+	hybridResolver := dns.CreateDefaultHybridResolver(directProxy, directProxy)
 	dns.SetGlobalResolver(hybridResolver)
 	if _defaultDevice, err = parseDevice(k.Device, uint32(k.MTU)); err != nil {
 		return err

@@ -13,7 +13,7 @@ type RouteDecision string
 
 const (
 	RouteToNoneLane RouteDecision = "nonelane"
-	RouteToDoor     RouteDecision = "door"
+	RouteToSocks    RouteDecision = "socks"
 	RouteDirect     RouteDecision = "direct"
 )
 
@@ -28,7 +28,7 @@ type MatchContext struct {
 // T032-T033: DecideRoute determines which proxy to use based on rules and priority
 // Priority order:
 // 1. NoneLane rules (highest) - if enabled
-// 2. Door rules (to_door) - if enabled
+// 2. SOCKS rules (to_socks) - if enabled
 // 3. GeoIP rules - if enabled
 // 4. Direct (lowest) - default fallback
 func DecideRoute(config *model.RoutingRulesConfig, ctx *MatchContext) (RouteDecision, error) {
@@ -54,18 +54,18 @@ func DecideRoute(config *model.RoutingRulesConfig, ctx *MatchContext) (RouteDeci
 		}
 	}
 
-	// Priority 2: Door rules (to_door)
-	if settings.DoorEnabled {
-		if decision := checkRuleSet(&config.ToDoor, ctx, RouteToDoor); decision != nil {
-			logger.Debug(fmt.Sprintf("Door rule matched for domain %s", ctx.Domain))
+	// Priority 2: SOCKS rules (to_socks)
+	if settings.SocksEnabled {
+		if decision := checkRuleSet(&config.ToSocks, ctx, RouteToSocks); decision != nil {
+			logger.Debug(fmt.Sprintf("SOCKS rule matched for domain %s", ctx.Domain))
 			return *decision, nil
 		}
 	}
 
 	// Priority 3: GeoIP rules
 	if settings.GeoIPEnabled {
-		// GeoIP rules route to Door if matched
-		if decision := checkRuleSet(&config.ToDoor, ctx, RouteToDoor); decision != nil {
+		// GeoIP rules route to SOCKS if matched
+		if decision := checkRuleSet(&config.ToSocks, ctx, RouteToSocks); decision != nil {
 			logger.Debug(fmt.Sprintf("GeoIP rule matched for IP %s", ctx.IP))
 			return *decision, nil
 		}
