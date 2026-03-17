@@ -1,6 +1,7 @@
 package http
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"io/fs"
@@ -9,6 +10,8 @@ import (
 	"net/http"
 	"path/filepath"
 	"strings"
+	"sync"
+	"time"
 
 	"nursor.org/nursorgate/app"
 	"nursor.org/nursorgate/app/http/middleware"
@@ -19,10 +22,27 @@ import (
 var (
 	// mux is the custom request multiplexer for applying middleware
 	mux *http.ServeMux
+
+	// server is the HTTP server instance
+	server *http.Server
+
+	// serverMutex protects server state
+	serverMutex sync.Mutex
+
+	// isRunning indicates if server is currently running
+	isRunning bool
 )
 
 // StartHttpServer 启动HTTP服务器，注册所有路由
 func StartHttpServer() {
+	serverMutex.Lock()
+	defer serverMutex.Unlock()
+
+	if isRunning {
+		logger.Info("HTTP server is already running")
+		return
+	}
+
 	// 定义 HTTP 服务端口
 	port := "127.0.0.1:56431"
 
@@ -57,14 +77,18 @@ func StartHttpServer() {
 			}
 		}
 
-		err = http.Serve(listener, wrappedMux)
-		if err != nil {
+		// Create HTTP server
+		server = &http.Server{
+			Handler: wrappedMux,
+		}
+
+		isRunning = true
+
+		err = server.Serve(listener)
+		if err != nil && err != http.ErrServerClosed {
 			log.Fatalf("HTTP server failed: %v", err)
 		}
 	}()
-
-	// 保持主线程运行
-	select {}
 }
 
 // registerAllRoutes 注册所有HTTP路由
@@ -194,6 +218,42 @@ func registerStaticFiles() {
 	})
 
 	logger.Info("Static file server registered using embedded website files")
+}
+
+// setContentType 根据文件扩展名设置 Content-Type
+// StopHttpServer gracefully stops the HTTP server
+func StopHttpServer() error {
+	serverMutex.Lock()
+	defer serverMutex.Unlock()
+
+	if !isRunning || server == nil {
+		logger.Info("HTTP server is not running")
+		return nil
+	}
+
+	logger.Info("Stopping HTTP server...")
+
+	// Create shutdown context with timeout
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Gracefully shutdown
+	if err := server.Shutdown(ctx); err != nil {
+		logger.Error(fmt.Sprintf("HTTP server shutdown error: %v", err))
+		return err
+	}
+
+	isRunning = false
+	server = nil
+	logger.Info("HTTP server stopped successfully")
+	return nil
+}
+
+// IsServerRunning returns whether the HTTP server is currently running
+func IsServerRunning() bool {
+	serverMutex.Lock()
+	defer serverMutex.Unlock()
+	return isRunning
 }
 
 // setContentType 根据文件扩展名设置 Content-Type
