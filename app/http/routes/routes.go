@@ -8,7 +8,7 @@ import (
 	"nursor.org/nursorgate/app/http/repositories"
 	"nursor.org/nursorgate/app/http/services"
 	"nursor.org/nursorgate/common/logger"
-	"nursor.org/nursorgate/processor/stats"
+	"nursor.org/nursorgate/processor/statistic"
 )
 
 // Handlers holds all HTTP handler instances
@@ -28,7 +28,7 @@ type Handlers struct {
 	TrafficStats  *handlers.TrafficStatsHandler
 
 	// Keep reference to stats collector for lifecycle management
-	statsCollector *stats.StatsCollector
+	statsCollector *statistic.StatsCollector
 }
 
 // NewHandlers creates and initializes all handlers with their dependencies
@@ -44,7 +44,7 @@ func NewHandlers() *Handlers {
 	proxyRepository := repositories.NewProxyRepository()
 
 	// Initialize stats collector
-	statsCollector := stats.NewStatsCollector()
+	statsCollector := statistic.NewStatsCollector()
 
 	// Create handlers with dependency injection
 	return &Handlers{

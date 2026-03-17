@@ -1,21 +1,20 @@
-package stats
+package statistic
 
 import (
 	"sync"
 	"time"
 
 	"nursor.org/nursorgate/common/logger"
-	"nursor.org/nursorgate/processor/statistic"
 )
 
 // StatsCollector 流量统计收集器
-// 定期从statistic.DefaultManager收集流量数据并存储到多个时间维度的缓存中
+// 定期从Manager收集流量数据并存储到多个时间维度的缓存中
 type StatsCollector struct {
 	cache1s  *RingBuffer
 	cache5s  *RingBuffer
 	cache15s *RingBuffer
 
-	statManager *statistic.Manager
+	statManager *Manager
 	mu          sync.RWMutex
 	stopChan    chan struct{}
 	started     bool
@@ -31,7 +30,7 @@ func NewStatsCollector() *StatsCollector {
 		cache1s:     NewRingBuffer(300),
 		cache5s:     NewRingBuffer(300),
 		cache15s:    NewRingBuffer(300),
-		statManager: statistic.DefaultManager,
+		statManager: DefaultManager,
 		stopChan:    make(chan struct{}),
 		started:     false,
 		count5s:     0,

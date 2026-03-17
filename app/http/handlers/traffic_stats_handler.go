@@ -6,16 +6,16 @@ import (
 	"strings"
 
 	"nursor.org/nursorgate/app/http/common"
-	"nursor.org/nursorgate/processor/stats"
+	"nursor.org/nursorgate/processor/statistic"
 )
 
 // TrafficStatsHandler 流量统计API处理器
 type TrafficStatsHandler struct {
-	collector *stats.StatsCollector
+	collector *statistic.StatsCollector
 }
 
 // NewTrafficStatsHandler 创建新的流量统计处理器实例
-func NewTrafficStatsHandler(collector *stats.StatsCollector) *TrafficStatsHandler {
+func NewTrafficStatsHandler(collector *statistic.StatsCollector) *TrafficStatsHandler {
 	return &TrafficStatsHandler{
 		collector: collector,
 	}
@@ -37,7 +37,7 @@ func (h *TrafficStatsHandler) HandleGetStats(w http.ResponseWriter, r *http.Requ
 	}
 
 	timescaleStr := pathParts[0]
-	timescale := stats.Timescale(timescaleStr)
+	timescale := statistic.Timescale(timescaleStr)
 
 	// 验证timescale参数
 	if !timescale.IsValid() {

@@ -10,7 +10,7 @@ import (
 	"nursor.org/nursorgate/common/logger"
 	"nursor.org/nursorgate/outbound"
 	"nursor.org/nursorgate/processor/config"
-	"nursor.org/nursorgate/processor/proxyserver"
+	"nursor.org/nursorgate/processor/dns"
 )
 
 // Embed the default configuration
@@ -101,7 +101,7 @@ func ApplyConfig(cfg *Config) error {
 	registry := outbound.GetRegistry()
 	primaryProxy, _ := registry.Get("socks")
 	directProxy, _ := registry.Get("direct")
-	if err := proxyserver.InitGlobalResolver(primaryProxy, directProxy, cfg); err != nil {
+	if err := dns.InitGlobalResolver(primaryProxy, directProxy, cfg); err != nil {
 		logger.Warn(fmt.Sprintf("Phase 4 - Failed to initialize DNS resolver: %v", err))
 	} else {
 		logger.Debug("Phase 4: Global DNS resolver initialized")

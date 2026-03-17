@@ -1,4 +1,4 @@
-package stats
+package statistic
 
 import "time"
 
