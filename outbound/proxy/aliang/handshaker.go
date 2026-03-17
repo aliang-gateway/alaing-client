@@ -1,4 +1,4 @@
-package nonelane
+package aliang
 
 import (
 	"context"
@@ -10,22 +10,22 @@ import (
 	"nursor.org/nursorgate/processor/cert/server"
 )
 
-// NoneLaneServerConnector establishes mTLS connections to the cursor server
+// AliangServerConnector establishes mTLS connections to the cursor server
 // Uses hardcoded client certificates embedded in processor/cert/server
-type NoneLaneServerConnector struct {
-	config *NoneLaneConfig
+type AliangServerConnector struct {
+	config *AliangConfig
 }
 
-// NewCursorServerConnector creates a new cursor server connector
-func NewCursorServerConnector(config *NoneLaneConfig) *NoneLaneServerConnector {
-	return &NoneLaneServerConnector{
+// NewAliangServerConnector creates a new cursor server connector
+func NewAliangServerConnector(config *AliangConfig) *AliangServerConnector {
+	return &AliangServerConnector{
 		config: config,
 	}
 }
 
 // Dial establishes a mTLS connection to the cursor server
 // Uses hardcoded client certificates for authentication
-func (csc *NoneLaneServerConnector) Dial(ctx context.Context, network, address string) (net.Conn, error) {
+func (csc *AliangServerConnector) Dial(ctx context.Context, network, address string) (net.Conn, error) {
 	logger.Debug("[cursor_h2] Starting mTLS handshake with", address)
 
 	// Get the outbound certificate (uses hardcoded embedded certs from processor/cert/server)

@@ -226,7 +226,7 @@ func (h *TCPConnectionHandler) handleTLS(
 		// Store route decision in metadata for caching
 		metadata.Route = "RouteToCursor"
 
-		// MITM proxy route (Cursor/Nonelane)
+		// MITM proxy route (Cursor/Aliang)
 		// Extract SNI for MITM if we have it
 		mitmedSNI := sni
 		if cacheHit && sni == "" {
@@ -239,13 +239,13 @@ func (h *TCPConnectionHandler) handleTLS(
 			return nil, nil, err
 		}
 
-		// Connect through Nonelane proxy
-		nonelaneProxy, err := outbound.GetRegistry().GetNonelane()
+		// Connect through Aliang proxy
+		aliangProxy, err := outbound.GetRegistry().GetAliang()
 		if err != nil {
 			return nil, nil, err
 		}
 
-		remote, err := nonelaneProxy.DialContext(ctx, metadata)
+		remote, err := aliangProxy.DialContext(ctx, metadata)
 		if err != nil {
 			return nil, nil, err
 		}

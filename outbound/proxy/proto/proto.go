@@ -12,7 +12,7 @@ const (
 	//Relay
 	HY2
 	VLESS
-	Nonelane
+	Aliang
 	ShadowTLS
 	Socks5
 )
@@ -33,8 +33,8 @@ func (proto Proto) String() string {
 		return "hy2"
 	case VLESS:
 		return "vless"
-	case Nonelane:
-		return "nonelane"
+	case Aliang:
+		return "aliang"
 	case ShadowTLS:
 		return "shadowtls"
 	case Socks5:

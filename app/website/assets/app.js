@@ -76,8 +76,332 @@ const chartDataManager = {
     }
 };
 
+const dashboardRequestLog = {
+    maxItems: 50,
+    entries: []
+};
+
+const chatStore = {
+    storageKey: 'alianggate-chat-history',
+    maxItems: 200,
+    entries: []
+};
+
+const domainCategoryMap = {
+    cursor: ['cursor.sh', 'api2.cursor.sh', 'cursor.com'],
+    openai: ['openai.com', 'api.openai.com'],
+    claude: ['anthropic.com', 'claude.ai'],
+    chatgpt: ['chatgpt.com'],
+    copilot: ['githubcopilot.com', 'copilot.microsoft.com']
+};
+
+let activeDomainFilter = 'all';
+
 // 全局图表实例
 let charts = {};
+
+function classifyDomainCategory(domain) {
+    const normalized = String(domain || '').toLowerCase();
+    for (const [category, patterns] of Object.entries(domainCategoryMap)) {
+        if (patterns.some(pattern => normalized.includes(pattern))) {
+            return category;
+        }
+    }
+    return null;
+}
+
+function updateDomainPieChartByLogs() {
+    if (!charts.domainPie) {
+        return;
+    }
+
+    const nameMap = {
+        cursor: 'Cursor',
+        openai: 'OpenAI',
+        claude: 'Claude',
+        chatgpt: 'ChatGPT',
+        copilot: 'Copilot'
+    };
+
+    const bucket = {
+        cursor: 0,
+        openai: 0,
+        claude: 0,
+        chatgpt: 0,
+        copilot: 0
+    };
+
+    dashboardRequestLog.entries.forEach(item => {
+        const category = classifyDomainCategory(item.domain);
+        if (!category) {
+            return;
+        }
+
+        if (activeDomainFilter !== 'all' && activeDomainFilter !== category) {
+            return;
+        }
+
+        bucket[category] += Number(item.bytes || 0);
+    });
+
+    const labels = [];
+    const values = [];
+
+    Object.entries(bucket).forEach(([key, value]) => {
+        if (value > 0) {
+            labels.push(nameMap[key]);
+            values.push(value);
+        }
+    });
+
+    charts.domainPie.data.labels = labels.length > 0 ? labels : ['暂无数据'];
+    charts.domainPie.data.datasets[0].data = values.length > 0 ? values : [1];
+    charts.domainPie.update('none');
+}
+
+function deriveLogDomain(entry) {
+    const candidates = [entry?.domain, entry?.host, entry?.server_name, entry?.target];
+    const firstCandidate = candidates.find(v => typeof v === 'string' && v.trim() !== '');
+    if (firstCandidate) {
+        return firstCandidate;
+    }
+
+    const message = String(entry?.message || '');
+    const match = message.match(/([a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}/);
+    return match ? match[0] : 'unknown';
+}
+
+function deriveLogPath(entry) {
+    const candidates = [entry?.path, entry?.uri, entry?.url];
+    const firstCandidate = candidates.find(v => typeof v === 'string' && v.trim() !== '');
+    return firstCandidate || '/';
+}
+
+function deriveLogMethod(entry) {
+    const method = typeof entry?.method === 'string' ? entry.method.toUpperCase() : '';
+    if (method) {
+        return method;
+    }
+
+    const message = String(entry?.message || '');
+    const match = message.match(/\b(GET|POST|PUT|PATCH|DELETE|OPTIONS|HEAD)\b/i);
+    return match ? match[1].toUpperCase() : 'LOG';
+}
+
+function appendDashboardRequestLog(entry) {
+    const listEl = document.getElementById('requestLogList');
+    const countEl = document.getElementById('logCount');
+    if (!listEl) {
+        return;
+    }
+
+    const timestamp = entry?.timestamp || new Date().toLocaleTimeString();
+    const level = (entry?.level || 'INFO').toUpperCase();
+    const domain = deriveLogDomain(entry);
+    const method = deriveLogMethod(entry);
+    const path = deriveLogPath(entry);
+    const source = entry?.source || '-';
+    const message = entry?.message || '';
+    const bytes = Number(entry?.bytes || entry?.size || 0);
+
+    dashboardRequestLog.entries.unshift({ timestamp, level, domain, method, path, source, message, bytes });
+    if (dashboardRequestLog.entries.length > dashboardRequestLog.maxItems) {
+        dashboardRequestLog.entries = dashboardRequestLog.entries.slice(0, dashboardRequestLog.maxItems);
+    }
+
+    const fragment = document.createDocumentFragment();
+    dashboardRequestLog.entries.forEach((item, index) => {
+        const detailsId = `reqLogDetail-${index}`;
+        const row = document.createElement('button');
+        row.type = 'button';
+        row.className = 'log-item';
+        row.setAttribute('aria-expanded', 'false');
+        row.innerHTML = `
+            <span class="log-time">${item.timestamp}</span>
+            <span class="log-domain">${item.domain}</span>
+            <span class="log-status">${item.method}</span>
+            <div class="log-detail" id="${detailsId}" hidden>
+                <div><strong>路径:</strong> <code>${item.path}</code></div>
+                <div><strong>级别:</strong> ${item.level}</div>
+                <div><strong>来源:</strong> ${item.source}</div>
+                <div><strong>流量:</strong> ${formatBytes(item.bytes || 0)}</div>
+                <div><strong>消息:</strong> ${item.message}</div>
+            </div>
+        `;
+
+        row.addEventListener('click', () => {
+            const detail = row.querySelector('.log-detail');
+            const expanded = row.getAttribute('aria-expanded') === 'true';
+            row.setAttribute('aria-expanded', expanded ? 'false' : 'true');
+            if (detail) {
+                detail.hidden = expanded;
+            }
+        });
+
+        fragment.appendChild(row);
+    });
+
+    listEl.innerHTML = '';
+    listEl.appendChild(fragment);
+    listEl.scrollTop = 0;
+
+    if (countEl) {
+        countEl.textContent = `${dashboardRequestLog.entries.length} 条记录`;
+    }
+
+    updateDomainPieChartByLogs();
+}
+
+function loadChatHistory() {
+    try {
+        const saved = window.localStorage.getItem(chatStore.storageKey);
+        const parsed = saved ? JSON.parse(saved) : [];
+        chatStore.entries = Array.isArray(parsed) ? parsed.slice(0, chatStore.maxItems) : [];
+    } catch (error) {
+        chatStore.entries = [];
+    }
+}
+
+function persistChatHistory() {
+    try {
+        window.localStorage.setItem(chatStore.storageKey, JSON.stringify(chatStore.entries.slice(0, chatStore.maxItems)));
+    } catch (error) {
+        console.warn('Persist chat history failed:', error);
+    }
+}
+
+function renderChatMessages(filterKeyword = '') {
+    const container = document.getElementById('chatMessages');
+    if (!container) {
+        return;
+    }
+
+    const keyword = String(filterKeyword || '').trim().toLowerCase();
+    const list = keyword
+        ? chatStore.entries.filter(item => (item.text || '').toLowerCase().includes(keyword))
+        : chatStore.entries;
+
+    if (list.length === 0) {
+        container.innerHTML = `
+            <div class="chat-welcome">
+                <i class="bi bi-robot"></i>
+                <p>${keyword ? '没有匹配的历史记录' : '所有对话数据都存储在本地'}</p>
+            </div>
+        `;
+        return;
+    }
+
+    container.innerHTML = list.map(item => `
+        <div class="chat-message ${item.role === 'user' ? 'user' : 'assistant'}">
+            <div class="chat-message-meta">${item.role === 'user' ? '我' : '助手'} · ${item.time}</div>
+            <div class="chat-message-text">${item.text}</div>
+        </div>
+    `).join('');
+
+    container.scrollTop = container.scrollHeight;
+}
+
+function addChatMessage(role, text) {
+    const safeText = String(text || '').trim();
+    if (!safeText) {
+        return;
+    }
+    const item = {
+        role,
+        text: safeText,
+        time: new Date().toLocaleString()
+    };
+    chatStore.entries.push(item);
+    if (chatStore.entries.length > chatStore.maxItems) {
+        chatStore.entries = chatStore.entries.slice(chatStore.entries.length - chatStore.maxItems);
+    }
+    persistChatHistory();
+    renderChatMessages();
+}
+
+function initDomainFilterControls() {
+    const filterButtons = document.querySelectorAll('[data-domain-filter]');
+    if (filterButtons.length === 0) {
+        return;
+    }
+
+    filterButtons.forEach(btn => {
+        btn.addEventListener('click', () => {
+            const value = btn.getAttribute('data-domain-filter') || 'all';
+            activeDomainFilter = value;
+            filterButtons.forEach(node => {
+                if (node === btn) {
+                    node.classList.add('active');
+                } else {
+                    node.classList.remove('active');
+                }
+            });
+            updateDomainPieChartByLogs();
+        });
+    });
+}
+
+function initQuickChat() {
+    const quickChatBtn = document.getElementById('quickChatBtn');
+    const chatModalEl = document.getElementById('chatModal');
+    const chatInput = document.getElementById('chatInput');
+    const chatSendBtn = document.getElementById('chatSendBtn');
+    const chatSearchInput = document.getElementById('chatSearchInput');
+    const chatClearHistoryBtn = document.getElementById('chatClearHistoryBtn');
+
+    if (!chatModalEl || !chatInput || !chatSendBtn) {
+        return;
+    }
+
+    loadChatHistory();
+    renderChatMessages();
+
+    let modalInstance = null;
+    if (window.bootstrap && window.bootstrap.Modal) {
+        modalInstance = window.bootstrap.Modal.getOrCreateInstance(chatModalEl);
+    }
+
+    if (quickChatBtn) {
+        quickChatBtn.addEventListener('click', () => {
+            if (modalInstance) {
+                modalInstance.show();
+            }
+            renderChatMessages(chatSearchInput ? chatSearchInput.value : '');
+        });
+    }
+
+    const send = () => {
+        const text = chatInput.value.trim();
+        if (!text) {
+            return;
+        }
+        addChatMessage('user', text);
+        addChatMessage('assistant', `已保存到本地：${text}`);
+        chatInput.value = '';
+    };
+
+    chatSendBtn.addEventListener('click', send);
+    chatInput.addEventListener('keydown', event => {
+        if (event.key === 'Enter') {
+            event.preventDefault();
+            send();
+        }
+    });
+
+    if (chatSearchInput) {
+        chatSearchInput.addEventListener('input', () => {
+            renderChatMessages(chatSearchInput.value);
+        });
+    }
+
+    if (chatClearHistoryBtn) {
+        chatClearHistoryBtn.addEventListener('click', () => {
+            chatStore.entries = [];
+            persistChatHistory();
+            renderChatMessages(chatSearchInput ? chatSearchInput.value : '');
+        });
+    }
+}
 
 const API_BASE = 'http://127.0.0.1:56431/api';
 
@@ -888,11 +1212,11 @@ document.getElementById('runModeBtn').addEventListener('click', () => {
     const btn = event.target.closest('button');
     const currentMode = document.querySelector('input[name="runMode"]:checked').value;
 
-    var mode=currentMode;
-    if (currentMode=="http"){
-        mode="tun"
-    }else{
-        mode="http"
+    var mode = currentMode;
+    if (currentMode === "http") {
+        mode = "tun";
+    } else {
+        mode = "http";
     }
     // 显示模态加载框（替换原来的 showLoading）
     showModalLoading(`正在切换到 ${mode} 模式，请稍候...`);
@@ -1281,7 +1605,7 @@ function validateRule(type, condition) {
             }
             break;
 
-        case 'ip':
+        case 'ip': {
             // CIDR格式：192.168.0.0/16
             const cidrRegex = /^(\d{1,3}\.){3}\d{1,3}\/\d{1,2}$/;
             if (!cidrRegex.test(trimmed)) {
@@ -1290,14 +1614,15 @@ function validateRule(type, condition) {
             // 验证IP范围
             const parts = trimmed.split('/');
             const ipParts = parts[0].split('.');
-            if (ipParts.some(p => parseInt(p) > 255)) {
+            if (ipParts.some(p => parseInt(p, 10) > 255)) {
                 return 'IP地址范围无效';
             }
-            const prefix = parseInt(parts[1]);
+            const prefix = parseInt(parts[1], 10);
             if (prefix < 0 || prefix > 32) {
                 return '子网掩码范围无效（0-32）';
             }
             break;
+        }
 
         case 'geoip':
             // 国家代码：2位大写字母
@@ -1654,6 +1979,7 @@ const logWebSocket = {
         try {
             const logEntry = JSON.parse(event.data);
             this.appendLogToOutput(logEntry);
+            appendDashboardRequestLog(logEntry);
         } catch (error) {
             console.error('解析日志消息失败:', error);
         }
@@ -2154,6 +2480,40 @@ function initChart() {
             }
         });
     }
+
+    if (document.getElementById('domainPieChart')) {
+        if (charts.domainPie && typeof charts.domainPie.destroy === 'function') {
+            charts.domainPie.destroy();
+            charts.domainPie = null;
+        }
+
+        const pieCtx = document.getElementById('domainPieChart').getContext('2d');
+        charts.domainPie = new Chart(pieCtx, {
+            type: 'pie',
+            data: {
+                labels: ['暂无数据'],
+                datasets: [{
+                    data: [1],
+                    backgroundColor: ['rgba(52, 211, 153, 0.72)', 'rgba(22, 163, 74, 0.72)', 'rgba(132, 204, 22, 0.72)', 'rgba(16, 185, 129, 0.72)'],
+                    borderColor: 'rgba(5, 20, 12, 0.88)',
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'bottom',
+                        labels: {
+                            color: '#d8fbe8',
+                            boxWidth: 10
+                        }
+                    }
+                }
+            }
+        });
+    }
 }
 
 // 更新图表数据
@@ -2208,6 +2568,7 @@ async function loadStatsData() {
 
         // 更新代理分布表格
         renderStatsTable(response.byRoute);
+        updateDomainPieChartByLogs();
 
         // 更新图表数据
         updateChartData(response);
@@ -2612,6 +2973,7 @@ async function loadAuthUserInfo() {
 // 显示用户信息
 function displayUserInfo(userInfo) {
     const container = document.getElementById('authUserInfoContainer');
+    const balanceEl = document.getElementById('userBalance');
     const trafficPercent = userInfo.traffic_total > 0
         ? Math.round((userInfo.traffic_used / userInfo.traffic_total) * 100)
         : 0;
@@ -2674,11 +3036,17 @@ function displayUserInfo(userInfo) {
 
     // 显示刷新状态卡片
     document.getElementById('authRefreshStatusCard').style.display = 'block';
+
+    if (balanceEl) {
+        const balance = Number(userInfo.balance || userInfo.amount || 0);
+        balanceEl.textContent = `${balance.toFixed(2)} CNY`;
+    }
 }
 
 // 显示无用户信息
 function displayNoUserInfo() {
     const container = document.getElementById('authUserInfoContainer');
+    const balanceEl = document.getElementById('userBalance');
     container.innerHTML = `
         <div class="text-center text-muted py-4">
             <p>暂无用户信息，请先激活 Token</p>
@@ -2690,6 +3058,10 @@ function displayNoUserInfo() {
 
     // 隐藏刷新状态卡片
     document.getElementById('authRefreshStatusCard').style.display = 'none';
+
+    if (balanceEl) {
+        balanceEl.textContent = '--';
+    }
 }
 
 // 加载刷新状态
@@ -2925,7 +3297,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // 更新证书状态显示
     function updateCertStatusDisplay(certStatus) {
-        const container = document.getElementById('cert-status-container');
+        const container = document.getElementById('cert-status-content') || document.getElementById('cert-status-container');
         if (!certStatus || !certStatus.cert_type) {
             container.innerHTML = '<div class="alert alert-warning">暂无证书信息</div>';
             return;
@@ -3045,6 +3417,9 @@ document.addEventListener('DOMContentLoaded', () => {
         // 初始启动轮询
         certStatusPolling = setInterval(loadCertStatus, 10000);
     }
+
+    initQuickChat();
+    initDomainFilterControls();
 });
 
 // ============ P3: Real-time Traffic Statistics ============
@@ -3213,4 +3588,89 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     });
+});
+
+// ============ 仪表板/设置页切换（新UI） ============
+document.addEventListener('DOMContentLoaded', () => {
+    const dashboardPage = document.getElementById('dashboard-page');
+    const settingsPage = document.getElementById('settings-page');
+    const goToSettingsBtn = document.getElementById('goToSettingsBtn');
+    const backToDashboard = document.getElementById('backToDashboard');
+
+    const settingsTabs = document.querySelectorAll('.settings-tab');
+    const settingsContents = document.querySelectorAll('.settings-content');
+
+    const showSettingsPage = () => {
+        if (!dashboardPage || !settingsPage) {
+            return;
+        }
+        dashboardPage.classList.remove('active');
+        settingsPage.classList.add('active');
+    };
+
+    const showDashboardPage = () => {
+        if (!dashboardPage || !settingsPage) {
+            return;
+        }
+        settingsPage.classList.remove('active');
+        dashboardPage.classList.add('active');
+    };
+
+    if (goToSettingsBtn) {
+        goToSettingsBtn.addEventListener('click', showSettingsPage);
+    }
+
+    if (backToDashboard) {
+        backToDashboard.addEventListener('click', showDashboardPage);
+    }
+
+    if (settingsTabs.length > 0 && settingsContents.length > 0) {
+        settingsTabs.forEach(tab => {
+            tab.addEventListener('click', () => {
+                const targetTab = tab.getAttribute('data-tab');
+                if (!targetTab) {
+                    return;
+                }
+
+                settingsTabs.forEach(btn => {
+                    btn.classList.remove('active');
+                });
+                tab.classList.add('active');
+
+                settingsContents.forEach(content => {
+                    if (content.id === `${targetTab}-tab`) {
+                        content.classList.add('active');
+                    } else {
+                        content.classList.remove('active');
+                    }
+                });
+            });
+        });
+    }
+
+    const dashboardCheckBtn = document.getElementById('dashBtnCheckCert');
+    if (dashboardCheckBtn) {
+        dashboardCheckBtn.addEventListener('click', () => {
+            showSettingsPage();
+            const tab = document.querySelector('.settings-tab[data-tab="system"]');
+            if (tab instanceof HTMLElement) {
+                tab.click();
+            }
+        });
+    }
+
+    const dashboardInstallBtn = document.getElementById('dashBtnInstallCert');
+    if (dashboardInstallBtn) {
+        dashboardInstallBtn.addEventListener('click', () => {
+            showSettingsPage();
+            const tab = document.querySelector('.settings-tab[data-tab="system"]');
+            if (tab instanceof HTMLElement) {
+                tab.click();
+            }
+            const installBtn = document.getElementById('btn-install-cert');
+            if (installBtn instanceof HTMLElement) {
+                installBtn.click();
+            }
+        });
+    }
 });

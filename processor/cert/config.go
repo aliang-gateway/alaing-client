@@ -22,8 +22,8 @@ const (
 
 // MitmCAConfig is the configuration for MITM CA certificate
 var MitmCAConfig = CertConfig{
-	CN:               "nonelane",
-	Issuer:           "nonelane.com",
+	CN:               "aliang",
+	Issuer:           "aliang.com",
 	Country:          "US",
 	Organization:     "Subtraffic Inc",
 	OrganizationUnit: "Security",
@@ -35,8 +35,8 @@ var MitmCAConfig = CertConfig{
 
 // RootCAConfig is the configuration for Root CA certificate
 var RootCAConfig = CertConfig{
-	CN:               "nonelane",
-	Issuer:           "nonelane.com",
+	CN:               "aliang",
+	Issuer:           "aliang.com",
 	Country:          "US",
 	Organization:     "Subtraffic Inc",
 	OrganizationUnit: "Security",
@@ -48,8 +48,8 @@ var RootCAConfig = CertConfig{
 
 // MtlsClientConfig is the configuration for mTLS Client certificate
 var MtlsClientConfig = CertConfig{
-	CN:               "nonelane",
-	Issuer:           "nonelane.com",
+	CN:               "aliang",
+	Issuer:           "aliang.com",
 	Country:          "US",
 	Organization:     "Subtraffic Inc",
 	OrganizationUnit: "Security",

@@ -121,7 +121,7 @@ func (rh *RulesHandler) HandleGetRuleEngineStatus(w http.ResponseWriter, r *http
 	status := map[string]interface{}{
 		"engineEnabled":    engine != nil && engine.IsEnabled(),
 		"geoipEnabled":     geoipService != nil && geoipService.IsEnabled(),
-		"noneLaneEnabled":  switchStatus.NoneLaneEnabled,
+		"aliangEnabled":    switchStatus.AliangEnabled,
 		"socksEnabled":     switchStatus.SocksEnabled,
 		"geoipRuleEnabled": switchStatus.GeoIPEnabled,
 	}
@@ -175,14 +175,14 @@ func (rh *RulesHandler) HandleGetGlobalSwitchStatus(w http.ResponseWriter, r *ht
 	status := switchMgr.GetStatus()
 
 	common.Success(w, map[string]interface{}{
-		"noneLaneEnabled": status.NoneLaneEnabled,
-		"socksEnabled":    status.SocksEnabled,
-		"geoipEnabled":    status.GeoIPEnabled,
+		"aliangEnabled": status.AliangEnabled,
+		"socksEnabled":  status.SocksEnabled,
+		"geoipEnabled":  status.GeoIPEnabled,
 	})
 }
 
 // T041: HandleSetGlobalSwitch handles POST /api/rules/switches/{switch_name}
-// Controls individual global switches (nonelane, socks, geoip)
+// Controls individual global switches (aliang, socks, geoip)
 func (rh *RulesHandler) HandleSetGlobalSwitch(w http.ResponseWriter, r *http.Request) {
 	switchMgr := routing.GetSwitchManager()
 
@@ -204,7 +204,7 @@ func (rh *RulesHandler) HandleSetGlobalSwitch(w http.ResponseWriter, r *http.Req
 	if switchName == "" {
 		// Try to get it from path
 		pathParts := r.URL.Path
-		// Simple parsing: /api/rules/switches/nonelane -> nonelane
+		// Simple parsing: /api/rules/switches/aliang -> aliang
 		if len(pathParts) > 0 {
 			parts := strings.Split(pathParts, "/")
 			if len(parts) > 0 {
@@ -214,10 +214,10 @@ func (rh *RulesHandler) HandleSetGlobalSwitch(w http.ResponseWriter, r *http.Req
 	}
 
 	switch switchName {
-	case "nonelane":
-		switchMgr.SetNoneLaneEnabled(req.Enabled)
+	case "aliang":
+		switchMgr.SetAliangEnabled(req.Enabled)
 		common.Success(w, map[string]interface{}{
-			"switch":  "nonelane",
+			"switch":  "aliang",
 			"enabled": req.Enabled,
 			"status":  "success",
 		})
@@ -239,7 +239,7 @@ func (rh *RulesHandler) HandleSetGlobalSwitch(w http.ResponseWriter, r *http.Req
 		})
 
 	default:
-		common.ErrorBadRequest(w, "Invalid switch name. Must be one of: nonelane, socks, geoip", map[string]interface{}{
+		common.ErrorBadRequest(w, "Invalid switch name. Must be one of: aliang, socks, geoip", map[string]interface{}{
 			"provided": switchName,
 		})
 	}
@@ -252,9 +252,9 @@ func (rh *RulesHandler) HandleBulkSwitchControl(w http.ResponseWriter, r *http.R
 
 	// Parse request body
 	var req struct {
-		NoneLaneEnabled *bool `json:"nonelane_enabled"`
-		SocksEnabled    *bool `json:"socks_enabled"`
-		GeoIPEnabled    *bool `json:"geoip_enabled"`
+		AliangEnabled *bool `json:"aliang_enabled"`
+		SocksEnabled  *bool `json:"socks_enabled"`
+		GeoIPEnabled  *bool `json:"geoip_enabled"`
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -265,8 +265,8 @@ func (rh *RulesHandler) HandleBulkSwitchControl(w http.ResponseWriter, r *http.R
 	}
 
 	// Apply changes
-	if req.NoneLaneEnabled != nil {
-		switchMgr.SetNoneLaneEnabled(*req.NoneLaneEnabled)
+	if req.AliangEnabled != nil {
+		switchMgr.SetAliangEnabled(*req.AliangEnabled)
 	}
 	if req.SocksEnabled != nil {
 		switchMgr.SetSocksEnabled(*req.SocksEnabled)
@@ -278,10 +278,10 @@ func (rh *RulesHandler) HandleBulkSwitchControl(w http.ResponseWriter, r *http.R
 	// Return updated status
 	status := switchMgr.GetStatus()
 	common.Success(w, map[string]interface{}{
-		"status":          "success",
-		"noneLaneEnabled": status.NoneLaneEnabled,
-		"socksEnabled":    status.SocksEnabled,
-		"geoipEnabled":    status.GeoIPEnabled,
+		"status":        "success",
+		"aliangEnabled": status.AliangEnabled,
+		"socksEnabled":  status.SocksEnabled,
+		"geoipEnabled":  status.GeoIPEnabled,
 	})
 }
 

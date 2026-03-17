@@ -24,22 +24,22 @@ func TestGetCertConfig(t *testing.T) {
 			name:         "MITM CA Config",
 			certType:     CertTypeMitmCA,
 			expectNil:    false,
-			expectCN:     "nonelane",
-			expectIssuer: "nonelane.com",
+			expectCN:     "aliang",
+			expectIssuer: "aliang.com",
 		},
 		{
 			name:         "Root CA Config",
 			certType:     CertTypeRootCA,
 			expectNil:    false,
-			expectCN:     "nonelane",
-			expectIssuer: "nonelane.com",
+			expectCN:     "aliang",
+			expectIssuer: "aliang.com",
 		},
 		{
 			name:         "mTLS Client Config",
 			certType:     CertTypeMtlsClient,
 			expectNil:    false,
-			expectCN:     "nonelane",
-			expectIssuer: "nonelane.com",
+			expectCN:     "aliang",
+			expectIssuer: "aliang.com",
 		},
 		{
 			name:      "Unknown Config",
@@ -194,8 +194,8 @@ func createTestCertificate(cn string) []byte {
 	})
 }
 
-// TestCertConfigNonelaneNaming tests that "nonelane" is used consistently in configs
-func TestCertConfigNonelaneNaming(t *testing.T) {
+// TestCertConfigAliangNaming tests that "aliang" is used consistently in configs
+func TestCertConfigAliangNaming(t *testing.T) {
 	configs := []*CertConfig{
 		&MitmCAConfig,
 		&RootCAConfig,
@@ -203,11 +203,11 @@ func TestCertConfigNonelaneNaming(t *testing.T) {
 	}
 
 	for _, config := range configs {
-		if config.CN != "nonelane" {
-			t.Errorf("Expected CN 'nonelane' in %s, got '%s'", config.CertType, config.CN)
+		if config.CN != "aliang" {
+			t.Errorf("Expected CN 'aliang' in %s, got '%s'", config.CertType, config.CN)
 		}
-		if config.Issuer != "nonelane.com" {
-			t.Errorf("Expected Issuer 'nonelane.com' in %s, got '%s'", config.CertType, config.Issuer)
+		if config.Issuer != "aliang.com" {
+			t.Errorf("Expected Issuer 'aliang.com' in %s, got '%s'", config.CertType, config.Issuer)
 		}
 	}
 }

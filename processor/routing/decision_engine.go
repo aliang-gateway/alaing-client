@@ -12,9 +12,9 @@ import (
 type RouteDecision string
 
 const (
-	RouteToNoneLane RouteDecision = "nonelane"
-	RouteToSocks    RouteDecision = "socks"
-	RouteDirect     RouteDecision = "direct"
+	RouteToAliang RouteDecision = "aliang"
+	RouteToSocks  RouteDecision = "socks"
+	RouteDirect   RouteDecision = "direct"
 )
 
 // T029: Matching context for route decision
@@ -27,7 +27,7 @@ type MatchContext struct {
 
 // T032-T033: DecideRoute determines which proxy to use based on rules and priority
 // Priority order:
-// 1. NoneLane rules (highest) - if enabled
+// 1. Aliang rules (highest) - if enabled
 // 2. SOCKS rules (to_socks) - if enabled
 // 3. GeoIP rules - if enabled
 // 4. Direct (lowest) - default fallback
@@ -46,10 +46,10 @@ func DecideRoute(config *model.RoutingRulesConfig, ctx *MatchContext) (RouteDeci
 
 	// T033: Check global switches and apply priority-based routing
 
-	// Priority 1: NoneLane rules (highest priority)
-	if settings.NoneLaneEnabled {
-		if decision := checkRuleSet(&config.NoneLane, ctx, RouteToNoneLane); decision != nil {
-			logger.Debug(fmt.Sprintf("NoneLane rule matched for domain %s", ctx.Domain))
+	// Priority 1: Aliang rules (highest priority)
+	if settings.AliangEnabled {
+		if decision := checkRuleSet(&config.Aliang, ctx, RouteToAliang); decision != nil {
+			logger.Debug(fmt.Sprintf("Aliang rule matched for domain %s", ctx.Domain))
 			return *decision, nil
 		}
 	}

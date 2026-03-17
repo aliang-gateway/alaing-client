@@ -47,7 +47,7 @@ func onReady() {
 
 	// Set tray icon (inactive state initially)
 	systray.SetIcon(GetIconDisabled())
-	systray.SetTooltip("Nonelane - Stopped")
+	systray.SetTooltip("Aliang - Stopped")
 
 	// Create menu items
 	mOpenDashboard := systray.AddMenuItem("Open Dashboard", "Open web dashboard in browser")
@@ -147,7 +147,7 @@ func (t *TrayApp) startServer() {
 
 	// Update icon to indicate running state (colored)
 	systray.SetIcon(GetIcon())
-	systray.SetTooltip("Nonelane - Running")
+	systray.SetTooltip("Aliang - Running")
 
 	logger.Info("Server started successfully")
 }
@@ -172,7 +172,7 @@ func (t *TrayApp) stopServer() {
 
 	// Update icon to indicate stopped state (gray)
 	systray.SetIcon(GetIconDisabled())
-	systray.SetTooltip("Nonelane - Stopped")
+	systray.SetTooltip("Aliang - Stopped")
 
 	logger.Info("Server stopped successfully")
 }

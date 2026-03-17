@@ -18,8 +18,17 @@
     <!-- Notification Container -->
     <div id="notification-container"></div>
 
+    <nav class="compat-nav" aria-hidden="true">
+        <a href="#" class="tab-item nav-link active" data-page="dashboard">Dashboard</a>
+        <a href="#" class="tab-item nav-link" data-page="proxy-control">Proxy</a>
+        <a href="#" class="tab-item nav-link" data-page="rules">Rules</a>
+        <a href="#" class="tab-item nav-link" data-page="logs">Logs</a>
+        <a href="#" class="tab-item nav-link" data-page="userinfo">User</a>
+        <a href="#" class="tab-item nav-link" data-page="dnscache">DNS</a>
+    </nav>
+
     <!-- ===== DASHBOARD PAGE (HOME) ===== -->
-    <div id="dashboard-page" class="page-container active">
+    <div id="dashboard-page" class="page-container content-section active">
         <!-- Top Navigation Bar -->
         <nav class="top-nav">
             <div class="nav-brand">
@@ -61,7 +70,7 @@
             <section class="panel-left">
                 <!-- Large Toggle Button with Wave Animation -->
                 <div class="toggle-container">
-                    <button class="toggle-btn" id="dashStartBtn">
+                    <button type="button" class="toggle-btn" id="dashStartBtn">
                         <div class="toggle-inner">
                             <div class="wave-container" id="waveContainer">
                                 <div class="wave"></div>
@@ -74,7 +83,7 @@
                         </div>
                         <span class="toggle-text" id="toggleText">启动服务</span>
                     </button>
-                    <button class="toggle-btn toggle-btn-danger d-none" id="dashStopBtn">
+                    <button type="button" class="toggle-btn toggle-btn-danger d-none" id="dashStopBtn">
                         <div class="toggle-inner">
                             <div class="toggle-icon">
                                 <i class="bi bi-stop-circle"></i>
@@ -93,18 +102,23 @@
                             <span>运行模式</span>
                         </div>
                         <div class="card-content">
-                            <div class="mode-selector">
-                                <button class="mode-btn active" data-mode="tun" id="runModeTun">
+                            <div class="mode-selector" role="radiogroup" aria-label="运行模式">
+                                <input class="mode-input" type="radio" name="runMode" id="runModeTun" value="tun" checked>
+                                <label class="mode-btn active" for="runModeTun">
                                     <i class="bi bi-wifi"></i>
                                     <span>TUN</span>
-                                </button>
-                                <button class="mode-btn" data-mode="http" id="runModeHttp">
+                                </label>
+                                <input class="mode-input" type="radio" name="runMode" id="runModeHttp" value="http">
+                                <label class="mode-btn" for="runModeHttp">
                                     <i class="bi bi-router"></i>
                                     <span>HTTP</span>
-                                </button>
+                                </label>
                             </div>
                             <div class="current-mode">
                                 当前: <strong id="dashRunMode">TUN</strong>
+                            </div>
+                            <div class="mode-meta">
+                                <span id="dashRunStatus">待更新</span>
                             </div>
                         </div>
                     </div>
@@ -130,6 +144,12 @@
                             <div class="current-proxy" id="dashCurrentProxy">
                                 直连模式
                             </div>
+                            <div class="proxy-meta">
+                                <span id="dashRuleStatus">规则状态: -</span>
+                                <span id="dashProxyCount">代理数: 0</span>
+                                <span id="dashDoorCount">Door节点: 0</span>
+                                <span id="dashLastUpdate">更新时间: --:--:--</span>
+                            </div>
                         </div>
                     </div>
 
@@ -146,10 +166,10 @@
                                 </span>
                             </div>
                             <div class="cert-actions">
-                                <button class="cert-action-btn" id="btn-check-cert" title="检查证书">
+                                <button type="button" class="cert-action-btn" id="dashBtnCheckCert" title="检查证书">
                                     <i class="bi bi-search"></i>
                                 </button>
-                                <button class="cert-action-btn" id="btn-install-cert" title="安装证书">
+                                <button type="button" class="cert-action-btn" id="dashBtnInstallCert" title="安装证书">
                                     <i class="bi bi-download"></i>
                                 </button>
                             </div>
@@ -161,7 +181,7 @@
                 <div class="quick-actions">
                     <!-- Quick Settings Dropdown -->
                     <div class="dropdown">
-                        <button class="action-btn" data-bs-toggle="dropdown">
+                        <button type="button" class="action-btn" data-bs-toggle="dropdown">
                             <i class="bi bi-tools"></i>
                             <span>快速设置</span>
                         </button>
@@ -186,13 +206,13 @@
                     </div>
 
                     <!-- Chat Button -->
-                    <button class="action-btn" id="quickChatBtn">
+                    <button type="button" class="action-btn" id="quickChatBtn">
                         <i class="bi bi-chat-dots"></i>
                         <span>快速聊天</span>
                     </button>
 
                     <!-- Settings Button -->
-                    <button class="action-btn" id="goToSettingsBtn">
+                    <button type="button" class="action-btn" id="goToSettingsBtn">
                         <i class="bi bi-gear"></i>
                         <span>更多设置</span>
                     </button>
@@ -239,6 +259,14 @@
                     <div class="chart-box chart-pie">
                         <div class="chart-header">
                             <h3><i class="bi bi-pie-chart"></i> 域名分布</h3>
+                            <div class="domain-filters" id="domainFilters">
+                                <button type="button" class="domain-filter active" data-domain-filter="all">全部</button>
+                                <button type="button" class="domain-filter" data-domain-filter="cursor">Cursor</button>
+                                <button type="button" class="domain-filter" data-domain-filter="openai">OpenAI</button>
+                                <button type="button" class="domain-filter" data-domain-filter="claude">Claude</button>
+                                <button type="button" class="domain-filter" data-domain-filter="chatgpt">ChatGPT</button>
+                                <button type="button" class="domain-filter" data-domain-filter="copilot">Copilot</button>
+                            </div>
                         </div>
                         <div class="chart-body">
                             <canvas id="domainPieChart"></canvas>
@@ -294,19 +322,19 @@
                 <span>返回仪表板</span>
             </div>
             <div class="settings-tabs">
-                <button class="settings-tab active" data-tab="rules">
+                <button type="button" class="settings-tab active" data-tab="rules">
                     <i class="bi bi-shield-check"></i>
                     <span>规则设置</span>
                 </button>
-                <button class="settings-tab" data-tab="userinfo">
+                <button type="button" class="settings-tab" data-tab="userinfo">
                     <i class="bi bi-person-circle"></i>
                     <span>用户信息</span>
                 </button>
-                <button class="settings-tab" data-tab="logs">
+                <button type="button" class="settings-tab" data-tab="logs">
                     <i class="bi bi-journal-text"></i>
                     <span>日志监控</span>
                 </button>
-                <button class="settings-tab" data-tab="system">
+                <button type="button" class="settings-tab" data-tab="system">
                     <i class="bi bi-gear"></i>
                     <span>系统设置</span>
                 </button>
@@ -440,10 +468,10 @@
                     <div class="editor-header">
                         <h4><i class="bi bi-code-square"></i> 自定义规则</h4>
                         <div class="editor-actions">
-                            <button class="btn btn-sm btn-primary" id="rulesReloadBtn">
+                            <button type="button" class="btn btn-sm btn-primary" id="rulesReloadBtn">
                                 <i class="bi bi-arrow-clockwise"></i> 重载
                             </button>
-                            <button class="btn btn-sm btn-danger" id="rulesClearCacheBtn">
+                            <button type="button" class="btn btn-sm btn-danger" id="rulesClearCacheBtn">
                                 <i class="bi bi-trash"></i> 清空缓存
                             </button>
                         </div>
@@ -489,7 +517,7 @@
                     </div>
                     <div class="token-input-row">
                         <input type="text" class="form-control" id="authTokenInput" placeholder="输入激活 Token...">
-                        <button class="btn btn-primary" id="authActivateBtn">
+                        <button type="button" class="btn btn-primary" id="authActivateBtn">
                             <i class="bi bi-play-fill"></i> 激活
                         </button>
                     </div>
@@ -499,7 +527,7 @@
                 <div class="info-card">
                     <div class="card-title">
                         <i class="bi bi-person"></i> 用户信息
-                        <button class="btn btn-sm btn-danger ms-auto" id="authLogoutBtn" style="display: none;">
+                        <button type="button" class="btn btn-sm btn-danger ms-auto" id="authLogoutBtn" style="display: none;">
                             <i class="bi bi-box-arrow-right"></i> 登出
                         </button>
                     </div>
@@ -523,8 +551,8 @@
                                 <span class="key-type">Claude 风格</span>
                             </div>
                             <div class="key-actions">
-                                <button class="btn-icon"><i class="bi bi-clipboard"></i></button>
-                                <button class="btn-icon"><i class="bi bi-trash"></i></button>
+                                <button type="button" class="btn-icon"><i class="bi bi-clipboard"></i></button>
+                                <button type="button" class="btn-icon"><i class="bi bi-trash"></i></button>
                             </div>
                         </div>
                     </div>
@@ -548,6 +576,10 @@
                                 <span class="usage-label">剩余额度</span>
                                 <span class="usage-value">87.5 GB</span>
                             </div>
+                            <div class="usage-item">
+                                <span class="usage-label">账户余额</span>
+                                <span class="usage-value" id="userBalance">--</span>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -564,7 +596,7 @@
                                 <span>opencode.json</span>
                             </div>
                             <div class="config-actions">
-                                <button class="btn btn-sm btn-outline-primary">同步到云端</button>
+                                <button type="button" class="btn btn-sm btn-outline-primary">同步到云端</button>
                             </div>
                         </div>
                         <div class="config-item">
@@ -573,7 +605,7 @@
                                 <span>Oh-my-opencode.json</span>
                             </div>
                             <div class="config-actions">
-                                <button class="btn btn-sm btn-outline-primary">同步到云端</button>
+                                <button type="button" class="btn btn-sm btn-outline-primary">同步到云端</button>
                             </div>
                         </div>
                         <div class="config-item">
@@ -582,7 +614,25 @@
                                 <span>Claude 环境变量</span>
                             </div>
                             <div class="config-actions">
-                                <button class="btn btn-sm btn-outline-secondary">复制命令</button>
+                                <button type="button" class="btn btn-sm btn-outline-secondary">复制命令</button>
+                            </div>
+                        </div>
+                        <div class="config-item">
+                            <div class="config-info">
+                                <i class="bi bi-window-stack"></i>
+                                <span>codex 配置文件</span>
+                            </div>
+                            <div class="config-actions">
+                                <button type="button" class="btn btn-sm btn-outline-primary">同步到云端</button>
+                            </div>
+                        </div>
+                        <div class="config-item">
+                            <div class="config-info">
+                                <i class="bi bi-kanban"></i>
+                                <span>vibe-kanban 配置</span>
+                            </div>
+                            <div class="config-actions">
+                                <button type="button" class="btn btn-sm btn-outline-primary">同步到云端</button>
                             </div>
                         </div>
                     </div>
@@ -626,13 +676,13 @@
                             </label>
                         </div>
                         <div class="control-actions">
-                            <button class="btn btn-sm btn-primary" id="wsConnectBtn">
+                            <button type="button" class="btn btn-sm btn-primary" id="wsConnectBtn">
                                 <i class="bi bi-plug"></i> 连接
                             </button>
-                            <button class="btn btn-sm btn-warning" id="logsRefreshBtn">
+                            <button type="button" class="btn btn-sm btn-warning" id="logsRefreshBtn">
                                 <i class="bi bi-arrow-clockwise"></i> 刷新
                             </button>
-                            <button class="btn btn-sm btn-danger" id="logsClearBtn">
+                            <button type="button" class="btn btn-sm btn-danger" id="logsClearBtn">
                                 <i class="bi bi-trash"></i> 清空
                             </button>
                         </div>
@@ -684,15 +734,15 @@
                                 <input class="form-check-input" type="radio" name="runMode" id="runModeHttp2" value="http">
                                 <label class="form-check-label" for="runModeHttp2">HTTP 模式</label>
                             </div>
-                            <button class="btn btn-primary btn-sm" id="runModeBtn">
+                            <button type="button" class="btn btn-primary btn-sm" id="runModeBtn">
                                 <i class="bi bi-arrow-repeat"></i> 切换模式
                             </button>
                         </div>
                         <div class="control-buttons">
-                            <button class="btn btn-success" id="runStartBtn">
+                            <button type="button" class="btn btn-success" id="runStartBtn">
                                 <i class="bi bi-play-fill"></i> 启动服务
                             </button>
-                            <button class="btn btn-danger" id="runStopBtn">
+                            <button type="button" class="btn btn-danger" id="runStopBtn">
                                 <i class="bi bi-stop-fill"></i> 停止服务
                             </button>
                         </div>
@@ -724,6 +774,7 @@
                         <i class="bi bi-award"></i> 证书状态
                     </div>
                     <div id="cert-status-container">
+                        <div id="cert-status-content">
                         <div class="cert-info-grid">
                             <div class="cert-info-item">
                                 <span class="info-label">安装状态</span>
@@ -762,6 +813,7 @@
                                 <code class="detail-value">A1:B2:C3:D4:E5:F6:...</code>
                             </div>
                         </div>
+                        </div>
                         <div class="cert-action-buttons">
                             <select class="form-select form-select-sm" id="cert-type-select">
                                 <option value="mitm-ca">MITM CA</option>
@@ -769,19 +821,19 @@
                                 <option value="mtls-cert">mTLS Certificate</option>
                             </select>
                             <div class="btn-group">
-                                <button class="btn btn-sm btn-info" id="btn-check-cert">
+                                <button type="button" class="btn btn-sm btn-info" id="btn-check-cert">
                                     <i class="bi bi-search"></i> 检查
                                 </button>
-                                <button class="btn btn-sm btn-primary" id="btn-export-cert">
+                                <button type="button" class="btn btn-sm btn-primary" id="btn-export-cert">
                                     <i class="bi bi-cloud-download"></i> 导出
                                 </button>
-                                <button class="btn btn-sm btn-success" id="btn-download-cert">
+                                <button type="button" class="btn btn-sm btn-success" id="btn-download-cert">
                                     <i class="bi bi-download"></i> 下载
                                 </button>
-                                <button class="btn btn-sm btn-warning" id="btn-install-cert">
+                                <button type="button" class="btn btn-sm btn-warning" id="btn-install-cert">
                                     <i class="bi bi-lock"></i> 安装
                                 </button>
-                                <button class="btn btn-sm btn-danger" id="btn-remove-cert">
+                                <button type="button" class="btn btn-sm btn-danger" id="btn-remove-cert">
                                     <i class="bi bi-trash"></i> 移除
                                 </button>
                             </div>
@@ -793,7 +845,7 @@
     </div>
 
     <!-- ===== PROXY CONTROL PAGE (Legacy Support) ===== -->
-    <div id="proxy-control-page" class="page-container legacy-page">
+    <div id="proxy-control-page" class="page-container legacy-page content-section">
         <div class="legacy-header">
             <h2><i class="bi bi-globe"></i> 代理管理</h2>
         </div>
@@ -827,7 +879,7 @@
             <div class="card mb-4">
                 <div class="card-header d-flex justify-content-between">
                     <span>代理列表</span>
-                    <button class="btn btn-sm btn-info" id="testLatencyBtn">
+                    <button type="button" class="btn btn-sm btn-info" id="testLatencyBtn">
                         <i class="bi bi-speedometer2"></i> 测试延迟
                     </button>
                 </div>
@@ -852,7 +904,7 @@
     </div>
 
     <!-- ===== RULES PAGE (Legacy Support) ===== -->
-    <div id="rules-page" class="page-container legacy-page">
+    <div id="rules-page" class="page-container legacy-page content-section">
         <div class="legacy-header">
             <h2><i class="bi bi-shield-check"></i> 规则引擎</h2>
         </div>
@@ -861,10 +913,10 @@
                 <div class="card-header">引擎状态</div>
                 <div class="card-body">
                     <div class="btn-group">
-                        <button class="btn btn-success" id="rulesEnableBtn">
+                        <button type="button" class="btn btn-success" id="rulesEnableBtn">
                             <i class="bi bi-toggle-on"></i> 启用
                         </button>
-                        <button class="btn btn-warning" id="rulesDisableBtn">
+                        <button type="button" class="btn btn-warning" id="rulesDisableBtn">
                             <i class="bi bi-toggle-off"></i> 禁用
                         </button>
                     </div>
@@ -874,7 +926,7 @@
     </div>
 
     <!-- ===== LOGS PAGE (Legacy Support) ===== -->
-    <div id="logs-page" class="page-container legacy-page">
+    <div id="logs-page" class="page-container legacy-page content-section">
         <div class="legacy-header">
             <h2><i class="bi bi-journal-text"></i> 日志</h2>
         </div>
@@ -889,7 +941,7 @@
     </div>
 
     <!-- ===== USERINFO PAGE (Legacy Support) ===== -->
-    <div id="userinfo-page" class="page-container legacy-page">
+    <div id="userinfo-page" class="page-container legacy-page content-section">
         <div class="legacy-header">
             <h2><i class="bi bi-person-circle"></i> 用户信息</h2>
         </div>
@@ -902,7 +954,7 @@
                             <input type="text" class="form-control" id="authTokenInputLegacy" placeholder="输入 Token">
                         </div>
                         <div class="col-md-2">
-                            <button class="btn btn-primary w-100" id="authActivateBtnLegacy">激活</button>
+                    <button type="button" class="btn btn-primary w-100" id="authActivateBtnLegacy">激活</button>
                         </div>
                     </div>
                 </div>
@@ -917,7 +969,7 @@
     </div>
 
     <!-- ===== DNS CACHE PAGE ===== -->
-    <div id="dnscache-page" class="page-container legacy-page">
+    <div id="dnscache-page" class="page-container legacy-page content-section">
         <div class="legacy-header">
             <h2><i class="bi bi-globe2"></i> DNS 缓存</h2>
         </div>
@@ -970,10 +1022,10 @@
                         </div>
                         <div class="col-md-3">
                             <div class="btn-group w-100">
-                                <button class="btn btn-primary" id="dnsSearchBtn">
+                                <button type="button" class="btn btn-primary" id="dnsSearchBtn">
                                     <i class="bi bi-search"></i> 搜索
                                 </button>
-                                <button class="btn btn-danger" id="dnsClearAllBtn">
+                                <button type="button" class="btn btn-danger" id="dnsClearAllBtn">
                                     <i class="bi bi-trash"></i> 清空
                                 </button>
                             </div>
@@ -1052,15 +1104,20 @@
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body chat-body">
+                    <div class="chat-toolbar">
+                        <input type="text" class="chat-search-input" id="chatSearchInput" placeholder="检索历史聊天记录...">
+                        <button type="button" class="btn btn-sm btn-outline-danger" id="chatClearHistoryBtn">清空历史</button>
+                    </div>
                     <div class="chat-messages" id="chatMessages">
                         <div class="chat-welcome">
                             <i class="bi bi-robot"></i>
                             <p>所有对话数据都存储在本地</p>
                         </div>
                     </div>
+                    <div class="chat-privacy-note">提示：仅本地存储聊天历史，不上传云端。</div>
                     <div class="chat-input-area">
                         <input type="text" class="chat-input" id="chatInput" placeholder="输入消息...">
-                        <button class="chat-send-btn" id="chatSendBtn">
+                        <button type="button" class="chat-send-btn" id="chatSendBtn">
                             <i class="bi bi-send"></i>
                         </button>
                     </div>
@@ -1068,6 +1125,59 @@
             </div>
         </div>
     </div>
+
+    <section class="compat-anchors" aria-hidden="true">
+        <button id="addToDoorRuleBtn" type="button"></button>
+        <button id="addBlacklistRuleBtn" type="button"></button>
+        <button id="addNonelaneRuleBtn" type="button"></button>
+
+        <span id="rulesStatus"></span>
+        <span id="rules-status-badge" class="badge bg-secondary"></span>
+        <span id="rules-status-text"></span>
+        <span id="cache-hit-rate"></span>
+        <span id="total-cache"></span>
+        <span id="rulesCacheSize"></span>
+        <span id="rulesCacheCount"></span>
+        <span id="cache-last-update"></span>
+        <button id="rulesConfigSaveBtn" type="button"></button>
+        <button id="rulesLookupBtn" type="button"></button>
+        <input id="rulesLookupDomain" type="text">
+        <textarea id="rulesLookupResult"></textarea>
+        <small id="typeHelpText"></small>
+        <div id="conditionError"></div>
+        <table>
+            <tbody id="toDoorRulesBody"></tbody>
+            <tbody id="blacklistRulesBody"></tbody>
+            <tbody id="nonelaneRulesBody"></tbody>
+        </table>
+
+        <button id="wsDisconnectBtn" type="button"></button>
+        <button id="logsFullscreenBtn" type="button"><i class="bi bi-fullscreen"></i> 全屏</button>
+        <button id="logConfigSaveBtn" type="button"></button>
+        <button id="logFilterBtn" type="button"></button>
+
+        <span id="runStatusInfo"></span>
+
+        <div id="authRefreshStatusCard">
+            <span id="authRefreshRunning"></span>
+            <span id="authLastUpdate"></span>
+            <span id="authRefreshInterval"></span>
+            <div id="authRefreshError"><span id="authRefreshErrorMsg"></span></div>
+        </div>
+
+        <button id="dnsRefreshBtn" type="button"></button>
+        <div id="dnsHotDomainsContainer"></div>
+        <div id="dnsHotIPsContainer"></div>
+        <div id="dnsSearchResultsContainer"></div>
+
+        <div class="timescale-compat">
+            <button type="button" data-timescale="1s" class="active"></button>
+            <button type="button" data-timescale="5s"></button>
+            <button type="button" data-timescale="15s"></button>
+        </div>
+
+        <table><tbody id="statsTableBody"></tbody></table>
+    </section>
 
     <!-- Bootstrap JS -->
     <script src="/assets/bootstrap.bundle.min.js"></script>

@@ -62,7 +62,7 @@ func (h *ConfigHandler) HandleToggleRuleStatus(w http.ResponseWriter, r *http.Re
 
 	cfg := cloneRoutingConfigLocked()
 	ruleFound := false
-	ruleSets := []*model.RoutingRuleSet{&cfg.ToSocks, &cfg.BlackList, &cfg.NoneLane}
+	ruleSets := []*model.RoutingRuleSet{&cfg.ToSocks, &cfg.BlackList, &cfg.Aliang}
 	for _, rs := range ruleSets {
 		for i := range rs.Rules {
 			if rs.Rules[i].ID == ruleID {

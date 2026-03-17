@@ -9,13 +9,13 @@ import (
 // T035: Test NoneLane disabled - traffic should fallback to SOCKS or Direct
 func Test_NoneLaneDisabled(t *testing.T) {
 	sm := GetSwitchManager()
-	sm.SetNoneLaneEnabled(false)
+	sm.SetAliangEnabled(false)
 	sm.SetSocksEnabled(true)
 	sm.SetGeoIPEnabled(false)
 
 	config := &model.RoutingRulesConfig{
 		Settings:  sm.GetStatus(),
-		NoneLane:  model.RoutingRuleSet{SetType: model.SetTypeNoneLane, Rules: []model.RoutingRule{{ID: "nl_rule_1", Type: model.RuleTypeDomain, Condition: "example.com", Enabled: true}}},
+		Aliang:    model.RoutingRuleSet{SetType: model.SetTypeAliang, Rules: []model.RoutingRule{{ID: "nl_rule_1", Type: model.RuleTypeDomain, Condition: "example.com", Enabled: true}}},
 		ToSocks:   model.RoutingRuleSet{SetType: model.SetTypeToSocks, Rules: []model.RoutingRule{{ID: "socks_rule_1", Type: model.RuleTypeDomain, Condition: "example.com", Enabled: true}}},
 		BlackList: model.RoutingRuleSet{SetType: model.SetTypeBlacklist, Rules: []model.RoutingRule{}},
 	}
@@ -27,7 +27,7 @@ func Test_NoneLaneDisabled(t *testing.T) {
 	if decision != RouteToSocks {
 		t.Errorf("Expected RouteToSocks (NoneLane disabled), got %s", decision)
 	}
-	if sm.IsNoneLaneEnabled() {
+	if sm.IsAliangEnabled() {
 		t.Error("NoneLane switch should be disabled")
 	}
 }
@@ -35,13 +35,13 @@ func Test_NoneLaneDisabled(t *testing.T) {
 // T036: Test SOCKS disabled - traffic should fallback to GeoIP or Direct
 func Test_SocksDisabled(t *testing.T) {
 	sm := GetSwitchManager()
-	sm.SetNoneLaneEnabled(false)
+	sm.SetAliangEnabled(false)
 	sm.SetSocksEnabled(false)
 	sm.SetGeoIPEnabled(false)
 
 	config := &model.RoutingRulesConfig{
 		Settings:  sm.GetStatus(),
-		NoneLane:  model.RoutingRuleSet{SetType: model.SetTypeNoneLane, Rules: []model.RoutingRule{}},
+		Aliang:    model.RoutingRuleSet{SetType: model.SetTypeAliang, Rules: []model.RoutingRule{}},
 		ToSocks:   model.RoutingRuleSet{SetType: model.SetTypeToSocks, Rules: []model.RoutingRule{{ID: "socks_rule_1", Type: model.RuleTypeDomain, Condition: "example.com", Enabled: true}}},
 		BlackList: model.RoutingRuleSet{SetType: model.SetTypeBlacklist, Rules: []model.RoutingRule{}},
 	}
@@ -61,13 +61,13 @@ func Test_SocksDisabled(t *testing.T) {
 // T037: Test GeoIP disabled - GeoIP rules should not be evaluated
 func Test_GeoIPDisabled(t *testing.T) {
 	sm := GetSwitchManager()
-	sm.SetNoneLaneEnabled(false)
+	sm.SetAliangEnabled(false)
 	sm.SetSocksEnabled(false)
 	sm.SetGeoIPEnabled(false)
 
 	config := &model.RoutingRulesConfig{
 		Settings:  sm.GetStatus(),
-		NoneLane:  model.RoutingRuleSet{SetType: model.SetTypeNoneLane, Rules: []model.RoutingRule{}},
+		Aliang:    model.RoutingRuleSet{SetType: model.SetTypeAliang, Rules: []model.RoutingRule{}},
 		ToSocks:   model.RoutingRuleSet{SetType: model.SetTypeToSocks, Rules: []model.RoutingRule{{ID: "geo_rule_1", Type: model.RuleTypeGeoIP, Condition: "US", Enabled: true}}},
 		BlackList: model.RoutingRuleSet{SetType: model.SetTypeBlacklist, Rules: []model.RoutingRule{}},
 	}
@@ -91,7 +91,7 @@ func Test_AllSwitchesDisabled(t *testing.T) {
 
 	config := &model.RoutingRulesConfig{
 		Settings:  sm.GetStatus(),
-		NoneLane:  model.RoutingRuleSet{SetType: model.SetTypeNoneLane, Rules: []model.RoutingRule{{ID: "nl_rule_1", Type: model.RuleTypeDomain, Condition: "example.com", Enabled: true}}},
+		Aliang:    model.RoutingRuleSet{SetType: model.SetTypeAliang, Rules: []model.RoutingRule{{ID: "nl_rule_1", Type: model.RuleTypeDomain, Condition: "example.com", Enabled: true}}},
 		ToSocks:   model.RoutingRuleSet{SetType: model.SetTypeToSocks, Rules: []model.RoutingRule{{ID: "socks_rule_1", Type: model.RuleTypeDomain, Condition: "example.com", Enabled: true}}},
 		BlackList: model.RoutingRuleSet{SetType: model.SetTypeBlacklist, Rules: []model.RoutingRule{}},
 	}
@@ -106,7 +106,7 @@ func Test_AllSwitchesDisabled(t *testing.T) {
 		}
 	}
 
-	if sm.IsNoneLaneEnabled() || sm.IsSocksEnabled() || sm.IsGeoIPEnabled() {
+	if sm.IsAliangEnabled() || sm.IsSocksEnabled() || sm.IsGeoIPEnabled() {
 		t.Error("All switches should be disabled")
 	}
 }
@@ -114,30 +114,30 @@ func Test_AllSwitchesDisabled(t *testing.T) {
 func Test_SwitchStateChanges(t *testing.T) {
 	sm := GetSwitchManager()
 
-	sm.SetNoneLaneEnabled(true)
-	if !sm.IsNoneLaneEnabled() {
+	sm.SetAliangEnabled(true)
+	if !sm.IsAliangEnabled() {
 		t.Error("NoneLane should be enabled")
 	}
-	sm.SetNoneLaneEnabled(false)
-	if sm.IsNoneLaneEnabled() {
+	sm.SetAliangEnabled(false)
+	if sm.IsAliangEnabled() {
 		t.Error("NoneLane should be disabled")
 	}
 
 	sm.EnableAll()
 	status := sm.GetStatus()
-	if !status.NoneLaneEnabled || !status.SocksEnabled || !status.GeoIPEnabled {
+	if !status.AliangEnabled || !status.SocksEnabled || !status.GeoIPEnabled {
 		t.Error("All switches should be enabled after EnableAll()")
 	}
 
 	sm.DisableAll()
 	status = sm.GetStatus()
-	if status.NoneLaneEnabled || status.SocksEnabled || status.GeoIPEnabled {
+	if status.AliangEnabled || status.SocksEnabled || status.GeoIPEnabled {
 		t.Error("All switches should be disabled after DisableAll()")
 	}
 
 	sm.ResetToDefaults()
 	status = sm.GetStatus()
-	if !status.NoneLaneEnabled || !status.SocksEnabled || status.GeoIPEnabled {
+	if !status.AliangEnabled || !status.SocksEnabled || status.GeoIPEnabled {
 		t.Error("Switches should be reset to defaults (NoneLane=ON, SOCKS=ON, GeoIP=OFF)")
 	}
 }
@@ -145,15 +145,15 @@ func Test_SwitchStateChanges(t *testing.T) {
 func Test_UpdateSwitchesFromConfig(t *testing.T) {
 	sm := GetSwitchManager()
 	config := &model.RoutingRulesConfig{
-		Settings:  model.RulesSettings{NoneLaneEnabled: false, SocksEnabled: true, GeoIPEnabled: true},
-		NoneLane:  model.RoutingRuleSet{SetType: model.SetTypeNoneLane, Rules: []model.RoutingRule{}},
+		Settings:  model.RulesSettings{AliangEnabled: false, SocksEnabled: true, GeoIPEnabled: true},
+		Aliang:    model.RoutingRuleSet{SetType: model.SetTypeAliang, Rules: []model.RoutingRule{}},
 		ToSocks:   model.RoutingRuleSet{SetType: model.SetTypeToSocks, Rules: []model.RoutingRule{}},
 		BlackList: model.RoutingRuleSet{SetType: model.SetTypeBlacklist, Rules: []model.RoutingRule{}},
 	}
 
 	sm.UpdateSwitches(config)
 	status := sm.GetStatus()
-	if status.NoneLaneEnabled != false || status.SocksEnabled != true || status.GeoIPEnabled != true {
+	if status.AliangEnabled != false || status.SocksEnabled != true || status.GeoIPEnabled != true {
 		t.Error("switch status mismatch after UpdateSwitches")
 	}
 }

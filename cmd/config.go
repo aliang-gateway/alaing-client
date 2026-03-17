@@ -65,7 +65,7 @@ func LoadConfigFromBytes(data []byte) (*Config, error) {
 //
 // Phases:
 // 1. Apply engine configuration (network stack, TUN device, etc.)
-// 2. Register built-in proxies (direct + nonelane) - always available
+// 2. Register built-in proxies (direct + aliang) - always available
 // 3. Set the active default proxy for routing
 func ApplyConfig(cfg *Config) error {
 	// Validate configuration
@@ -76,7 +76,7 @@ func ApplyConfig(cfg *Config) error {
 	// Store config globally for access by other modules
 	config.SetGlobalConfig(cfg)
 
-	// Phase 1: Register built-in proxies (direct + nonelane)
+	// Phase 1: Register built-in proxies (direct + aliang)
 	// These are mandatory and always available
 	if err := registerBuiltinProxies(cfg); err != nil {
 		return fmt.Errorf("phase 1 - builtin proxies registration failed: %w", err)
@@ -119,7 +119,7 @@ func setEffectiveDefaultProxy(currentProxy string) error {
 		currentProxy = "direct"
 	}
 
-	if currentProxy != "direct" && currentProxy != "nonelane" && currentProxy != "socks" {
+	if currentProxy != "direct" && currentProxy != "aliang" && currentProxy != "socks" {
 		logger.Warn(fmt.Sprintf("Unsupported currentProxy '%s', fallback to direct", currentProxy))
 		currentProxy = "direct"
 	}
@@ -133,7 +133,7 @@ func setEffectiveDefaultProxy(currentProxy string) error {
 	return nil
 }
 
-// registerBuiltinProxies 注册内置代理（direct 和 nonelane）
+// registerBuiltinProxies 注册内置代理（direct 和 aliang）
 func registerBuiltinProxies(cfg *Config) error {
 	registry := outbound.GetRegistry()
 
@@ -142,24 +142,24 @@ func registerBuiltinProxies(cfg *Config) error {
 		return fmt.Errorf("failed to register direct proxy: %w", err)
 	}
 
-	// 2. 注册 nonelane 代理
+	// 2. 注册 aliang 代理
 	coreServer := ""
-	// 首先尝试从 NonelaneCoreServer 字段读取
+	// 首先尝试从 AliangCoreServer 字段读取
 	if cfg.BaseProxies != nil {
-		// 其次尝试从 BaseProxies["nonelane"].CoreServer 读取
-		if nonelaneConfig, exists := cfg.BaseProxies["nonelane"]; exists && nonelaneConfig != nil {
-			coreServer = nonelaneConfig.CoreServer
+		// 其次尝试从 BaseProxies["aliang"].CoreServer 读取
+		if aliangConfig, exists := cfg.BaseProxies["aliang"]; exists && aliangConfig != nil {
+			coreServer = aliangConfig.CoreServer
 		}
 	}
 
 	// 如果配置中没有指定，使用默认值
 	if coreServer == "" {
 		coreServer = "ai-gateway.nursor.org:443"
-		logger.Debug("Using default Nonelane server address")
+		logger.Debug("Using default Aliang server address")
 	}
 
-	if err := registry.RegisterNonelane(coreServer); err != nil {
-		return fmt.Errorf("failed to register nonelane proxy: %w", err)
+	if err := registry.RegisterAliang(coreServer); err != nil {
+		return fmt.Errorf("failed to register aliang proxy: %w", err)
 	} else {
 		config.SetCursorAiGatewayHost(coreServer)
 	}

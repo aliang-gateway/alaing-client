@@ -79,7 +79,7 @@ func GetUserInfoPath() (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("failed to get home directory: %w", err)
 	}
-	configDir := filepath.Join(homeDir, ".nonelane")
+	configDir := filepath.Join(homeDir, ".aliang")
 	logger.Debug(fmt.Sprintf("get user info path: %s", configDir))
 	return filepath.Join(configDir, "userinfo.json"), nil
 }
@@ -91,7 +91,7 @@ func ensureConfigDir() error {
 		return fmt.Errorf("failed to get home directory: %w", err)
 	}
 
-	configDir := filepath.Join(homeDir, ".nonelane")
+	configDir := filepath.Join(homeDir, ".aliang")
 	if err := os.MkdirAll(configDir, 0700); err != nil {
 		return fmt.Errorf("failed to create config directory: %w", err)
 	}

@@ -1,4 +1,4 @@
-package nonelane
+package aliang
 
 import (
 	"context"
@@ -10,19 +10,19 @@ import (
 	"nursor.org/nursorgate/outbound/proxy/proto"
 )
 
-// NoneLane implements the Proxy interface for cursor H2 proxy
+// Aliang implements the Proxy interface for cursor H2 proxy
 // Core responsibility: mTLS connection establishment and pooling
-type NoneLane struct {
+type Aliang struct {
 	*proxy.Base
-	config    *NoneLaneConfig
-	connector *NoneLaneServerConnector
+	config    *AliangConfig
+	connector *AliangServerConnector
 	connPool  *ConnectionPool
 	mu        sync.RWMutex
 	closed    bool
 }
 
 // New creates a new CursorH2 proxy instance
-func New(config *NoneLaneConfig) (*NoneLane, error) {
+func NewAliang(config *AliangConfig) (*Aliang, error) {
 	if config == nil {
 		return nil, NewErrorf(ErrInvalidConfig, "config is required")
 	}
@@ -31,13 +31,13 @@ func New(config *NoneLaneConfig) (*NoneLane, error) {
 		return nil, err
 	}
 
-	return &NoneLane{
+	return &Aliang{
 		Base: &proxy.Base{
 			Address:  config.Addr,
-			Protocol: proto.Nonelane, // 使用 HY2 作为协议类型，或者可以添加新的类型
+			Protocol: proto.Aliang, // 使用 HY2 作为协议类型，或者可以添加新的类型
 		},
 		config:    config,
-		connector: NewCursorServerConnector(config),
+		connector: NewAliangServerConnector(config),
 		connPool:  NewConnectionPool(config.ConnectionPool),
 		closed:    false,
 	}, nil
@@ -45,7 +45,7 @@ func New(config *NoneLaneConfig) (*NoneLane, error) {
 
 // DialContext implements the Proxy interface
 // Establishes a connection to the target address through the cursor H2 proxy
-func (c *NoneLane) DialContext(ctx context.Context, metadata *metadata.Metadata) (net.Conn, error) {
+func (c *Aliang) DialContext(ctx context.Context, metadata *metadata.Metadata) (net.Conn, error) {
 	c.mu.RLock()
 	if c.closed {
 		c.mu.RUnlock()
@@ -82,12 +82,12 @@ func (c *NoneLane) DialContext(ctx context.Context, metadata *metadata.Metadata)
 
 // DialUDP implements the Proxy interface
 // UDP is not supported for cursor_h2 proxy
-func (c *NoneLane) DialUDP(metadata *metadata.Metadata) (net.PacketConn, error) {
+func (c *Aliang) DialUDP(metadata *metadata.Metadata) (net.PacketConn, error) {
 	return nil, NewErrorf(ErrInvalidConfig, "cursor_h2 does not support UDP")
 }
 
 // Close closes the proxy and releases resources
-func (c *NoneLane) Close() error {
+func (c *Aliang) Close() error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -106,7 +106,7 @@ func (c *NoneLane) Close() error {
 }
 
 // GetStats returns statistics about the proxy
-func (c *NoneLane) GetStats() map[string]interface{} {
+func (c *Aliang) GetStats() map[string]interface{} {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 

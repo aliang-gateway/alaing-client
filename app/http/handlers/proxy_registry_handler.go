@@ -50,7 +50,7 @@ func (prh *ProxyRegistryHandler) HandleProxyRegistryList(w http.ResponseWriter, 
 // Query parameter: name (required) - get specific proxy by name
 // Supported formats:
 //   - "direct" - direct proxy
-//   - "nonelane" - nonelane proxy
+//   - "aliang" - aliang proxy
 //   - "custom_name" - custom proxy
 func (prh *ProxyRegistryHandler) HandleProxyRegistryGet(w http.ResponseWriter, r *http.Request) {
 	name := common.GetQueryParamString(r, "name", "")

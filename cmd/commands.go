@@ -13,12 +13,12 @@ import (
 var versionCmd = &cobra.Command{
 	Use:   "version",
 	Short: "Print the version number",
-	Long:  `Print the version number of nonelane`,
+	Long:  `Print the version number of aliang`,
 	Run: func(cmd *cobra.Command, args []string) {
 		if version.Version == "" {
-			fmt.Println("nonelane version: unknown")
+			fmt.Println("aliang version: unknown")
 		} else {
-			fmt.Printf("nonelane %s\n", version.Version)
+			fmt.Printf("aliang %s\n", version.Version)
 		}
 		if version.GitCommit != "" {
 			fmt.Printf("commit: %s\n", version.GitCommit)

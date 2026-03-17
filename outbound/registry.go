@@ -6,8 +6,8 @@ import (
 
 	"nursor.org/nursorgate/common/logger"
 	"nursor.org/nursorgate/outbound/proxy"
+	"nursor.org/nursorgate/outbound/proxy/aliang"
 	"nursor.org/nursorgate/outbound/proxy/direct"
-	"nursor.org/nursorgate/outbound/proxy/nonelane"
 	"nursor.org/nursorgate/outbound/proxy/socks5"
 	proxyConfig "nursor.org/nursorgate/processor/config"
 )
@@ -49,28 +49,28 @@ func (r *Registry) RegisterDefault() error {
 	return nil
 }
 
-// RegisterNonelane 注册默认的 nonelane 代理
-func (r *Registry) RegisterNonelane(serverAddr string) error {
+// RegisterAliang 注册默认的 aliang 代理
+func (r *Registry) RegisterAliang(serverAddr string) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	if _, exists := r.proxies["nonelane"]; exists {
+	if _, exists := r.proxies["aliang"]; exists {
 		return nil
 	}
 
 	if serverAddr == "" {
 		serverAddr = "ai-gateway.nursor.org:443"
-		logger.Debug("Using default nonelane server address")
+		logger.Debug("Using default aliang server address")
 	}
 
-	config := nonelane.DefaultConfig(serverAddr)
-	nonelaneProxy, err := nonelane.NewNonelane(config)
+	config := aliang.DefaultConfig(serverAddr)
+	aliangProxy, err := aliang.NewAliang(config)
 	if err != nil {
-		return fmt.Errorf("failed to create nonelane proxy: %w", err)
+		return fmt.Errorf("failed to create aliang proxy: %w", err)
 	}
 
-	r.proxies["nonelane"] = nonelaneProxy
-	logger.Info(fmt.Sprintf("Default nonelane proxy registered (server: %s)", serverAddr))
+	r.proxies["aliang"] = aliangProxy
+	logger.Info(fmt.Sprintf("Default aliang proxy registered (server: %s)", serverAddr))
 	return nil
 }
 
@@ -135,14 +135,14 @@ func (r *Registry) GetHardcodedDefault() (proxy.Proxy, error) {
 	return r.Get("direct")
 }
 
-// GetNonelane 获取 nonelane 代理
-func (r *Registry) GetNonelane() (proxy.Proxy, error) {
+// GetAliang 获取 aliang 代理
+func (r *Registry) GetAliang() (proxy.Proxy, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
-	p, exists := r.proxies["nonelane"]
+	p, exists := r.proxies["aliang"]
 	if !exists {
-		return nil, fmt.Errorf("nonelane proxy not found, please register it first")
+		return nil, fmt.Errorf("aliang proxy not found, please register it first")
 	}
 	return p, nil
 }

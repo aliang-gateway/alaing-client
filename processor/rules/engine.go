@@ -72,7 +72,7 @@ func (e *RuleEngine) Initialize(cfg *config.Config) error {
 // EvaluateRoute evaluates routing rules for a connection
 // Priority order:
 // 1. IP-Domain cache (previously evaluated routes)
-// 2. SNI allowlist (MITM to Nonelane)
+// 2. SNI allowlist (MITM to Aliang)
 // 3. GeoIP rules (optional)
 // 4. Default (SOCKS if configured, otherwise direct)
 func (e *RuleEngine) EvaluateRoute(ctx *EvaluationContext) (*RuleResult, error) {
@@ -84,7 +84,7 @@ func (e *RuleEngine) EvaluateRoute(ctx *EvaluationContext) (*RuleResult, error) 
 		}, nil
 	}
 
-	// TODO(US2): Implement routing decision logic with priority: NoneLane > SOCKS > GeoIP > Direct
+	// TODO(US2): Implement routing decision logic with priority: Aliang > SOCKS > GeoIP > Direct
 
 	// Priority 2: Check cache (avoid repeated SNI extraction)
 	if result := e.checkCache(ctx); result != nil {

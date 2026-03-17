@@ -84,7 +84,7 @@ func (h *DefaultTLSHandler) PerformMITM(ctx context.Context, originConn net.Conn
 	return tlsConn, nil
 }
 
-// DetermineRoute checks if a domain should be routed to nonelane (MITM), socks, or direct.
+// DetermineRoute checks if a domain should be routed to aliang (MITM), socks, or direct.
 // It uses the SNI allowlist from config.
 func (h *DefaultTLSHandler) DetermineRoute(serverName string) ProxyRoute {
 	if serverName == "" {
@@ -189,7 +189,7 @@ type WrappedConnWithTLS struct {
 // This method leverages:
 // 1. Bypass rules (user-configured direct routes)
 // 2. IP-Domain cache (avoid repeated SNI extraction)
-// 3. SNI allowlist (MITM to Nonelane)
+// 3. SNI allowlist (MITM to Aliang)
 // 4. GeoIP routing (country-based decisions)
 //
 // Returns both the routing decision and whether SNI extraction is required.

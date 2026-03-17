@@ -95,12 +95,12 @@ type SetType string
 const (
 	SetTypeToSocks   SetType = "to_socks"   // SOCKS proxy rules
 	SetTypeBlacklist SetType = "black_list" // Blacklist rules (reserved)
-	SetTypeNoneLane  SetType = "none_lane"  // NoneLane rules
+	SetTypeAliang    SetType = "aliang"     // Aliang rules
 )
 
 // RoutingRuleSet represents a collection of routing rules
 type RoutingRuleSet struct {
-	SetType   SetType       `json:"set_type" validate:"required,oneof=to_socks black_list none_lane"`
+	SetType   SetType       `json:"set_type" validate:"required,oneof=to_socks black_list aliang"`
 	Rules     []RoutingRule `json:"rules" validate:"dive"`
 	Count     int           `json:"count" validate:"min=0,max=10000"`
 	UpdatedAt time.Time     `json:"updated_at"`
@@ -109,7 +109,7 @@ type RoutingRuleSet struct {
 // Validate validates the RoutingRuleSet
 func (rs *RoutingRuleSet) Validate() error {
 	// SetType validation
-	if rs.SetType != SetTypeToSocks && rs.SetType != SetTypeBlacklist && rs.SetType != SetTypeNoneLane {
+	if rs.SetType != SetTypeToSocks && rs.SetType != SetTypeBlacklist && rs.SetType != SetTypeAliang {
 		return errors.New("invalid set type")
 	}
 
@@ -133,12 +133,12 @@ func (rs *RoutingRuleSet) Validate() error {
 
 // RulesSettings represents global routing settings
 type RulesSettings struct {
-	NoneLaneEnabled bool      `json:"none_lane_enabled" default:"true"`
-	SocksEnabled    bool      `json:"socks_enabled" default:"true"`
-	GeoIPEnabled    bool      `json:"geoip_enabled" default:"false"`
-	AutoUpdate      bool      `json:"auto_update" default:"true"`
-	UpdatedAt       time.Time `json:"updated_at"`
-	LastNacosSync   time.Time `json:"last_nacos_sync,omitempty"`
+	AliangEnabled bool      `json:"aliang_enabled" default:"true"`
+	SocksEnabled  bool      `json:"socks_enabled" default:"true"`
+	GeoIPEnabled  bool      `json:"geoip_enabled" default:"false"`
+	AutoUpdate    bool      `json:"auto_update" default:"true"`
+	UpdatedAt     time.Time `json:"updated_at"`
+	LastNacosSync time.Time `json:"last_nacos_sync,omitempty"`
 }
 
 // Validate validates the RulesSettings
@@ -151,7 +151,7 @@ func (s *RulesSettings) Validate() error {
 type RoutingRulesConfig struct {
 	ToSocks   RoutingRuleSet `json:"to_socks" validate:"required,dive"`
 	BlackList RoutingRuleSet `json:"black_list" validate:"required,dive"`
-	NoneLane  RoutingRuleSet `json:"none_lane" validate:"required,dive"`
+	Aliang    RoutingRuleSet `json:"aliang" validate:"required,dive"`
 	Settings  RulesSettings  `json:"settings" validate:"required"`
 	Version   int            `json:"version" validate:"min=1"`
 	CreatedAt time.Time      `json:"created_at"`
@@ -167,8 +167,8 @@ func (rc *RoutingRulesConfig) Validate() error {
 	if err := rc.BlackList.Validate(); err != nil {
 		return fmt.Errorf("black_list validation failed: %v", err)
 	}
-	if err := rc.NoneLane.Validate(); err != nil {
-		return fmt.Errorf("none_lane validation failed: %v", err)
+	if err := rc.Aliang.Validate(); err != nil {
+		return fmt.Errorf("aliang validation failed: %v", err)
 	}
 
 	// Validate settings
@@ -205,18 +205,18 @@ func NewRoutingRulesConfig() *RoutingRulesConfig {
 			Count:     0,
 			UpdatedAt: now,
 		},
-		NoneLane: RoutingRuleSet{
-			SetType:   SetTypeNoneLane,
+		Aliang: RoutingRuleSet{
+			SetType:   SetTypeAliang,
 			Rules:     []RoutingRule{},
 			Count:     0,
 			UpdatedAt: now,
 		},
 		Settings: RulesSettings{
-			NoneLaneEnabled: true,
-			SocksEnabled:    true,
-			GeoIPEnabled:    false,
-			AutoUpdate:      true,
-			UpdatedAt:       now,
+			AliangEnabled: true,
+			SocksEnabled:  true,
+			GeoIPEnabled:  false,
+			AutoUpdate:    true,
+			UpdatedAt:     now,
 		},
 		Version:   1,
 		CreatedAt: now,

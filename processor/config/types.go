@@ -8,7 +8,7 @@ import (
 // BaseProxyConfig represents a proxy configuration
 type BaseProxyConfig struct {
 	Type string `json:"type"`
-	// Nonelane 代理专用
+	// Aliang 代理专用
 	CoreServer string `json:"core_server,omitempty"`
 }
 
@@ -131,8 +131,8 @@ func (c *BaseProxyConfig) Validate() error {
 	case "direct":
 		// Direct proxy doesn't require additional configuration
 		// It connects directly without proxy
-	case "nonelane":
-		// Nonelane (mTLS) proxy - CoreServer is optional with default value
+	case "aliang":
+		// Aliang (mTLS) proxy - CoreServer is optional with default value
 		// If not provided, default will be used in registry
 	default:
 		return fmt.Errorf("unsupported proxy type: %s", c.Type)
@@ -234,7 +234,7 @@ type Config struct {
 	BaseProxies      map[string]*BaseProxyConfig `json:"baseProxies"`
 	DNSPreResolution *DNSPreResolutionConfig     `json:"dnsPreResolution,omitempty"` // DNS预解析配置
 	SocksProxy       *Socks5Config               `json:"socksProxy,omitempty"`       // 可选：默认 SOCKS5 出站
-	SNIAllowlist     []string                    `json:"sni_allowlist,omitempty"`    // SNI 允许列表（命中则 MITM 并转发到 Nonelane）
+	SNIAllowlist     []string                    `json:"sni_allowlist,omitempty"`    // SNI 允许列表（命中则 MITM 并转发到 Aliang）
 }
 
 // GetTokenActivateURL returns the complete Token activation URL

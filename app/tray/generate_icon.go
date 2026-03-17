@@ -1,3 +1,4 @@
+//go:build ignore
 // +build ignore
 
 package main
@@ -12,7 +13,7 @@ import (
 func main() {
 	// Generate active icon (colored)
 	generateActiveIcon()
-	
+
 	// Generate inactive icon (gray)
 	generateInactiveIcon()
 }
@@ -21,7 +22,7 @@ func generateActiveIcon() {
 	// Create a 64x64 icon
 	img := image.NewRGBA(image.Rect(0, 0, 64, 64))
 
-	// Fill with a gradient blue color (representing Nonelane)
+	// Fill with a gradient blue color (representing Aliang)
 	for y := 0; y < 64; y++ {
 		for x := 0; x < 64; x++ {
 			// Create a circular icon

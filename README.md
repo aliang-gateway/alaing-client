@@ -11,7 +11,7 @@ English | [中文](./README.zh.md)
 ### Key Characteristics
 
 - **TUN-Based Architecture**: Operates at the OS kernel level using TUN devices for transparent traffic interception
-- **Intelligent Routing**: SNI allowlist → MITM to Nonelane; otherwise SOCKS (if configured) → Direct
+- **Intelligent Routing**: SNI allowlist → MITM to Aliang; otherwise SOCKS (if configured) → Direct
 - **Real-Time DNS Caching**: Automatic domain-IP relationship discovery and caching
 - **HTTPS MITM Support**: Optional transparent HTTPS interception with custom CA certificates
 - **Multi-Protocol Proxy Support**: SOCKS5, VLESS, Shadowsocks, and custom protocols
@@ -162,7 +162,7 @@ Fixed three critical dashboard display issues:
          │
     ┌────▼──────────────────────────────────────┐
     │          Route Execution                  │
-    │  RouteToCursor (MITM) → Nonelane Proxy   │
+    │  RouteToCursor (MITM) → Aliang Proxy   │
     │  RouteToDoor (Forward) → VLESS/SS Proxy  │
     │  RouteDirect → Direct TCP Connection     │
     └────┬──────────────────────────────────────┘
@@ -448,7 +448,7 @@ curl -X DELETE http://localhost:56431/api/dns/cache
 
 - **gVisor** (github.com/sagernet/gvisor) - User-space network stack
 - **sing-box** (github.com/sagernet/sing-box) - Protocol implementations
-- **SNI Allowlist** - Local domain list for MITM routing to Nonelane
+- **SNI Allowlist** - Local domain list for MITM routing to Aliang
 - **GeoIP2** (oschwald/geoip2-golang) - IP geolocation
 - **tun2socks** (xjasonlyu/tun2socks/v2) - TUN device integration
 - **miekg/dns** - DNS protocol support

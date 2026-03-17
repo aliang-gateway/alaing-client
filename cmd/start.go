@@ -20,21 +20,21 @@ import (
 
 var startCmd = &cobra.Command{
 	Use:   "start",
-	Short: "Start the nonelane server",
-	Long: `Start the nonelane server with configuration from file or default embedded config.
+	Short: "Start the aliang server",
+	Long: `Start the aliang server with configuration from file or default embedded config.
 
 Examples:
   # Start with local config file and activate user with token
-  nonelane start --config ./config.json --token your-token-here
+  aliang start --config ./config.json --token your-token-here
 
   # Start with local config file (use locally saved user info)
-  nonelane start --config ./config.json
+  aliang start --config ./config.json
 
   # Start with default embedded configuration and activate user with token
-  nonelane start --token your-token-here
+  aliang start --token your-token-here
 
   # Start with default embedded configuration (use locally saved user info)
-  nonelane start`,
+  aliang start`,
 	RunE: runStart,
 }
 
@@ -106,7 +106,7 @@ func runStart(cmd *cobra.Command, args []string) error {
 	}
 
 	// 启动服务器
-	logger.Info("Starting nonelane server...")
+	logger.Info("Starting aliang server...")
 
 	// 启动 HTTP 服务器（包含代理注册中心初始化）
 	// HTTP server always starts, but API requests are gated by startup status middleware
@@ -214,7 +214,7 @@ func InitializeGlobalRuleEngine() error {
 }
 
 // initializeGeoIPDatabase loads the GeoIP database from default location
-// Default path: ~/.nonelane/GeoLite2-Country.mmdb
+// Default path: ~/.aliang/GeoLite2-Country.mmdb
 func initializeGeoIPDatabase() error {
 	// Get home directory
 	homeDir, err := cache.ExpandHomePath("~")
@@ -222,8 +222,8 @@ func initializeGeoIPDatabase() error {
 		return fmt.Errorf("failed to get home directory: %w", err)
 	}
 
-	// GeoIP database path: ~/.nonelane/GeoLite2-Country.mmdb
-	geoipPath := filepath.Join(homeDir, ".nonelane", "GeoLite2-Country.mmdb")
+	// GeoIP database path: ~/.aliang/GeoLite2-Country.mmdb
+	geoipPath := filepath.Join(homeDir, ".aliang", "GeoLite2-Country.mmdb")
 
 	// Load database
 	logger.Info(fmt.Sprintf("Loading GeoIP database from: %s", geoipPath))

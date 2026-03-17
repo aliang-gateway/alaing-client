@@ -69,7 +69,7 @@ type TLSHandler interface {
 	// 4. Return the established TLS connection
 	PerformMITM(ctx context.Context, originConn net.Conn, serverName string) (net.Conn, error)
 
-	// DetermineRoute checks if domain should be routed to nonelane (MITM), socks, or direct.
+	// DetermineRoute checks if domain should be routed to aliang (MITM), socks, or direct.
 	// Uses SNI allowlist from config.
 	// This is the legacy method without rule engine context.
 	DetermineRoute(serverName string) ProxyRoute

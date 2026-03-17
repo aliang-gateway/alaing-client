@@ -1,12 +1,12 @@
-package nonelane
+package aliang
 
 import (
 	"fmt"
 	"time"
 )
 
-// NoneLaneConfig contains configuration for the cursor_h2 proxy
-type NoneLaneConfig struct {
+// AliangConfig contains configuration for the cursor_h2 proxy
+type AliangConfig struct {
 	// Addr is the cursor server address (host:port)
 	Addr string
 
@@ -60,8 +60,8 @@ type TLSConfigOptions struct {
 }
 
 // DefaultConfig creates a default configuration for the given server address
-func DefaultConfig(addr string) *NoneLaneConfig {
-	return &NoneLaneConfig{
+func DefaultConfig(addr string) *AliangConfig {
+	return &AliangConfig{
 		Addr:                 addr,
 		DialTimeout:          10 * time.Second,
 		ReadTimeout:          30 * time.Second,
@@ -80,7 +80,7 @@ func DefaultConfig(addr string) *NoneLaneConfig {
 }
 
 // Validate validates the configuration
-func (c *NoneLaneConfig) Validate() error {
+func (c *AliangConfig) Validate() error {
 	if c == nil {
 		return NewErrorf(ErrInvalidConfig, "config is nil")
 	}
@@ -131,7 +131,7 @@ func (c *NoneLaneConfig) Validate() error {
 }
 
 // String returns a string representation of the configuration
-func (c *NoneLaneConfig) String() string {
+func (c *AliangConfig) String() string {
 	return fmt.Sprintf(
 		"CursorH2Config{Addr: %s, DialTimeout: %v, MaxConcurrentStreams: %d}",
 		c.Addr,

@@ -12,7 +12,7 @@
 - 图标会根据服务器状态自动切换
 
 ### 3. **移除托盘旁边的文字**
-- ✅ 已移除 `SetTitle("Nonelane")`
+- ✅ 已移除 `SetTitle("Aliang")`
 - 托盘只显示图标，不显示文字
 - 状态信息通过 Tooltip 显示
 
@@ -43,8 +43,8 @@
 
 | 状态 | 图标颜色 | Tooltip | 菜单状态 |
 |------|---------|---------|---------|
-| **已停止** | 灰色 | Nonelane - Stopped | Start: ✅<br>Stop: ❌<br>Restart: ❌ |
-| **运行中** | 彩色（蓝色） | Nonelane - Running | Start: ❌<br>Stop: ✅<br>Restart: ✅ |
+| **已停止** | 灰色 | Aliang - Stopped | Start: ✅<br>Stop: ❌<br>Restart: ❌ |
+| **运行中** | 彩色（蓝色） | Aliang - Running | Start: ❌<br>Stop: ✅<br>Restart: ✅ |
 
 ## 📋 测试清单
 
@@ -62,7 +62,7 @@ go build -o dist/nursorgate cmd/nursor/main.go
 # 3. 观察托盘图标
 # - 应该显示在系统托盘区域
 # - 初始状态应该是彩色图标（服务器自动启动）
-# - Tooltip 应该显示 "Nonelane - Running"
+# - Tooltip 应该显示 "Aliang - Running"
 
 # 4. 右键菜单测试
 # - Open Dashboard: 应该打开浏览器
@@ -78,16 +78,16 @@ go build -o dist/nursorgate cmd/nursor/main.go
 
 1. **启动应用**
    - ✅ 图标应该是彩色（蓝色）
-   - ✅ Tooltip: "Nonelane - Running"
+   - ✅ Tooltip: "Aliang - Running"
 
 2. **停止服务器**（右键 → Stop Server）
    - ✅ 图标应该变成灰色
-   - ✅ Tooltip: "Nonelane - Stopped"
+   - ✅ Tooltip: "Aliang - Stopped"
    - ✅ Stop 和 Restart 菜单应该禁用
 
 3. **启动服务器**（右键 → Start Server）
    - ✅ 图标应该变成彩色
-   - ✅ Tooltip: "Nonelane - Running"
+   - ✅ Tooltip: "Aliang - Running"
    - ✅ Start 菜单应该禁用
 
 4. **重启服务器**（右键 → Restart Server）

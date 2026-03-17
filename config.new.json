@@ -17,8 +17,8 @@
   "currentProxy": "door",
   "coreServer": "ai-gateway.nursor.org:443",
   "baseProxies": {
-    "nonelane": {
-      "type": "nonelane",
+    "aliang": {
+      "type": "aliang",
       "core_server": "ai-gateway.nursor.org:443"
     }
   },
@@ -74,7 +74,7 @@
   "routingRules": {
     "geoip": {
       "enabled": true,
-      "databasePath": "~/.nonelane/GeoLite2-Country.mmdb",
+      "databasePath": "~/.aliang/GeoLite2-Country.mmdb",
       "chinaDirect": true
     },
     "bypassRules": {
