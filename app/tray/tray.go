@@ -187,7 +187,14 @@ func (t *TrayApp) restartServer() {
 
 // openDashboard opens the web dashboard in the default browser
 func (t *TrayApp) openDashboard() {
-	dashboardURL := "http://localhost:8080" // Adjust to your actual port
+	// Get the actual port from the HTTP server
+	actualPort := httpServer.GetActualPort()
+	if actualPort == "" {
+		logger.Error("Failed to get actual port: server may not be running")
+		return
+	}
+
+	dashboardURL := fmt.Sprintf("http://localhost:%s", actualPort)
 
 	var cmd *exec.Cmd
 	switch runtime.GOOS {

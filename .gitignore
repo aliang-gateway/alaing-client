@@ -43,3 +43,6 @@ nursorgate-final
 .serena
 *.pyc
 .agents/
+.tmp*
+aliang-test
+dashboard-current-state.png

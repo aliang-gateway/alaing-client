@@ -31,6 +31,9 @@ var (
 
 	// isRunning indicates if server is currently running
 	isRunning bool
+
+	// actualPort stores the actual port the server is listening on
+	actualPort string
 )
 
 // StartHttpServer 启动HTTP服务器，注册所有路由
@@ -71,10 +74,15 @@ func StartHttpServer() {
 					log.Fatalf("HTTP server failed: unable to find available port: %v", err)
 				}
 				actualAddr := listener.Addr().(*net.TCPAddr)
+				actualPort = fmt.Sprintf("%d", actualAddr.Port)
 				logger.Info(fmt.Sprintf("HTTP server listening on alternative port: %s", actualAddr.String()))
 			} else {
 				log.Fatalf("HTTP server failed: %v", err)
 			}
+		} else {
+			// Store the actual port from the default port
+			_, portStr, _ := net.SplitHostPort(port)
+			actualPort = portStr
 		}
 
 		// Create HTTP server
@@ -254,6 +262,13 @@ func IsServerRunning() bool {
 	serverMutex.Lock()
 	defer serverMutex.Unlock()
 	return isRunning
+}
+
+// GetActualPort returns the actual port the HTTP server is listening on
+func GetActualPort() string {
+	serverMutex.Lock()
+	defer serverMutex.Unlock()
+	return actualPort
 }
 
 // setContentType 根据文件扩展名设置 Content-Type

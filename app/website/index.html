@@ -1,1187 +1,597 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AliangGate - Proxy Dashboard</title>
-    
-    <!-- Bootstrap 5 CSS -->
-    <link href="/assets/bootstrap.min.css" rel="stylesheet">
-    <!-- Bootstrap Icons -->
-    <link href="/assets/bootstrap-icons.css" rel="stylesheet">
-    <!-- Custom Styles -->
-    <link href="/assets/styles.css" rel="stylesheet">
-    <!-- Chart.js -->
-    <script src="/assets/chart.umd.min.js"></script>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>ALiang Gateway Dashboard</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#21c45d",
+                        "background-light": "#f6f8f7",
+                        "background-dark": "#122017",
+                    },
+                    fontFamily: {
+                        "display": ["Inter", "sans-serif"]
+                    },
+                    borderRadius: {"DEFAULT": "0.125rem", "lg": "0.25rem", "xl": "0.5rem", "full": "0.75rem"},
+                },
+            },
+        }
+    </script>
+<style>
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #e2e8f0;
+            border-radius: 10px;
+        }
+        .pulse-ring {
+            box-shadow: 0 0 0 0 rgba(33, 196, 93, 0.7);
+        }
+    </style>
 </head>
-<body>
-    <!-- Notification Container -->
-    <div id="notification-container"></div>
-
-    <nav class="compat-nav" aria-hidden="true">
-        <a href="#" class="tab-item nav-link active" data-page="dashboard">Dashboard</a>
-        <a href="#" class="tab-item nav-link" data-page="proxy-control">Proxy</a>
-        <a href="#" class="tab-item nav-link" data-page="rules">Rules</a>
-        <a href="#" class="tab-item nav-link" data-page="logs">Logs</a>
-        <a href="#" class="tab-item nav-link" data-page="userinfo">User</a>
-        <a href="#" class="tab-item nav-link" data-page="dnscache">DNS</a>
-    </nav>
-
-    <!-- ===== DASHBOARD PAGE (HOME) ===== -->
-    <div id="dashboard-page" class="page-container content-section active">
-        <!-- Top Navigation Bar -->
-        <nav class="top-nav">
-            <div class="nav-brand">
-                <div class="logo-wrapper">
-                    <div class="logo-icon">
-                        <i class="bi bi-hdd-network"></i>
-                    </div>
-                    <div class="logo-text">
-                        <h1>AliangGate</h1>
-                        <div class="status-badge">
-                            <span class="status-indicator" id="statusIndicator"></span>
-                            <span id="statusText">运行中</span>
+<body class="bg-background-light dark:bg-background-dark font-display text-slate-900 dark:text-slate-100 antialiased">
+<div class="flex h-screen overflow-hidden">
+<!-- Dashboard Page Container -->
+<div id="dashboard-page" class="page-container content-section active">
+<!-- Left Sidebar/Panel -->
+<aside class="w-96 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 flex flex-col h-full overflow-y-auto custom-scrollbar">
+<!-- Refined User Profile Block -->
+<div class="p-8 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/20">
+<div class="flex items-center gap-4">
+<div class="relative group">
+<div class="size-14 ring-2 ring-primary ring-offset-2 dark:ring-offset-slate-900 rounded-xl overflow-hidden shadow-sm transition-transform duration-300 group-hover:scale-105">
+<img alt="User avatar" class="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBe4dmnKyGk_XawBt0uNW9E5uEFaIM3EsR5Fc_1I1RXhICJBndC8O_xmynJ0wCM6F7c2J8VdktjImaCqgRPBNrHLCHbvPsfHSyfuhmPaR6UJsJ9Mbj-M0g5dRpiXfW3ZoP3w2xuOq6hCD4sTfDTbJqMK9FHsJ3DU3DsBKF0SMuQITir97QPEC2hviK9f26s-g9gxmmITj4LSyILlnLedqYEwhvESK6n_tNiLuhY94eW6ZQkVkw4YzzgyFb18ZVhgN-8vEcW7oqsIeI"/>
+</div>
+<div class="absolute -bottom-1 -right-1 size-4 bg-primary border-2 border-white dark:border-slate-900 rounded-full"></div>
+</div>
+<div>
+<div class="flex items-center gap-1.5">
+<h2 class="font-bold text-slate-900 dark:text-white tracking-tight">Alex Rivera</h2>
+</div>
+<div class="flex items-center gap-2 mt-1">
+<span class="px-2 py-0.5 bg-primary/10 text-primary text-[10px] font-bold rounded uppercase tracking-wider">Pro Developer</span>
+</div>
+<p class="text-slate-400 text-[11px] mt-1.5 font-medium">Valid until Dec 31, 2025</p>
+</div>
+</div>
+</div>
+<!-- Power Toggle Section -->
+<div class="p-8 flex flex-col items-center justify-center gap-6">
+<div class="relative">
+<!-- Pulse effect placeholder (Static representation) -->
+<div class="absolute -inset-4 rounded-full bg-primary/20 scale-110"></div>
+<button type="button"  class="relative size-24 bg-primary text-white rounded-full flex items-center justify-center shadow-lg shadow-primary/40 hover:bg-primary/90 transition-all">
+<span class="material-symbols-outlined text-4xl font-bold">power_settings_new</span>
+</button>
+</div>
+<div class="text-center">
+<p class="text-sm font-semibold text-slate-600 dark:text-slate-400">System Proxy Active</p>
+<p class="text-xs text-slate-400 mt-1">Protecting 12 applications</p>
+</div>
+</div>
+<!-- Status Card -->
+<div class="mx-6 p-4 bg-slate-50 dark:bg-slate-800/50 rounded border border-slate-100 dark:border-slate-700">
+<div class="flex justify-between items-start mb-3">
+<p class="text-xs font-bold text-slate-500 uppercase">Network Status</p>
+<span class="material-symbols-outlined text-primary text-sm">verified</span>
+</div>
+<div class="space-y-2">
+<div class="flex justify-between text-sm">
+<span class="text-slate-500">Mode:</span>
+<span class="font-medium text-slate-700 dark:text-slate-200">TUN/HTTP</span>
+</div>
+<div class="flex justify-between text-sm">
+<span class="text-slate-500">Protocol:</span>
+<span class="font-medium text-slate-700 dark:text-slate-200">SOCKS5</span>
+</div>
+<div class="flex justify-between text-sm">
+<span class="text-slate-500">Certificate:</span>
+<span class="font-medium text-primary">Installed</span>
+</div>
+</div>
+<div class="grid grid-cols-2 gap-2 mt-4">
+<button type="button"  class="px-3 py-1.5 text-xs font-bold border border-slate-200 dark:border-slate-600 rounded hover:bg-white dark:hover:bg-slate-700 transition-colors">Details</button>
+<button type="button"  class="px-3 py-1.5 text-xs font-bold bg-primary/10 text-primary rounded hover:bg-primary/20 transition-colors">Re-install</button>
+</div>
+</div>
+<!-- Quick Tools -->
+<div class="mt-8 px-6 space-y-3">
+<p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Quick Tools</p>
+<div class="group relative">
+<button type="button"  class="w-full flex items-center justify-between px-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded text-sm font-medium hover:border-primary transition-colors">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-slate-400 text-lg">bolt</span>
+                            Quick Setup
                         </div>
-                    </div>
-                </div>
-            </div>
-            
-            <!-- User Status Card (Top Right) -->
-            <div class="user-status-card" id="userStatusCard">
-                <div class="user-avatar">
-                    <i class="bi bi-person-circle"></i>
-                </div>
-                <div class="user-info">
-                    <div class="user-status">
-                        <span class="status-dot" id="userServiceStatus"></span>
-                        <span id="userRunStatus">运行中</span>
-                    </div>
-                    <div class="user-plan">
-                        <span class="plan-name" id="userPlanName">Free Plan</span>
-                        <span class="plan-date" id="userPlanDate">永久有效</span>
-                    </div>
-                </div>
-            </div>
-        </nav>
-
-        <!-- Main Content - Split Layout -->
-        <main class="dashboard-main">
-            <!-- LEFT PANEL -->
-            <section class="panel-left">
-                <!-- Large Toggle Button with Wave Animation -->
-                <div class="toggle-container">
-                    <button type="button" class="toggle-btn" id="dashStartBtn">
-                        <div class="toggle-inner">
-                            <div class="wave-container" id="waveContainer">
-                                <div class="wave"></div>
-                                <div class="wave wave2"></div>
-                                <div class="wave wave3"></div>
-                            </div>
-                            <div class="toggle-icon">
-                                <i class="bi bi-power" id="toggleIcon"></i>
-                            </div>
-                        </div>
-                        <span class="toggle-text" id="toggleText">启动服务</span>
-                    </button>
-                    <button type="button" class="toggle-btn toggle-btn-danger d-none" id="dashStopBtn">
-                        <div class="toggle-inner">
-                            <div class="toggle-icon">
-                                <i class="bi bi-stop-circle"></i>
-                            </div>
-                        </div>
-                        <span class="toggle-text">停止服务</span>
-                    </button>
-                </div>
-
-                <!-- Status Cards Grid -->
-                <div class="status-grid">
-                    <!-- Run Mode Card -->
-                    <div class="status-card card-run-mode">
-                        <div class="card-header">
-                            <i class="bi bi-cpu"></i>
-                            <span>运行模式</span>
-                        </div>
-                        <div class="card-content">
-                            <div class="mode-selector" role="radiogroup" aria-label="运行模式">
-                                <input class="mode-input" type="radio" name="runMode" id="runModeTun" value="tun" checked>
-                                <label class="mode-btn active" for="runModeTun">
-                                    <i class="bi bi-wifi"></i>
-                                    <span>TUN</span>
-                                </label>
-                                <input class="mode-input" type="radio" name="runMode" id="runModeHttp" value="http">
-                                <label class="mode-btn" for="runModeHttp">
-                                    <i class="bi bi-router"></i>
-                                    <span>HTTP</span>
-                                </label>
-                            </div>
-                            <div class="current-mode">
-                                当前: <strong id="dashRunMode">TUN</strong>
-                            </div>
-                            <div class="mode-meta">
-                                <span id="dashRunStatus">待更新</span>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Forward Protocol Card -->
-                    <div class="status-card card-forward">
-                        <div class="card-header">
-                            <i class="bi bi-arrow-left-right"></i>
-                            <span>转发协议</span>
-                        </div>
-                        <div class="card-content">
-                            <div class="protocol-badges">
-                                <span class="protocol-badge" id="forwardSocks5">
-                                    <i class="bi bi-shield-lock"></i> SOCKS5
-                                </span>
-                                <span class="protocol-badge" id="forwardHttp">
-                                    <i class="bi bi-globe"></i> HTTP
-                                </span>
-                                <span class="protocol-badge active" id="forwardDirect">
-                                    <i class="bi bi-lightning"></i> DIRECT
-                                </span>
-                            </div>
-                            <div class="current-proxy" id="dashCurrentProxy">
-                                直连模式
-                            </div>
-                            <div class="proxy-meta">
-                                <span id="dashRuleStatus">规则状态: -</span>
-                                <span id="dashProxyCount">代理数: 0</span>
-                                <span id="dashDoorCount">Door节点: 0</span>
-                                <span id="dashLastUpdate">更新时间: --:--:--</span>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Certificate Status Card -->
-                    <div class="status-card card-cert">
-                        <div class="card-header">
-                            <i class="bi bi-award"></i>
-                            <span>证书状态</span>
-                        </div>
-                        <div class="card-content">
-                            <div class="cert-status" id="certStatusContainer">
-                                <span class="cert-badge cert-installed">
-                                    <i class="bi bi-check-circle"></i> 已安装
-                                </span>
-                            </div>
-                            <div class="cert-actions">
-                                <button type="button" class="cert-action-btn" id="dashBtnCheckCert" title="检查证书">
-                                    <i class="bi bi-search"></i>
-                                </button>
-                                <button type="button" class="cert-action-btn" id="dashBtnInstallCert" title="安装证书">
-                                    <i class="bi bi-download"></i>
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Quick Actions Row -->
-                <div class="quick-actions">
-                    <!-- Quick Settings Dropdown -->
-                    <div class="dropdown">
-                        <button type="button" class="action-btn" data-bs-toggle="dropdown">
-                            <i class="bi bi-tools"></i>
-                            <span>快速设置</span>
-                        </button>
-                        <ul class="dropdown-menu dropdown-menu-end">
-                            <li><a class="dropdown-item" href="#" id="quickOpenCode">
-                                <i class="bi bi-code-square"></i> 一键配置 OpenCode
-                            </a></li>
-                            <li><a class="dropdown-item" href="#" id="quickClaudeCode">
-                                <i class="bi bi-chat-square-code"></i> 一键配置 Claude Code
-                            </a></li>
-                            <li><a class="dropdown-item" href="#" id="quickCodex">
-                                <i class="bi bi-terminal"></i> 一键配置 Codex
-                            </a></li>
-                            <li><hr class="dropdown-divider"></li>
-                            <li><a class="dropdown-item" href="#" id="quickOpenClaw">
-                                <i class="bi bi-box"></i> 生成 OpenClaw 配置
-                            </a></li>
-                            <li><a class="dropdown-item" href="#" id="quickOtherSupport">
-                                <i class="bi bi-plus-circle"></i> 提交其他支持
-                            </a></li>
-                        </ul>
-                    </div>
-
-                    <!-- Chat Button -->
-                    <button type="button" class="action-btn" id="quickChatBtn">
-                        <i class="bi bi-chat-dots"></i>
-                        <span>快速聊天</span>
-                    </button>
-
-                    <!-- Settings Button -->
-                    <button type="button" class="action-btn" id="goToSettingsBtn">
-                        <i class="bi bi-gear"></i>
-                        <span>更多设置</span>
-                    </button>
-                </div>
-
-                <!-- Package Info Footer -->
-                <div class="package-info">
-                    <div class="package-header">
-                        <i class="bi bi-box-seam"></i>
-                        <span>套餐信息</span>
-                    </div>
-                    <div class="package-stats">
-                        <div class="stat-item">
-                            <span class="stat-label">已用流量</span>
-                            <span class="stat-value" id="statsTotalTraffic">0 GB</span>
-                        </div>
-                        <div class="stat-item">
-                            <span class="stat-label">上传</span>
-                            <span class="stat-value" id="statsUploadTotal">0 MB</span>
-                        </div>
-                        <div class="stat-item">
-                            <span class="stat-label">下载</span>
-                            <span class="stat-value" id="statsDownloadTotal">0 MB</span>
-                        </div>
-                        <div class="stat-item">
-                            <span class="stat-label">活跃连接</span>
-                            <span class="stat-value" id="statsConnectionCount">0</span>
-                        </div>
-                    </div>
-                    <div class="package-progress">
-                        <div class="progress-bar">
-                            <div class="progress-fill" id="packageProgress" style="width: 35%"></div>
-                        </div>
-                        <span class="progress-text">35% 已使用</span>
-                    </div>
-                </div>
-            </section>
-
-            <!-- RIGHT PANEL -->
-            <section class="panel-right">
-                <!-- Charts Row -->
-                <div class="charts-row">
-                    <!-- Domain Pie Chart -->
-                    <div class="chart-box chart-pie">
-                        <div class="chart-header">
-                            <h3><i class="bi bi-pie-chart"></i> 域名分布</h3>
-                            <div class="domain-filters" id="domainFilters">
-                                <button type="button" class="domain-filter active" data-domain-filter="all">全部</button>
-                                <button type="button" class="domain-filter" data-domain-filter="cursor">Cursor</button>
-                                <button type="button" class="domain-filter" data-domain-filter="openai">OpenAI</button>
-                                <button type="button" class="domain-filter" data-domain-filter="claude">Claude</button>
-                                <button type="button" class="domain-filter" data-domain-filter="chatgpt">ChatGPT</button>
-                                <button type="button" class="domain-filter" data-domain-filter="copilot">Copilot</button>
-                            </div>
-                        </div>
-                        <div class="chart-body">
-                            <canvas id="domainPieChart"></canvas>
-                        </div>
-                    </div>
-
-                    <!-- Traffic Line Chart -->
-                    <div class="chart-box chart-line">
-                        <div class="chart-header">
-                            <h3><i class="bi bi-graph-up"></i> 实时流量</h3>
-                            <div class="chart-legend">
-                                <span class="legend-item upload">
-                                    <span class="dot"></span>
-                                    上传: <span id="statsUploadRate">0 KB/s</span>
-                                </span>
-                                <span class="legend-item download">
-                                    <span class="dot"></span>
-                                    下载: <span id="statsDownloadRate">0 KB/s</span>
-                                </span>
-                            </div>
-                        </div>
-                        <div class="chart-body">
-                            <canvas id="trafficChart"></canvas>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Request Log List -->
-                <div class="log-list-container">
-                    <div class="log-list-header">
-                        <h3><i class="bi bi-list-ul"></i> 请求日志</h3>
-                        <span class="log-count" id="logCount">50 条记录</span>
-                    </div>
-                    <div class="log-list-body" id="requestLogList">
-                        <!-- Log items will be inserted here -->
-                        <div class="log-item log-item-placeholder">
-                            <div class="log-time">--:--:--</div>
-                            <div class="log-domain">等待请求...</div>
-                            <div class="log-status">-</div>
-                        </div>
-                    </div>
-                </div>
-            </section>
-        </main>
-    </div>
-
-    <!-- ===== SETTINGS PAGE ===== -->
-    <div id="settings-page" class="page-container">
-        <!-- Settings Navigation -->
-        <nav class="settings-nav">
-            <div class="settings-brand" id="backToDashboard">
-                <i class="bi bi-arrow-left"></i>
-                <span>返回仪表板</span>
-            </div>
-            <div class="settings-tabs">
-                <button type="button" class="settings-tab active" data-tab="rules">
-                    <i class="bi bi-shield-check"></i>
-                    <span>规则设置</span>
+<span class="material-symbols-outlined text-slate-400 text-sm">expand_more</span>
+</button>
+</div>
+<button type="button"  class="w-full flex items-center gap-3 px-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded text-sm font-medium hover:border-primary transition-colors">
+<span class="material-symbols-outlined text-slate-400 text-lg">chat_bubble</span>
+                    Quick Chat
                 </button>
-                <button type="button" class="settings-tab" data-tab="userinfo">
-                    <i class="bi bi-person-circle"></i>
-                    <span>用户信息</span>
+<button type="button"  class="w-full flex items-center gap-3 px-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded text-sm font-medium hover:border-primary transition-colors">
+<span class="material-symbols-outlined text-slate-400 text-lg">settings</span>
+                    More Settings
                 </button>
-                <button type="button" class="settings-tab" data-tab="logs">
-                    <i class="bi bi-journal-text"></i>
-                    <span>日志监控</span>
-                </button>
-                <button type="button" class="settings-tab" data-tab="system">
-                    <i class="bi bi-gear"></i>
-                    <span>系统设置</span>
-                </button>
-            </div>
-            <div class="settings-user">
-                <div class="user-mini-card">
-                    <i class="bi bi-person-circle"></i>
-                    <div class="mini-status">
-                        <span class="status-indicator running" id="settingsStatusIndicator"></span>
-                    </div>
-                </div>
-            </div>
-        </nav>
-
-        <!-- Settings Content -->
-        <main class="settings-main">
-            <!-- Rules Tab -->
-            <div id="rules-tab" class="settings-content active">
-                <div class="content-header">
-                    <h2><i class="bi bi-shield-check"></i> 规则设置</h2>
-                    <p>配置流量劫持规则，支持多种AI服务域名</p>
-                </div>
-
-                <!-- Rule Types Grid -->
-                <div class="rule-types-grid">
-                    <!-- Cursor Rules -->
-                    <div class="rule-type-card">
-                        <div class="rule-header">
-                            <div class="rule-icon cursor">
-                                <i class="bi bi-cursor"></i>
-                            </div>
-                            <h4>Cursor</h4>
-                            <label class="rule-switch">
-                                <input type="checkbox" checked id="ruleCursorEnabled">
-                                <span class="switch-slider"></span>
-                            </label>
-                        </div>
-                        <div class="rule-domains">
-                            <code>cursor.sh, api2.cursor.sh</code>
-                        </div>
-                    </div>
-
-                    <!-- Claude Rules -->
-                    <div class="rule-type-card">
-                        <div class="rule-header">
-                            <div class="rule-icon claude">
-                                <i class="bi bi-chat-square-text"></i>
-                            </div>
-                            <h4>Claude</h4>
-                            <label class="rule-switch">
-                                <input type="checkbox" checked id="ruleClaudeEnabled">
-                                <span class="switch-slider"></span>
-                            </label>
-                        </div>
-                        <div class="rule-domains">
-                            <code>api.anthropic.com, claude.ai</code>
-                        </div>
-                    </div>
-
-                    <!-- OpenAI Rules -->
-                    <div class="rule-type-card">
-                        <div class="rule-header">
-                            <div class="rule-icon openai">
-                                <i class="bi bi-stars"></i>
-                            </div>
-                            <h4>OpenAI</h4>
-                            <label class="rule-switch">
-                                <input type="checkbox" checked id="ruleOpenaiEnabled">
-                                <span class="switch-slider"></span>
-                            </label>
-                        </div>
-                        <div class="rule-domains">
-                            <code>api.openai.com, chatgpt.com</code>
-                        </div>
-                    </div>
-
-                    <!-- Copilot Rules -->
-                    <div class="rule-type-card">
-                        <div class="rule-header">
-                            <div class="rule-icon copilot">
-                                <i class="bi bi-cpu-fill"></i>
-                            </div>
-                            <h4>Copilot</h4>
-                            <label class="rule-switch">
-                                <input type="checkbox" checked id="ruleCopilotEnabled">
-                                <span class="switch-slider"></span>
-                            </label>
-                        </div>
-                        <div class="rule-domains">
-                            <code>api.githubcopilot.com</code>
-                        </div>
-                    </div>
-
-                    <!-- Gemini Rules -->
-                    <div class="rule-type-card">
-                        <div class="rule-header">
-                            <div class="rule-icon gemini">
-                                <i class="bi bi-gem"></i>
-                            </div>
-                            <h4>Gemini</h4>
-                            <label class="rule-switch">
-                                <input type="checkbox" id="ruleGeminiEnabled">
-                                <span class="switch-slider"></span>
-                            </label>
-                        </div>
-                        <div class="rule-domains">
-                            <code>generativelanguage.googleapis.com</code>
-                        </div>
-                    </div>
-
-                    <!-- DeepSeek Rules -->
-                    <div class="rule-type-card">
-                        <div class="rule-header">
-                            <div class="rule-icon deepseek">
-                                <i class="bi bi-cpu"></i>
-                            </div>
-                            <h4>DeepSeek</h4>
-                            <label class="rule-switch">
-                                <input type="checkbox" id="ruleDeepseekEnabled">
-                                <span class="switch-slider"></span>
-                            </label>
-                        </div>
-                        <div class="rule-domains">
-                            <code>api.deepseek.com</code>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Custom Rules Editor -->
-                <div class="rule-editor-card">
-                    <div class="editor-header">
-                        <h4><i class="bi bi-code-square"></i> 自定义规则</h4>
-                        <div class="editor-actions">
-                            <button type="button" class="btn btn-sm btn-primary" id="rulesReloadBtn">
-                                <i class="bi bi-arrow-clockwise"></i> 重载
-                            </button>
-                            <button type="button" class="btn btn-sm btn-danger" id="rulesClearCacheBtn">
-                                <i class="bi bi-trash"></i> 清空缓存
-                            </button>
-                        </div>
-                    </div>
-                    <textarea class="rule-editor" id="customRulesEditor" placeholder="输入自定义域名规则，每行一个域名..."></textarea>
-                </div>
-
-                <!-- Global Settings -->
-                <div class="global-settings-card">
-                    <h4><i class="bi bi-sliders"></i> 全局设置</h4>
-                    <div class="settings-row">
-                        <div class="setting-item">
-                            <label class="setting-label">
-                                <i class="bi bi-globe"></i> 启用 GeoIP 查询
-                            </label>
-                            <div class="form-check form-switch">
-                                <input class="form-check-input" type="checkbox" id="geoipEnabledSwitch">
-                            </div>
-                        </div>
-                        <div class="setting-item">
-                            <label class="setting-label">
-                                <i class="bi bi-signpost-split"></i> 启用 NoneLane 代理
-                            </label>
-                            <div class="form-check form-switch">
-                                <input class="form-check-input" type="checkbox" id="nonelaneEnabledSwitch">
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- User Info Tab -->
-            <div id="userinfo-tab" class="settings-content">
-                <div class="content-header">
-                    <h2><i class="bi bi-person-circle"></i> 用户信息</h2>
-                    <p>管理您的账户和API密钥</p>
-                </div>
-
-                <!-- Token Activation -->
-                <div class="info-card">
-                    <div class="card-title">
-                        <i class="bi bi-key"></i> Token 激活
-                    </div>
-                    <div class="token-input-row">
-                        <input type="text" class="form-control" id="authTokenInput" placeholder="输入激活 Token...">
-                        <button type="button" class="btn btn-primary" id="authActivateBtn">
-                            <i class="bi bi-play-fill"></i> 激活
+</div>
+<!-- Bottom Account Balance -->
+<div class="mt-auto p-6 border-t border-slate-100 dark:border-slate-800 bg-slate-50/30 dark:bg-slate-800/10">
+<div class="flex justify-between items-center mb-3">
+<span class="text-xs font-bold text-slate-500 uppercase tracking-wider">Account Balance</span>
+<span class="text-lg font-bold text-slate-900 dark:text-white">$42.50</span>
+</div>
+<button type="button"  class="w-full py-2 bg-slate-900 dark:bg-primary text-white text-xs font-bold rounded hover:opacity-90 transition-opacity">
+    Top Up Funds
+</button>
+<p class="text-[10px] text-slate-400 mt-2 text-center italic">Auto-renew enabled</p>
+</div>
+</aside>
+<!-- Main Content Area -->
+<main class="flex-1 flex flex-col h-full bg-background-light dark:bg-background-dark overflow-hidden">
+<!-- Top Navigation Bar -->
+<header class="h-16 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between px-8 shrink-0">
+<div class="flex items-center gap-4">
+<div class="size-8 bg-primary rounded-lg flex items-center justify-center text-white shadow-sm">
+<span class="material-symbols-outlined">api</span>
+</div>
+<h1 class="font-bold text-xl tracking-tight">ALiang <span class="text-primary font-medium">Gateway</span></h1>
+</div>
+<div class="flex items-center gap-4">
+<div class="flex items-center gap-1">
+<button type="button"  class="size-10 flex items-center justify-center rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 transition-colors">
+<span class="material-symbols-outlined">notifications</span>
+</button>
+<button type="button"  class="size-10 flex items-center justify-center rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 transition-colors">
+<span class="material-symbols-outlined">help_outline</span>
+</button>
+<button type="button"  class="size-10 flex items-center justify-center rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 transition-colors">
+<span class="material-symbols-outlined">settings</span>
+</button>
+</div>
+<div class="h-8 w-px bg-slate-200 dark:bg-slate-800 mx-2"></div>
+<button type="button"  class="px-4 py-1.5 bg-primary/10 text-primary text-xs font-bold rounded-lg hover:bg-primary/20 transition-colors">
+    Refresh Dashboard
+</button>
+</div>
+</header>
+<div class="flex-1 overflow-y-auto p-8 custom-scrollbar">
+<!-- Charts Grid -->
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+<!-- Traffic Distribution (Pie Chart Mockup) -->
+<div class="bg-white dark:bg-slate-900 p-6 rounded border border-slate-200 dark:border-slate-800 shadow-sm">
+<div class="flex justify-between items-center mb-6">
+<h3 class="font-bold text-slate-700 dark:text-slate-300">Traffic by Domain</h3>
+<button type="button"  class="text-slate-400 hover:text-primary"><span class="material-symbols-outlined">more_horiz</span></button>
+</div>
+<div class="flex items-center gap-8">
+<div class="relative size-40 flex items-center justify-center">
+<!-- Donut chart simulation using SVG -->
+<svg class="size-full transform -rotate-90" viewbox="0 0 36 36">
+<circle cx="18" cy="18" fill="transparent" r="15.9" stroke="#e2e8f0" stroke-width="3"></circle>
+<circle cx="18" cy="18" fill="transparent" r="15.9" stroke="#21c45d" stroke-dasharray="40 100" stroke-dashoffset="0" stroke-width="3"></circle>
+<circle cx="18" cy="18" fill="transparent" r="15.9" stroke="#10b981" stroke-dasharray="25 100" stroke-dashoffset="-40" stroke-width="3"></circle>
+<circle cx="18" cy="18" fill="transparent" r="15.9" stroke="#34d399" stroke-dasharray="15 100" stroke-dashoffset="-65" stroke-width="3"></circle>
+<circle cx="18" cy="18" fill="transparent" r="15.9" stroke="#6ee7b7" stroke-dasharray="10 100" stroke-dashoffset="-80" stroke-width="3"></circle>
+<circle cx="18" cy="18" fill="transparent" r="15.9" stroke="#a7f3d0" stroke-dasharray="10 100" stroke-dashoffset="-90" stroke-width="3"></circle>
+</svg>
+<div class="absolute inset-0 flex flex-col items-center justify-center">
+<span class="text-2xl font-bold">100%</span>
+<span class="text-[10px] text-slate-400 uppercase">Active</span>
+</div>
+</div>
+<div class="flex-1 space-y-2">
+<div class="flex items-center justify-between text-xs">
+<div class="flex items-center gap-2"><span class="size-2 bg-[#21c45d] rounded-full"></span> Cursor</div>
+<span class="font-bold">40%</span>
+</div>
+<div class="flex items-center justify-between text-xs">
+<div class="flex items-center gap-2"><span class="size-2 bg-[#10b981] rounded-full"></span> OpenAI</div>
+<span class="font-bold">25%</span>
+</div>
+<div class="flex items-center justify-between text-xs">
+<div class="flex items-center gap-2"><span class="size-2 bg-[#34d399] rounded-full"></span> Claude</div>
+<span class="font-bold">15%</span>
+</div>
+<div class="flex items-center justify-between text-xs">
+<div class="flex items-center gap-2"><span class="size-2 bg-[#6ee7b7] rounded-full"></span> ChatGPT</div>
+<span class="font-bold">10%</span>
+</div>
+<div class="flex items-center justify-between text-xs">
+<div class="flex items-center gap-2"><span class="size-2 bg-[#a7f3d0] rounded-full"></span> Copilot</div>
+<span class="font-bold">10%</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Traffic Over Time (Line Chart Mockup) -->
+<div class="bg-white dark:bg-slate-900 p-6 rounded border border-slate-200 dark:border-slate-800 shadow-sm">
+<div class="flex justify-between items-center mb-6">
+<h3 class="font-bold text-slate-700 dark:text-slate-300">Traffic Throughput (15s)</h3>
+<div class="flex gap-2">
+<span class="px-2 py-0.5 bg-primary/10 text-primary text-[10px] font-bold rounded">LIVE</span>
+<span class="px-2 py-0.5 bg-slate-100 dark:bg-slate-800 text-slate-500 text-[10px] font-bold rounded">KB/s</span>
+</div>
+</div>
+<div class="h-40 w-full relative">
+<!-- SVG Line Graph Mockup -->
+<svg class="w-full h-full" preserveaspectratio="none" viewbox="0 0 100 40">
+<path d="M0 35 Q 10 32, 20 30 T 40 25 T 60 35 T 80 15 T 100 20" fill="none" stroke="#21c45d" stroke-width="1.5"></path>
+<path d="M0 35 Q 10 32, 20 30 T 40 25 T 60 35 T 80 15 T 100 20 L 100 40 L 0 40 Z" fill="url(#grad1)" stroke="none"></path>
+<defs>
+<lineargradient id="grad1" x1="0%" x2="0%" y1="0%" y2="100%">
+<stop offset="0%" style="stop-color:rgba(33, 196, 93, 0.2);stop-opacity:1"></stop>
+<stop offset="100%" style="stop-color:rgba(33, 196, 93, 0);stop-opacity:1"></stop>
+</lineargradient>
+</defs>
+<line stroke="#e2e8f0" stroke-dasharray="1" stroke-width="0.1" x1="0" x2="100" y1="35" y2="35"></line>
+<line stroke="#e2e8f0" stroke-dasharray="1" stroke-width="0.1" x1="0" x2="100" y1="25" y2="25"></line>
+<line stroke="#e2e8f0" stroke-dasharray="1" stroke-width="0.1" x1="0" x2="100" y1="15" y2="15"></line>
+</svg>
+<div class="absolute bottom-0 w-full flex justify-between text-[10px] text-slate-400 pt-2">
+<span>15s ago</span>
+<span>10s ago</span>
+<span>5s ago</span>
+<span>Now</span>
+</div>
+</div>
+</div>
+</div>
+<!-- API Requests Table -->
+<div class="bg-white dark:bg-slate-900 rounded border border-slate-200 dark:border-slate-800 shadow-sm">
+<div class="p-6 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center">
+<div class="flex items-center gap-3">
+<h3 class="font-bold text-slate-700 dark:text-slate-300">Recent API Requests</h3>
+<span class="bg-slate-100 dark:bg-slate-800 text-slate-500 px-2 py-0.5 rounded text-xs font-medium">Last 50</span>
+</div>
+<button type="button"  class="text-xs font-bold text-primary flex items-center gap-1 hover:underline">
+<span class="material-symbols-outlined text-sm">download</span> Export Logs
                         </button>
-                    </div>
-                </div>
+</div>
+<div class="overflow-x-auto">
+<table class="w-full text-left">
+<thead class="bg-slate-50 dark:bg-slate-800/50 text-slate-400 text-[10px] font-bold uppercase tracking-wider">
+<tr>
+<th class="px-6 py-3 w-10"></th>
+<th class="px-6 py-3">Method</th>
+<th class="px-6 py-3">Status</th>
+<th class="px-6 py-3">Domain</th>
+<th class="px-6 py-3 text-right">Timestamp</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-slate-100 dark:divide-slate-800 text-sm">
+<!-- Row 1 -->
+<tr class="hover:bg-slate-50 dark:hover:bg-slate-800/30 cursor-pointer">
+<td class="px-6 py-4 text-slate-400"><span class="material-symbols-outlined text-sm">expand_more</span></td>
+<td class="px-6 py-4 font-bold text-slate-700 dark:text-slate-300">POST</td>
+<td class="px-6 py-4"><span class="inline-flex items-center gap-1 text-primary font-medium"><span class="size-1.5 bg-primary rounded-full"></span> 200 OK</span></td>
+<td class="px-6 py-4 text-slate-500">api.openai.com/v1/chat/completions</td>
+<td class="px-6 py-4 text-right text-slate-400 tabular-nums">14:20:45.002</td>
+</tr>
+<!-- Row 2 -->
+<tr class="hover:bg-slate-50 dark:hover:bg-slate-800/30 cursor-pointer">
+<td class="px-6 py-4 text-slate-400"><span class="material-symbols-outlined text-sm">expand_more</span></td>
+<td class="px-6 py-4 font-bold text-slate-700 dark:text-slate-300">GET</td>
+<td class="px-6 py-4"><span class="inline-flex items-center gap-1 text-primary font-medium"><span class="size-1.5 bg-primary rounded-full"></span> 200 OK</span></td>
+<td class="px-6 py-4 text-slate-500">api.anthropic.com/v1/messages</td>
+<td class="px-6 py-4 text-right text-slate-400 tabular-nums">14:20:41.285</td>
+</tr>
+<!-- Row 3 -->
+<tr class="hover:bg-slate-50 dark:hover:bg-slate-800/30 cursor-pointer">
+<td class="px-6 py-4 text-slate-400"><span class="material-symbols-outlined text-sm">expand_more</span></td>
+<td class="px-6 py-4 font-bold text-slate-700 dark:text-slate-300">POST</td>
+<td class="px-6 py-4"><span class="inline-flex items-center gap-1 text-amber-500 font-medium"><span class="size-1.5 bg-amber-500 rounded-full"></span> 429 Limit</span></td>
+<td class="px-6 py-4 text-slate-500">api.cursor.sh/v1/streaming</td>
+<td class="px-6 py-4 text-right text-slate-400 tabular-nums">14:20:38.910</td>
+</tr>
+<!-- Row 4 -->
+<tr class="hover:bg-slate-50 dark:hover:bg-slate-800/30 cursor-pointer">
+<td class="px-6 py-4 text-slate-400"><span class="material-symbols-outlined text-sm">expand_more</span></td>
+<td class="px-6 py-4 font-bold text-slate-700 dark:text-slate-300">GET</td>
+<td class="px-6 py-4"><span class="inline-flex items-center gap-1 text-primary font-medium"><span class="size-1.5 bg-primary rounded-full"></span> 200 OK</span></td>
+<td class="px-6 py-4 text-slate-500">github.com/api/v3/notifications</td>
+<td class="px-6 py-4 text-right text-slate-400 tabular-nums">14:20:35.441</td>
+</tr>
+<!-- Row 5 -->
+<tr class="hover:bg-slate-50 dark:hover:bg-slate-800/30 cursor-pointer">
+<td class="px-6 py-4 text-slate-400"><span class="material-symbols-outlined text-sm">expand_more</span></td>
+<td class="px-6 py-4 font-bold text-slate-700 dark:text-slate-300">POST</td>
+<td class="px-6 py-4"><span class="inline-flex items-center gap-1 text-primary font-medium"><span class="size-1.5 bg-primary rounded-full"></span> 200 OK</span></td>
+<td class="px-6 py-4 text-slate-500">codex-api.vercel.app/api/v1</td>
+<td class="px-6 py-4 text-right text-slate-400 tabular-nums">14:20:30.012</td>
+</tr>
+<!-- Row 6 (Error Example) -->
+<tr class="hover:bg-slate-50 dark:hover:bg-slate-800/30 cursor-pointer">
+<td class="px-6 py-4 text-slate-400"><span class="material-symbols-outlined text-sm">expand_more</span></td>
+<td class="px-6 py-4 font-bold text-slate-700 dark:text-slate-300">CONNECT</td>
+<td class="px-6 py-4"><span class="inline-flex items-center gap-1 text-rose-500 font-medium"><span class="size-1.5 bg-rose-500 rounded-full"></span> 503 Timeout</span></td>
+<td class="px-6 py-4 text-slate-500">tunnel.socks5.service</td>
+<td class="px-6 py-4 text-right text-slate-400 tabular-nums">14:20:25.111</td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="p-4 bg-slate-50 dark:bg-slate-800/50 flex justify-center border-t border-slate-100 dark:border-slate-800">
+<button type="button"  class="text-xs font-bold text-slate-500 hover:text-slate-700 uppercase tracking-widest">Load More Entries</button>
+</div>
+</div>
+</div>
+</main>
+</div>
 
-                <!-- User Info Display -->
-                <div class="info-card">
-                    <div class="card-title">
-                        <i class="bi bi-person"></i> 用户信息
-                        <button type="button" class="btn btn-sm btn-danger ms-auto" id="authLogoutBtn" style="display: none;">
-                            <i class="bi bi-box-arrow-right"></i> 登出
-                        </button>
-                    </div>
-                    <div id="authUserInfoContainer">
-                        <div class="empty-state">
-                            <i class="bi bi-person-x"></i>
-                            <p>暂无用户信息，请先激活 Token</p>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- API Keys -->
-                <div class="info-card">
-                    <div class="card-title">
-                        <i class="bi bi-key-fill"></i> API Keys
-                    </div>
-                    <div class="api-keys-list" id="apiKeysList">
-                        <div class="api-key-item">
-                            <div class="key-info">
-                                <code>sk-xxxx...xxxx</code>
-                                <span class="key-type">Claude 风格</span>
-                            </div>
-                            <div class="key-actions">
-                                <button type="button" class="btn-icon"><i class="bi bi-clipboard"></i></button>
-                                <button type="button" class="btn-icon"><i class="bi bi-trash"></i></button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Package Info -->
-                <div class="info-card">
-                    <div class="card-title">
-                        <i class="bi bi-box-seam"></i> 套餐信息
-                    </div>
-                    <div class="package-details">
-                        <div class="package-tier">
-                            <span class="tier-badge">FREE</span>
-                        </div>
-                        <div class="package-usage">
-                            <div class="usage-item">
-                                <span class="usage-label">已用流量</span>
-                                <span class="usage-value">12.5 GB</span>
-                            </div>
-                            <div class="usage-item">
-                                <span class="usage-label">剩余额度</span>
-                                <span class="usage-value">87.5 GB</span>
-                            </div>
-                            <div class="usage-item">
-                                <span class="usage-label">账户余额</span>
-                                <span class="usage-value" id="userBalance">--</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Config Management -->
-                <div class="info-card">
-                    <div class="card-title">
-                        <i class="bi bi-file-earmark-code"></i> 配置管理
-                    </div>
-                    <div class="config-list">
-                        <div class="config-item">
-                            <div class="config-info">
-                                <i class="bi bi-file-code"></i>
-                                <span>opencode.json</span>
-                            </div>
-                            <div class="config-actions">
-                                <button type="button" class="btn btn-sm btn-outline-primary">同步到云端</button>
-                            </div>
-                        </div>
-                        <div class="config-item">
-                            <div class="config-info">
-                                <i class="bi bi-file-code"></i>
-                                <span>Oh-my-opencode.json</span>
-                            </div>
-                            <div class="config-actions">
-                                <button type="button" class="btn btn-sm btn-outline-primary">同步到云端</button>
-                            </div>
-                        </div>
-                        <div class="config-item">
-                            <div class="config-info">
-                                <i class="bi bi-terminal"></i>
-                                <span>Claude 环境变量</span>
-                            </div>
-                            <div class="config-actions">
-                                <button type="button" class="btn btn-sm btn-outline-secondary">复制命令</button>
-                            </div>
-                        </div>
-                        <div class="config-item">
-                            <div class="config-info">
-                                <i class="bi bi-window-stack"></i>
-                                <span>codex 配置文件</span>
-                            </div>
-                            <div class="config-actions">
-                                <button type="button" class="btn btn-sm btn-outline-primary">同步到云端</button>
-                            </div>
-                        </div>
-                        <div class="config-item">
-                            <div class="config-info">
-                                <i class="bi bi-kanban"></i>
-                                <span>vibe-kanban 配置</span>
-                            </div>
-                            <div class="config-actions">
-                                <button type="button" class="btn btn-sm btn-outline-primary">同步到云端</button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Logs Tab -->
-            <div id="logs-tab" class="settings-content">
-                <div class="content-header">
-                    <h2><i class="bi bi-journal-text"></i> 日志监控</h2>
-                    <p>实时查看系统运行日志</p>
-                </div>
-
-                <!-- Log Controls -->
-                <div class="log-controls-card">
-                    <div class="control-row">
-                        <div class="control-group">
-                            <label>日志级别</label>
-                            <select class="form-select form-select-sm" id="logLevelSelect">
-                                <option value="TRACE">TRACE</option>
-                                <option value="DEBUG">DEBUG</option>
-                                <option value="INFO" selected>INFO</option>
-                                <option value="WARN">WARN</option>
-                                <option value="ERROR">ERROR</option>
-                            </select>
-                        </div>
-                        <div class="control-group">
-                            <label>日志来源</label>
-                            <select class="form-select form-select-sm" id="logSourceSelect">
-                                <option value="">全部</option>
-                                <option value="main">主程序</option>
-                                <option value="http">HTTP服务</option>
-                                <option value="proxy">代理</option>
-                                <option value="rules">规则引擎</option>
-                            </select>
-                        </div>
-                        <div class="control-group">
-                            <label class="checkbox-label">
-                                <input type="checkbox" id="logAutoScroll" checked>
-                                <span>自动滚动</span>
-                            </label>
-                        </div>
-                        <div class="control-actions">
-                            <button type="button" class="btn btn-sm btn-primary" id="wsConnectBtn">
-                                <i class="bi bi-plug"></i> 连接
-                            </button>
-                            <button type="button" class="btn btn-sm btn-warning" id="logsRefreshBtn">
-                                <i class="bi bi-arrow-clockwise"></i> 刷新
-                            </button>
-                            <button type="button" class="btn btn-sm btn-danger" id="logsClearBtn">
-                                <i class="bi bi-trash"></i> 清空
-                            </button>
-                        </div>
-                    </div>
-                    <div class="connection-status">
-                        <span class="status-badge" id="wsConnectionStatus">
-                            <i class="bi bi-circle"></i> 未连接
-                        </span>
-                    </div>
-                </div>
-
-                <!-- Log Output -->
-                <div class="log-output-card">
-                    <textarea class="log-output" id="logsOutput" readonly placeholder="日志内容..."></textarea>
-                </div>
-            </div>
-
-            <!-- System Tab -->
-            <div id="system-tab" class="settings-content">
-                <div class="content-header">
-                    <h2><i class="bi bi-gear"></i> 系统设置</h2>
-                    <p>管理系统运行状态和证书</p>
-                </div>
-
-                <!-- Run Status -->
-                <div class="system-card">
-                    <div class="card-title">
-                        <i class="bi bi-cpu"></i> 运行状态
-                    </div>
-                    <div class="run-status-content">
-                        <div class="status-row">
-                            <span class="status-label">运行模式</span>
-                            <span class="status-value" id="runCurrentMode">TUN</span>
-                        </div>
-                        <div class="status-row">
-                            <span class="status-label">服务状态</span>
-                            <span class="status-value" id="runServiceStatus">运行中</span>
-                        </div>
-                        <div class="status-row">
-                            <span class="status-label">可用模式</span>
-                            <span class="status-value" id="runAvailableModes">TUN, HTTP</span>
-                        </div>
-                        <div class="mode-switch-row">
-                            <div class="form-check form-check-inline">
-                                <input class="form-check-input" type="radio" name="runMode" id="runModeTun2" value="tun" checked>
-                                <label class="form-check-label" for="runModeTun2">TUN 模式</label>
-                            </div>
-                            <div class="form-check form-check-inline">
-                                <input class="form-check-input" type="radio" name="runMode" id="runModeHttp2" value="http">
-                                <label class="form-check-label" for="runModeHttp2">HTTP 模式</label>
-                            </div>
-                            <button type="button" class="btn btn-primary btn-sm" id="runModeBtn">
-                                <i class="bi bi-arrow-repeat"></i> 切换模式
-                            </button>
-                        </div>
-                        <div class="control-buttons">
-                            <button type="button" class="btn btn-success" id="runStartBtn">
-                                <i class="bi bi-play-fill"></i> 启动服务
-                            </button>
-                            <button type="button" class="btn btn-danger" id="runStopBtn">
-                                <i class="bi bi-stop-fill"></i> 停止服务
-                            </button>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Software Status -->
-                <div class="system-card">
-                    <div class="card-title">
-                        <i class="bi bi-app"></i> 软件状态
-                    </div>
-                    <div class="software-status">
-                        <div class="status-row">
-                            <span class="status-label">系统注册</span>
-                            <span class="status-badge registered">
-                                <i class="bi bi-check-circle"></i> 已注册到系统
-                            </span>
-                        </div>
-                        <div class="status-row">
-                            <span class="status-label">安装路径</span>
-                            <code>/Library/LaunchDaemons</code>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Certificate Status -->
-                <div class="system-card">
-                    <div class="card-title">
-                        <i class="bi bi-award"></i> 证书状态
-                    </div>
-                    <div id="cert-status-container">
-                        <div id="cert-status-content">
-                        <div class="cert-info-grid">
-                            <div class="cert-info-item">
-                                <span class="info-label">安装状态</span>
-                                <span class="info-value cert-installed">
-                                    <i class="bi bi-check-circle"></i> 已安装
-                                </span>
-                            </div>
-                            <div class="cert-info-item">
-                                <span class="info-label">信任状态</span>
-                                <span class="info-value cert-trusted">
-                                    <i class="bi bi-shield-check"></i> 已信任
-                                </span>
-                            </div>
-                            <div class="cert-info-item">
-                                <span class="info-label">导出状态</span>
-                                <span class="info-value cert-exported">
-                                    <i class="bi bi-box-arrow-up"></i> 已导出
-                                </span>
-                            </div>
-                            <div class="cert-info-item">
-                                <span class="info-label">有效期</span>
-                                <span class="info-value">2024-01-01 ~ 2025-01-01</span>
-                            </div>
-                        </div>
-                        <div class="cert-details">
-                            <div class="detail-row">
-                                <span class="detail-label">主题</span>
-                                <span class="detail-value">NoneLane MITM CA</span>
-                            </div>
-                            <div class="detail-row">
-                                <span class="detail-label">颁发者</span>
-                                <span class="detail-value">NoneLane Root CA</span>
-                            </div>
-                            <div class="detail-row">
-                                <span class="detail-label">指纹</span>
-                                <code class="detail-value">A1:B2:C3:D4:E5:F6:...</code>
-                            </div>
-                        </div>
-                        </div>
-                        <div class="cert-action-buttons">
-                            <select class="form-select form-select-sm" id="cert-type-select">
-                                <option value="mitm-ca">MITM CA</option>
-                                <option value="root-ca">Root CA</option>
-                                <option value="mtls-cert">mTLS Certificate</option>
-                            </select>
-                            <div class="btn-group">
-                                <button type="button" class="btn btn-sm btn-info" id="btn-check-cert">
-                                    <i class="bi bi-search"></i> 检查
-                                </button>
-                                <button type="button" class="btn btn-sm btn-primary" id="btn-export-cert">
-                                    <i class="bi bi-cloud-download"></i> 导出
-                                </button>
-                                <button type="button" class="btn btn-sm btn-success" id="btn-download-cert">
-                                    <i class="bi bi-download"></i> 下载
-                                </button>
-                                <button type="button" class="btn btn-sm btn-warning" id="btn-install-cert">
-                                    <i class="bi bi-lock"></i> 安装
-                                </button>
-                                <button type="button" class="btn btn-sm btn-danger" id="btn-remove-cert">
-                                    <i class="bi bi-trash"></i> 移除
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </main>
-    </div>
-
-    <!-- ===== PROXY CONTROL PAGE (Legacy Support) ===== -->
-    <div id="proxy-control-page" class="page-container legacy-page content-section">
-        <div class="legacy-header">
-            <h2><i class="bi bi-globe"></i> 代理管理</h2>
+<!-- Settings Page Container -->
+<div id="settings-page" class="page-container content-section hidden flex flex-col h-screen">
+    <!-- Top Navigation -->
+    <header class="h-16 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between px-8">
+        <div class="flex items-center gap-4">
+            <button type="button" id="backToDashboard" class="flex items-center gap-2 text-slate-600 dark:text-slate-400 hover:text-primary transition-colors">
+                <span class="material-symbols-outlined">arrow_back</span>
+                <span class="font-medium">Back to Dashboard</span>
+            </button>
         </div>
-        <div class="legacy-content">
-            <!-- Current Proxy -->
-            <div class="card mb-4">
-                <div class="card-header">当前代理</div>
-                <div class="card-body">
-                    <div id="currentProxyDisplay" class="text-muted">加载中...</div>
-                </div>
-            </div>
-            <!-- Proxy Select -->
-            <div class="card mb-4">
-                <div class="card-header">切换代理</div>
-                <div class="card-body">
-                    <div class="row align-items-center">
-                        <div class="col-md-8">
-                            <select class="form-select" id="proxySelect">
-                                <option>加载中...</option>
-                            </select>
-                        </div>
-                        <div class="col-md-4">
-                            <button type="button" class="btn btn-primary w-100" id="switchProxyBtn">
-                                <i class="bi bi-arrow-left-right"></i> 切换
-                            </button>
-                        </div>
+        <h1 class="font-bold text-xl">Settings</h1>
+        <div class="w-24"></div>
+    </header>
+
+    <!-- Settings Content -->
+    <div class="flex-1 overflow-y-auto p-8 custom-scrollbar">
+        <!-- Settings Tabs -->
+        <div class="flex gap-4 mb-8 border-b border-slate-200 dark:border-slate-800">
+            <button type="button" class="settings-tab active px-4 py-3 text-sm font-medium border-b-2 border-primary text-primary" data-tab="rules">
+                规则设置
+            </button>
+            <button type="button" class="settings-tab px-4 py-3 text-sm font-medium text-slate-500 hover:text-slate-700" data-tab="userinfo">
+                用户信息
+            </button>
+            <button type="button" class="settings-tab px-4 py-3 text-sm font-medium text-slate-500 hover:text-slate-700" data-tab="logs">
+                日志监控
+            </button>
+            <button type="button" class="settings-tab px-4 py-3 text-sm font-medium text-slate-500 hover:text-slate-700" data-tab="system">
+                系统设置
+            </button>
+        </div>
+
+        <!-- Rules Settings Content -->
+        <div class="settings-content active" data-content="rules">
+            <div class="bg-white dark:bg-slate-900 p-6 rounded border border-slate-200 dark:border-slate-800">
+                <h3 class="font-bold text-lg mb-4">规则引擎</h3>
+                <div class="space-y-4">
+                    <div class="flex gap-4">
+                        <button type="button" id="rulesEnableBtn" class="px-4 py-2 bg-primary text-white rounded hover:bg-primary/90">启用</button>
+                        <button type="button" id="rulesDisableBtn" class="px-4 py-2 bg-slate-500 text-white rounded hover:bg-slate-600">禁用</button>
+                        <button type="button" id="rulesReloadBtn" class="px-4 py-2 border border-slate-300 rounded hover:bg-slate-50">重载</button>
+                        <button type="button" id="rulesClearCacheBtn" class="px-4 py-2 border border-slate-300 rounded hover:bg-slate-50">清空缓存</button>
                     </div>
-                </div>
-            </div>
-            <!-- Proxy Table -->
-            <div class="card mb-4">
-                <div class="card-header d-flex justify-content-between">
-                    <span>代理列表</span>
-                    <button type="button" class="btn btn-sm btn-info" id="testLatencyBtn">
-                        <i class="bi bi-speedometer2"></i> 测试延迟
-                    </button>
-                </div>
-                <div class="card-body">
-                    <table class="table">
-                        <thead>
-                            <tr>
-                                <th>名称</th>
-                                <th>类型</th>
-                                <th>地址</th>
-                                <th>延迟</th>
-                                <th>操作</th>
-                            </tr>
-                        </thead>
-                        <tbody id="proxyTableBody">
-                            <tr><td colspan="5" class="text-center">加载中...</td></tr>
-                        </tbody>
-                    </table>
+                    <div class="flex gap-4 items-center">
+                        <label class="flex items-center gap-2">
+                            <input type="checkbox" id="geoipEnabledSwitch" class="rounded text-primary">
+                            <span class="text-sm">GeoIP 路由</span>
+                        </label>
+                        <label class="flex items-center gap-2">
+                            <input type="checkbox" id="nonelaneEnabledSwitch" class="rounded text-primary">
+                            <span class="text-sm">无车道</span>
+                        </label>
+                    </div>
+                    <div class="flex gap-2">
+                        <input type="text" id="rulesLookupDomain" placeholder="域名查询" class="flex-1 px-3 py-2 border rounded">
+                        <button type="button" id="rulesLookupBtn" class="px-4 py-2 bg-primary text-white rounded">查询</button>
+                    </div>
+                    <div id="rulesLookupResult" class="text-sm text-slate-600"></div>
                 </div>
             </div>
         </div>
-    </div>
 
-    <!-- ===== RULES PAGE (Legacy Support) ===== -->
-    <div id="rules-page" class="page-container legacy-page content-section">
-        <div class="legacy-header">
-            <h2><i class="bi bi-shield-check"></i> 规则引擎</h2>
+        <!-- User Info Content -->
+        <div class="settings-content hidden" data-content="userinfo">
+            <div class="bg-white dark:bg-slate-900 p-6 rounded border border-slate-200 dark:border-slate-800">
+                <h3 class="font-bold text-lg mb-4">用户信息</h3>
+                <div id="authUserInfoContainer" class="space-y-4">
+                    <div class="flex justify-between">
+                        <span class="text-slate-500">用户名:</span>
+                        <span class="font-medium">-</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-slate-500">余额:</span>
+                        <span id="userBalance" class="font-medium">-</span>
+                    </div>
+                </div>
+                <div class="mt-6 space-y-4">
+                    <div class="flex gap-2">
+                        <input type="text" id="authTokenInput" placeholder="Token" class="flex-1 px-3 py-2 border rounded">
+                        <button type="button" id="authActivateBtn" class="px-4 py-2 bg-primary text-white rounded">激活</button>
+                        <button type="button" id="authLogoutBtn" class="px-4 py-2 bg-slate-500 text-white rounded">登出</button>
+                    </div>
+                </div>
+            </div>
         </div>
-        <div class="legacy-content">
-            <div class="card mb-4">
-                <div class="card-header">引擎状态</div>
-                <div class="card-body">
-                    <div class="btn-group">
-                        <button type="button" class="btn btn-success" id="rulesEnableBtn">
-                            <i class="bi bi-toggle-on"></i> 启用
-                        </button>
-                        <button type="button" class="btn btn-warning" id="rulesDisableBtn">
-                            <i class="bi bi-toggle-off"></i> 禁用
-                        </button>
+
+        <!-- Logs Content -->
+        <div class="settings-content hidden" data-content="logs">
+            <div class="bg-white dark:bg-slate-900 p-6 rounded border border-slate-200 dark:border-slate-800">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="font-bold text-lg">日志监控</h3>
+                    <div class="flex gap-2">
+                        <select id="logLevelSelect" class="px-3 py-2 border rounded text-sm">
+                            <option value="all">All</option>
+                            <option value="info">Info</option>
+                            <option value="warn">Warn</option>
+                            <option value="error">Error</option>
+                        </select>
+                        <select id="logSourceSelect" class="px-3 py-2 border rounded text-sm">
+                            <option value="all">All</option>
+                        </select>
+                        <button type="button" id="logsRefreshBtn" class="px-3 py-2 border rounded text-sm">刷新</button>
+                        <button type="button" id="logsClearBtn" class="px-3 py-2 border rounded text-sm">清空</button>
+                        <button type="button" id="wsConnectBtn" class="px-3 py-2 bg-primary text-white rounded text-sm">连接</button>
+                        <button type="button" id="wsDisconnectBtn" class="px-3 py-2 bg-slate-500 text-white rounded text-sm">断开</button>
+                    </div>
+                </div>
+                <div id="logsOutput" class="h-96 overflow-y-auto bg-slate-50 dark:bg-slate-800 p-4 rounded font-mono text-xs"></div>
+                <div id="wsConnectionStatus" class="mt-2 text-xs text-slate-500"></div>
+            </div>
+        </div>
+
+        <!-- System Settings Content -->
+        <div class="settings-content hidden" data-content="system">
+            <div class="bg-white dark:bg-slate-900 p-6 rounded border border-slate-200 dark:border-slate-800">
+                <h3 class="font-bold text-lg mb-4">系统设置</h3>
+                
+                <!-- Run Mode -->
+                <div class="mb-6">
+                    <h4 class="font-medium mb-2">运行模式</h4>
+                    <div class="flex gap-4">
+                        <label class="flex items-center gap-2">
+                            <input type="radio" name="runMode" id="runModeTun" value="tun">
+                            <span>TUN</span>
+                        </label>
+                        <label class="flex items-center gap-2">
+                            <input type="radio" name="runMode" id="runModeHttp" value="http">
+                            <span>HTTP</span>
+                        </label>
+                    </div>
+                    <div class="mt-2">
+                        <button type="button" id="runStartBtn" class="px-4 py-2 bg-primary text-white rounded">启动</button>
+                        <button type="button" id="runStopBtn" class="px-4 py-2 bg-slate-500 text-white rounded">停止</button>
+                        <button type="button" id="runModeBtn" class="px-4 py-2 border rounded">切换模式</button>
+                    </div>
+                    <div class="mt-2 text-sm text-slate-500">
+                        <span>当前模式: </span><span id="runCurrentMode">-</span>
+                    </div>
+                    <div id="runServiceStatus" class="text-sm text-slate-500"></div>
+                    <div id="runAvailableModes" class="text-sm text-slate-500"></div>
+                    <div id="runStatusInfo" class="text-sm text-slate-500"></div>
+                </div>
+
+                <!-- Certificate Management -->
+                <div class="mb-6">
+                    <h4 class="font-medium mb-2">证书管理</h4>
+                    <div class="flex gap-2 flex-wrap">
+                        <select id="cert-type-select" class="px-3 py-2 border rounded text-sm">
+                            <option value="root">Root CA</option>
+                        </select>
+                        <button type="button" id="btn-check-cert" class="px-3 py-2 border rounded text-sm">检查</button>
+                        <button type="button" id="btn-export-cert" class="px-3 py-2 border rounded text-sm">导出</button>
+                        <button type="button" id="btn-download-cert" class="px-3 py-2 border rounded text-sm">下载</button>
+                        <button type="button" id="btn-install-cert" class="px-3 py-2 bg-primary text-white rounded text-sm">安装</button>
+                        <button type="button" id="btn-remove-cert" class="px-3 py-2 bg-red-500 text-white rounded text-sm">移除</button>
+                    </div>
+                    <div id="cert-status-container" class="mt-2">
+                        <div id="cert-status-content" class="text-sm text-slate-500"></div>
                     </div>
                 </div>
             </div>
         </div>
     </div>
+</div>
 
-    <!-- ===== LOGS PAGE (Legacy Support) ===== -->
-    <div id="logs-page" class="page-container legacy-page content-section">
-        <div class="legacy-header">
-            <h2><i class="bi bi-journal-text"></i> 日志</h2>
-        </div>
-        <div class="legacy-content">
-            <div class="card">
-                <div class="card-header">系统日志</div>
-                <div class="card-body">
-                    <textarea class="form-control" id="logsOutputLegacy" rows="15" readonly></textarea>
-                </div>
-            </div>
-        </div>
+
+    <!-- Hidden compatibility anchors for backend JS -->
+    <div class="compat-anchors hidden" style="display:none!important;visibility:hidden;height:0;overflow:hidden;">
+        <div id="authRefreshError" class="hidden"></div>
+        <div id="authRefreshErrorMsg" class="hidden"></div>
+        <div id="authRefreshInterval" class="hidden"></div>
+        <div id="authRefreshRunning" class="hidden"></div>
+        <div id="authLastUpdate" class="hidden"></div>
+        <div id="authRefreshStatusCard" class="hidden"></div>
+        <div id="ruleEditModal" class="hidden modal"></div>
+        <select id="ruleTypeSelect" class="hidden"><option value="">-</option></select>
+        <div id="ruleEditModalTitle" class="hidden modal"></div>
+        <input type="checkbox" id="ruleEnabledCheckbox" class="hidden" />
+        <input type="text" id="ruleIdInput" class="hidden" />
+        <input type="text" id="ruleConditionInput" class="hidden" />
+        <input type="text" id="ruleSetInput" class="hidden" />
+        <button type="button" id="ruleEditSaveBtn" class="hidden"></button>
+        <button type="button" id="rulesConfigSaveBtn" class="hidden"></button>
+        <div id="rulesCacheCount" class="hidden"></div>
+        <div id="rulesCacheSize" class="hidden"></div>
+        <div id="rulesStatus" class="hidden"></div>
+        <div id="rules-status-badge" class="hidden"></div>
+        <div id="rules-status-text" class="hidden"></div>
+        <tbody id="toDoorRulesBody" class="hidden"></tbody>
+        <tbody id="blacklistRulesBody" class="hidden"></tbody>
+        <tbody id="nonelaneRulesBody" class="hidden"></tbody>
+        <button type="button" id="addBlacklistRuleBtn" class="hidden"></button>
+        <button type="button" id="addNonelaneRuleBtn" class="hidden"></button>
+        <button type="button" id="addToDoorRuleBtn" class="hidden"></button>
+        <button type="button" id="logsFullscreenBtn" class="hidden"></button>
+        <div id="logCount" class="hidden"></div>
+        <button type="button" id="logFilterBtn" class="hidden"></button>
+        <div id="logAutoScroll" class="hidden"></div>
+        <button type="button" id="logConfigSaveBtn" class="hidden"></button>
+        <div id="statsUploadTotal" class="hidden"></div>
+        <div id="statsDownloadTotal" class="hidden"></div>
+        <div id="statsConnectionCount" class="hidden"></div>
+        <div id="statsTotalTraffic" class="hidden"></div>
+        <tbody id="statsTableBody" class="hidden"></tbody>
+        <div id="statsUploadRate" class="hidden"></div>
+        <div id="statsDownloadRate" class="hidden"></div>
+        <div id="dnsTotalEntries" class="hidden"></div>
+        <div id="dnsUniqueDomains" class="hidden"></div>
+        <div id="dnsUniqueIPs" class="hidden"></div>
+        <div id="dnsHitRate" class="hidden"></div>
+        <div id="dnsSearchBox" class="hidden"></div>
+        <button type="button" id="dnsSearchBtn" class="hidden"></button>
+        <div id="dnsSearchResultsContainer" class="hidden"></div>
+        <div id="dnsHotDomainsContainer" class="hidden"></div>
+        <div id="dnsHotIPsContainer" class="hidden"></div>
+        <button type="button" id="dnsRefreshBtn" class="hidden"></button>
+        <button type="button" id="dnsClearAllBtn" class="hidden"></button>
+        <select id="proxySelect" class="hidden"><option value="">-</option></select>
+        <button type="button" id="switchProxyBtn" class="hidden"></button>
+        <button type="button" id="testLatencyBtn" class="hidden"></button>
+        <tbody id="proxyTableBody" class="hidden"></tbody>
+        <div id="currentProxyDisplay" class="hidden"></div>
+        <div id="proxyDetailModal" class="hidden modal"></div>
+        <div id="proxyDetailTitle" class="hidden"></div>
+        <div id="proxyDetailJson" class="hidden"></div>
+        <button type="button" id="copyProxyDetailBtn" class="hidden"></button>
+        <div id="statusIndicator" class="hidden"></div>
+        <div id="statusText" class="hidden"></div>
+        <button type="button" id="dashStartBtn" class="hidden"></button>
+        <button type="button" id="dashStopBtn" class="hidden"></button>
+        <div id="dashRunStatus" class="hidden"></div>
+        <div id="dashCurrentProxy" class="hidden"></div>
+        <div id="dashRunMode" class="hidden"></div>
+        <div id="dashRuleStatus" class="hidden"></div>
+        <div id="dashProxyCount" class="hidden"></div>
+        <div id="dashDoorCount" class="hidden"></div>
+        <div id="dashLastUpdate" class="hidden"></div>
+        <canvas id="trafficChart" class="hidden"></canvas>
+        <canvas id="domainPieChart" class="hidden"></canvas>
+        <div id="requestLogList" class="hidden"></div>
+        <button type="button" id="dashBtnCheckCert" class="hidden"></button>
+        <button type="button" id="dashBtnInstallCert" class="hidden"></button>
+        <button type="button" id="quickChatBtn" class="hidden"></button>
+        <div id="chatModal" class="hidden modal"></div>
+        <div id="chatMessages" class="hidden"></div>
+        <input type="text" id="chatInput" class="hidden" />
+        <button type="button" id="chatSendBtn" class="hidden"></button>
+        <button type="button" id="chatClearHistoryBtn" class="hidden"></button>
+        <input type="text" id="chatSearchInput" class="hidden" />
+        <button type="button" id="goToSettingsBtn" class="hidden"></button>
+        <div id="logs-page" class="hidden"></div>
+        <div id="rules-page" class="hidden"></div>
+        <div id="proxy-control-page" class="hidden"></div>
+        <div id="userinfo-page" class="hidden"></div>
+        <div id="dnscache-page" class="hidden"></div>
+        <div id="conditionError" class="hidden"></div>
+        <div id="typeHelpText" class="hidden"></div>
+        <div id="notification-container" class="hidden"></div>
+        <canvas id="domainPieChart" class="hidden"></canvas>
+        <div id="cache-hit-rate" class="hidden"></div>
+        <div id="total-cache" class="hidden"></div>
+        <div id="cache-last-update" class="hidden"></div>
     </div>
-
-    <!-- ===== USERINFO PAGE (Legacy Support) ===== -->
-    <div id="userinfo-page" class="page-container legacy-page content-section">
-        <div class="legacy-header">
-            <h2><i class="bi bi-person-circle"></i> 用户信息</h2>
-        </div>
-        <div class="legacy-content">
-            <div class="card mb-4">
-                <div class="card-header">Token 激活</div>
-                <div class="card-body">
-                    <div class="row">
-                        <div class="col-md-10">
-                            <input type="text" class="form-control" id="authTokenInputLegacy" placeholder="输入 Token">
-                        </div>
-                        <div class="col-md-2">
-                    <button type="button" class="btn btn-primary w-100" id="authActivateBtnLegacy">激活</button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <div class="card">
-                <div class="card-header">用户信息</div>
-                <div class="card-body" id="authUserInfoContainerLegacy">
-                    <p class="text-muted">暂无信息</p>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- ===== DNS CACHE PAGE ===== -->
-    <div id="dnscache-page" class="page-container legacy-page content-section">
-        <div class="legacy-header">
-            <h2><i class="bi bi-globe2"></i> DNS 缓存</h2>
-        </div>
-        <div class="legacy-content">
-            <!-- Stats Cards -->
-            <div class="row mb-4">
-                <div class="col-md-3">
-                    <div class="stat-card">
-                        <div class="stat-icon"><i class="bi bi-archive"></i></div>
-                        <div class="stat-content">
-                            <div class="stat-value" id="dnsTotalEntries">-</div>
-                            <div class="stat-label">缓存条目</div>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-md-3">
-                    <div class="stat-card">
-                        <div class="stat-icon"><i class="bi bi-link"></i></div>
-                        <div class="stat-content">
-                            <div class="stat-value" id="dnsUniqueDomains">-</div>
-                            <div class="stat-label">唯一域名</div>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-md-3">
-                    <div class="stat-card">
-                        <div class="stat-icon"><i class="bi bi-globe"></i></div>
-                        <div class="stat-content">
-                            <div class="stat-value" id="dnsUniqueIPs">-</div>
-                            <div class="stat-label">唯一IP</div>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-md-3">
-                    <div class="stat-card">
-                        <div class="stat-icon"><i class="bi bi-percent"></i></div>
-                        <div class="stat-content">
-                            <div class="stat-value" id="dnsHitRate">-</div>
-                            <div class="stat-label">命中率</div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <!-- Search -->
-            <div class="card mb-4">
-                <div class="card-body">
-                    <div class="row g-2">
-                        <div class="col-md-9">
-                            <input type="text" class="form-control" id="dnsSearchBox" placeholder="搜索域名或IP">
-                        </div>
-                        <div class="col-md-3">
-                            <div class="btn-group w-100">
-                                <button type="button" class="btn btn-primary" id="dnsSearchBtn">
-                                    <i class="bi bi-search"></i> 搜索
-                                </button>
-                                <button type="button" class="btn btn-danger" id="dnsClearAllBtn">
-                                    <i class="bi bi-trash"></i> 清空
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- ===== MODALS ===== -->
-    
-    <!-- Rule Edit Modal -->
-    <div class="modal fade" id="ruleEditModal" tabindex="-1">
-        <div class="modal-dialog">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title" id="ruleEditModalTitle">编辑规则</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body">
-                    <form id="ruleEditForm">
-                        <div class="mb-3">
-                            <label class="form-label">规则类型</label>
-                            <select class="form-select" id="ruleTypeSelect">
-                                <option value="domain">域名 (Domain)</option>
-                                <option value="ip">IP段 (CIDR)</option>
-                                <option value="geoip">地理位置 (GeoIP)</option>
-                            </select>
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label">条件内容</label>
-                            <input type="text" class="form-control" id="ruleConditionInput">
-                        </div>
-                        <div class="form-check mb-3">
-                            <input class="form-check-input" type="checkbox" id="ruleEnabledCheckbox" checked>
-                            <label class="form-check-label" for="ruleEnabledCheckbox">启用</label>
-                        </div>
-                        <input type="hidden" id="ruleIdInput">
-                        <input type="hidden" id="ruleSetInput">
-                    </form>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
-                    <button type="button" class="btn btn-primary" id="ruleEditSaveBtn">保存</button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Proxy Detail Modal -->
-    <div class="modal fade" id="proxyDetailModal" tabindex="-1">
-        <div class="modal-dialog modal-lg">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title">代理详情 - <span id="proxyDetailTitle"></span></h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body">
-                    <pre id="proxyDetailJson"></pre>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
-                    <button type="button" class="btn btn-primary" id="copyProxyDetailBtn">复制</button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Chat Modal -->
-    <div class="modal fade" id="chatModal" tabindex="-1">
-        <div class="modal-dialog modal-dialog-centered modal-lg">
-            <div class="modal-content chat-modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title"><i class="bi bi-chat-dots"></i> 快速聊天</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body chat-body">
-                    <div class="chat-toolbar">
-                        <input type="text" class="chat-search-input" id="chatSearchInput" placeholder="检索历史聊天记录...">
-                        <button type="button" class="btn btn-sm btn-outline-danger" id="chatClearHistoryBtn">清空历史</button>
-                    </div>
-                    <div class="chat-messages" id="chatMessages">
-                        <div class="chat-welcome">
-                            <i class="bi bi-robot"></i>
-                            <p>所有对话数据都存储在本地</p>
-                        </div>
-                    </div>
-                    <div class="chat-privacy-note">提示：仅本地存储聊天历史，不上传云端。</div>
-                    <div class="chat-input-area">
-                        <input type="text" class="chat-input" id="chatInput" placeholder="输入消息...">
-                        <button type="button" class="chat-send-btn" id="chatSendBtn">
-                            <i class="bi bi-send"></i>
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <section class="compat-anchors" aria-hidden="true">
-        <button id="addToDoorRuleBtn" type="button"></button>
-        <button id="addBlacklistRuleBtn" type="button"></button>
-        <button id="addNonelaneRuleBtn" type="button"></button>
-
-        <span id="rulesStatus"></span>
-        <span id="rules-status-badge" class="badge bg-secondary"></span>
-        <span id="rules-status-text"></span>
-        <span id="cache-hit-rate"></span>
-        <span id="total-cache"></span>
-        <span id="rulesCacheSize"></span>
-        <span id="rulesCacheCount"></span>
-        <span id="cache-last-update"></span>
-        <button id="rulesConfigSaveBtn" type="button"></button>
-        <button id="rulesLookupBtn" type="button"></button>
-        <input id="rulesLookupDomain" type="text">
-        <textarea id="rulesLookupResult"></textarea>
-        <small id="typeHelpText"></small>
-        <div id="conditionError"></div>
-        <table>
-            <tbody id="toDoorRulesBody"></tbody>
-            <tbody id="blacklistRulesBody"></tbody>
-            <tbody id="nonelaneRulesBody"></tbody>
-        </table>
-
-        <button id="wsDisconnectBtn" type="button"></button>
-        <button id="logsFullscreenBtn" type="button"><i class="bi bi-fullscreen"></i> 全屏</button>
-        <button id="logConfigSaveBtn" type="button"></button>
-        <button id="logFilterBtn" type="button"></button>
-
-        <span id="runStatusInfo"></span>
-
-        <div id="authRefreshStatusCard">
-            <span id="authRefreshRunning"></span>
-            <span id="authLastUpdate"></span>
-            <span id="authRefreshInterval"></span>
-            <div id="authRefreshError"><span id="authRefreshErrorMsg"></span></div>
-        </div>
-
-        <button id="dnsRefreshBtn" type="button"></button>
-        <div id="dnsHotDomainsContainer"></div>
-        <div id="dnsHotIPsContainer"></div>
-        <div id="dnsSearchResultsContainer"></div>
-
-        <div class="timescale-compat">
-            <button type="button" data-timescale="1s" class="active"></button>
-            <button type="button" data-timescale="5s"></button>
-            <button type="button" data-timescale="15s"></button>
-        </div>
-
-        <table><tbody id="statsTableBody"></tbody></table>
-    </section>
-
-    <!-- Bootstrap JS -->
-    <script src="/assets/bootstrap.bundle.min.js"></script>
-    <!-- App JS -->
-    <script src="/assets/app.js"></script>
-</body>
-</html>
+</body></html>
