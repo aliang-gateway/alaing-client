@@ -104,7 +104,19 @@ func (h *TCPConnectionHandler) Handle(ctx context.Context, originConn net.Conn, 
 	defer trackedRemote.Close()
 
 	// Relay data bidirectionally
-	err = h.relayManager.Relay(ctx, newOriginConn, trackedRemote, metadata)
+	relayStats, err := h.relayManager.Relay(ctx, newOriginConn, trackedRemote, metadata)
+	if err == nil {
+		statistic.GetDefaultHTTPStatsCollector().RecordConnection(
+			metadata,
+			relayStats.RequestPayload,
+			relayStats.ResponsePayload,
+			relayStats.ClientToServerByte,
+			relayStats.ServerToClientByte,
+			relayStats.StartedAt,
+			relayStats.FirstResponseAt,
+			relayStats.CompletedAt,
+		)
+	}
 
 	// Store DNS binding to cache after successful relay
 	// This persists domain-IP relationships for future cache hits
@@ -222,7 +234,7 @@ func (h *TCPConnectionHandler) handleTLS(
 
 	// STEP 4: Route based on final decision
 	switch route {
-	case RouteToCursor:
+	case RouteToALiang:
 		// Store route decision in metadata for caching
 		metadata.Route = "RouteToCursor"
 
@@ -252,7 +264,7 @@ func (h *TCPConnectionHandler) handleTLS(
 
 		return remote, mitmed, nil
 
-	case RouteToSocks:
+	case RouteToLocalProxy:
 		// Store route decision in metadata for caching
 		metadata.Route = "RouteToSocks"
 

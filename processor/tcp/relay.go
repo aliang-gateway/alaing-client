@@ -1,10 +1,12 @@
 package tcp
 
 import (
+	"bytes"
 	"context"
 	"io"
 	"net"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"nursor.org/nursorgate/common/logger"
@@ -35,19 +37,45 @@ func NewDefaultRelayManager() *DefaultRelayManager {
 
 // Relay implements the RelayManager interface.
 // It establishes bidirectional data flow between two connections.
-func (r *DefaultRelayManager) Relay(ctx context.Context, originConn, remoteConn net.Conn, metadata *M.Metadata) error {
+func (r *DefaultRelayManager) Relay(ctx context.Context, originConn, remoteConn net.Conn, metadata *M.Metadata) (*RelayStats, error) {
+	stats := &RelayStats{StartedAt: time.Now()}
+
 	// Use a WaitGroup to wait for both directions to complete
 	wg := sync.WaitGroup{}
 	wg.Add(2)
 
+	var firstResponseNano int64
+	var firstResponseSet int32
+
+	requestCapture := newPayloadCaptureBuffer(128 * 1024)
+	responseCapture := newPayloadCaptureBuffer(128 * 1024)
+
+	var clientToServerBytes int64
+	var serverToClientBytes int64
+
+	markFirstResponse := func() {
+		if atomic.CompareAndSwapInt32(&firstResponseSet, 0, 1) {
+			atomic.StoreInt64(&firstResponseNano, time.Now().UnixNano())
+		}
+	}
+
 	// Start concurrent unidirectional streams
-	go r.relayStream(originConn, remoteConn, "client->server", &wg, ctx)
-	go r.relayStream(remoteConn, originConn, "server->client", &wg, ctx)
+	go r.relayStream(remoteConn, originConn, "client->server", &wg, requestCapture, nil, &clientToServerBytes, ctx)
+	go r.relayStream(originConn, remoteConn, "server->client", &wg, responseCapture, markFirstResponse, &serverToClientBytes, ctx)
 
 	// Wait for both directions to complete
 	wg.Wait()
 
-	return nil
+	stats.CompletedAt = time.Now()
+	if firstNs := atomic.LoadInt64(&firstResponseNano); firstNs > 0 {
+		stats.FirstResponseAt = time.Unix(0, firstNs)
+	}
+	stats.ClientToServerByte = atomic.LoadInt64(&clientToServerBytes)
+	stats.ServerToClientByte = atomic.LoadInt64(&serverToClientBytes)
+	stats.RequestPayload = requestCapture.Bytes()
+	stats.ResponsePayload = responseCapture.Bytes()
+
+	return stats, nil
 }
 
 // relayStream copies data from src to dst in one direction.
@@ -61,7 +89,10 @@ func (r *DefaultRelayManager) relayStream(
 	src net.Conn,
 	direction string,
 	wg *sync.WaitGroup,
-	ctx context.Context,
+	payloadCapture *payloadCaptureBuffer,
+	onFirstData func(),
+	byteCounter *int64,
+	_ context.Context,
 ) {
 	defer wg.Done()
 
@@ -70,7 +101,11 @@ func (r *DefaultRelayManager) relayStream(
 	defer buffer.Put(buf)
 
 	// Copy data with timeout handling
-	_, err := io.CopyBuffer(dst, src, buf)
+	countingDst := &countingWriter{writer: dst, capture: payloadCapture, onFirstData: onFirstData}
+	_, err := io.CopyBuffer(countingDst, src, buf)
+	if byteCounter != nil {
+		atomic.AddInt64(byteCounter, countingDst.written)
+	}
 	if err != nil && err != io.EOF {
 		logger.Debug("relay copy error [" + direction + "]: " + err.Error())
 	}
@@ -90,6 +125,74 @@ func (r *DefaultRelayManager) relayStream(
 	dst.SetReadDeadline(time.Now().Add(time.Duration(DefaultTCPWaitTimeout) * time.Second))
 }
 
+type payloadCaptureBuffer struct {
+	mu    sync.Mutex
+	buf   bytes.Buffer
+	limit int
+}
+
+func newPayloadCaptureBuffer(limit int) *payloadCaptureBuffer {
+	if limit <= 0 {
+		limit = 128 * 1024
+	}
+	return &payloadCaptureBuffer{limit: limit}
+}
+
+func (p *payloadCaptureBuffer) Write(data []byte) {
+	if p == nil || len(data) == 0 {
+		return
+	}
+
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	remaining := p.limit - p.buf.Len()
+	if remaining <= 0 {
+		return
+	}
+
+	if len(data) > remaining {
+		data = data[:remaining]
+	}
+	_, _ = p.buf.Write(data)
+}
+
+func (p *payloadCaptureBuffer) Bytes() []byte {
+	if p == nil {
+		return nil
+	}
+
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	b := p.buf.Bytes()
+	out := make([]byte, len(b))
+	copy(out, b)
+	return out
+}
+
+type countingWriter struct {
+	writer      io.Writer
+	capture     *payloadCaptureBuffer
+	onFirstData func()
+	written     int64
+}
+
+func (w *countingWriter) Write(p []byte) (int, error) {
+	if w.onFirstData != nil && len(p) > 0 {
+		w.onFirstData()
+		w.onFirstData = nil
+	}
+	if w.capture != nil && len(p) > 0 {
+		w.capture.Write(p)
+	}
+	n, err := w.writer.Write(p)
+	if n > 0 {
+		w.written += int64(n)
+	}
+	return n, err
+}
+
 // SimpleRelayFunc provides a simple pipe function compatible with existing code.
 // It creates a default relay manager and uses it to relay data.
 func SimpleRelayFunc(ctx context.Context, originConn, remoteConn net.Conn) {
@@ -102,7 +205,7 @@ func SimpleRelayFunc(ctx context.Context, originConn, remoteConn net.Conn) {
 	}
 
 	// Relay the connections (ignore error for backward compatibility)
-	manager.Relay(ctx, originConn, remoteConn, metadata)
+	_, _ = manager.Relay(ctx, originConn, remoteConn, metadata)
 }
 
 // PipeConnections is a convenience function that mimics the old pipe() function

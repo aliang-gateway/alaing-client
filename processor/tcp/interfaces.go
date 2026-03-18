@@ -3,6 +3,7 @@ package tcp
 import (
 	"context"
 	"net"
+	"time"
 
 	M "nursor.org/nursorgate/inbound/tun/metadata"
 )
@@ -36,7 +37,17 @@ type RelayManager interface {
 	// - Sets appropriate timeouts and cleanup handlers
 	//
 	// The function blocks until both directions complete or context is cancelled.
-	Relay(ctx context.Context, originConn, remoteConn net.Conn, metadata *M.Metadata) error
+	Relay(ctx context.Context, originConn, remoteConn net.Conn, metadata *M.Metadata) (*RelayStats, error)
+}
+
+type RelayStats struct {
+	StartedAt          time.Time
+	FirstResponseAt    time.Time
+	CompletedAt        time.Time
+	ClientToServerByte int64
+	ServerToClientByte int64
+	RequestPayload     []byte
+	ResponsePayload    []byte
 }
 
 // ProtocolDetector determines how to handle a connection based on destination port.
@@ -77,9 +88,6 @@ type TLSHandler interface {
 	// DetermineRouteWithContext makes routing decisions with metadata context.
 	// It can leverage cached SNI bindings and the SNI allowlist.
 	//
-	// Returns:
-	// - proxyRoute: The routing decision (RouteToCursor, RouteToSocks, RouteDirect)
-	// - requiresSNI: Whether SNI extraction is needed for final decision
 	DetermineRouteWithContext(metadata *M.Metadata) (ProxyRoute, bool)
 }
 
@@ -147,8 +155,8 @@ const (
 type ProxyRoute int
 
 const (
-	RouteToCursor ProxyRoute = iota
-	RouteToSocks
+	RouteToALiang ProxyRoute = iota
+	RouteToLocalProxy
 	RouteDirect
 )
 

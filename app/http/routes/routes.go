@@ -26,42 +26,40 @@ type Handlers struct {
 	Startup       *handlers.StartupHandler
 	Config        *handlers.ConfigHandler
 	TrafficStats  *handlers.TrafficStatsHandler
+	HTTPStats     *handlers.HTTPStatsHandler
 
-	// Keep reference to stats collector for lifecycle management
-	statsCollector *statistic.StatsCollector
+	statsCollector     *statistic.StatsCollector
+	httpStatsCollector *statistic.HTTPStatsCollector
 }
 
 // NewHandlers creates and initializes all handlers with their dependencies
 func NewHandlers() *Handlers {
-	// Initialize services
 	logService := services.NewLogService()
 	logConfigService := services.NewLogConfigService()
 	tokenService := services.NewTokenService()
 	runService := services.NewRunService()
 	certService := services.NewCertService()
-
-	// Initialize repositories
 	proxyRepository := repositories.NewProxyRepository()
-
-	// Initialize stats collector
 	statsCollector := statistic.NewStatsCollector()
+	httpStatsCollector := statistic.GetDefaultHTTPStatsCollector()
 
-	// Create handlers with dependency injection
 	return &Handlers{
-		Logger:         handlers.NewLogHandler(logService, logConfigService),
-		Proxy:          handlers.NewProxyHandler(),
-		ProxyRegistry:  handlers.NewProxyRegistryHandler(proxyRepository),
-		Token:          handlers.NewTokenHandler(tokenService),
-		Run:            handlers.NewRunHandler(runService),
-		LogStream:      handlers.NewLogStreamHandler(),
-		Rules:          handlers.NewRulesHandler(),
-		DNSCache:       handlers.NewDNSCacheHandler(),
-		Cert:           handlers.NewCertHandler(certService),
-		Auth:           handlers.NewAuthHandler(),
-		Startup:        handlers.NewStartupHandler(),
-		Config:         handlers.NewConfigHandler(),
-		TrafficStats:   handlers.NewTrafficStatsHandler(statsCollector),
-		statsCollector: statsCollector,
+		Logger:             handlers.NewLogHandler(logService, logConfigService),
+		Proxy:              handlers.NewProxyHandler(),
+		ProxyRegistry:      handlers.NewProxyRegistryHandler(proxyRepository),
+		Token:              handlers.NewTokenHandler(tokenService),
+		Run:                handlers.NewRunHandler(runService),
+		LogStream:          handlers.NewLogStreamHandler(),
+		Rules:              handlers.NewRulesHandler(),
+		DNSCache:           handlers.NewDNSCacheHandler(),
+		Cert:               handlers.NewCertHandler(certService),
+		Auth:               handlers.NewAuthHandler(),
+		Startup:            handlers.NewStartupHandler(),
+		Config:             handlers.NewConfigHandler(),
+		TrafficStats:       handlers.NewTrafficStatsHandler(statsCollector),
+		HTTPStats:          handlers.NewHTTPStatsHandler(httpStatsCollector),
+		statsCollector:     statsCollector,
+		httpStatsCollector: httpStatsCollector,
 	}
 }
 
@@ -140,6 +138,14 @@ func RegisterRoutes(h *Handlers, mux *http.ServeMux) {
 	mux.HandleFunc("/api/stats/traffic/current", h.TrafficStats.HandleGetCurrentStats)
 	mux.HandleFunc("/api/stats/traffic/cache/info", h.TrafficStats.HandleGetCacheInfo)
 	mux.HandleFunc("/api/stats/traffic/cache/clear", h.TrafficStats.HandleClearCache)
+
+	// HTTP Statistics API (/api/stats/http/*)
+	mux.HandleFunc("/api/stats/http/requests", h.HTTPStats.HandleGetRequests)
+	mux.HandleFunc("/api/stats/http/domains", h.HTTPStats.HandleGetDomainStats)
+	mux.HandleFunc("/api/stats/http/chart", h.HTTPStats.HandleGetChartData)
+	mux.HandleFunc("/api/stats/http/info", h.HTTPStats.HandleGetStats)
+	mux.HandleFunc("/api/stats/http/clear", h.HTTPStats.HandleClear)
+	mux.HandleFunc("/api/stats/http/preset-domains", h.HTTPStats.HandleGetPresetDomains)
 }
 
 // StartStatsCollector starts the traffic statistics collector background task
@@ -162,5 +168,28 @@ func StopStatsCollector(h *Handlers) {
 	if h.statsCollector != nil {
 		h.statsCollector.Stop()
 		logger.Info("Traffic stats collector stopped")
+	}
+}
+
+// StartHTTPStatsCollector starts the HTTP statistics collector background task
+func StartHTTPStatsCollector(h *Handlers) error {
+	if h.httpStatsCollector == nil {
+		return fmt.Errorf("http stats collector not initialized")
+	}
+
+	if err := h.httpStatsCollector.Start(); err != nil {
+		logger.Error(fmt.Sprintf("Failed to start http stats collector: %v", err))
+		return err
+	}
+
+	logger.Info("HTTP stats collector started successfully")
+	return nil
+}
+
+// StopHTTPStatsCollector stops the HTTP statistics collector
+func StopHTTPStatsCollector(h *Handlers) {
+	if h.httpStatsCollector != nil {
+		h.httpStatsCollector.Stop()
+		logger.Info("HTTP stats collector stopped")
 	}
 }

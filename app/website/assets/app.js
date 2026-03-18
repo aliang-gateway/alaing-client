@@ -2853,18 +2853,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // ============ 页面导航 ============
 function switchPage(page) {
-    // 隐藏所有页面
     document.querySelectorAll('.content-section').forEach(el => {
         el.classList.remove('active');
+        el.classList.add('hidden');
     });
 
-    // 显示选定页面
     const pageEl = document.getElementById(`${page}-page`);
     if (pageEl) {
         pageEl.classList.add('active');
+        pageEl.classList.remove('hidden');
     }
 
-    // 更新菜单活跃状态
     document.querySelectorAll('.tab-item').forEach(link => {
         link.classList.remove('active');
         if (link.dataset.page === page) {
@@ -3595,6 +3594,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const dashboardPage = document.getElementById('dashboard-page');
     const settingsPage = document.getElementById('settings-page');
     const goToSettingsBtn = document.getElementById('goToSettingsBtn');
+    const headerSettingsBtn = document.getElementById('headerSettingsBtn');
     const backToDashboard = document.getElementById('backToDashboard');
 
     const settingsTabs = document.querySelectorAll('.settings-tab');
@@ -3631,6 +3631,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (goToSettingsBtn) {
         goToSettingsBtn.addEventListener('click', showSettingsPage);
+    }
+
+    if (headerSettingsBtn) {
+        headerSettingsBtn.addEventListener('click', showSettingsPage);
     }
 
     if (backToDashboard) {

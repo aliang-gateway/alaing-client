@@ -121,6 +121,11 @@ func registerAllRoutes() {
 		routes.StartStatsCollector(handlers)
 	}
 
+	if handlers.HTTPStats != nil {
+		logger.Info("Starting HTTP stats collector...")
+		routes.StartHTTPStatsCollector(handlers)
+	}
+
 	// Register static file server for web dashboard
 	registerStaticFiles()
 }

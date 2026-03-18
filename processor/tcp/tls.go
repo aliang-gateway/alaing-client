@@ -6,12 +6,14 @@ import (
 	"fmt"
 	"net"
 	"strings"
+	"time"
 
 	"nursor.org/nursorgate/common/logger"
+	"nursor.org/nursorgate/common/model"
 	M "nursor.org/nursorgate/inbound/tun/metadata"
 	cert_client "nursor.org/nursorgate/processor/cert/client"
 	"nursor.org/nursorgate/processor/config"
-	"nursor.org/nursorgate/processor/rules"
+	"nursor.org/nursorgate/processor/routing"
 	tls_helper "nursor.org/nursorgate/processor/tls"
 	watcher "nursor.org/nursorgate/processor/watcher"
 )
@@ -84,24 +86,10 @@ func (h *DefaultTLSHandler) PerformMITM(ctx context.Context, originConn net.Conn
 	return tlsConn, nil
 }
 
-// DetermineRoute checks if a domain should be routed to aliang (MITM), socks, or direct.
-// It uses the SNI allowlist from config.
 func (h *DefaultTLSHandler) DetermineRoute(serverName string) ProxyRoute {
-	if serverName == "" {
-		return h.defaultFallbackRoute()
-	}
-
-	cfg := config.GetGlobalConfig()
-	if cfg == nil {
-		return RouteDirect
-	}
-
-	// Check if allowed to cursor proxy (MITM interception)
-	if rules.IsDomainAllowed(serverName, cfg.SNIAllowlist) {
-		return RouteToCursor
-	}
-
-	return h.defaultFallbackRoute()
+	metadata := &M.Metadata{HostName: serverName, DstPort: 443}
+	route, _ := h.DetermineRouteWithContext(metadata)
+	return route
 }
 
 // IsDoHProvider checks if a domain is a DNS-over-HTTPS provider.
@@ -185,28 +173,93 @@ type WrappedConnWithTLS struct {
 	Buffer []byte // Preserved TLS ClientHello
 }
 
-// DetermineRouteWithContext uses the rule engine to make intelligent routing decisions.
-// This method leverages:
-// 1. Bypass rules (user-configured direct routes)
-// 2. IP-Domain cache (avoid repeated SNI extraction)
-// 3. SNI allowlist (MITM to Aliang)
-// 4. GeoIP routing (country-based decisions)
-//
-// Returns both the routing decision and whether SNI extraction is required.
 func (h *DefaultTLSHandler) DetermineRouteWithContext(metadata *M.Metadata) (ProxyRoute, bool) {
-	route := h.DetermineRoute(metadata.HostName)
+	if metadata == nil {
+		return h.defaultFallbackRoute(), false
+	}
+
+	route := h.decideRouteWithRoutingEngine(metadata)
 	requiresSNI := metadata.DstPort == 443 && metadata.HostName == ""
 
-	// Log decision for debugging
 	logger.Debug(fmt.Sprintf("Route decision: %v (requiresSNI: %v)", route, requiresSNI))
 
 	return route, requiresSNI
 }
 
+func (h *DefaultTLSHandler) decideRouteWithRoutingEngine(metadata *M.Metadata) ProxyRoute {
+	if metadata == nil {
+		return h.defaultFallbackRoute()
+	}
+
+	routingCfg := h.buildRoutingRulesConfig()
+	routeCtx := &routing.MatchContext{
+		Domain: strings.ToLower(strings.TrimSpace(metadata.HostName)),
+	}
+	if metadata.DstIP.IsValid() && !metadata.DstIP.IsUnspecified() {
+		routeCtx.IP = metadata.DstIP.String()
+	}
+
+	decision, err := routing.DecideRoute(routingCfg, routeCtx)
+	if err != nil {
+		logger.Warn(fmt.Sprintf("routing.DecideRoute failed, fallback route used: %v", err))
+		return h.defaultFallbackRoute()
+	}
+
+	switch decision {
+	case routing.RouteToAliang:
+		return RouteToALiang
+	case routing.RouteToSocks:
+		return RouteToLocalProxy
+	default:
+		return h.defaultFallbackRoute()
+	}
+}
+
+func (h *DefaultTLSHandler) buildRoutingRulesConfig() *model.RoutingRulesConfig {
+	now := time.Now()
+	rc := model.NewRoutingRulesConfig()
+
+	switchStatus := routing.GetSwitchManager().GetStatus()
+	rc.Settings.AliangEnabled = switchStatus.AliangEnabled
+	rc.Settings.SocksEnabled = switchStatus.SocksEnabled
+	rc.Settings.GeoIPEnabled = switchStatus.GeoIPEnabled
+	rc.Settings.UpdatedAt = now
+	rc.UpdatedAt = now
+
+	cfg := config.GetGlobalConfig()
+	if cfg == nil {
+		return rc
+	}
+
+	rules := make([]model.RoutingRule, 0, len(cfg.SNIAllowlist))
+	for i, domain := range cfg.SNIAllowlist {
+		normalizedDomain := strings.ToLower(strings.TrimSpace(domain))
+		if normalizedDomain == "" {
+			continue
+		}
+
+		rules = append(rules, model.RoutingRule{
+			ID:        fmt.Sprintf("aliang_allowlist_%d", i),
+			Type:      model.RuleTypeDomain,
+			Condition: normalizedDomain,
+			Enabled:   true,
+			CreatedAt: now,
+			UpdatedAt: now,
+		})
+	}
+
+	rc.Aliang.Rules = rules
+	rc.Aliang.Count = len(rules)
+	rc.Aliang.UpdatedAt = now
+
+	return rc
+}
+
 func (h *DefaultTLSHandler) defaultFallbackRoute() ProxyRoute {
 	cfg := config.GetGlobalConfig()
-	if cfg != nil && cfg.SocksProxy != nil {
-		return RouteToSocks
+	switchStatus := routing.GetSwitchManager().GetStatus()
+	if cfg != nil && cfg.SocksProxy != nil && switchStatus.SocksEnabled {
+		return RouteToLocalProxy
 	}
 	return RouteDirect
 }
