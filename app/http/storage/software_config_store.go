@@ -1,0 +1,190 @@
+package storage
+
+import (
+	"errors"
+	"fmt"
+	"sync"
+
+	"gorm.io/driver/sqlite"
+	"gorm.io/gorm"
+
+	"nursor.org/nursorgate/app/http/models"
+	"nursor.org/nursorgate/common/cache"
+)
+
+var (
+	softwareConfigDBOnce sync.Once
+	softwareConfigDB     *gorm.DB
+	softwareConfigDBErr  error
+)
+
+type SoftwareConfigStore struct {
+	db      *gorm.DB
+	initErr error
+}
+
+func NewSoftwareConfigStore() *SoftwareConfigStore {
+	db, err := getSoftwareConfigDB()
+	return &SoftwareConfigStore{db: db, initErr: err}
+}
+
+func NewSoftwareConfigStoreWithDBPath(dbPath string) (*SoftwareConfigStore, error) {
+	db, err := openSoftwareConfigDB(dbPath)
+	if err != nil {
+		return nil, err
+	}
+	return &SoftwareConfigStore{db: db}, nil
+}
+
+func getSoftwareConfigDB() (*gorm.DB, error) {
+	softwareConfigDBOnce.Do(func() {
+		dbPath, err := cache.GetCacheFile("software_configs.db")
+		if err != nil {
+			softwareConfigDBErr = err
+			return
+		}
+		softwareConfigDB, softwareConfigDBErr = openSoftwareConfigDB(dbPath)
+	})
+	return softwareConfigDB, softwareConfigDBErr
+}
+
+func openSoftwareConfigDB(dbPath string) (*gorm.DB, error) {
+	if dbPath == "" {
+		return nil, errors.New("software config db path is empty")
+	}
+
+	absPath, err := cache.ExpandHomePath(dbPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to resolve db path: %w", err)
+	}
+
+	db, err := gorm.Open(sqlite.Open(absPath), &gorm.Config{})
+	if err != nil {
+		return nil, fmt.Errorf("failed to open sqlite database: %w", err)
+	}
+
+	if err := db.AutoMigrate(&models.SoftwareConfig{}); err != nil {
+		return nil, fmt.Errorf("failed to migrate software_configs table: %w", err)
+	}
+
+	return db, nil
+}
+
+func (s *SoftwareConfigStore) ensureReady() error {
+	if s == nil {
+		return errors.New("software config store is nil")
+	}
+	if s.initErr != nil {
+		return s.initErr
+	}
+	if s.db == nil {
+		return errors.New("software config store db is nil")
+	}
+	return nil
+}
+
+func (s *SoftwareConfigStore) Upsert(cfg models.SoftwareConfig) error {
+	if err := s.ensureReady(); err != nil {
+		return err
+	}
+	return s.db.Save(&cfg).Error
+}
+
+func (s *SoftwareConfigStore) Activate(cfg models.SoftwareConfig) error {
+	if err := s.ensureReady(); err != nil {
+		return err
+	}
+
+	return s.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Model(&models.SoftwareConfig{}).Where("in_use = ?", true).Update("in_use", false).Error; err != nil {
+			return err
+		}
+		cfg.InUse = true
+		return tx.Save(&cfg).Error
+	})
+}
+
+func (s *SoftwareConfigStore) List() ([]models.SoftwareConfig, error) {
+	if err := s.ensureReady(); err != nil {
+		return nil, err
+	}
+
+	var configs []models.SoftwareConfig
+	if err := s.db.Order("updated_at DESC").Find(&configs).Error; err != nil {
+		return nil, err
+	}
+	return configs, nil
+}
+
+func (s *SoftwareConfigStore) GetByUUID(id string) (*models.SoftwareConfig, error) {
+	if err := s.ensureReady(); err != nil {
+		return nil, err
+	}
+
+	var cfg models.SoftwareConfig
+	if err := s.db.First(&cfg, "uuid = ?", id).Error; err != nil {
+		return nil, err
+	}
+	return &cfg, nil
+}
+
+func (s *SoftwareConfigStore) FindByUUID(id string) (*models.SoftwareConfig, bool, error) {
+	if err := s.ensureReady(); err != nil {
+		return nil, false, err
+	}
+
+	var cfg models.SoftwareConfig
+	err := s.db.First(&cfg, "uuid = ?", id).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, false, nil
+	}
+	if err != nil {
+		return nil, false, err
+	}
+	return &cfg, true, nil
+}
+
+func (s *SoftwareConfigStore) MergeByLatest(incoming []models.SoftwareConfig) (inserted int, updated int, keptLocalNewer int, err error) {
+	if err = s.ensureReady(); err != nil {
+		return 0, 0, 0, err
+	}
+
+	err = s.db.Transaction(func(tx *gorm.DB) error {
+		for _, remoteCfg := range incoming {
+			var localCfg models.SoftwareConfig
+			err := tx.First(&localCfg, "uuid = ?", remoteCfg.UUID).Error
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				if remoteCfg.InUse {
+					if clearErr := tx.Model(&models.SoftwareConfig{}).Where("in_use = ?", true).Update("in_use", false).Error; clearErr != nil {
+						return clearErr
+					}
+				}
+				if createErr := tx.Create(&remoteCfg).Error; createErr != nil {
+					return createErr
+				}
+				inserted++
+				continue
+			}
+			if err != nil {
+				return err
+			}
+
+			if remoteCfg.UpdatedAt.After(localCfg.UpdatedAt) {
+				if remoteCfg.InUse {
+					if clearErr := tx.Model(&models.SoftwareConfig{}).Where("in_use = ?", true).Update("in_use", false).Error; clearErr != nil {
+						return clearErr
+					}
+				}
+				if saveErr := tx.Save(&remoteCfg).Error; saveErr != nil {
+					return saveErr
+				}
+				updated++
+			} else {
+				keptLocalNewer++
+			}
+		}
+		return nil
+	})
+
+	return inserted, updated, keptLocalNewer, err
+}

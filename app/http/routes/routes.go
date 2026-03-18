@@ -16,6 +16,7 @@ type Handlers struct {
 	Logger        *handlers.LogHandler
 	Proxy         *handlers.ProxyHandler
 	ProxyRegistry *handlers.ProxyRegistryHandler
+	SoftwareCfg   *handlers.SoftwareConfigHandler
 	Token         *handlers.TokenHandler
 	Run           *handlers.RunHandler
 	LogStream     *handlers.LogStreamHandler
@@ -38,6 +39,7 @@ func NewHandlers() *Handlers {
 	logConfigService := services.NewLogConfigService()
 	tokenService := services.NewTokenService()
 	runService := services.NewRunService()
+	softwareCfgService := services.NewSoftwareConfigService()
 	certService := services.NewCertService()
 	proxyRepository := repositories.NewProxyRepository()
 	statsCollector := statistic.NewStatsCollector()
@@ -47,6 +49,7 @@ func NewHandlers() *Handlers {
 		Logger:             handlers.NewLogHandler(logService, logConfigService),
 		Proxy:              handlers.NewProxyHandler(),
 		ProxyRegistry:      handlers.NewProxyRegistryHandler(proxyRepository),
+		SoftwareCfg:        handlers.NewSoftwareConfigHandler(softwareCfgService),
 		Token:              handlers.NewTokenHandler(tokenService),
 		Run:                handlers.NewRunHandler(runService),
 		LogStream:          handlers.NewLogStreamHandler(),
@@ -79,6 +82,11 @@ func RegisterRoutes(h *Handlers, mux *http.ServeMux) {
 	// Proxy registry routes (/api/proxy/registry/*)
 	mux.HandleFunc("/api/proxy/list", h.ProxyRegistry.HandleProxyRegistryList)
 	mux.HandleFunc("/api/proxy/get", h.ProxyRegistry.HandleProxyRegistryGet)
+
+	mux.HandleFunc("/api/software-config/save", h.SoftwareCfg.HandleSave)
+	mux.HandleFunc("/api/software-config/activate", h.SoftwareCfg.HandleActivate)
+	mux.HandleFunc("/api/software-config/cloud/push", h.SoftwareCfg.HandlePushToCloud)
+	mux.HandleFunc("/api/software-config/cloud/pull", h.SoftwareCfg.HandlePullFromCloud)
 
 	// Token routes (/api/token/*)
 	mux.HandleFunc("/api/token/get", h.Token.HandleTokenGet)

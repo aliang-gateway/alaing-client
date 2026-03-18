@@ -1,0 +1,131 @@
+package storage
+
+import (
+	"testing"
+	"time"
+
+	"nursor.org/nursorgate/app/http/models"
+)
+
+func TestSoftwareConfigStore_ActivateAndMergeByLatest(t *testing.T) {
+	store, err := NewSoftwareConfigStoreWithDBPath(t.TempDir() + "/configs.db")
+	if err != nil {
+		t.Fatalf("create store failed: %v", err)
+	}
+
+	baseTime := time.Now().Add(-10 * time.Minute)
+	first := models.SoftwareConfig{
+		UUID:      "cfg-1",
+		Name:      "config-one",
+		FilePath:  "/tmp/a.json",
+		Version:   "v1",
+		InUse:     false,
+		Format:    models.ConfigFormatJSON,
+		Content:   `{"a":1}`,
+		CreatedAt: baseTime,
+		UpdatedAt: baseTime,
+	}
+	second := models.SoftwareConfig{
+		UUID:      "cfg-2",
+		Name:      "config-two",
+		FilePath:  "/tmp/b.yaml",
+		Version:   "v1",
+		InUse:     false,
+		Format:    models.ConfigFormatYAML,
+		Content:   "a: 1",
+		CreatedAt: baseTime,
+		UpdatedAt: baseTime,
+	}
+
+	if err := store.Upsert(first); err != nil {
+		t.Fatalf("upsert first failed: %v", err)
+	}
+	if err := store.Upsert(second); err != nil {
+		t.Fatalf("upsert second failed: %v", err)
+	}
+
+	if err := store.Activate(first); err != nil {
+		t.Fatalf("activate first failed: %v", err)
+	}
+	if err := store.Activate(second); err != nil {
+		t.Fatalf("activate second failed: %v", err)
+	}
+
+	list, err := store.List()
+	if err != nil {
+		t.Fatalf("list failed: %v", err)
+	}
+
+	inUseCount := 0
+	activeUUID := ""
+	for _, cfg := range list {
+		if cfg.InUse {
+			inUseCount++
+			activeUUID = cfg.UUID
+		}
+	}
+	if inUseCount != 1 || activeUUID != "cfg-2" {
+		t.Fatalf("expected cfg-2 active only, got inUseCount=%d active=%s", inUseCount, activeUUID)
+	}
+
+	remoteOld := models.SoftwareConfig{
+		UUID:      "cfg-2",
+		Name:      "config-two",
+		FilePath:  "/tmp/b.yaml",
+		Version:   "v-old",
+		InUse:     true,
+		Format:    models.ConfigFormatYAML,
+		Content:   "a: old",
+		CreatedAt: baseTime,
+		UpdatedAt: baseTime.Add(-1 * time.Minute),
+	}
+	remoteNew := models.SoftwareConfig{
+		UUID:      "cfg-3",
+		Name:      "config-three",
+		FilePath:  "/tmp/c.json",
+		Version:   "v1",
+		InUse:     false,
+		Format:    models.ConfigFormatJSON,
+		Content:   `{"c":1}`,
+		CreatedAt: baseTime,
+		UpdatedAt: baseTime.Add(5 * time.Minute),
+	}
+
+	inserted, updated, kept, err := store.MergeByLatest([]models.SoftwareConfig{remoteOld, remoteNew})
+	if err != nil {
+		t.Fatalf("merge failed: %v", err)
+	}
+	if inserted != 1 || updated != 0 || kept != 1 {
+		t.Fatalf("unexpected merge result inserted=%d updated=%d kept=%d", inserted, updated, kept)
+	}
+
+	remoteActiveNewer := models.SoftwareConfig{
+		UUID:      "cfg-3",
+		Name:      "config-three",
+		FilePath:  "/tmp/c.json",
+		Version:   "v2",
+		InUse:     true,
+		Format:    models.ConfigFormatJSON,
+		Content:   `{"c":2}`,
+		CreatedAt: baseTime,
+		UpdatedAt: baseTime.Add(20 * time.Minute),
+	}
+	if _, _, _, err := store.MergeByLatest([]models.SoftwareConfig{remoteActiveNewer}); err != nil {
+		t.Fatalf("merge active newer failed: %v", err)
+	}
+	list2, err := store.List()
+	if err != nil {
+		t.Fatalf("list2 failed: %v", err)
+	}
+	inUseCount2 := 0
+	activeUUID2 := ""
+	for _, cfg := range list2 {
+		if cfg.InUse {
+			inUseCount2++
+			activeUUID2 = cfg.UUID
+		}
+	}
+	if inUseCount2 != 1 || activeUUID2 != "cfg-3" {
+		t.Fatalf("expected cfg-3 active only after merge, got inUseCount=%d active=%s", inUseCount2, activeUUID2)
+	}
+}

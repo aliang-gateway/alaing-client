@@ -57,7 +57,11 @@ func isConfigurationAPI(path string) bool {
 		"/api/auth/refresh-status", // Refresh status (diagnostic)
 		"/api/token/get",           // Get token
 		"/api/token/set",           // Set token
-		"/api/logs",                // Logs access (for diagnosis)
+		"/api/software-config/save",
+		"/api/software-config/activate",
+		"/api/software-config/cloud/push",
+		"/api/software-config/cloud/pull",
+		"/api/logs", // Logs access (for diagnosis)
 		"/api/run/status",
 	}
 
