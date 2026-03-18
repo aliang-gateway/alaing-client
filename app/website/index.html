@@ -7,6 +7,7 @@
 <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
 <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="assets/styles.css" rel="stylesheet"/>
 <script id="tailwind-config">
         tailwind.config = {
             darkMode: "class",
@@ -44,9 +45,9 @@
 <body class="bg-background-light dark:bg-background-dark font-display text-slate-900 dark:text-slate-100 antialiased">
 <div class="flex h-screen overflow-hidden">
 <!-- Dashboard Page Container -->
-<div id="dashboard-page" class="page-container content-section active">
+<div id="dashboard-page" class="page-container content-section active flex-1 flex flex-col h-full overflow-hidden">
 <!-- Left Sidebar/Panel -->
-<aside class="w-96 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 flex flex-col h-full overflow-y-auto custom-scrollbar">
+<aside class="w-80 lg:w-96 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 flex flex-col h-full overflow-y-auto custom-scrollbar">
 <!-- Refined User Profile Block -->
 <div class="p-8 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/20">
 <div class="flex items-center gap-4">
@@ -118,11 +119,11 @@
 <span class="material-symbols-outlined text-slate-400 text-sm">expand_more</span>
 </button>
 </div>
-<button type="button"  class="w-full flex items-center gap-3 px-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded text-sm font-medium hover:border-primary transition-colors">
+<button type="button" class="w-full flex items-center gap-3 px-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded text-sm font-medium hover:border-primary transition-colors">
 <span class="material-symbols-outlined text-slate-400 text-lg">chat_bubble</span>
                     Quick Chat
                 </button>
-<button type="button"  class="w-full flex items-center gap-3 px-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded text-sm font-medium hover:border-primary transition-colors">
+<button type="button" id="goToSettingsBtn" class="w-full flex items-center gap-3 px-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded text-sm font-medium hover:border-primary transition-colors">
 <span class="material-symbols-outlined text-slate-400 text-lg">settings</span>
                     More Settings
                 </button>
@@ -140,7 +141,7 @@
 </div>
 </aside>
 <!-- Main Content Area -->
-<main class="flex-1 flex flex-col h-full bg-background-light dark:bg-background-dark overflow-hidden">
+<main class="flex-1 min-w-0 flex flex-col h-full bg-background-light dark:bg-background-dark overflow-hidden">
 <!-- Top Navigation Bar -->
 <header class="h-16 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between px-8 shrink-0">
 <div class="flex items-center gap-4">
@@ -180,6 +181,7 @@
 <div class="relative size-40 flex items-center justify-center">
 <!-- Donut chart simulation using SVG -->
 <svg class="size-full transform -rotate-90" viewbox="0 0 36 36">
+<title>Traffic distribution donut chart</title>
 <circle cx="18" cy="18" fill="transparent" r="15.9" stroke="#e2e8f0" stroke-width="3"></circle>
 <circle cx="18" cy="18" fill="transparent" r="15.9" stroke="#21c45d" stroke-dasharray="40 100" stroke-dashoffset="0" stroke-width="3"></circle>
 <circle cx="18" cy="18" fill="transparent" r="15.9" stroke="#10b981" stroke-dasharray="25 100" stroke-dashoffset="-40" stroke-width="3"></circle>
@@ -228,6 +230,7 @@
 <div class="h-40 w-full relative">
 <!-- SVG Line Graph Mockup -->
 <svg class="w-full h-full" preserveaspectratio="none" viewbox="0 0 100 40">
+<title>Traffic throughput line chart</title>
 <path d="M0 35 Q 10 32, 20 30 T 40 25 T 60 35 T 80 15 T 100 20" fill="none" stroke="#21c45d" stroke-width="1.5"></path>
 <path d="M0 35 Q 10 32, 20 30 T 40 25 T 60 35 T 80 15 T 100 20 L 100 40 L 0 40 Z" fill="url(#grad1)" stroke="none"></path>
 <defs>
@@ -332,7 +335,7 @@
 </div>
 
 <!-- Settings Page Container -->
-<div id="settings-page" class="page-container content-section hidden flex flex-col h-screen">
+<div id="settings-page" class="page-container content-section hidden flex-1 flex flex-col h-full overflow-hidden">
     <!-- Top Navigation -->
     <header class="h-16 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between px-8">
         <div class="flex items-center gap-4">
@@ -580,7 +583,7 @@
         <button type="button" id="chatSendBtn" class="hidden"></button>
         <button type="button" id="chatClearHistoryBtn" class="hidden"></button>
         <input type="text" id="chatSearchInput" class="hidden" />
-        <button type="button" id="goToSettingsBtn" class="hidden"></button>
+        <button type="button" id="goToSettingsBtnCompat" class="hidden"></button>
         <div id="logs-page" class="hidden"></div>
         <div id="rules-page" class="hidden"></div>
         <div id="proxy-control-page" class="hidden"></div>
@@ -594,4 +597,8 @@
         <div id="total-cache" class="hidden"></div>
         <div id="cache-last-update" class="hidden"></div>
     </div>
+</div>
+<script src="assets/bootstrap.bundle.min.js"></script>
+<script src="assets/chart.umd.min.js"></script>
+<script src="assets/app.js"></script>
 </body></html>

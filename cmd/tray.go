@@ -30,6 +30,17 @@ func init() {
 func runTray(cmd *cobra.Command, args []string) error {
 	logger.Info("Starting Aliang in system tray mode...")
 
+	guard, acquired, err := acquireSingleInstanceGuard()
+	if err != nil {
+		return err
+	}
+	if !acquired {
+		logger.Info("Aliang is already running, opening dashboard...")
+		openDashboardInBrowser()
+		return nil
+	}
+	defer guard.Close()
+
 	// Load configuration (same as start command)
 	if configPath != "" {
 		logger.Info("Loading configuration from file: " + configPath)

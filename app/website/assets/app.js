@@ -3604,7 +3604,10 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!dashboardPage || !settingsPage) {
             return;
         }
+        appState.currentPage = 'settings';
         dashboardPage.classList.remove('active');
+        dashboardPage.classList.add('hidden');
+        settingsPage.classList.remove('hidden');
         settingsPage.classList.add('active');
     };
 
@@ -3612,9 +3615,19 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!dashboardPage || !settingsPage) {
             return;
         }
+        appState.currentPage = 'dashboard';
         settingsPage.classList.remove('active');
+        settingsPage.classList.add('hidden');
+        dashboardPage.classList.remove('hidden');
         dashboardPage.classList.add('active');
     };
+
+    if (dashboardPage && settingsPage) {
+        appState.currentPage = 'dashboard';
+        dashboardPage.classList.add('active');
+        dashboardPage.classList.remove('hidden');
+        settingsPage.classList.add('hidden');
+    }
 
     if (goToSettingsBtn) {
         goToSettingsBtn.addEventListener('click', showSettingsPage);
@@ -3638,10 +3651,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 tab.classList.add('active');
 
                 settingsContents.forEach(content => {
-                    if (content.id === `${targetTab}-tab`) {
+                    if (content.getAttribute('data-content') === targetTab) {
                         content.classList.add('active');
+                        content.classList.remove('hidden');
                     } else {
                         content.classList.remove('active');
+                        content.classList.add('hidden');
                     }
                 });
             });

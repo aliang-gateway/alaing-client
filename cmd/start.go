@@ -63,6 +63,17 @@ func ApplyDefaultConfig() error {
 }
 
 func runStart(cmd *cobra.Command, args []string) error {
+	guard, acquired, err := acquireSingleInstanceGuard()
+	if err != nil {
+		return err
+	}
+	if !acquired {
+		logger.Info("Aliang is already running, opening dashboard...")
+		openDashboardInBrowser()
+		return nil
+	}
+	defer guard.Close()
+
 	// Get the global startup state
 	startupState := runtime.GetStartupState()
 
