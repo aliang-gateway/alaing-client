@@ -300,9 +300,10 @@ func (cs *CertService) getMTLSCert() ([]byte, error) {
 
 	certPath := filepath.Join(homeDir, ".aliang", "mtls-client.pem")
 
-	// Check if file exists, if not it will be created by ExportCert when needed
 	if _, err := os.Stat(certPath); os.IsNotExist(err) {
-		return nil, fmt.Errorf("mTLS certificate not found at %s - please call export first", certPath)
+		if _, exportErr := cs.ExportCert("mtls-cert"); exportErr != nil {
+			return nil, fmt.Errorf("mTLS certificate not found at %s and auto-export failed: %w", certPath, exportErr)
+		}
 	}
 
 	return os.ReadFile(certPath)

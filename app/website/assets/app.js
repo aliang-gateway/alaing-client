@@ -403,7 +403,7 @@ function initQuickChat() {
     }
 }
 
-const API_BASE = 'http://127.0.0.1:56431/api';
+const API_BASE = '/api';
 
 async function apiCall(endpoint, options = {}) {
     try {
@@ -437,6 +437,42 @@ async function apiPost(endpoint, data) {
         method: 'POST',
         body: JSON.stringify(data)
     });
+}
+
+async function downloadFile(endpoint, filename) {
+    try {
+        const response = await fetch(`${API_BASE}${endpoint}`, {
+            method: 'GET'
+        });
+
+        if (!response.ok) {
+            let msg = '下载失败';
+            const contentType = response.headers.get('content-type') || '';
+            if (contentType.includes('application/json')) {
+                const errorData = await response.json();
+                msg = errorData.msg || errorData.message || msg;
+            } else {
+                const errorText = await response.text();
+                if (errorText && errorText.trim()) {
+                    msg = errorText.trim();
+                }
+            }
+            throw new Error(msg);
+        }
+
+        const blob = await response.blob();
+        const blobUrl = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = blobUrl;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        window.URL.revokeObjectURL(blobUrl);
+        showSuccess('证书下载成功');
+    } catch (error) {
+        showError('下载失败: ' + error.message);
+    }
 }
 
 // ============ 全局状态管理 ============
@@ -602,6 +638,10 @@ function updateRulesButtonStates() {
 function showNotification(message, type = 'success') {
     // 确保通知容器存在
     let container = document.getElementById('notification-container');
+    if (container && container.closest('.compat-anchors')) {
+        container.removeAttribute('id');
+        container = null;
+    }
     if (!container) {
         container = document.createElement('div');
         container.id = 'notification-container';
@@ -813,8 +853,8 @@ async function loadDashboard() {
     }
 }
 
-document.getElementById('dashStartBtn').addEventListener('click', () => {
-    const btn = event.target.closest('button');
+document.getElementById('dashStartBtn').addEventListener('click', (event) => {
+    const btn = event.currentTarget;
     showLoading(btn);
     apiPost('/run/start')
         .then((result) => {
@@ -826,7 +866,7 @@ document.getElementById('dashStartBtn').addEventListener('click', () => {
                 updateButtonStates();
                 showSuccess(result.message || '服务启动成功');
             } else {
-                showSuccess('服务启动成功');
+                showError(result?.msg || result?.message || '服务启动失败');
             }
             // 延迟一点再刷新，确保后端状态已更新
             setTimeout(() => {
@@ -842,8 +882,8 @@ document.getElementById('dashStartBtn').addEventListener('click', () => {
         });
 });
 
-document.getElementById('dashStopBtn').addEventListener('click', () => {
-    const btn = event.target.closest('button');
+document.getElementById('dashStopBtn').addEventListener('click', (event) => {
+    const btn = event.currentTarget;
     showLoading(btn);
     apiPost('/run/stop')
         .then((result) => {
@@ -854,7 +894,7 @@ document.getElementById('dashStopBtn').addEventListener('click', () => {
                 updateButtonStates();
                 showSuccess(result.message || '服务停止成功');
             } else {
-                showSuccess('服务停止成功');
+                showError(result?.msg || result?.message || '服务停止失败');
             }
             // 延迟一点再刷新，确保后端状态已更新
             setTimeout(() => {
@@ -1174,12 +1214,17 @@ async function loadRunStatus() {
     }
 }
 
-document.getElementById('runStartBtn').addEventListener('click', () => {
-    const btn = event.target.closest('button');
+document.getElementById('runStartBtn').addEventListener('click', (event) => {
+    const btn = event.currentTarget;
     showLoading(btn);
     apiPost('/run/start')
-        .then(() => {
-            showSuccess('服务启动成功');
+        .then((result) => {
+            if (result && (result.status === 'success' || result.status === 'already_running')) {
+                showSuccess(result.message || '服务启动成功');
+            } else {
+                showError(result?.msg || result?.message || '服务启动失败');
+                return;
+            }
             loadRunStatus();
             loadDashboard();
         })
@@ -1191,12 +1236,17 @@ document.getElementById('runStartBtn').addEventListener('click', () => {
         });
 });
 
-document.getElementById('runStopBtn').addEventListener('click', () => {
-    const btn = event.target.closest('button');
+document.getElementById('runStopBtn').addEventListener('click', (event) => {
+    const btn = event.currentTarget;
     showLoading(btn);
     apiPost('/run/stop')
-        .then(() => {
-            showSuccess('服务停止成功');
+        .then((result) => {
+            if (result && result.status === 'success') {
+                showSuccess(result.message || '服务停止成功');
+            } else {
+                showError(result?.msg || result?.message || '服务停止失败');
+                return;
+            }
             loadRunStatus();
             loadDashboard();
         })
@@ -1208,8 +1258,8 @@ document.getElementById('runStopBtn').addEventListener('click', () => {
         });
 });
 
-document.getElementById('runModeBtn').addEventListener('click', () => {
-    const btn = event.target.closest('button');
+document.getElementById('runModeBtn').addEventListener('click', (event) => {
+    const btn = event.currentTarget;
     const currentMode = document.querySelector('input[name="runMode"]:checked').value;
 
     var mode = currentMode;
@@ -1798,7 +1848,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 });
 
-document.getElementById('rulesEnableBtn').addEventListener('click', () => {
+document.getElementById('rulesEnableBtn').addEventListener('click', (event) => {
     const btn = event.target.closest('button');
     showLoading(btn);
     apiPost('/rules/engine/enable')
@@ -1814,7 +1864,7 @@ document.getElementById('rulesEnableBtn').addEventListener('click', () => {
         });
 });
 
-document.getElementById('rulesDisableBtn').addEventListener('click', () => {
+document.getElementById('rulesDisableBtn').addEventListener('click', (event) => {
     const btn = event.target.closest('button');
     showLoading(btn);
     apiPost('/rules/engine/disable')
@@ -1830,7 +1880,7 @@ document.getElementById('rulesDisableBtn').addEventListener('click', () => {
         });
 });
 
-document.getElementById('rulesReloadBtn').addEventListener('click', () => {
+document.getElementById('rulesReloadBtn').addEventListener('click', (event) => {
     const btn = event.target.closest('button');
     showLoading(btn);
     // 注意：routes.go 中没有 reload 路由，暂时禁用此功能或提示用户
@@ -1851,7 +1901,7 @@ document.getElementById('rulesReloadBtn').addEventListener('click', () => {
     //     });
 });
 
-document.getElementById('rulesClearCacheBtn').addEventListener('click', () => {
+document.getElementById('rulesClearCacheBtn').addEventListener('click', (event) => {
     const btn = event.target.closest('button');
     showLoading(btn);
     apiPost('/rules/cache/clear')
@@ -1867,7 +1917,7 @@ document.getElementById('rulesClearCacheBtn').addEventListener('click', () => {
         });
 });
 
-document.getElementById('rulesLookupBtn').addEventListener('click', () => {
+document.getElementById('rulesLookupBtn').addEventListener('click', (event) => {
     const btn = event.target.closest('button');
     const ip = document.getElementById('rulesLookupDomain').value.trim();
 
@@ -2181,7 +2231,7 @@ async function loadLogs() {
     }
 }
 
-document.getElementById('logsRefreshBtn').addEventListener('click', () => {
+document.getElementById('logsRefreshBtn').addEventListener('click', (event) => {
     const btn = event.target.closest('button');
     showLoading(btn);
     loadLogs()
@@ -2196,7 +2246,7 @@ document.getElementById('logsRefreshBtn').addEventListener('click', () => {
         });
 });
 
-document.getElementById('logsClearBtn').addEventListener('click', () => {
+document.getElementById('logsClearBtn').addEventListener('click', (event) => {
     const btn = event.target.closest('button');
     if (!confirm('确定要清空所有日志吗？')) {
         return;
@@ -2265,7 +2315,7 @@ async function loadLogConfig() {
 }
 
 // 保存日志级别配置（只保存后端支持的配置项）
-async function saveLogConfig() {
+async function saveLogConfig(event) {
     const btn = event.target.closest('button');
     showLoading(btn);
 
@@ -2305,14 +2355,14 @@ document.getElementById('logConfigSaveBtn').addEventListener('click', saveLogCon
 document.getElementById('logFilterBtn').addEventListener('click', applyLogFilter);
 
 // WebSocket 连接/断开按钮事件
-document.getElementById('wsConnectBtn').addEventListener('click', () => {
+document.getElementById('wsConnectBtn').addEventListener('click', (event) => {
     const btn = event.target.closest('button');
     showLoading(btn);
     logWebSocket.connect();
     hideLoading(btn);
 });
 
-document.getElementById('wsDisconnectBtn').addEventListener('click', () => {
+document.getElementById('wsDisconnectBtn').addEventListener('click', (event) => {
     const btn = event.target.closest('button');
     showLoading(btn);
     logWebSocket.disconnect();
@@ -3200,11 +3250,39 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // ===== Certificate Management =====
 
+    function updateCertModalLastRefreshed() {
+        const refreshed = document.getElementById('certModalLastRefreshed');
+        if (refreshed) {
+            refreshed.textContent = `Last refreshed: ${new Date().toLocaleString()}`;
+        }
+    }
+
+    function openCertManagementModal() {
+        const modal = document.getElementById('certManagementModal');
+        if (!modal) {
+            return;
+        }
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+        loadCertStatus();
+    }
+
+    function closeCertManagementModal() {
+        const modal = document.getElementById('certManagementModal');
+        if (!modal) {
+            return;
+        }
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+    }
+
     // 获取证书状态
     async function loadCertStatus() {
         try {
-            const response = await apiGet('/cert/status');
+            const certType = document.getElementById('cert-type-select')?.value || 'mitm-ca';
+            const response = await apiGet(`/cert/status?cert_type=${encodeURIComponent(certType)}`);
             updateCertStatusDisplay(response);
+            updateCertModalLastRefreshed();
         } catch (error) {
             console.error('Failed to load cert status:', error);
         }
@@ -3389,11 +3467,43 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // 事件监听器绑定
     if (document.getElementById('btn-check-cert')) {
+        const openModalBtn = document.getElementById('openCertManagementModalBtn');
+        const closeModalBtn = document.getElementById('certModalCloseBtn');
+        const modalBackdrop = document.getElementById('certManagementModalBackdrop');
+        const certModal = document.getElementById('certManagementModal');
+
+        if (openModalBtn) {
+            openModalBtn.addEventListener('click', openCertManagementModal);
+        }
+
+        if (closeModalBtn) {
+            closeModalBtn.addEventListener('click', closeCertManagementModal);
+        }
+
+        if (modalBackdrop) {
+            modalBackdrop.addEventListener('click', closeCertManagementModal);
+        }
+
+        if (certModal) {
+            certModal.addEventListener('click', (event) => {
+                if (event.target === certModal) {
+                    closeCertManagementModal();
+                }
+            });
+        }
+
+        document.addEventListener('keydown', (event) => {
+            if (event.key === 'Escape') {
+                closeCertManagementModal();
+            }
+        });
+
         document.getElementById('btn-check-cert').addEventListener('click', checkCertInstallation);
         document.getElementById('btn-export-cert').addEventListener('click', exportCert);
         document.getElementById('btn-download-cert').addEventListener('click', downloadCert);
         document.getElementById('btn-install-cert').addEventListener('click', installCert);
         document.getElementById('btn-remove-cert').addEventListener('click', removeCert);
+        document.getElementById('cert-type-select').addEventListener('change', loadCertStatus);
 
         // 页面加载时获取证书状态
         loadCertStatus();
@@ -3685,6 +3795,40 @@ document.addEventListener('DOMContentLoaded', () => {
             const tab = document.querySelector('.settings-tab[data-tab="system"]');
             if (tab instanceof HTMLElement) {
                 tab.click();
+            }
+            const installBtn = document.getElementById('btn-install-cert');
+            if (installBtn instanceof HTMLElement) {
+                installBtn.click();
+            }
+        });
+    }
+
+    const sidebarCertDetailsBtn = document.getElementById('sidebarCertDetailsBtn');
+    if (sidebarCertDetailsBtn) {
+        sidebarCertDetailsBtn.addEventListener('click', () => {
+            showSettingsPage();
+            const tab = document.querySelector('.settings-tab[data-tab="system"]');
+            if (tab instanceof HTMLElement) {
+                tab.click();
+            }
+            const openModalBtn = document.getElementById('openCertManagementModalBtn');
+            if (openModalBtn instanceof HTMLElement) {
+                openModalBtn.click();
+            }
+        });
+    }
+
+    const sidebarCertReinstallBtn = document.getElementById('sidebarCertReinstallBtn');
+    if (sidebarCertReinstallBtn) {
+        sidebarCertReinstallBtn.addEventListener('click', () => {
+            showSettingsPage();
+            const tab = document.querySelector('.settings-tab[data-tab="system"]');
+            if (tab instanceof HTMLElement) {
+                tab.click();
+            }
+            const openModalBtn = document.getElementById('openCertManagementModalBtn');
+            if (openModalBtn instanceof HTMLElement) {
+                openModalBtn.click();
             }
             const installBtn = document.getElementById('btn-install-cert');
             if (installBtn instanceof HTMLElement) {

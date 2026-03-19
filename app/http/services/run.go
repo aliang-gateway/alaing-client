@@ -71,9 +71,8 @@ func (rs *RunService) StartService() map[string]interface{} {
 	if rs.isRunning {
 		rs.modeChangeMutex.Unlock()
 		return map[string]interface{}{
-			"error":  "already_running",
-			"status": "failed",
-			"msg":    "Service is already running",
+			"status":  "already_running",
+			"message": "Service is already running",
 		}
 	}
 
@@ -202,7 +201,7 @@ func (rs *RunService) GetStatus() map[string]interface{} {
 			response["description"] = "HTTP CONNECT proxy mode on port 56432"
 		} else {
 			response["status"] = "HTTP mode selected, service not running"
-			response["description"] = "HTTP mode is ready, service will start automatically"
+			response["description"] = "HTTP mode is ready, call start to activate"
 		}
 	}
 
