@@ -539,3 +539,120 @@ tbody tr:hover {
 .tabular-nums {
     font-variant-numeric: tabular-nums;
 }
+
+/* Settings Module Global Classes */
+.settings-tab {
+    display: flex;
+    width: 100%;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.625rem 1rem;
+    border: 1px solid rgb(var(--color-slate-200-rgb));
+    background-color: rgb(var(--color-white-rgb));
+    color: rgb(var(--color-slate-500-rgb));
+    font-size: 0.875rem;
+    font-weight: 500;
+    border-radius: 0.25rem;
+    transition: all 0.2s ease;
+    cursor: pointer;
+}
+
+.dark .settings-tab {
+    border-color: rgb(var(--color-slate-700-rgb));
+    background-color: rgb(var(--color-slate-900-rgb));
+}
+
+.settings-tab:hover {
+    border-color: rgb(var(--color-primary-rgb));
+    color: rgb(var(--color-slate-700-rgb));
+}
+
+.dark .settings-tab:hover {
+    color: rgb(var(--color-slate-300-rgb));
+}
+
+.settings-tab.active {
+    border-color: rgb(var(--color-primary-rgb));
+    background-color: rgb(var(--color-primary-rgb) / 0.1);
+    color: rgb(var(--color-primary-rgb));
+    font-weight: 600;
+}
+
+.settings-card {
+    background-color: rgb(var(--color-white-rgb));
+    padding: 1.5rem;
+    border-radius: 0.25rem;
+    border: 1px solid rgb(var(--color-slate-200-rgb));
+    box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+    margin-bottom: 1.5rem;
+}
+
+.dark .settings-card {
+    background-color: rgb(var(--color-slate-900-rgb));
+    border-color: rgb(var(--color-slate-800-rgb));
+}
+
+.settings-card-title {
+    font-weight: 700;
+    font-size: 1.125rem;
+    color: rgb(var(--color-slate-700-rgb));
+    margin-bottom: 1rem;
+}
+
+.dark .settings-card-title {
+    color: rgb(var(--color-slate-300-rgb));
+}
+
+.settings-btn-primary {
+    padding: 0.5rem 1rem;
+    background-color: rgb(var(--color-primary-rgb));
+    color: rgb(var(--color-white-rgb));
+    border-radius: 0.25rem;
+    font-size: 0.875rem;
+    transition: background-color 0.2s ease;
+    cursor: pointer;
+    border: none;
+}
+
+.settings-btn-primary:hover {
+    background-color: rgb(var(--color-primary-rgb) / 0.9);
+}
+
+.settings-btn-secondary {
+    padding: 0.5rem 1rem;
+    background-color: rgb(var(--color-slate-500-rgb));
+    color: rgb(var(--color-white-rgb));
+    border-radius: 0.25rem;
+    font-size: 0.875rem;
+    transition: background-color 0.2s ease;
+    cursor: pointer;
+    border: none;
+}
+
+.settings-btn-secondary:hover {
+    background-color: rgb(var(--color-slate-600-rgb));
+}
+
+.settings-btn-outline {
+    padding: 0.5rem 1rem;
+    border: 1px solid rgb(var(--color-slate-300-rgb));
+    border-radius: 0.25rem;
+    font-size: 0.875rem;
+    background-color: transparent;
+    transition: all 0.2s ease;
+    cursor: pointer;
+    color: inherit;
+}
+
+.settings-btn-outline:hover {
+    background-color: rgb(var(--color-slate-50-rgb));
+}
+
+.dark .settings-btn-outline {
+    border-color: rgb(var(--color-slate-600-rgb));
+    color: rgb(var(--color-slate-300-rgb));
+}
+
+.dark .settings-btn-outline:hover {
+    background-color: rgb(var(--color-slate-800-rgb));
+}
