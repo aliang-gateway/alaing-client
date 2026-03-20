@@ -365,103 +365,68 @@
               Export Logs
             </button>
           </div>
+          <div class="px-6 py-3 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30">
+            <div class="flex flex-wrap items-center gap-2">
+              <select
+                v-model="requestFilter"
+                class="h-9 rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 text-xs text-slate-600 dark:text-slate-300"
+              >
+                <option value="all">过滤：全部</option>
+                <option value="success">过滤：成功(2xx)</option>
+                <option value="error">过滤：异常(非2xx)</option>
+              </select>
+              <input
+                v-model="pathSearch"
+                type="text"
+                placeholder="按 path 搜索，例如 /v1/messages"
+                class="h-9 min-w-[260px] flex-1 rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 text-xs text-slate-700 dark:text-slate-300 placeholder:text-slate-400"
+              />
+            </div>
+          </div>
           <div class="overflow-x-auto">
             <table class="w-full text-left">
               <thead
                 class="bg-slate-50 dark:bg-slate-800/50 text-slate-400 text-[10px] font-bold uppercase tracking-wider"
               >
                 <tr>
-                  <th class="px-6 py-3 w-10"></th>
                   <th class="px-6 py-3">Method</th>
                   <th class="px-6 py-3">Status</th>
                   <th class="px-6 py-3">Domain</th>
+                  <th class="px-6 py-3">Path</th>
+                  <th class="px-6 py-3 text-right">上传流量</th>
+                  <th class="px-6 py-3 text-right">下载流量</th>
+                  <th class="px-6 py-3 text-right">上传Token</th>
+                  <th class="px-6 py-3 text-right">下载Token</th>
+                  <th class="px-6 py-3 text-right">首次响应时长</th>
+                  <th class="px-6 py-3 text-right">全局响应时长</th>
                   <th class="px-6 py-3 text-right">Timestamp</th>
                 </tr>
               </thead>
               <tbody class="divide-y divide-slate-100 dark:divide-slate-800 text-sm">
-                <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/30 cursor-pointer">
-                  <td class="px-6 py-4 text-slate-400">
-                    <span class="material-symbols-outlined text-sm">expand_more</span>
-                  </td>
-                  <td class="px-6 py-4 font-bold text-slate-700 dark:text-slate-300">POST</td>
+                <tr
+                  v-for="item in filteredRequestRows"
+                  :key="`${item.timestamp}-${item.domain}-${item.path}`"
+                  class="hover:bg-slate-50 dark:hover:bg-slate-800/30"
+                >
+                  <td class="px-6 py-4 font-bold text-slate-700 dark:text-slate-300">{{ item.method }}</td>
                   <td class="px-6 py-4">
-                    <span class="inline-flex items-center gap-1 text-primary font-medium">
-                      <span class="size-1.5 bg-primary rounded-full"></span>
-                      200 OK
+                    <span class="inline-flex items-center gap-1 font-medium" :class="item.statusClass">
+                      <span class="size-1.5 rounded-full" :class="item.statusDotClass"></span>
+                      {{ item.status }}
                     </span>
                   </td>
-                  <td class="px-6 py-4 text-slate-500">api.openai.com/v1/chat/completions</td>
-                  <td class="px-6 py-4 text-right text-slate-400 tabular-nums">14:20:45.002</td>
+                  <td class="px-6 py-4 text-slate-500">{{ item.domain }}</td>
+                  <td class="px-6 py-4 text-slate-500"><code>{{ item.path }}</code></td>
+                  <td class="px-6 py-4 text-right text-slate-500 tabular-nums">{{ formatBytes(item.uploadBytes) }}</td>
+                  <td class="px-6 py-4 text-right text-slate-500 tabular-nums">{{ formatBytes(item.downloadBytes) }}</td>
+                  <td class="px-6 py-4 text-right text-slate-500 tabular-nums">{{ item.uploadTokens }}</td>
+                  <td class="px-6 py-4 text-right text-slate-500 tabular-nums">{{ item.downloadTokens }}</td>
+                  <td class="px-6 py-4 text-right text-slate-500 tabular-nums">{{ formatDuration(item.firstResponseMs) }}</td>
+                  <td class="px-6 py-4 text-right text-slate-500 tabular-nums">{{ formatDuration(item.globalResponseMs) }}</td>
+                  <td class="px-6 py-4 text-right text-slate-400 tabular-nums">{{ item.timestamp }}</td>
                 </tr>
-                <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/30 cursor-pointer">
-                  <td class="px-6 py-4 text-slate-400">
-                    <span class="material-symbols-outlined text-sm">expand_more</span>
-                  </td>
-                  <td class="px-6 py-4 font-bold text-slate-700 dark:text-slate-300">GET</td>
-                  <td class="px-6 py-4">
-                    <span class="inline-flex items-center gap-1 text-primary font-medium">
-                      <span class="size-1.5 bg-primary rounded-full"></span>
-                      200 OK
-                    </span>
-                  </td>
-                  <td class="px-6 py-4 text-slate-500">api.anthropic.com/v1/messages</td>
-                  <td class="px-6 py-4 text-right text-slate-400 tabular-nums">14:20:41.285</td>
-                </tr>
-                <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/30 cursor-pointer">
-                  <td class="px-6 py-4 text-slate-400">
-                    <span class="material-symbols-outlined text-sm">expand_more</span>
-                  </td>
-                  <td class="px-6 py-4 font-bold text-slate-700 dark:text-slate-300">POST</td>
-                  <td class="px-6 py-4">
-                    <span class="inline-flex items-center gap-1 text-amber-500 font-medium">
-                      <span class="size-1.5 bg-amber-500 rounded-full"></span>
-                      429 Limit
-                    </span>
-                  </td>
-                  <td class="px-6 py-4 text-slate-500">api.cursor.sh/v1/streaming</td>
-                  <td class="px-6 py-4 text-right text-slate-400 tabular-nums">14:20:38.910</td>
-                </tr>
-                <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/30 cursor-pointer">
-                  <td class="px-6 py-4 text-slate-400">
-                    <span class="material-symbols-outlined text-sm">expand_more</span>
-                  </td>
-                  <td class="px-6 py-4 font-bold text-slate-700 dark:text-slate-300">GET</td>
-                  <td class="px-6 py-4">
-                    <span class="inline-flex items-center gap-1 text-primary font-medium">
-                      <span class="size-1.5 bg-primary rounded-full"></span>
-                      200 OK
-                    </span>
-                  </td>
-                  <td class="px-6 py-4 text-slate-500">github.com/api/v3/notifications</td>
-                  <td class="px-6 py-4 text-right text-slate-400 tabular-nums">14:20:35.441</td>
-                </tr>
-                <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/30 cursor-pointer">
-                  <td class="px-6 py-4 text-slate-400">
-                    <span class="material-symbols-outlined text-sm">expand_more</span>
-                  </td>
-                  <td class="px-6 py-4 font-bold text-slate-700 dark:text-slate-300">POST</td>
-                  <td class="px-6 py-4">
-                    <span class="inline-flex items-center gap-1 text-primary font-medium">
-                      <span class="size-1.5 bg-primary rounded-full"></span>
-                      200 OK
-                    </span>
-                  </td>
-                  <td class="px-6 py-4 text-slate-500">codex-api.vercel.app/api/v1</td>
-                  <td class="px-6 py-4 text-right text-slate-400 tabular-nums">14:20:30.012</td>
-                </tr>
-                <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/30 cursor-pointer">
-                  <td class="px-6 py-4 text-slate-400">
-                    <span class="material-symbols-outlined text-sm">expand_more</span>
-                  </td>
-                  <td class="px-6 py-4 font-bold text-slate-700 dark:text-slate-300">CONNECT</td>
-                  <td class="px-6 py-4">
-                    <span class="inline-flex items-center gap-1 text-rose-500 font-medium">
-                      <span class="size-1.5 bg-rose-500 rounded-full"></span>
-                      503 Timeout
-                    </span>
-                  </td>
-                  <td class="px-6 py-4 text-slate-500">tunnel.socks5.service</td>
-                  <td class="px-6 py-4 text-right text-slate-400 tabular-nums">14:20:25.111</td>
+                <tr v-if="filteredRequestRows.length === 0">
+                  <td colspan="11" class="px-6 py-6 text-center text-xs text-slate-400">没有匹配的请求记录</td>
                 </tr>
               </tbody>
             </table>
@@ -481,3 +446,114 @@
     </main>
   </div>
 </template>
+
+<script setup>
+import { computed, ref } from 'vue';
+
+const requestFilter = ref('all');
+const pathSearch = ref('');
+
+const requestRows = [
+  {
+    method: 'POST',
+    status: '200 OK',
+    domain: 'api.openai.com',
+    path: '/v1/chat/completions',
+    uploadBytes: 16832,
+    downloadBytes: 48210,
+    uploadTokens: 1321,
+    downloadTokens: 2640,
+    firstResponseMs: 186,
+    globalResponseMs: 742,
+    timestamp: '14:20:45.002',
+    statusClass: 'text-primary',
+    statusDotClass: 'bg-primary'
+  },
+  {
+    method: 'GET',
+    status: '200 OK',
+    domain: 'api.anthropic.com',
+    path: '/v1/messages',
+    uploadBytes: 5240,
+    downloadBytes: 21904,
+    uploadTokens: 804,
+    downloadTokens: 1530,
+    firstResponseMs: 142,
+    globalResponseMs: 605,
+    timestamp: '14:20:41.285',
+    statusClass: 'text-primary',
+    statusDotClass: 'bg-primary'
+  },
+  {
+    method: 'POST',
+    status: '429 Limit',
+    domain: 'api.cursor.sh',
+    path: '/v1/streaming',
+    uploadBytes: 12280,
+    downloadBytes: 4020,
+    uploadTokens: 1160,
+    downloadTokens: 200,
+    firstResponseMs: 420,
+    globalResponseMs: 980,
+    timestamp: '14:20:38.910',
+    statusClass: 'text-amber-500',
+    statusDotClass: 'bg-amber-500'
+  },
+  {
+    method: 'CONNECT',
+    status: '503 Timeout',
+    domain: 'tunnel.socks5.service',
+    path: '/connect',
+    uploadBytes: 820,
+    downloadBytes: 260,
+    uploadTokens: 0,
+    downloadTokens: 0,
+    firstResponseMs: 1200,
+    globalResponseMs: 3000,
+    timestamp: '14:20:25.111',
+    statusClass: 'text-rose-500',
+    statusDotClass: 'bg-rose-500'
+  }
+];
+
+const filteredRequestRows = computed(() => {
+  const pathKeyword = pathSearch.value.trim().toLowerCase();
+  return requestRows.filter(item => {
+    const isSuccess = isSuccessStatus(item.status);
+    if (requestFilter.value === 'success' && !isSuccess) {
+      return false;
+    }
+    if (requestFilter.value === 'error' && isSuccess) {
+      return false;
+    }
+    if (!pathKeyword) {
+      return true;
+    }
+    return item.path.toLowerCase().includes(pathKeyword);
+  });
+});
+
+function isSuccessStatus(statusText) {
+  const match = String(statusText || '').match(/(\d{3})/);
+  if (!match) {
+    return false;
+  }
+  const code = Number(match[1]);
+  return code >= 200 && code < 300;
+}
+
+function formatBytes(bytes) {
+  const value = Number(bytes || 0);
+  if (value < 1024) {
+    return `${value} B`;
+  }
+  if (value < 1024 * 1024) {
+    return `${(value / 1024).toFixed(2)} KB`;
+  }
+  return `${(value / (1024 * 1024)).toFixed(2)} MB`;
+}
+
+function formatDuration(ms) {
+  return `${Number(ms || 0)} ms`;
+}
+</script>

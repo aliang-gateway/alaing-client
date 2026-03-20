@@ -54,5 +54,5 @@ aliang
 .specify/
 .claude/
 .ruff_cache/
-
+.local/
 
