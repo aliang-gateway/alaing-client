@@ -85,6 +85,7 @@ func RegisterRoutes(h *Handlers, mux *http.ServeMux) {
 
 	mux.HandleFunc("/api/software-config/save", h.SoftwareCfg.HandleSave)
 	mux.HandleFunc("/api/software-config/activate", h.SoftwareCfg.HandleActivate)
+	mux.HandleFunc("/api/software-config/list", h.SoftwareCfg.HandleList)
 	mux.HandleFunc("/api/software-config/cloud/push", h.SoftwareCfg.HandlePushToCloud)
 	mux.HandleFunc("/api/software-config/cloud/pull", h.SoftwareCfg.HandlePullFromCloud)
 

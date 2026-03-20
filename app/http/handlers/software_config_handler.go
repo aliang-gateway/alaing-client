@@ -4,6 +4,7 @@ import (
 	"errors"
 	"net/http"
 	"strings"
+	"time"
 
 	"nursor.org/nursorgate/app/http/common"
 	"nursor.org/nursorgate/app/http/models"
@@ -82,7 +83,29 @@ func (h *SoftwareConfigHandler) HandlePushToCloud(w http.ResponseWriter, r *http
 		return
 	}
 
-	common.Success(w, resp)
+	common.Success(w, models.CloudSyncResponse{
+		SyncedCount:  resp.PushedCount,
+		LastSyncedAt: time.Now().UTC().Format(time.RFC3339),
+	})
+}
+
+func (h *SoftwareConfigHandler) HandleList(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		common.Error(w, http.StatusMethodNotAllowed, "Method not allowed", nil)
+		return
+	}
+
+	software := strings.TrimSpace(r.URL.Query().Get("software"))
+	configs, err := h.service.ListBySoftware(software)
+	if err != nil {
+		common.ErrorInternalServer(w, "Failed to list software configs", map[string]interface{}{"error": err.Error()})
+		return
+	}
+
+	common.Success(w, map[string]interface{}{
+		"items":    configs,
+		"software": software,
+	})
 }
 
 func (h *SoftwareConfigHandler) HandlePullFromCloud(w http.ResponseWriter, r *http.Request) {

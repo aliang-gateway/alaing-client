@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -24,6 +25,7 @@ func TestSoftwareConfigHandler_SaveActivateAndCloudEndpoints(t *testing.T) {
 
 	saveReqBody := map[string]interface{}{
 		"uuid":      "h-1",
+		"software":  "opencode",
 		"name":      "handler-config",
 		"file_path": filepath.Join(t.TempDir(), "h1.json"),
 		"version":   "1.0.0",
@@ -41,6 +43,7 @@ func TestSoftwareConfigHandler_SaveActivateAndCloudEndpoints(t *testing.T) {
 
 	activateReqBody := map[string]interface{}{
 		"uuid":      "h-2",
+		"software":  "claude",
 		"name":      "handler-active",
 		"file_path": filepath.Join(t.TempDir(), "active.yaml"),
 		"version":   "2.0.0",
@@ -53,6 +56,13 @@ func TestSoftwareConfigHandler_SaveActivateAndCloudEndpoints(t *testing.T) {
 	handler.HandleActivate(activateRec, activateReq)
 	if activateRec.Code != http.StatusOK {
 		t.Fatalf("activate status=%d body=%s", activateRec.Code, activateRec.Body.String())
+	}
+
+	listReq := httptest.NewRequest(http.MethodGet, "/api/software-config/list?software=claude", nil)
+	listRec := httptest.NewRecorder()
+	handler.HandleList(listRec, listReq)
+	if listRec.Code != http.StatusOK {
+		t.Fatalf("list status=%d body=%s", listRec.Code, listRec.Body.String())
 	}
 
 	pushServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -73,6 +83,9 @@ func TestSoftwareConfigHandler_SaveActivateAndCloudEndpoints(t *testing.T) {
 	handler.HandlePushToCloud(pushRec, pushReq)
 	if pushRec.Code != http.StatusOK {
 		t.Fatalf("push status=%d body=%s", pushRec.Code, pushRec.Body.String())
+	}
+	if !strings.Contains(pushRec.Body.String(), "synced_count") {
+		t.Fatalf("push response should contain synced_count, body=%s", pushRec.Body.String())
 	}
 
 	remoteUpdated := time.Now().Add(1 * time.Minute).UTC().Format(time.RFC3339)
