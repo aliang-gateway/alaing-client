@@ -1,26 +1,43 @@
 <template>
-  <div class="settings-content hidden" data-content="logs">
-    <div class="settings-card">
-      <div class="flex flex-wrap justify-between items-center gap-3 mb-4">
-        <h3 class="settings-card-title !mb-0">日志监控</h3>
-        <div class="flex flex-wrap gap-2">
-          <select id="logLevelSelect" class="px-3 py-2 border border-slate-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary">
-            <option value="all">All</option>
-            <option value="info">Info</option>
-            <option value="warn">Warn</option>
-            <option value="error">Error</option>
+  <div class="settings-pane" data-pane="logs">
+    <div class="mt-4 flex flex-col gap-4">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-2">
+          <h2 class="text-xl font-bold">Log Monitoring</h2>
+          <span class="rounded-full bg-primary/20 px-2 py-0.5 text-[10px] font-bold uppercase text-primary">Live</span>
+        </div>
+        <div class="flex items-center gap-2">
+          <select id="logLevelSelect" class="rounded border border-slate-200 bg-white px-2 py-1 text-xs dark:border-slate-800 dark:bg-slate-900">
+            <option value="debug">Level: Debug</option>
+            <option value="info">Level: Info</option>
+            <option value="warn">Level: Warning</option>
+            <option value="error">Level: Error</option>
+            <option value="all">Level: All</option>
           </select>
-          <select id="logSourceSelect" class="px-3 py-2 border border-slate-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary">
-            <option value="all">All</option>
-          </select>
-          <button type="button" id="logsRefreshBtn" class="settings-btn-outline">刷新</button>
-          <button type="button" id="logsClearBtn" class="settings-btn-outline">清空</button>
-          <button type="button" id="wsConnectBtn" class="settings-btn-primary">连接</button>
-          <button type="button" id="wsDisconnectBtn" class="settings-btn-secondary">断开</button>
+          <button type="button" id="wsDisconnectBtn" class="rounded p-1.5 transition-colors hover:bg-slate-100 dark:hover:bg-slate-800">
+            <span class="material-symbols-outlined text-lg">stop_circle</span>
+          </button>
+          <button type="button" id="logsRefreshBtn" class="rounded p-1.5 transition-colors hover:bg-slate-100 dark:hover:bg-slate-800">
+            <span class="material-symbols-outlined text-lg">refresh</span>
+          </button>
         </div>
       </div>
-      <div id="logsOutput" class="h-96 overflow-y-auto bg-slate-50 dark:bg-slate-800 p-4 rounded border border-slate-100 dark:border-slate-700 font-mono text-xs"></div>
-      <div id="wsConnectionStatus" class="mt-2 text-xs text-slate-500"></div>
+
+      <div class="h-64 overflow-y-auto rounded-xl border border-slate-200 bg-slate-950 p-4 font-mono text-xs text-slate-300 dark:border-slate-800">
+        <div id="logsOutput" class="whitespace-pre-wrap break-all"></div>
+      </div>
+    </div>
+
+    <div class="compat-anchors" aria-hidden="true">
+      <button id="logsClearBtn" type="button"></button>
+      <select id="logSourceSelect"><option value="all">All</option></select>
+      <input id="logAutoScroll" type="checkbox" checked />
+      <button id="logConfigSaveBtn" type="button"></button>
+      <button id="logFilterBtn" type="button"></button>
+      <button id="wsConnectBtn" type="button"></button>
+      <button id="logsFullscreenBtn" type="button"><i class="bi bi-fullscreen"></i></button>
+      <div id="logs-page"></div>
+      <div id="wsConnectionStatus"></div>
     </div>
   </div>
 </template>

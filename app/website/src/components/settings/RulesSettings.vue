@@ -1,45 +1,77 @@
 <template>
-  <div class="settings-content active" data-content="rules">
-    <div class="settings-card">
-      <div class="flex items-center justify-between mb-4">
-        <h3 class="settings-card-title !mb-0">规则引擎</h3>
-        <span class="px-2 py-0.5 bg-primary/10 text-primary text-[10px] font-bold rounded uppercase">
-          Rules
-        </span>
+  <div class="settings-pane" data-pane="rules">
+    <div class="flex items-center justify-between">
+      <div>
+        <h2 class="text-xl font-bold">Rule Configuration</h2>
+        <p class="text-sm text-slate-500">Define routing domains for LLM providers</p>
       </div>
-      <div class="space-y-4">
-        <div class="flex flex-wrap gap-3">
-          <button type="button" id="rulesEnableBtn" class="settings-btn-primary">
-            启用
-          </button>
-          <button type="button" id="rulesDisableBtn" class="settings-btn-secondary">
-            禁用
-          </button>
-          <button type="button" id="rulesReloadBtn" class="settings-btn-outline">
-            重载
-          </button>
-          <button type="button" id="rulesClearCacheBtn" class="settings-btn-outline">
-            清空缓存
-          </button>
+      <button id="rulesConfigSaveBtn" type="button" class="inline-flex items-center gap-2 rounded bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90">
+        <span class="material-symbols-outlined text-sm">save</span>
+        Save Configuration
+      </button>
+    </div>
+
+    <div class="mt-4 overflow-hidden rounded-xl border border-slate-200 bg-slate-900 dark:border-slate-800">
+      <div class="flex items-center gap-2 border-b border-slate-700 bg-slate-800/50 px-4 py-2">
+        <div class="flex gap-1.5">
+          <div class="h-3 w-3 rounded-full bg-red-500"></div>
+          <div class="h-3 w-3 rounded-full bg-yellow-500"></div>
+          <div class="h-3 w-3 rounded-full bg-green-500"></div>
         </div>
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <label class="flex items-center justify-between px-3 py-2 rounded border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/40">
-            <span class="text-sm">GeoIP 路由</span>
-            <input type="checkbox" id="geoipEnabledSwitch" class="rounded text-primary" />
-          </label>
-          <label class="flex items-center justify-between px-3 py-2 rounded border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/40">
-            <span class="text-sm">无车道</span>
-            <input type="checkbox" id="nonelaneEnabledSwitch" class="rounded text-primary" />
-          </label>
-        </div>
-        <div class="flex gap-2">
-          <input type="text" id="rulesLookupDomain" placeholder="域名查询" class="flex-1 px-3 py-2 border border-slate-300 rounded focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary" />
-          <button type="button" id="rulesLookupBtn" class="settings-btn-primary">
-            查询
-          </button>
-        </div>
-        <div id="rulesLookupResult" class="text-sm text-slate-600 dark:text-slate-300"></div>
+        <span class="ml-4 font-mono text-xs text-slate-400">rules.json</span>
       </div>
+      <div class="overflow-x-auto p-4 font-mono text-sm">
+        <pre class="text-primary"><code>{
+  "categories": {
+    "OpenAI": ["openai.com", "chatgpt.com", "oaistatic.com"],
+    "Claude": ["anthropic.com", "claude.ai"],
+    "DeepSeek": ["deepseek.com"],
+    "Gemini": ["gemini.google.com", "generativelanguage.googleapis.com"],
+    "Cursor": ["cursor.sh", "cursor.com"],
+    "Grok": ["x.ai", "grok.com"],
+    "GLM": ["zhipuai.cn"],
+    "Kimi": ["moonshot.cn"]
+  },
+  "default_outbound": "Proxy",
+  "dns_server": "1.1.1.1"
+}</code></pre>
+      </div>
+    </div>
+
+    <div class="compat-anchors" aria-hidden="true">
+      <div id="rulesStatus"></div>
+      <div id="rules-status-badge"></div>
+      <div id="rules-status-text"></div>
+      <div id="rulesCacheCount"></div>
+      <div id="rulesCacheSize"></div>
+      <div id="cache-hit-rate"></div>
+      <div id="total-cache"></div>
+      <div id="cache-last-update"></div>
+      <input id="geoipEnabledSwitch" type="checkbox" />
+      <input id="nonelaneEnabledSwitch" type="checkbox" />
+      <button id="rulesEnableBtn" type="button"></button>
+      <button id="rulesDisableBtn" type="button"></button>
+      <button id="rulesReloadBtn" type="button"></button>
+      <button id="rulesClearCacheBtn" type="button"></button>
+      <input id="rulesLookupDomain" type="text" />
+      <button id="rulesLookupBtn" type="button"></button>
+      <textarea id="rulesLookupResult"></textarea>
+      <table><tbody id="toDoorRulesBody"></tbody></table>
+      <table><tbody id="blacklistRulesBody"></tbody></table>
+      <table><tbody id="nonelaneRulesBody"></tbody></table>
+      <button id="addToDoorRuleBtn" type="button"></button>
+      <button id="addBlacklistRuleBtn" type="button"></button>
+      <button id="addNonelaneRuleBtn" type="button"></button>
+      <div id="ruleEditModal"></div>
+      <select id="ruleTypeSelect"><option value="">-</option></select>
+      <input id="ruleConditionInput" type="text" />
+      <input id="ruleEnabledCheckbox" type="checkbox" />
+      <input id="ruleIdInput" type="text" />
+      <input id="ruleSetInput" type="text" />
+      <div id="ruleEditModalTitle"></div>
+      <div id="conditionError"></div>
+      <div id="typeHelpText"></div>
+      <button id="ruleEditSaveBtn" type="button"></button>
     </div>
   </div>
 </template>
