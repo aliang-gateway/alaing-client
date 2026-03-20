@@ -48,3 +48,11 @@ aliang-test
 dashboard-current-state.png
 tmp*
 aliang
+.sisyphus/*
+.agents/
+.serena/
+.specify/
+.claude/
+.ruff_cache/
+
+
