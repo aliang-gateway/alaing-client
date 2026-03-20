@@ -4,9 +4,9 @@ export default {
   theme: {
     extend: {
       colors: {
-        primary: '#21c45d',
-        'background-light': '#f6f8f7',
-        'background-dark': '#122017'
+        primary: 'rgb(var(--color-primary-rgb) / <alpha-value>)',
+        'background-light': 'rgb(var(--color-background-light-rgb) / <alpha-value>)',
+        'background-dark': 'rgb(var(--color-background-dark-rgb) / <alpha-value>)'
       },
       fontFamily: {
         display: ['Inter', 'sans-serif']

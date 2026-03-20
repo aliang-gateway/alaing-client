@@ -7,7 +7,26 @@ function destroyCharts() {
     charts = {};
 }
 
+function getChartColors() {
+    return {
+        uploadBorder: cssColor('--color-chart-upload-rgb'),
+        uploadBg: cssColor('--color-chart-upload-rgb', 0.1),
+        downloadBorder: cssColor('--color-chart-download-rgb'),
+        downloadBg: cssColor('--color-chart-download-rgb', 0.1),
+        pieSlices: [
+            cssColor('--color-chart-pie-1-rgb', 0.72),
+            cssColor('--color-chart-pie-2-rgb', 0.72),
+            cssColor('--color-chart-pie-3-rgb', 0.72),
+            cssColor('--color-chart-pie-4-rgb', 0.72)
+        ],
+        pieBorder: cssColor('--color-chart-pie-border-rgb', 0.88),
+        legendText: cssColor('--color-chart-legend-rgb')
+    };
+}
+
 function initChart() {
+    const chartColors = getChartColors();
+
     if (document.getElementById('trafficChart')) {
         if (charts.traffic && typeof charts.traffic.destroy === 'function') {
             charts.traffic.destroy();
@@ -23,8 +42,8 @@ function initChart() {
                     {
                         label: '上传 (Bytes/s)',
                         data: [],
-                        borderColor: '#ff6b6b',
-                        backgroundColor: 'rgba(255, 107, 107, 0.1)',
+                        borderColor: chartColors.uploadBorder,
+                        backgroundColor: chartColors.uploadBg,
                         borderWidth: 2,
                         tension: 0.3,
                         fill: true,
@@ -34,8 +53,8 @@ function initChart() {
                     {
                         label: '下载 (Bytes/s)',
                         data: [],
-                        borderColor: '#ff9999',
-                        backgroundColor: 'rgba(255, 153, 153, 0.1)',
+                        borderColor: chartColors.downloadBorder,
+                        backgroundColor: chartColors.downloadBg,
                         borderWidth: 2,
                         tension: 0.3,
                         fill: true,
@@ -95,8 +114,8 @@ function initChart() {
                 labels: ['暂无数据'],
                 datasets: [{
                     data: [1],
-                    backgroundColor: ['rgba(52, 211, 153, 0.72)', 'rgba(22, 163, 74, 0.72)', 'rgba(132, 204, 22, 0.72)', 'rgba(16, 185, 129, 0.72)'],
-                    borderColor: 'rgba(5, 20, 12, 0.88)',
+                    backgroundColor: chartColors.pieSlices,
+                    borderColor: chartColors.pieBorder,
                     borderWidth: 1
                 }]
             },
@@ -107,7 +126,7 @@ function initChart() {
                     legend: {
                         position: 'bottom',
                         labels: {
-                            color: '#d8fbe8',
+                            color: chartColors.legendText,
                             boxWidth: 10
                         }
                     }

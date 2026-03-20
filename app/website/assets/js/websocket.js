@@ -93,26 +93,6 @@ const logWebSocket = {
         const message = logEntry.message || '';
         const source = logEntry.source || '';
 
-        let levelColor = '#abb2bf';
-        switch (level.toUpperCase()) {
-            case 'ERROR':
-            case 'FATAL':
-                levelColor = '#ff6b6b';
-                break;
-            case 'WARN':
-            case 'WARNING':
-                levelColor = '#feca57';
-                break;
-            case 'INFO':
-                levelColor = '#48cae4';
-                break;
-            case 'DEBUG':
-                levelColor = '#868e96';
-                break;
-            default:
-                levelColor = '#abb2bf';
-        }
-
         const formattedLog = `[${timestamp}] [${level}]`;
         const sourcePart = source ? ` [${source}]` : '';
         const fullLogLine = `${formattedLog}${sourcePart} ${message}\n`;

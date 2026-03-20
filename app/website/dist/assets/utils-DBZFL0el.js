@@ -157,6 +157,37 @@ function getBadgeColor(source) {
     return colors[source] || 'primary';
 }
 
+function getCssColorChannels(tokenName, fallbackTokenName = '--color-black-rgb') {
+    if (!tokenName) {
+        return getCssColorChannels(fallbackTokenName, null);
+    }
+
+    const root = document.documentElement;
+    if (!root) {
+        return '';
+    }
+
+    const value = getComputedStyle(root).getPropertyValue(tokenName).trim();
+    if (value) {
+        return value;
+    }
+
+    if (fallbackTokenName && fallbackTokenName !== tokenName) {
+        return getCssColorChannels(fallbackTokenName, null);
+    }
+
+    return '';
+}
+
+function cssColor(tokenName, alpha, fallbackTokenName = '--color-black-rgb') {
+    const channels = getCssColorChannels(tokenName, fallbackTokenName);
+    if (alpha === undefined || alpha === null) {
+        return `rgb(${channels})`;
+    }
+
+    return `rgb(${channels} / ${alpha})`;
+}
+
 // 格式化字节为可读的大小
 function formatBytes(bytes, decimals = 2) {
     if (bytes === 0 || bytes === undefined || bytes === null) return '0 B';
