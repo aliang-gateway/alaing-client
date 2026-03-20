@@ -16,6 +16,7 @@ func TestSoftwareConfigStore_ActivateAndMergeByLatest(t *testing.T) {
 	baseTime := time.Now().Add(-10 * time.Minute)
 	first := models.SoftwareConfig{
 		UUID:      "cfg-1",
+		Software:  "opencode",
 		Name:      "config-one",
 		FilePath:  "/tmp/a.json",
 		Version:   "v1",
@@ -27,6 +28,7 @@ func TestSoftwareConfigStore_ActivateAndMergeByLatest(t *testing.T) {
 	}
 	second := models.SoftwareConfig{
 		UUID:      "cfg-2",
+		Software:  "opencode",
 		Name:      "config-two",
 		FilePath:  "/tmp/b.yaml",
 		Version:   "v1",
@@ -70,6 +72,7 @@ func TestSoftwareConfigStore_ActivateAndMergeByLatest(t *testing.T) {
 
 	remoteOld := models.SoftwareConfig{
 		UUID:      "cfg-2",
+		Software:  "opencode",
 		Name:      "config-two",
 		FilePath:  "/tmp/b.yaml",
 		Version:   "v-old",
@@ -81,6 +84,7 @@ func TestSoftwareConfigStore_ActivateAndMergeByLatest(t *testing.T) {
 	}
 	remoteNew := models.SoftwareConfig{
 		UUID:      "cfg-3",
+		Software:  "opencode",
 		Name:      "config-three",
 		FilePath:  "/tmp/c.json",
 		Version:   "v1",
@@ -101,6 +105,7 @@ func TestSoftwareConfigStore_ActivateAndMergeByLatest(t *testing.T) {
 
 	remoteActiveNewer := models.SoftwareConfig{
 		UUID:      "cfg-3",
+		Software:  "opencode",
 		Name:      "config-three",
 		FilePath:  "/tmp/c.json",
 		Version:   "v2",

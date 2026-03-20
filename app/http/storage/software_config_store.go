@@ -67,6 +67,10 @@ func openSoftwareConfigDB(dbPath string) (*gorm.DB, error) {
 		return nil, fmt.Errorf("failed to migrate software_configs table: %w", err)
 	}
 
+	if err := db.Exec("UPDATE software_configs SET software = 'opencode' WHERE software IS NULL OR software = ''").Error; err != nil {
+		return nil, fmt.Errorf("failed to backfill software column: %w", err)
+	}
+
 	return db, nil
 }
 
@@ -94,9 +98,12 @@ func (s *SoftwareConfigStore) Activate(cfg models.SoftwareConfig) error {
 	if err := s.ensureReady(); err != nil {
 		return err
 	}
+	if cfg.Software == "" {
+		return errors.New("software is required")
+	}
 
 	return s.db.Transaction(func(tx *gorm.DB) error {
-		if err := tx.Model(&models.SoftwareConfig{}).Where("in_use = ?", true).Update("in_use", false).Error; err != nil {
+		if err := tx.Model(&models.SoftwareConfig{}).Where("software = ? AND in_use = ?", cfg.Software, true).Update("in_use", false).Error; err != nil {
 			return err
 		}
 		cfg.InUse = true
@@ -111,6 +118,18 @@ func (s *SoftwareConfigStore) List() ([]models.SoftwareConfig, error) {
 
 	var configs []models.SoftwareConfig
 	if err := s.db.Order("updated_at DESC").Find(&configs).Error; err != nil {
+		return nil, err
+	}
+	return configs, nil
+}
+
+func (s *SoftwareConfigStore) ListBySoftware(software string) ([]models.SoftwareConfig, error) {
+	if err := s.ensureReady(); err != nil {
+		return nil, err
+	}
+
+	var configs []models.SoftwareConfig
+	if err := s.db.Where("software = ?", software).Order("updated_at DESC").Find(&configs).Error; err != nil {
 		return nil, err
 	}
 	return configs, nil
@@ -155,7 +174,7 @@ func (s *SoftwareConfigStore) MergeByLatest(incoming []models.SoftwareConfig) (i
 			err := tx.First(&localCfg, "uuid = ?", remoteCfg.UUID).Error
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				if remoteCfg.InUse {
-					if clearErr := tx.Model(&models.SoftwareConfig{}).Where("in_use = ?", true).Update("in_use", false).Error; clearErr != nil {
+					if clearErr := tx.Model(&models.SoftwareConfig{}).Where("software = ? AND in_use = ?", remoteCfg.Software, true).Update("in_use", false).Error; clearErr != nil {
 						return clearErr
 					}
 				}
@@ -171,7 +190,7 @@ func (s *SoftwareConfigStore) MergeByLatest(incoming []models.SoftwareConfig) (i
 
 			if remoteCfg.UpdatedAt.After(localCfg.UpdatedAt) {
 				if remoteCfg.InUse {
-					if clearErr := tx.Model(&models.SoftwareConfig{}).Where("in_use = ?", true).Update("in_use", false).Error; clearErr != nil {
+					if clearErr := tx.Model(&models.SoftwareConfig{}).Where("software = ? AND in_use = ?", remoteCfg.Software, true).Update("in_use", false).Error; clearErr != nil {
 						return clearErr
 					}
 				}

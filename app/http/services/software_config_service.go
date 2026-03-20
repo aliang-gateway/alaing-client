@@ -52,6 +52,14 @@ func (s *SoftwareConfigService) Save(req models.SaveSoftwareConfigRequest) (*mod
 	return cfg, nil
 }
 
+func (s *SoftwareConfigService) ListBySoftware(software string) ([]models.SoftwareConfig, error) {
+	software = strings.TrimSpace(software)
+	if software == "" {
+		return s.store.List()
+	}
+	return s.store.ListBySoftware(software)
+}
+
 func (s *SoftwareConfigService) Activate(req models.ActivateSoftwareConfigRequest) (*models.SoftwareConfig, error) {
 	if strings.TrimSpace(req.FilePath) == "" {
 		return nil, errors.New("file_path is required")
@@ -181,6 +189,9 @@ func (s *SoftwareConfigService) normalizeSaveRequest(req models.SaveSoftwareConf
 	if strings.TrimSpace(req.Name) == "" {
 		return nil, errors.New("name is required")
 	}
+	if strings.TrimSpace(req.Software) == "" {
+		return nil, errors.New("software is required")
+	}
 	if strings.TrimSpace(req.FilePath) == "" {
 		return nil, errors.New("file_path is required")
 	}
@@ -232,6 +243,7 @@ func (s *SoftwareConfigService) normalizeSaveRequest(req models.SaveSoftwareConf
 
 	return &models.SoftwareConfig{
 		UUID:      id,
+		Software:  strings.TrimSpace(req.Software),
 		Name:      strings.TrimSpace(req.Name),
 		FilePath:  path,
 		Version:   strings.TrimSpace(req.Version),
@@ -247,6 +259,9 @@ func (s *SoftwareConfigService) normalizeActivateRequest(req models.ActivateSoft
 	if strings.TrimSpace(req.Name) == "" {
 		return nil, errors.New("name is required")
 	}
+	if strings.TrimSpace(req.Software) == "" {
+		return nil, errors.New("software is required")
+	}
 	if strings.TrimSpace(req.FilePath) == "" {
 		return nil, errors.New("file_path is required")
 	}
@@ -298,6 +313,7 @@ func (s *SoftwareConfigService) normalizeActivateRequest(req models.ActivateSoft
 
 	return &models.SoftwareConfig{
 		UUID:      id,
+		Software:  strings.TrimSpace(req.Software),
 		Name:      strings.TrimSpace(req.Name),
 		FilePath:  path,
 		Version:   strings.TrimSpace(req.Version),

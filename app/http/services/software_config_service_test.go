@@ -22,6 +22,7 @@ func TestSoftwareConfigService_SaveActivateAndCloudSync(t *testing.T) {
 
 	saved, err := service.Save(models.SaveSoftwareConfigRequest{
 		UUID:     "svc-1",
+		Software: "opencode",
 		Name:     "svc-config",
 		FilePath: filepath.Join(t.TempDir(), "svc.json"),
 		Version:  "v1",
@@ -38,6 +39,7 @@ func TestSoftwareConfigService_SaveActivateAndCloudSync(t *testing.T) {
 	activatePath := filepath.Join(t.TempDir(), "active.yaml")
 	active, err := service.Activate(models.ActivateSoftwareConfigRequest{
 		UUID:     "svc-2",
+		Software: "claude",
 		Name:     "active-config",
 		FilePath: activatePath,
 		Version:  "v2",
@@ -49,6 +51,29 @@ func TestSoftwareConfigService_SaveActivateAndCloudSync(t *testing.T) {
 	}
 	if !active.InUse {
 		t.Fatal("expected active in_use=true")
+	}
+	opencodeActive, err := service.Activate(models.ActivateSoftwareConfigRequest{
+		UUID:     "svc-1",
+		Software: "opencode",
+		Name:     "svc-config",
+		FilePath: saved.FilePath,
+		Version:  "v1",
+		Format:   models.ConfigFormatJSON,
+		Content:  `{"k":1}`,
+	})
+	if err != nil {
+		t.Fatalf("activate opencode failed: %v", err)
+	}
+	if !opencodeActive.InUse {
+		t.Fatal("expected opencode active in_use=true")
+	}
+
+	claudeOnlyBeforePull, err := service.ListBySoftware("claude")
+	if err != nil {
+		t.Fatalf("list claude before pull failed: %v", err)
+	}
+	if len(claudeOnlyBeforePull) != 1 || !claudeOnlyBeforePull[0].InUse {
+		t.Fatalf("expected one active claude config before pull, got: %+v", claudeOnlyBeforePull)
 	}
 	fileContent, err := os.ReadFile(activatePath)
 	if err != nil {
@@ -83,9 +108,9 @@ func TestSoftwareConfigService_SaveActivateAndCloudSync(t *testing.T) {
 		}
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"configs":[` +
-			`{"uuid":"svc-2","name":"active-config","file_path":"` + activatePath + `","version":"v3","in_use":true,"format":"yaml","content":"a: 2\\n","updated_at":"` + remoteNewerTime + `"},` +
-			`{"uuid":"svc-1","name":"svc-config","file_path":"` + saved.FilePath + `","version":"v0","in_use":false,"format":"json","content":"{\"k\":0}","updated_at":"` + remoteOlderTime + `"},` +
-			`{"uuid":"svc-3","name":"new-config","file_path":"` + filepath.Join(t.TempDir(), "new.json") + `","version":"v1","in_use":false,"format":"json","content":"{\"n\":1}","updated_at":"` + remoteNewerTime + `"}` +
+			`{"uuid":"svc-2","software":"claude","name":"active-config","file_path":"` + activatePath + `","version":"v3","in_use":true,"format":"yaml","content":"a: 2\\n","updated_at":"` + remoteNewerTime + `"},` +
+			`{"uuid":"svc-1","software":"opencode","name":"svc-config","file_path":"` + saved.FilePath + `","version":"v0","in_use":false,"format":"json","content":"{\"k\":0}","updated_at":"` + remoteOlderTime + `"},` +
+			`{"uuid":"svc-3","software":"openai","name":"new-config","file_path":"` + filepath.Join(t.TempDir(), "new.json") + `","version":"v1","in_use":false,"format":"json","content":"{\"n\":1}","updated_at":"` + remoteNewerTime + `"}` +
 			`]}`))
 	}))
 	defer pullServer.Close()
@@ -98,8 +123,34 @@ func TestSoftwareConfigService_SaveActivateAndCloudSync(t *testing.T) {
 		t.Fatalf("unexpected pull counters: %+v", pullResp)
 	}
 
+	claudeOnly, err := service.ListBySoftware("claude")
+	if err != nil {
+		t.Fatalf("list by software failed: %v", err)
+	}
+	if len(claudeOnly) != 1 || claudeOnly[0].Software != "claude" {
+		t.Fatalf("expected one claude config, got: %+v", claudeOnly)
+	}
+	if !claudeOnly[0].InUse {
+		t.Fatalf("expected claude config remain active after pull, got: %+v", claudeOnly[0])
+	}
+
+	opencodeOnly, err := service.ListBySoftware("opencode")
+	if err != nil {
+		t.Fatalf("list opencode failed: %v", err)
+	}
+	activeCnt := 0
+	for i := range opencodeOnly {
+		if opencodeOnly[i].InUse {
+			activeCnt++
+		}
+	}
+	if activeCnt != 1 {
+		t.Fatalf("expected exactly one active opencode config, got %d from %+v", activeCnt, opencodeOnly)
+	}
+
 	if _, err := service.Save(models.SaveSoftwareConfigRequest{
 		UUID:      "svc-1",
+		Software:  "opencode",
 		Name:      "svc-config",
 		FilePath:  saved.FilePath,
 		Version:   "v2",
@@ -129,6 +180,7 @@ func TestSoftwareConfigService_SaveActivateAndCloudSync(t *testing.T) {
 	}
 
 	if _, err := service.Save(models.SaveSoftwareConfigRequest{
+		Software:  "opencode",
 		Name:      "bad-time",
 		FilePath:  filepath.Join(t.TempDir(), "bad.json"),
 		Version:   "v1",

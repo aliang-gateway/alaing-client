@@ -59,6 +59,7 @@ func isConfigurationAPI(path string) bool {
 		"/api/token/set",           // Set token
 		"/api/software-config/save",
 		"/api/software-config/activate",
+		"/api/software-config/list",
 		"/api/software-config/cloud/push",
 		"/api/software-config/cloud/pull",
 		"/api/logs", // Logs access (for diagnosis)

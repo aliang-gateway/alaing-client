@@ -93,6 +93,7 @@
         <div class="group relative">
           <button
             type="button"
+            @click="emit('openQuickSetup')"
             class="w-full flex items-center justify-between px-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded text-sm font-medium hover:border-primary transition-colors"
           >
             <div class="flex items-center gap-3">
@@ -449,6 +450,8 @@
 
 <script setup>
 import { computed, ref } from 'vue';
+
+const emit = defineEmits(['openQuickSetup']);
 
 const requestFilter = ref('all');
 const pathSearch = ref('');
