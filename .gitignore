@@ -55,4 +55,5 @@ aliang
 .claude/
 .ruff_cache/
 .local/
-
+.play
+.playwright-mcp

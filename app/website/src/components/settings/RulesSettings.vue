@@ -1,5 +1,5 @@
 <template>
-  <div class="settings-pane" data-pane="rules">
+  <div class="settings-pane flex min-h-[calc(100vh-14rem)] flex-1 flex-col" data-pane="rules">
     <div class="flex items-center justify-between">
       <div>
         <h2 class="text-xl font-bold">Rule Configuration</h2>
@@ -11,7 +11,7 @@
       </button>
     </div>
 
-    <div class="mt-4 overflow-hidden rounded-xl border border-slate-200 bg-slate-900 dark:border-slate-800">
+    <div class="mt-4 flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-slate-200 bg-slate-900 dark:border-slate-800">
       <div class="flex items-center gap-2 border-b border-slate-700 bg-slate-800/50 px-4 py-2">
         <div class="flex gap-1.5">
           <div class="h-3 w-3 rounded-full bg-red-500"></div>
@@ -20,7 +20,7 @@
         </div>
         <span class="ml-4 font-mono text-xs text-slate-400">rules.json</span>
       </div>
-      <div class="overflow-x-auto p-4 font-mono text-sm">
+      <div class="flex-1 overflow-auto p-4 font-mono text-sm">
         <pre class="text-primary"><code>{
   "categories": {
     "OpenAI": ["openai.com", "chatgpt.com", "oaistatic.com"],

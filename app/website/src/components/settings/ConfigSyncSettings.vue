@@ -1,8 +1,11 @@
 <template>
-  <div class="settings-content hidden" data-content="config-sync">
-    <div class="settings-card">
+  <div class="settings-pane" data-pane="config-sync">
+    <div class="rounded-xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-background-dark">
       <div class="flex items-center justify-between mb-4 gap-3 flex-wrap">
-        <h3 class="settings-card-title !mb-0">配置同步中心</h3>
+        <h3 class="mb-0 flex items-center gap-2 font-bold">
+          <span class="material-symbols-outlined text-primary">cloud_sync</span>
+          配置同步中心
+        </h3>
         <div class="flex items-center gap-2">
           <button type="button" class="settings-btn-outline" @click="loadConfigs">刷新</button>
           <button type="button" class="settings-btn-primary" :disabled="pushing" @click="pushSelectedToCloud">
@@ -14,7 +17,7 @@
       <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
         <input
           v-model="filters.software"
-          class="px-3 py-2 border border-slate-300 rounded"
+          class="rounded border border-slate-300 px-3 py-2 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
           type="text"
           placeholder="软件名（可选）"
           @keydown.enter.prevent="loadConfigs"
@@ -22,7 +25,7 @@
         <div class="flex gap-2">
           <input
             v-model="cloud.cloudUrl"
-            class="flex-1 px-3 py-2 border border-slate-300 rounded"
+            class="flex-1 rounded border border-slate-300 px-3 py-2 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
             type="text"
             placeholder="云端 URL"
           />
@@ -32,15 +35,15 @@
         </div>
         <input
           v-model="cloud.authToken"
-          class="px-3 py-2 border border-slate-300 rounded md:col-span-2"
+          class="rounded border border-slate-300 px-3 py-2 md:col-span-2 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
           type="text"
           placeholder="云端 Token（可选）"
         />
       </div>
 
-      <div class="overflow-auto border border-slate-200 rounded-lg">
+      <div class="overflow-auto rounded-lg border border-slate-200 dark:border-slate-800">
         <table class="w-full text-sm">
-          <thead class="bg-slate-50">
+          <thead class="bg-slate-50 dark:bg-slate-800/50">
             <tr>
               <th class="text-left p-2">选择</th>
               <th class="text-left p-2">软件名</th>
@@ -53,7 +56,7 @@
             </tr>
           </thead>
           <tbody>
-            <tr v-for="item in items" :key="item.uuid" class="border-t border-slate-100">
+            <tr v-for="item in items" :key="item.uuid" class="border-t border-slate-100 dark:border-slate-800">
               <td class="p-2">
                 <input
                   type="checkbox"
@@ -83,22 +86,22 @@
               </td>
             </tr>
             <tr v-if="!items.length">
-              <td class="p-4 text-slate-500" colspan="8">暂无配置数据</td>
+              <td class="p-4 text-slate-500 dark:text-slate-400" colspan="8">暂无配置数据</td>
             </tr>
           </tbody>
         </table>
       </div>
 
       <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3">
-        <input v-model="editor.software" class="px-3 py-2 border border-slate-300 rounded" placeholder="软件名" type="text" />
-        <input v-model="editor.name" class="px-3 py-2 border border-slate-300 rounded" placeholder="配置名" type="text" />
-        <input v-model="editor.filePath" class="px-3 py-2 border border-slate-300 rounded md:col-span-2" placeholder="配置路径" type="text" />
-        <input v-model="editor.version" class="px-3 py-2 border border-slate-300 rounded" placeholder="版本号" type="text" />
-        <select v-model="editor.format" class="px-3 py-2 border border-slate-300 rounded">
+        <input v-model="editor.software" class="rounded border border-slate-300 px-3 py-2 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100" placeholder="软件名" type="text" />
+        <input v-model="editor.name" class="rounded border border-slate-300 px-3 py-2 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100" placeholder="配置名" type="text" />
+        <input v-model="editor.filePath" class="rounded border border-slate-300 px-3 py-2 md:col-span-2 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100" placeholder="配置路径" type="text" />
+        <input v-model="editor.version" class="rounded border border-slate-300 px-3 py-2 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100" placeholder="版本号" type="text" />
+        <select v-model="editor.format" class="rounded border border-slate-300 px-3 py-2 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100">
           <option value="json">json</option>
           <option value="yaml">yaml</option>
         </select>
-        <div class="md:col-span-2 border border-slate-300 rounded overflow-hidden">
+        <div class="md:col-span-2 overflow-hidden rounded border border-slate-300 dark:border-slate-700">
           <CodeMirror
             v-model="editor.content"
             class="text-sm"
@@ -116,7 +119,7 @@
         </button>
       </div>
 
-      <div class="mt-3 text-sm text-slate-500">{{ status }}</div>
+      <div class="mt-3 text-sm text-slate-500 dark:text-slate-400">{{ status }}</div>
     </div>
   </div>
 </template>
