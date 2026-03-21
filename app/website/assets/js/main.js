@@ -74,6 +74,8 @@ function initializeLegacyMain() {
         document.getElementById('btn-download-cert').addEventListener('click', downloadCert);
         document.getElementById('btn-install-cert').addEventListener('click', installCert);
         document.getElementById('btn-remove-cert').addEventListener('click', removeCert);
+        document.getElementById('btn-generate-cert')?.addEventListener('click', regenerateCertAction);
+        document.getElementById('btn-reinstall-cert')?.addEventListener('click', reinstallCertAction);
         document.getElementById('cert-type-select').addEventListener('change', loadCertStatus);
 
         loadCertStatus();

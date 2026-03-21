@@ -78,7 +78,56 @@
             <span class="material-symbols-outlined text-red-500">delete</span>
             <span>移除证书</span>
           </button>
+          <button
+            type="button"
+            id="btn-generate-cert"
+            class="flex items-center gap-3 px-4 py-3 border border-amber-200 dark:border-amber-500/40 rounded-lg text-sm text-amber-700 dark:text-amber-300 hover:bg-amber-50 dark:hover:bg-amber-900/20 transition-colors"
+          >
+            <span class="material-symbols-outlined text-amber-500">autorenew</span>
+            <span>重新生成证书</span>
+          </button>
         </div>
+
+        <div
+          id="cert-generate-result"
+          class="hidden p-4 rounded-lg bg-amber-50/70 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-700/40"
+        ></div>
+
+        <div class="p-4 rounded-lg bg-sky-50/70 dark:bg-sky-900/10 border border-sky-200 dark:border-sky-700/40 space-y-3">
+          <div class="flex items-center justify-between gap-3">
+            <div>
+              <div class="text-sm font-semibold text-sky-700 dark:text-sky-300">重新安装</div>
+              <div class="text-xs text-slate-600 dark:text-slate-400">默认仅重新安装；可选先重新生成再安装</div>
+            </div>
+            <button
+              type="button"
+              id="btn-reinstall-cert"
+              class="flex items-center gap-2 px-3 py-2 border border-sky-300 dark:border-sky-600 rounded text-sm text-sky-700 dark:text-sky-300 hover:bg-sky-100/70 dark:hover:bg-sky-900/20 transition-colors"
+            >
+              <span class="material-symbols-outlined text-sky-500">restart_alt</span>
+              <span>重新安装</span>
+            </button>
+          </div>
+          <label class="inline-flex items-center gap-2 text-xs text-slate-600 dark:text-slate-400">
+            <input id="reinstall-regenerate-first" type="checkbox" class="rounded border-slate-300 dark:border-slate-600" />
+            <span>重装前先重新生成证书（generate -> install）</span>
+          </label>
+          <div
+            id="cert-reinstall-result"
+            class="hidden p-3 rounded border border-sky-200 dark:border-sky-700/40 bg-white/70 dark:bg-slate-900/30 text-xs text-slate-700 dark:text-slate-300"
+          ></div>
+        </div>
+
+        <div class="p-4 rounded-lg bg-slate-50/70 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700">
+          <div class="text-xs font-semibold text-slate-600 dark:text-slate-300 mb-2">最近一次证书操作</div>
+          <div id="cert-operation-audit" class="text-xs text-slate-500 dark:text-slate-400">暂无记录</div>
+        </div>
+
+        <div
+          id="cert-aux-result"
+          class="hidden p-3 rounded border border-emerald-200 dark:border-emerald-700/40 bg-emerald-50/60 dark:bg-emerald-900/10 text-xs text-emerald-700 dark:text-emerald-300"
+        ></div>
+
       </div>
 
       <div class="px-6 pb-5">
