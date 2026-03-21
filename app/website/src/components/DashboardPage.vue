@@ -105,6 +105,7 @@
         </div>
         <button
           type="button"
+          @click="openQuickChat"
           class="w-full flex items-center gap-3 px-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded text-sm font-medium hover:border-primary transition-colors"
         >
           <span class="material-symbols-outlined text-slate-400 text-lg">chat_bubble</span>
@@ -445,6 +446,61 @@
         </div>
       </div>
     </main>
+
+    <div
+      v-if="isQuickChatOpen"
+      class="fixed inset-0 z-[1000] flex items-center justify-center bg-black/50 p-4"
+      @click.self="closeQuickChat"
+    >
+      <div class="w-full max-w-2xl overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl dark:border-slate-700 dark:bg-slate-900">
+        <div class="flex items-center justify-between border-b border-slate-200 px-4 py-3 dark:border-slate-700">
+          <h3 class="text-base font-semibold text-slate-900 dark:text-slate-100">Quick Chat</h3>
+          <button
+            type="button"
+            class="rounded p-1 text-slate-500 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+            @click="closeQuickChat"
+          >
+            <span class="material-symbols-outlined text-lg">close</span>
+          </button>
+        </div>
+
+        <div class="h-[420px] overflow-y-auto bg-slate-50 p-4 dark:bg-slate-800/40">
+          <div v-if="quickChatMessages.length === 0" class="text-center text-sm text-slate-400">开始和 AI 对话吧</div>
+          <div v-for="(item, index) in quickChatMessages" :key="`${item.role}-${index}`" class="mb-3">
+            <div class="mb-1 text-xs text-slate-400">{{ item.role === 'user' ? '我' : 'AI' }}</div>
+            <div
+              class="inline-block max-w-[90%] rounded-lg px-3 py-2 text-sm"
+              :class="item.role === 'user'
+                ? 'ml-auto block bg-primary text-white'
+                : 'bg-white text-slate-700 dark:bg-slate-700 dark:text-slate-100'"
+            >
+              {{ item.content }}
+            </div>
+          </div>
+        </div>
+
+        <div class="border-t border-slate-200 p-4 dark:border-slate-700">
+          <div class="flex items-center gap-2">
+            <input
+              v-model="quickChatInput"
+              type="text"
+              placeholder="输入消息..."
+              class="h-10 flex-1 rounded border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none transition focus:border-primary dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+              :disabled="isQuickChatSending"
+              @keydown.enter.prevent="sendQuickChat"
+            />
+            <button
+              type="button"
+              class="h-10 rounded bg-primary px-4 text-sm font-semibold text-white transition hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
+              :disabled="isQuickChatSending"
+              @click="sendQuickChat"
+            >
+              {{ isQuickChatSending ? '发送中...' : '发送' }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -455,6 +511,67 @@ const emit = defineEmits(['openQuickSetup']);
 
 const requestFilter = ref('all');
 const pathSearch = ref('');
+const isQuickChatOpen = ref(false);
+const quickChatInput = ref('');
+const isQuickChatSending = ref(false);
+const quickChatMessages = ref([]);
+
+function openQuickChat() {
+  isQuickChatOpen.value = true;
+}
+
+function closeQuickChat() {
+  isQuickChatOpen.value = false;
+}
+
+async function sendQuickChat() {
+  const text = quickChatInput.value.trim();
+  if (!text || isQuickChatSending.value) {
+    return;
+  }
+
+  quickChatMessages.value.push({ role: 'user', content: text });
+  quickChatInput.value = '';
+  isQuickChatSending.value = true;
+
+  try {
+    const messagePayload = quickChatMessages.value.slice(-20).map(item => ({
+      role: item.role,
+      content: item.content
+    }));
+
+    const response = await fetch('/api/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        message: text,
+        history: messagePayload
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+
+    const data = await response.json();
+    const assistantReply = data?.data?.reply;
+
+    if (!assistantReply || !String(assistantReply).trim()) {
+      throw new Error('Empty AI response');
+    }
+
+    quickChatMessages.value.push({ role: 'assistant', content: String(assistantReply).trim() });
+  } catch (error) {
+    quickChatMessages.value.push({
+      role: 'assistant',
+      content: '暂时无法连接 AI 服务，请稍后重试。'
+    });
+  } finally {
+    isQuickChatSending.value = false;
+  }
+}
 
 const requestRows = [
   {

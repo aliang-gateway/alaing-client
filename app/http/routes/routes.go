@@ -28,6 +28,7 @@ type Handlers struct {
 	Config        *handlers.ConfigHandler
 	TrafficStats  *handlers.TrafficStatsHandler
 	HTTPStats     *handlers.HTTPStatsHandler
+	Chat          *handlers.ChatHandler
 
 	statsCollector     *statistic.StatsCollector
 	httpStatsCollector *statistic.HTTPStatsCollector
@@ -61,6 +62,7 @@ func NewHandlers() *Handlers {
 		Config:             handlers.NewConfigHandler(),
 		TrafficStats:       handlers.NewTrafficStatsHandler(statsCollector),
 		HTTPStats:          handlers.NewHTTPStatsHandler(httpStatsCollector),
+		Chat:               handlers.NewChatHandler(),
 		statsCollector:     statsCollector,
 		httpStatsCollector: httpStatsCollector,
 	}
@@ -155,6 +157,8 @@ func RegisterRoutes(h *Handlers, mux *http.ServeMux) {
 	mux.HandleFunc("/api/stats/http/info", h.HTTPStats.HandleGetStats)
 	mux.HandleFunc("/api/stats/http/clear", h.HTTPStats.HandleClear)
 	mux.HandleFunc("/api/stats/http/preset-domains", h.HTTPStats.HandleGetPresetDomains)
+
+	mux.HandleFunc("/api/chat/completions", h.Chat.HandleCompletions)
 }
 
 // StartStatsCollector starts the traffic statistics collector background task
