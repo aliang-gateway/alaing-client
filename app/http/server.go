@@ -136,9 +136,7 @@ func registerAllRoutes() {
 
 // registerStaticFiles 注册静态文件服务（使用 embed 嵌入的文件）
 func registerStaticFiles() {
-	// 从嵌入的文件系统中获取 website 子目录
-	// WebsiteFS 已经包含了 website 目录的内容
-	websiteRoot, err := fs.Sub(app.WebsiteFS, "website")
+	websiteRoot, rootPath, err := resolveWebsiteRoot()
 	if err != nil {
 		logger.Warn(fmt.Sprintf("Failed to access embedded website files: %v", err))
 		return
@@ -146,6 +144,8 @@ func registerStaticFiles() {
 
 	// 注册 assets 路径处理器
 	mux.HandleFunc("/assets/", func(w http.ResponseWriter, r *http.Request) {
+		setAssetsCacheHeaders(w)
+
 		// 移除前导 /assets/
 		filePath := strings.TrimPrefix(r.URL.Path, "/assets/")
 
@@ -194,6 +194,8 @@ func registerStaticFiles() {
 
 		// 处理根路径
 		if r.URL.Path == "/" {
+			setNoCacheHTMLHeaders(w)
+
 			path := "/index.html"
 			filePath := strings.TrimPrefix(path, "/")
 			file, err := websiteRoot.Open(filePath)
@@ -223,6 +225,7 @@ func registerStaticFiles() {
 		indexFile, err := websiteRoot.Open("index.html")
 		if err == nil {
 			defer indexFile.Close()
+			setNoCacheHTMLHeaders(w)
 			w.Header().Set("Content-Type", "text/html; charset=utf-8")
 			io.Copy(w, indexFile)
 		} else {
@@ -230,7 +233,36 @@ func registerStaticFiles() {
 		}
 	})
 
-	logger.Info("Static file server registered using embedded website files")
+	logger.Info(fmt.Sprintf("Static file server registered using embedded website files (root=%s)", rootPath))
+}
+
+func resolveWebsiteRoot() (fs.FS, string, error) {
+	preferredRoots := []string{
+		"website/dist",
+		"website",
+	}
+
+	for _, root := range preferredRoots {
+		sub, err := fs.Sub(app.WebsiteFS, root)
+		if err != nil {
+			continue
+		}
+		if _, openErr := sub.Open("index.html"); openErr == nil {
+			return sub, root, nil
+		}
+	}
+
+	return nil, "", fmt.Errorf("no valid embedded website root found (tried: %s)", strings.Join(preferredRoots, ", "))
+}
+
+func setNoCacheHTMLHeaders(w http.ResponseWriter) {
+	w.Header().Set("Cache-Control", "no-store, no-cache, must-revalidate")
+	w.Header().Set("Pragma", "no-cache")
+	w.Header().Set("Expires", "0")
+}
+
+func setAssetsCacheHeaders(w http.ResponseWriter) {
+	w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
 }
 
 // setContentType 根据文件扩展名设置 Content-Type

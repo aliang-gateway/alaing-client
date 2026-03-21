@@ -133,6 +133,140 @@ func (h *SoftwareConfigHandler) HandlePullFromCloud(w http.ResponseWriter, r *ht
 	common.Success(w, resp)
 }
 
+func (h *SoftwareConfigHandler) HandleDelete(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		common.Error(w, http.StatusMethodNotAllowed, "Method not allowed", nil)
+		return
+	}
+
+	var req models.DeleteSoftwareConfigRequest
+	if err := common.DecodeRequest(r, &req); err != nil {
+		common.ErrorBadRequest(w, "Invalid request body", map[string]interface{}{"error": err.Error()})
+		return
+	}
+
+	if err := h.service.Delete(req); err != nil {
+		if strings.Contains(strings.ToLower(err.Error()), "record not found") {
+			common.ErrorNotFound(w, "Config not found")
+			return
+		}
+		if isBadRequestError(err) {
+			common.ErrorBadRequest(w, err.Error(), nil)
+			return
+		}
+		common.ErrorInternalServer(w, "Delete failed", map[string]interface{}{"error": err.Error()})
+		return
+	}
+
+	common.Success(w, map[string]interface{}{"deleted": true})
+}
+
+func (h *SoftwareConfigHandler) HandleSelect(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		common.Error(w, http.StatusMethodNotAllowed, "Method not allowed", nil)
+		return
+	}
+
+	var req models.SelectSoftwareConfigRequest
+	if err := common.DecodeRequest(r, &req); err != nil {
+		common.ErrorBadRequest(w, "Invalid request body", map[string]interface{}{"error": err.Error()})
+		return
+	}
+
+	if err := h.service.SetSelected(req); err != nil {
+		if strings.Contains(strings.ToLower(err.Error()), "record not found") {
+			common.ErrorNotFound(w, "Config not found")
+			return
+		}
+		if isBadRequestError(err) {
+			common.ErrorBadRequest(w, err.Error(), nil)
+			return
+		}
+		common.ErrorInternalServer(w, "Select failed", map[string]interface{}{"error": err.Error()})
+		return
+	}
+
+	common.Success(w, map[string]interface{}{"selected": req.Selected})
+}
+
+func (h *SoftwareConfigHandler) HandleCompareWithCloud(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		common.Error(w, http.StatusMethodNotAllowed, "Method not allowed", nil)
+		return
+	}
+
+	var req models.CompareSoftwareConfigRequest
+	if err := common.DecodeRequest(r, &req); err != nil {
+		common.ErrorBadRequest(w, "Invalid request body", map[string]interface{}{"error": err.Error()})
+		return
+	}
+
+	resp, err := h.service.CompareWithCloud(req)
+	if err != nil {
+		if isBadRequestError(err) {
+			common.ErrorBadRequest(w, err.Error(), nil)
+			return
+		}
+		common.ErrorInternalServer(w, "Cloud compare failed", map[string]interface{}{"error": err.Error()})
+		return
+	}
+
+	common.Success(w, resp)
+}
+
+func (h *SoftwareConfigHandler) HandlePushSelectedToCloud(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		common.Error(w, http.StatusMethodNotAllowed, "Method not allowed", nil)
+		return
+	}
+
+	var req models.CloudPushRequest
+	if err := common.DecodeRequest(r, &req); err != nil {
+		common.ErrorBadRequest(w, "Invalid request body", map[string]interface{}{"error": err.Error()})
+		return
+	}
+	req.OnlySelected = true
+
+	resp, err := h.service.PushToCloud(req)
+	if err != nil {
+		if isBadRequestError(err) {
+			common.ErrorBadRequest(w, err.Error(), nil)
+			return
+		}
+		common.ErrorInternalServer(w, "Cloud push failed", map[string]interface{}{"error": err.Error()})
+		return
+	}
+
+	common.Success(w, models.CloudSyncResponse{
+		SyncedCount:  resp.PushedCount,
+		LastSyncedAt: time.Now().UTC().Format(time.RFC3339),
+	})
+}
+
+func (h *SoftwareConfigHandler) HandleLogOperation(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		common.Error(w, http.StatusMethodNotAllowed, "Method not allowed", nil)
+		return
+	}
+
+	var req models.LogSoftwareConfigOperationRequest
+	if err := common.DecodeRequest(r, &req); err != nil {
+		common.ErrorBadRequest(w, "Invalid request body", map[string]interface{}{"error": err.Error()})
+		return
+	}
+
+	if err := h.service.LogOperation(req); err != nil {
+		if isBadRequestError(err) {
+			common.ErrorBadRequest(w, err.Error(), nil)
+			return
+		}
+		common.ErrorInternalServer(w, "Log operation failed", map[string]interface{}{"error": err.Error()})
+		return
+	}
+
+	common.Success(w, map[string]interface{}{"logged": true})
+}
+
 func isBadRequestError(err error) bool {
 	if err == nil {
 		return false

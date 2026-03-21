@@ -69,3 +69,38 @@ async function downloadFile(endpoint, filename) {
         showError('下载失败: ' + error.message);
     }
 }
+
+async function softwareConfigList(software = '') {
+    const query = software ? `?software=${encodeURIComponent(software)}` : '';
+    return apiGet(`/software-config/list${query}`);
+}
+
+async function softwareConfigSave(payload) {
+    return apiPost('/software-config/save', payload);
+}
+
+async function softwareConfigDelete(uuid) {
+    return apiPost('/software-config/delete', { uuid });
+}
+
+async function softwareConfigSelect(uuid, selected) {
+    return apiPost('/software-config/select', { uuid, selected });
+}
+
+async function softwareConfigCompare(cloud_url, auth_token = '') {
+    return apiPost('/software-config/compare', { cloud_url, auth_token });
+}
+
+async function softwareConfigPushSelected(cloud_url, auth_token = '') {
+    return apiPost('/software-config/cloud/push-selected', { cloud_url, auth_token });
+}
+
+async function softwareConfigLog(action, software, config_uuid = '', config_name = '', detail = '') {
+    return apiPost('/software-config/log', {
+        action,
+        software,
+        config_uuid,
+        config_name,
+        detail
+    });
+}

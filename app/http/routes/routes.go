@@ -85,8 +85,13 @@ func RegisterRoutes(h *Handlers, mux *http.ServeMux) {
 
 	mux.HandleFunc("/api/software-config/save", h.SoftwareCfg.HandleSave)
 	mux.HandleFunc("/api/software-config/activate", h.SoftwareCfg.HandleActivate)
+	mux.HandleFunc("/api/software-config/delete", h.SoftwareCfg.HandleDelete)
 	mux.HandleFunc("/api/software-config/list", h.SoftwareCfg.HandleList)
+	mux.HandleFunc("/api/software-config/select", h.SoftwareCfg.HandleSelect)
+	mux.HandleFunc("/api/software-config/compare", h.SoftwareCfg.HandleCompareWithCloud)
+	mux.HandleFunc("/api/software-config/log", h.SoftwareCfg.HandleLogOperation)
 	mux.HandleFunc("/api/software-config/cloud/push", h.SoftwareCfg.HandlePushToCloud)
+	mux.HandleFunc("/api/software-config/cloud/push-selected", h.SoftwareCfg.HandlePushSelectedToCloud)
 	mux.HandleFunc("/api/software-config/cloud/pull", h.SoftwareCfg.HandlePullFromCloud)
 
 	// Token routes (/api/token/*)

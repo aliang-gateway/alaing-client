@@ -108,4 +108,39 @@ func TestSoftwareConfigHandler_SaveActivateAndCloudEndpoints(t *testing.T) {
 	if pullRec.Code != http.StatusOK {
 		t.Fatalf("pull status=%d body=%s", pullRec.Code, pullRec.Body.String())
 	}
+
+	selectReq := httptest.NewRequest(http.MethodPost, "/api/software-config/select", bytes.NewReader([]byte(`{"uuid":"h-2","selected":true}`)))
+	selectRec := httptest.NewRecorder()
+	handler.HandleSelect(selectRec, selectReq)
+	if selectRec.Code != http.StatusOK {
+		t.Fatalf("select status=%d body=%s", selectRec.Code, selectRec.Body.String())
+	}
+
+	compareReq := httptest.NewRequest(http.MethodPost, "/api/software-config/compare", bytes.NewReader([]byte(`{"cloud_url":"`+pullServer.URL+`"}`)))
+	compareRec := httptest.NewRecorder()
+	handler.HandleCompareWithCloud(compareRec, compareReq)
+	if compareRec.Code != http.StatusOK {
+		t.Fatalf("compare status=%d body=%s", compareRec.Code, compareRec.Body.String())
+	}
+
+	pushSelectedReq := httptest.NewRequest(http.MethodPost, "/api/software-config/cloud/push-selected", bytes.NewReader(pushRaw))
+	pushSelectedRec := httptest.NewRecorder()
+	handler.HandlePushSelectedToCloud(pushSelectedRec, pushSelectedReq)
+	if pushSelectedRec.Code != http.StatusOK {
+		t.Fatalf("push-selected status=%d body=%s", pushSelectedRec.Code, pushSelectedRec.Body.String())
+	}
+
+	logReq := httptest.NewRequest(http.MethodPost, "/api/software-config/log", bytes.NewReader([]byte(`{"action":"copy","software":"claude","config_uuid":"h-2","config_name":"handler-active","detail":"copied from ui"}`)))
+	logRec := httptest.NewRecorder()
+	handler.HandleLogOperation(logRec, logReq)
+	if logRec.Code != http.StatusOK {
+		t.Fatalf("log status=%d body=%s", logRec.Code, logRec.Body.String())
+	}
+
+	deleteReq := httptest.NewRequest(http.MethodPost, "/api/software-config/delete", bytes.NewReader([]byte(`{"uuid":"h-1"}`)))
+	deleteRec := httptest.NewRecorder()
+	handler.HandleDelete(deleteRec, deleteReq)
+	if deleteRec.Code != http.StatusOK {
+		t.Fatalf("delete status=%d body=%s", deleteRec.Code, deleteRec.Body.String())
+	}
 }

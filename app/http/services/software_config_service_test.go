@@ -190,4 +190,38 @@ func TestSoftwareConfigService_SaveActivateAndCloudSync(t *testing.T) {
 	}); err == nil {
 		t.Fatal("expected error for invalid updated_at")
 	}
+
+	if err := service.SetSelected(models.SelectSoftwareConfigRequest{UUID: "svc-2", Selected: true}); err != nil {
+		t.Fatalf("set selected failed: %v", err)
+	}
+
+	selectedPushResp, err := service.PushToCloud(models.CloudPushRequest{CloudURL: pushServer.URL, OnlySelected: true})
+	if err != nil {
+		t.Fatalf("push selected failed: %v", err)
+	}
+	if selectedPushResp.PushedCount != 1 {
+		t.Fatalf("expected selected push count 1, got %d", selectedPushResp.PushedCount)
+	}
+
+	compareResp, err := service.CompareWithCloud(models.CompareSoftwareConfigRequest{CloudURL: pullServer.URL})
+	if err != nil {
+		t.Fatalf("compare with cloud failed: %v", err)
+	}
+	if len(compareResp.Items) == 0 {
+		t.Fatal("expected non-empty compare result")
+	}
+
+	if err := service.LogOperation(models.LogSoftwareConfigOperationRequest{
+		Action:     "copy",
+		Software:   "claude",
+		ConfigUUID: "svc-2",
+		ConfigName: "active-config",
+		Detail:     "copy from frontend",
+	}); err != nil {
+		t.Fatalf("log operation failed: %v", err)
+	}
+
+	if err := service.Delete(models.DeleteSoftwareConfigRequest{UUID: "svc-3"}); err != nil {
+		t.Fatalf("delete config failed: %v", err)
+	}
 }

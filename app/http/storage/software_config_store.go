@@ -63,7 +63,7 @@ func openSoftwareConfigDB(dbPath string) (*gorm.DB, error) {
 		return nil, fmt.Errorf("failed to open sqlite database: %w", err)
 	}
 
-	if err := db.AutoMigrate(&models.SoftwareConfig{}); err != nil {
+	if err := db.AutoMigrate(&models.SoftwareConfig{}, &models.SoftwareConfigOperationLog{}); err != nil {
 		return nil, fmt.Errorf("failed to migrate software_configs table: %w", err)
 	}
 
@@ -135,6 +135,37 @@ func (s *SoftwareConfigStore) ListBySoftware(software string) ([]models.Software
 	return configs, nil
 }
 
+func (s *SoftwareConfigStore) ListSelectedBySoftware(software string) ([]models.SoftwareConfig, error) {
+	if err := s.ensureReady(); err != nil {
+		return nil, err
+	}
+
+	var configs []models.SoftwareConfig
+	query := s.db.Where("selected = ?", true)
+	if software != "" {
+		query = query.Where("software = ?", software)
+	}
+	if err := query.Order("updated_at DESC").Find(&configs).Error; err != nil {
+		return nil, err
+	}
+	return configs, nil
+}
+
+func (s *SoftwareConfigStore) ListByUUIDs(ids []string) ([]models.SoftwareConfig, error) {
+	if err := s.ensureReady(); err != nil {
+		return nil, err
+	}
+	if len(ids) == 0 {
+		return []models.SoftwareConfig{}, nil
+	}
+
+	var configs []models.SoftwareConfig
+	if err := s.db.Where("uuid IN ?", ids).Order("updated_at DESC").Find(&configs).Error; err != nil {
+		return nil, err
+	}
+	return configs, nil
+}
+
 func (s *SoftwareConfigStore) GetByUUID(id string) (*models.SoftwareConfig, error) {
 	if err := s.ensureReady(); err != nil {
 		return nil, err
@@ -161,6 +192,27 @@ func (s *SoftwareConfigStore) FindByUUID(id string) (*models.SoftwareConfig, boo
 		return nil, false, err
 	}
 	return &cfg, true, nil
+}
+
+func (s *SoftwareConfigStore) DeleteByUUID(id string) error {
+	if err := s.ensureReady(); err != nil {
+		return err
+	}
+	return s.db.Delete(&models.SoftwareConfig{}, "uuid = ?", id).Error
+}
+
+func (s *SoftwareConfigStore) SetSelected(id string, selected bool) error {
+	if err := s.ensureReady(); err != nil {
+		return err
+	}
+	return s.db.Model(&models.SoftwareConfig{}).Where("uuid = ?", id).Update("selected", selected).Error
+}
+
+func (s *SoftwareConfigStore) SaveOperationLog(log models.SoftwareConfigOperationLog) error {
+	if err := s.ensureReady(); err != nil {
+		return err
+	}
+	return s.db.Create(&log).Error
 }
 
 func (s *SoftwareConfigStore) MergeByLatest(incoming []models.SoftwareConfig) (inserted int, updated int, keptLocalNewer int, err error) {

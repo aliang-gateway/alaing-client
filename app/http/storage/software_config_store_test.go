@@ -133,4 +133,43 @@ func TestSoftwareConfigStore_ActivateAndMergeByLatest(t *testing.T) {
 	if inUseCount2 != 1 || activeUUID2 != "cfg-3" {
 		t.Fatalf("expected cfg-3 active only after merge, got inUseCount=%d active=%s", inUseCount2, activeUUID2)
 	}
+
+	if err := store.SetSelected("cfg-3", true); err != nil {
+		t.Fatalf("set selected failed: %v", err)
+	}
+	selected, err := store.ListSelectedBySoftware("opencode")
+	if err != nil {
+		t.Fatalf("list selected failed: %v", err)
+	}
+	if len(selected) != 1 || selected[0].UUID != "cfg-3" {
+		t.Fatalf("expected cfg-3 selected, got %+v", selected)
+	}
+
+	logsErr := store.SaveOperationLog(models.SoftwareConfigOperationLog{
+		Action:     "copy",
+		Software:   "opencode",
+		ConfigUUID: "cfg-3",
+		ConfigName: "config-three",
+		Detail:     "copied",
+	})
+	if logsErr != nil {
+		t.Fatalf("save operation log failed: %v", logsErr)
+	}
+
+	listedByUUIDs, err := store.ListByUUIDs([]string{"cfg-2", "cfg-3"})
+	if err != nil {
+		t.Fatalf("list by uuids failed: %v", err)
+	}
+	if len(listedByUUIDs) != 2 {
+		t.Fatalf("expected 2 configs by uuids, got %d", len(listedByUUIDs))
+	}
+
+	if err := store.DeleteByUUID("cfg-2"); err != nil {
+		t.Fatalf("delete by uuid failed: %v", err)
+	}
+	if _, found, err := store.FindByUUID("cfg-2"); err != nil {
+		t.Fatalf("find deleted cfg-2 failed: %v", err)
+	} else if found {
+		t.Fatal("expected cfg-2 deleted")
+	}
 }
