@@ -46,6 +46,10 @@
             <span class="material-symbols-outlined text-lg">dns</span>
             系统设置
           </button>
+          <button type="button" class="settings-tab" data-tab="config-sync">
+            <span class="material-symbols-outlined text-lg">cloud_sync</span>
+            配置同步
+          </button>
         </div>
 
         <!-- Status -->
@@ -88,6 +92,7 @@
           <UserInfoSettings />
           <LogsSettings />
           <SystemSettings />
+          <ConfigSyncSettings />
         </div>
       </main>
     </div>
@@ -99,6 +104,7 @@ import RulesSettings from './settings/RulesSettings.vue';
 import UserInfoSettings from './settings/UserInfoSettings.vue';
 import LogsSettings from './settings/LogsSettings.vue';
 import SystemSettings from './settings/SystemSettings.vue';
+import ConfigSyncSettings from './settings/ConfigSyncSettings.vue';
 
 export default {
   name: 'SettingsPage',
@@ -106,7 +112,8 @@ export default {
     RulesSettings,
     UserInfoSettings,
     LogsSettings,
-    SystemSettings
+    SystemSettings,
+    ConfigSyncSettings
   }
 }
 </script>

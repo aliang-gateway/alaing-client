@@ -4,5 +4,5 @@ import (
 	"embed"
 )
 
-//go:embed website
+//go:embed website/dist
 var WebsiteFS embed.FS

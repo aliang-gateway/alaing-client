@@ -100,7 +100,7 @@
               <span class="material-symbols-outlined text-slate-400 text-lg">bolt</span>
               Quick Setup
             </div>
-            <span class="material-symbols-outlined text-slate-400 text-sm">expand_more</span>
+            <span class="material-symbols-outlined text-slate-400 text-sm">arrow_forward_ios</span>
           </button>
         </div>
         <button

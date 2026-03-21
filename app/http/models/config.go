@@ -25,6 +25,7 @@ type SoftwareConfig struct {
 	FilePath  string    `json:"file_path" gorm:"type:text;not null"`
 	Version   string    `json:"version" gorm:"type:varchar(128)"`
 	InUse     bool      `json:"in_use" gorm:"not null;default:false"`
+	Selected  bool      `json:"selected" gorm:"not null;default:false;index"`
 	Format    string    `json:"format" gorm:"type:varchar(16);not null"`
 	Content   string    `json:"content" gorm:"type:text;not null"`
 	CreatedAt time.Time `json:"created_at" gorm:"autoCreateTime"`
@@ -42,6 +43,7 @@ type SaveSoftwareConfigRequest struct {
 	FilePath  string `json:"file_path"`
 	Version   string `json:"version"`
 	InUse     bool   `json:"in_use"`
+	Selected  bool   `json:"selected"`
 	Format    string `json:"format"`
 	Content   string `json:"content"`
 	CreatedAt string `json:"created_at,omitempty"`
@@ -61,8 +63,10 @@ type ActivateSoftwareConfigRequest struct {
 }
 
 type CloudPushRequest struct {
-	CloudURL  string `json:"cloud_url"`
-	AuthToken string `json:"auth_token,omitempty"`
+	CloudURL     string   `json:"cloud_url"`
+	AuthToken    string   `json:"auth_token,omitempty"`
+	OnlySelected bool     `json:"only_selected"`
+	UUIDs        []string `json:"uuids,omitempty"`
 }
 
 type CloudPullRequest struct {
@@ -88,4 +92,53 @@ type CloudPullResponse struct {
 type CloudSyncResponse struct {
 	SyncedCount  int    `json:"synced_count"`
 	LastSyncedAt string `json:"last_synced_at"`
+}
+
+type DeleteSoftwareConfigRequest struct {
+	UUID string `json:"uuid"`
+}
+
+type SelectSoftwareConfigRequest struct {
+	UUID     string `json:"uuid"`
+	Selected bool   `json:"selected"`
+}
+
+type ConfigFreshnessItem struct {
+	UUID           string `json:"uuid"`
+	Software       string `json:"software"`
+	Name           string `json:"name"`
+	LocalUpdatedAt string `json:"local_updated_at,omitempty"`
+	CloudUpdatedAt string `json:"cloud_updated_at,omitempty"`
+	Status         string `json:"status"`
+}
+
+type CompareSoftwareConfigRequest struct {
+	CloudURL  string `json:"cloud_url"`
+	AuthToken string `json:"auth_token,omitempty"`
+}
+
+type CompareSoftwareConfigResponse struct {
+	Items []ConfigFreshnessItem `json:"items"`
+}
+
+type SoftwareConfigOperationLog struct {
+	ID         uint      `json:"id" gorm:"primaryKey;autoIncrement"`
+	Action     string    `json:"action" gorm:"type:varchar(64);not null;index"`
+	Software   string    `json:"software" gorm:"type:varchar(128);index"`
+	ConfigUUID string    `json:"config_uuid" gorm:"type:varchar(64);index"`
+	ConfigName string    `json:"config_name" gorm:"type:varchar(255)"`
+	Detail     string    `json:"detail" gorm:"type:text"`
+	CreatedAt  time.Time `json:"created_at" gorm:"autoCreateTime;index"`
+}
+
+func (SoftwareConfigOperationLog) TableName() string {
+	return "software_config_operation_logs"
+}
+
+type LogSoftwareConfigOperationRequest struct {
+	Action     string `json:"action"`
+	Software   string `json:"software"`
+	ConfigUUID string `json:"config_uuid,omitempty"`
+	ConfigName string `json:"config_name,omitempty"`
+	Detail     string `json:"detail,omitempty"`
 }
