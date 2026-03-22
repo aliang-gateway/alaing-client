@@ -76,6 +76,7 @@
             type="button"
             id="sidebarCertDetailsBtn"
             class="px-3 py-1.5 text-xs font-bold border border-slate-200 dark:border-slate-600 rounded hover:bg-white dark:hover:bg-slate-700 transition-colors"
+            @click.prevent
           >
             Details
           </button>
@@ -83,6 +84,7 @@
             type="button"
             id="sidebarCertReinstallBtn"
             class="px-3 py-1.5 text-xs font-bold bg-primary/10 text-primary rounded hover:bg-primary/20 transition-colors"
+            @click.prevent
           >
             Re-install
           </button>
@@ -677,3 +679,5 @@ function formatDuration(ms) {
   return `${Number(ms || 0)} ms`;
 }
 </script>
+
+

@@ -11,3 +11,5 @@ window.Chart = Chart;
 createApp(App).mount('#app');
 
 loadLegacyScripts();
+
+

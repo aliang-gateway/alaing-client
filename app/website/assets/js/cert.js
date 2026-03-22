@@ -596,16 +596,14 @@ function updateCertStatusDisplay(certStatus) {
     }
 
     const exportedBadge = certStatus.is_exported
-        ? '<span class="badge bg-danger"><i class="bi bi-check-circle"></i> 已导出</span>'
-        : '<span class="badge bg-danger"><i class="bi bi-x-circle"></i> 未导出</span>';
-
+    ? '<span class="badge bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300"><i class="bi bi-check-circle-fill"></i> 已导出</span>'
+    : '<span class="badge bg-slate-100 text-slate-500 dark:bg-slate-500/20 dark:text-slate-400"><i class="bi bi-x-circle"></i> 未导出</span>';
     const installedBadge = certStatus.is_installed
-        ? '<span class="badge bg-danger"><i class="bi bi-check-circle"></i> 已安装</span>'
-        : '<span class="badge bg-danger"><i class="bi bi-x-circle"></i> 未安装</span>';
-
+    ? '<span class="badge bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300"><i class="bi bi-check-circle-fill"></i> 已安装</span>'
+    : '<span class="badge bg-slate-100 text-slate-500 dark:bg-slate-500/20 dark:text-slate-400"><i class="bi bi-x-circle"></i> 未安装</span>';
     const trustedBadge = certStatus.is_trusted
-        ? '<span class="badge bg-info"><i class="bi bi-shield-check"></i> 已信任</span>'
-        : '<span class="badge bg-warning"><i class="bi bi-exclamation-triangle"></i> 未信任</span>';
+    ? '<span class="badge bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300"><i class="bi bi-shield-fill-check"></i> 已信任</span>'
+    : '<span class="badge bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300"><i class="bi bi-exclamation-triangle-fill"></i> 未信任</span>';
 
     const trustStatusBadge = getTrustStatusBadge(certStatus.trust_status);
 

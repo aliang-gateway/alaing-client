@@ -20,20 +20,19 @@
       </div>
 
       <div class="p-6 space-y-5">
-        <div class="flex items-center gap-3 flex-wrap">
+        <div class="flex items-center gap-2 flex-wrap">
           <select
             id="cert-type-select"
-            class="px-3 py-2 border border-slate-300 dark:border-slate-600 rounded text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary bg-white dark:bg-slate-800"
+            class="px-2.5 py-1.5 border border-slate-300 dark:border-slate-600 rounded-md text-xs focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary bg-white dark:bg-slate-800"
           >
             <option value="mitm-ca">MITM CA</option>
-            <option value="root-ca">Root CA</option>
-            <option value="mtls-cert">mTLS Certificate</option>
           </select>
           <button
             type="button"
             id="btn-check-cert"
-            class="px-3 py-2 border border-slate-300 dark:border-slate-600 rounded text-sm hover:bg-slate-50 dark:hover:bg-slate-800"
+            class="px-2.5 py-1.5 border border-slate-300 dark:border-slate-600 rounded-md text-xs hover:bg-slate-50 dark:hover:bg-slate-800"
           >
+            
             检查状态
           </button>
         </div>
@@ -45,45 +44,45 @@
           <div id="cert-status-content" class="text-sm text-slate-500"></div>
         </div>
 
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2">
           <button
             type="button"
             id="btn-export-cert"
-            class="flex items-center gap-3 px-4 py-3 border border-slate-200 dark:border-slate-700 rounded-lg text-sm hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+            class="min-h-9 flex items-center justify-center gap-1.5 px-2.5 py-1.5 border border-slate-200 dark:border-slate-700 rounded-md text-xs hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
           >
-            <span class="material-symbols-outlined text-slate-500">upload_file</span>
+            <span class="material-symbols-outlined text-[16px] leading-none text-slate-500">upload_file</span>
             <span>导出证书</span>
           </button>
           <button
             type="button"
             id="btn-install-cert"
-            class="flex items-center gap-3 px-4 py-3 border border-slate-200 dark:border-slate-700 rounded-lg text-sm hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+            class="min-h-9 flex items-center justify-center gap-1.5 px-2.5 py-1.5 border border-slate-200 dark:border-slate-700 rounded-md text-xs hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
           >
-            <span class="material-symbols-outlined text-slate-500">check_circle</span>
+            <span class="material-symbols-outlined text-[16px] leading-none text-slate-500">check_circle</span>
             <span>安装到系统</span>
           </button>
           <button
             type="button"
             id="btn-download-cert"
-            class="flex items-center gap-3 px-4 py-3 border border-slate-200 dark:border-slate-700 rounded-lg text-sm hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+            class="min-h-9 flex items-center justify-center gap-1.5 px-2.5 py-1.5 border border-slate-200 dark:border-slate-700 rounded-md text-xs hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
           >
-            <span class="material-symbols-outlined text-slate-500">download</span>
+            <span class="material-symbols-outlined text-[16px] leading-none text-slate-500">download</span>
             <span>下载 PEM</span>
           </button>
           <button
             type="button"
             id="btn-remove-cert"
-            class="flex items-center gap-3 px-4 py-3 border border-red-200 dark:border-red-500/40 rounded-lg text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+            class="min-h-9 flex items-center justify-center gap-1.5 px-2.5 py-1.5 border border-red-200 dark:border-red-500/40 rounded-md text-xs text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
           >
-            <span class="material-symbols-outlined text-red-500">delete</span>
+            <span class="material-symbols-outlined text-[16px] leading-none text-red-500">delete</span>
             <span>移除证书</span>
           </button>
           <button
             type="button"
             id="btn-generate-cert"
-            class="flex items-center gap-3 px-4 py-3 border border-amber-200 dark:border-amber-500/40 rounded-lg text-sm text-amber-700 dark:text-amber-300 hover:bg-amber-50 dark:hover:bg-amber-900/20 transition-colors"
+            class="min-h-9 flex items-center justify-center gap-1.5 px-2.5 py-1.5 border border-amber-200 dark:border-amber-500/40 rounded-md text-xs text-amber-700 dark:text-amber-300 hover:bg-amber-50 dark:hover:bg-amber-900/20 transition-colors"
           >
-            <span class="material-symbols-outlined text-amber-500">autorenew</span>
+            <span class="material-symbols-outlined text-[16px] leading-none text-amber-500">autorenew</span>
             <span>重新生成证书</span>
           </button>
         </div>
@@ -102,9 +101,9 @@
             <button
               type="button"
               id="btn-reinstall-cert"
-              class="flex items-center gap-2 px-3 py-2 border border-sky-300 dark:border-sky-600 rounded text-sm text-sky-700 dark:text-sky-300 hover:bg-sky-100/70 dark:hover:bg-sky-900/20 transition-colors"
+              class="min-h-9 flex items-center justify-center gap-1.5 px-2.5 py-1.5 border border-sky-300 dark:border-sky-600 rounded-md text-xs text-sky-700 dark:text-sky-300 hover:bg-sky-100/70 dark:hover:bg-sky-900/20 transition-colors"
             >
-              <span class="material-symbols-outlined text-sky-500">restart_alt</span>
+              <span class="material-symbols-outlined text-[16px] leading-none text-sky-500">restart_alt</span>
               <span>重新安装</span>
             </button>
           </div>
