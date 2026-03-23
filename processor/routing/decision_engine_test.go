@@ -27,7 +27,7 @@ func Test_AliangHighestPriority(t *testing.T) {
 				ID: "socks_rule_1", Type: model.RuleTypeDomain, Condition: "example.com", Enabled: true,
 			}},
 		},
-		BlackList: model.RoutingRuleSet{SetType: model.SetTypeBlacklist, Rules: []model.RoutingRule{}},
+		Direct: model.RoutingRuleSet{SetType: model.SetTypeDirect, Rules: []model.RoutingRule{}},
 	}
 
 	ctx := &MatchContext{Domain: "example.com", IP: "1.2.3.4"}
@@ -49,7 +49,7 @@ func Test_SocksRuleMatching(t *testing.T) {
 			{ID: "socks_rule_1", Type: model.RuleTypeDomain, Condition: "*.google.com", Enabled: true},
 			{ID: "socks_rule_2", Type: model.RuleTypeDomain, Condition: "youtube.com", Enabled: true},
 		}},
-		BlackList: model.RoutingRuleSet{SetType: model.SetTypeBlacklist, Rules: []model.RoutingRule{}},
+		Direct: model.RoutingRuleSet{SetType: model.SetTypeDirect, Rules: []model.RoutingRule{}},
 	}
 
 	testCases := []struct {
@@ -81,10 +81,10 @@ func Test_SocksRuleMatching(t *testing.T) {
 // T025: Test GeoIP rule matching
 func Test_GeoIPMatching(t *testing.T) {
 	config := &model.RoutingRulesConfig{
-		Settings:  model.RulesSettings{AliangEnabled: false, SocksEnabled: false, GeoIPEnabled: true},
-		Aliang:    model.RoutingRuleSet{SetType: model.SetTypeAliang, Rules: []model.RoutingRule{}},
-		ToSocks:   model.RoutingRuleSet{SetType: model.SetTypeToSocks, Rules: []model.RoutingRule{{ID: "geo_rule_us", Type: model.RuleTypeGeoIP, Condition: "US", Enabled: true}}},
-		BlackList: model.RoutingRuleSet{SetType: model.SetTypeBlacklist, Rules: []model.RoutingRule{}},
+		Settings: model.RulesSettings{AliangEnabled: false, SocksEnabled: false, GeoIPEnabled: true},
+		Aliang:   model.RoutingRuleSet{SetType: model.SetTypeAliang, Rules: []model.RoutingRule{}},
+		ToSocks:  model.RoutingRuleSet{SetType: model.SetTypeToSocks, Rules: []model.RoutingRule{{ID: "geo_rule_us", Type: model.RuleTypeGeoIP, Condition: "US", Enabled: true}}},
+		Direct:   model.RoutingRuleSet{SetType: model.SetTypeDirect, Rules: []model.RoutingRule{}},
 	}
 
 	decision, _ := DecideRoute(config, &MatchContext{Domain: "example.com", IP: "1.1.1.1"})
@@ -111,10 +111,10 @@ func Test_GlobalSwitches(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			config := &model.RoutingRulesConfig{
-				Settings:  model.RulesSettings{AliangEnabled: tc.aliangEnabled, SocksEnabled: tc.socksEnabled, GeoIPEnabled: tc.geoIPEnabled},
-				Aliang:    model.RoutingRuleSet{SetType: model.SetTypeAliang, Rules: []model.RoutingRule{{ID: "al_rule_1", Type: model.RuleTypeDomain, Condition: "example.com", Enabled: true}}},
-				ToSocks:   model.RoutingRuleSet{SetType: model.SetTypeToSocks, Rules: []model.RoutingRule{{ID: "socks_rule_1", Type: model.RuleTypeDomain, Condition: "example.com", Enabled: true}}},
-				BlackList: model.RoutingRuleSet{SetType: model.SetTypeBlacklist, Rules: []model.RoutingRule{}},
+				Settings: model.RulesSettings{AliangEnabled: tc.aliangEnabled, SocksEnabled: tc.socksEnabled, GeoIPEnabled: tc.geoIPEnabled},
+				Aliang:   model.RoutingRuleSet{SetType: model.SetTypeAliang, Rules: []model.RoutingRule{{ID: "al_rule_1", Type: model.RuleTypeDomain, Condition: "example.com", Enabled: true}}},
+				ToSocks:  model.RoutingRuleSet{SetType: model.SetTypeToSocks, Rules: []model.RoutingRule{{ID: "socks_rule_1", Type: model.RuleTypeDomain, Condition: "example.com", Enabled: true}}},
+				Direct:   model.RoutingRuleSet{SetType: model.SetTypeDirect, Rules: []model.RoutingRule{}},
 			}
 			decision, err := DecideRoute(config, &MatchContext{Domain: "example.com", IP: "1.1.1.1"})
 			if err != nil {
@@ -135,8 +135,8 @@ func Test_DisabledRuleSkipped(t *testing.T) {
 			{ID: "al_rule_enabled", Type: model.RuleTypeDomain, Condition: "enabled.com", Enabled: true},
 			{ID: "al_rule_disabled", Type: model.RuleTypeDomain, Condition: "disabled.com", Enabled: false},
 		}},
-		ToSocks:   model.RoutingRuleSet{SetType: model.SetTypeToSocks, Rules: []model.RoutingRule{}},
-		BlackList: model.RoutingRuleSet{SetType: model.SetTypeBlacklist, Rules: []model.RoutingRule{}},
+		ToSocks: model.RoutingRuleSet{SetType: model.SetTypeToSocks, Rules: []model.RoutingRule{}},
+		Direct:  model.RoutingRuleSet{SetType: model.SetTypeDirect, Rules: []model.RoutingRule{}},
 	}
 
 	cases := []struct {

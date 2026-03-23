@@ -14,10 +14,10 @@ func Test_NoneLaneDisabled(t *testing.T) {
 	sm.SetGeoIPEnabled(false)
 
 	config := &model.RoutingRulesConfig{
-		Settings:  sm.GetStatus(),
-		Aliang:    model.RoutingRuleSet{SetType: model.SetTypeAliang, Rules: []model.RoutingRule{{ID: "nl_rule_1", Type: model.RuleTypeDomain, Condition: "example.com", Enabled: true}}},
-		ToSocks:   model.RoutingRuleSet{SetType: model.SetTypeToSocks, Rules: []model.RoutingRule{{ID: "socks_rule_1", Type: model.RuleTypeDomain, Condition: "example.com", Enabled: true}}},
-		BlackList: model.RoutingRuleSet{SetType: model.SetTypeBlacklist, Rules: []model.RoutingRule{}},
+		Settings: sm.GetStatus(),
+		Aliang:   model.RoutingRuleSet{SetType: model.SetTypeAliang, Rules: []model.RoutingRule{{ID: "nl_rule_1", Type: model.RuleTypeDomain, Condition: "example.com", Enabled: true}}},
+		ToSocks:  model.RoutingRuleSet{SetType: model.SetTypeToSocks, Rules: []model.RoutingRule{{ID: "socks_rule_1", Type: model.RuleTypeDomain, Condition: "example.com", Enabled: true}}},
+		Direct:   model.RoutingRuleSet{SetType: model.SetTypeDirect, Rules: []model.RoutingRule{}},
 	}
 
 	decision, err := DecideRoute(config, &MatchContext{Domain: "example.com", IP: "1.2.3.4"})
@@ -40,10 +40,10 @@ func Test_SocksDisabled(t *testing.T) {
 	sm.SetGeoIPEnabled(false)
 
 	config := &model.RoutingRulesConfig{
-		Settings:  sm.GetStatus(),
-		Aliang:    model.RoutingRuleSet{SetType: model.SetTypeAliang, Rules: []model.RoutingRule{}},
-		ToSocks:   model.RoutingRuleSet{SetType: model.SetTypeToSocks, Rules: []model.RoutingRule{{ID: "socks_rule_1", Type: model.RuleTypeDomain, Condition: "example.com", Enabled: true}}},
-		BlackList: model.RoutingRuleSet{SetType: model.SetTypeBlacklist, Rules: []model.RoutingRule{}},
+		Settings: sm.GetStatus(),
+		Aliang:   model.RoutingRuleSet{SetType: model.SetTypeAliang, Rules: []model.RoutingRule{}},
+		ToSocks:  model.RoutingRuleSet{SetType: model.SetTypeToSocks, Rules: []model.RoutingRule{{ID: "socks_rule_1", Type: model.RuleTypeDomain, Condition: "example.com", Enabled: true}}},
+		Direct:   model.RoutingRuleSet{SetType: model.SetTypeDirect, Rules: []model.RoutingRule{}},
 	}
 
 	decision, err := DecideRoute(config, &MatchContext{Domain: "example.com", IP: "1.2.3.4"})
@@ -66,10 +66,10 @@ func Test_GeoIPDisabled(t *testing.T) {
 	sm.SetGeoIPEnabled(false)
 
 	config := &model.RoutingRulesConfig{
-		Settings:  sm.GetStatus(),
-		Aliang:    model.RoutingRuleSet{SetType: model.SetTypeAliang, Rules: []model.RoutingRule{}},
-		ToSocks:   model.RoutingRuleSet{SetType: model.SetTypeToSocks, Rules: []model.RoutingRule{{ID: "geo_rule_1", Type: model.RuleTypeGeoIP, Condition: "US", Enabled: true}}},
-		BlackList: model.RoutingRuleSet{SetType: model.SetTypeBlacklist, Rules: []model.RoutingRule{}},
+		Settings: sm.GetStatus(),
+		Aliang:   model.RoutingRuleSet{SetType: model.SetTypeAliang, Rules: []model.RoutingRule{}},
+		ToSocks:  model.RoutingRuleSet{SetType: model.SetTypeToSocks, Rules: []model.RoutingRule{{ID: "geo_rule_1", Type: model.RuleTypeGeoIP, Condition: "US", Enabled: true}}},
+		Direct:   model.RoutingRuleSet{SetType: model.SetTypeDirect, Rules: []model.RoutingRule{}},
 	}
 
 	decision, err := DecideRoute(config, &MatchContext{Domain: "example.com", IP: "1.1.1.1"})
@@ -90,10 +90,10 @@ func Test_AllSwitchesDisabled(t *testing.T) {
 	sm.DisableAll()
 
 	config := &model.RoutingRulesConfig{
-		Settings:  sm.GetStatus(),
-		Aliang:    model.RoutingRuleSet{SetType: model.SetTypeAliang, Rules: []model.RoutingRule{{ID: "nl_rule_1", Type: model.RuleTypeDomain, Condition: "example.com", Enabled: true}}},
-		ToSocks:   model.RoutingRuleSet{SetType: model.SetTypeToSocks, Rules: []model.RoutingRule{{ID: "socks_rule_1", Type: model.RuleTypeDomain, Condition: "example.com", Enabled: true}}},
-		BlackList: model.RoutingRuleSet{SetType: model.SetTypeBlacklist, Rules: []model.RoutingRule{}},
+		Settings: sm.GetStatus(),
+		Aliang:   model.RoutingRuleSet{SetType: model.SetTypeAliang, Rules: []model.RoutingRule{{ID: "nl_rule_1", Type: model.RuleTypeDomain, Condition: "example.com", Enabled: true}}},
+		ToSocks:  model.RoutingRuleSet{SetType: model.SetTypeToSocks, Rules: []model.RoutingRule{{ID: "socks_rule_1", Type: model.RuleTypeDomain, Condition: "example.com", Enabled: true}}},
+		Direct:   model.RoutingRuleSet{SetType: model.SetTypeDirect, Rules: []model.RoutingRule{}},
 	}
 
 	for _, domain := range []string{"example.com", "google.com", "youtube.com"} {
@@ -145,10 +145,10 @@ func Test_SwitchStateChanges(t *testing.T) {
 func Test_UpdateSwitchesFromConfig(t *testing.T) {
 	sm := GetSwitchManager()
 	config := &model.RoutingRulesConfig{
-		Settings:  model.RulesSettings{AliangEnabled: false, SocksEnabled: true, GeoIPEnabled: true},
-		Aliang:    model.RoutingRuleSet{SetType: model.SetTypeAliang, Rules: []model.RoutingRule{}},
-		ToSocks:   model.RoutingRuleSet{SetType: model.SetTypeToSocks, Rules: []model.RoutingRule{}},
-		BlackList: model.RoutingRuleSet{SetType: model.SetTypeBlacklist, Rules: []model.RoutingRule{}},
+		Settings: model.RulesSettings{AliangEnabled: false, SocksEnabled: true, GeoIPEnabled: true},
+		Aliang:   model.RoutingRuleSet{SetType: model.SetTypeAliang, Rules: []model.RoutingRule{}},
+		ToSocks:  model.RoutingRuleSet{SetType: model.SetTypeToSocks, Rules: []model.RoutingRule{}},
+		Direct:   model.RoutingRuleSet{SetType: model.SetTypeDirect, Rules: []model.RoutingRule{}},
 	}
 
 	sm.UpdateSwitches(config)

@@ -1,6 +1,9 @@
 package services
 
 import (
+	"encoding/json"
+	"fmt"
+	"strings"
 	"sync"
 
 	"nursor.org/nursorgate/app/http/models"
@@ -8,7 +11,18 @@ import (
 	httpServer "nursor.org/nursorgate/inbound/http"
 	tun "nursor.org/nursorgate/inbound/tun/engine"
 	runner2 "nursor.org/nursorgate/inbound/tun/runner"
+	"nursor.org/nursorgate/processor/config"
+	"nursor.org/nursorgate/processor/routing"
 	"nursor.org/nursorgate/processor/runtime"
+)
+
+var (
+	activeIngressModeResolver = activeIngressModeFromSnapshot
+	applyIngressModeUpdater   = applyIngressModeToSnapshot
+	tunStartRunner            = defaultStartTUN
+	httpStartRunner           = httpServer.StartMitmHttp
+	httpStopRunner            = httpServer.StopHttpProxy
+	tunStopRunner             = tun.Stop
 )
 
 // RunService handles run/mode operations
@@ -30,6 +44,9 @@ func NewRunService() *RunService {
 func (rs *RunService) GetCurrentMode() string {
 	rs.modeChangeMutex.RLock()
 	defer rs.modeChangeMutex.RUnlock()
+	if mode, ok := activeIngressModeResolver(); ok {
+		return string(mode)
+	}
 	return string(rs.currentMode)
 }
 
@@ -76,7 +93,7 @@ func (rs *RunService) StartService() map[string]interface{} {
 		}
 	}
 
-	startMode := rs.currentMode
+	startMode := rs.resolveAuthoritativeModeLocked()
 	rs.isRunning = true // 先设置运行状态，避免并发启动
 	rs.modeChangeMutex.Unlock()
 
@@ -88,7 +105,7 @@ func (rs *RunService) StartService() map[string]interface{} {
 	case models.ModeHTTP:
 		// HTTP 服务内部也有检查，但我们需要先设置状态
 		go func() {
-			httpServer.StartMitmHttp()
+			httpStartRunner()
 			// 如果启动失败，HTTP 服务内部会处理，但我们需要确保状态同步
 			// 注意：StartMitmHttp 是阻塞的，只有在停止时才会返回
 		}()
@@ -113,22 +130,12 @@ func (rs *RunService) StartService() map[string]interface{} {
 
 // startTUN handles TUN mode startup
 func (rs *RunService) startTUN() map[string]interface{} {
-	// 状态已在 StartService 中设置
-	go runner2.Start()
-	res := <-runner2.RunStatusChan
+	res := tunStartRunner()
 
-	// Update mode based on result
 	rs.modeChangeMutex.Lock()
-	if status, ok := res["status"]; ok && status == "failed" {
-		rs.isRunning = false // 启动失败，回滚状态
-	}
+	result := rs.handleTUNStartResultLocked(res)
 	rs.modeChangeMutex.Unlock()
 
-	// Convert map[string]string to map[string]interface{}
-	result := make(map[string]interface{})
-	for k, v := range res {
-		result[k] = v
-	}
 	return result
 }
 
@@ -160,12 +167,12 @@ func (rs *RunService) StopService() map[string]interface{} {
 	switch stoppedMode {
 	case models.ModeHTTP:
 		logger.Info("Stopping HTTP proxy server...")
-		httpServer.StopHttpProxy()
+		httpStopRunner()
 		response["details"] = "HTTP proxy server on 127.0.0.1:56432 has been stopped"
 
 	case models.ModeTUN:
 		logger.Info("Stopping TUN service...")
-		tun.Stop()
+		tunStopRunner()
 		response["details"] = "TUN interface service has been stopped"
 	}
 
@@ -176,9 +183,13 @@ func (rs *RunService) StopService() map[string]interface{} {
 func (rs *RunService) GetStatus() map[string]interface{} {
 	rs.modeChangeMutex.RLock()
 	defer rs.modeChangeMutex.RUnlock()
+	mode := rs.currentMode
+	if authoritativeMode, ok := activeIngressModeResolver(); ok {
+		mode = authoritativeMode
+	}
 
 	response := map[string]interface{}{
-		"current_mode": string(rs.currentMode),
+		"current_mode": string(mode),
 		"is_running":   rs.isRunning,
 		"available_modes": []string{
 			string(models.ModeHTTP),
@@ -186,7 +197,7 @@ func (rs *RunService) GetStatus() map[string]interface{} {
 		},
 	}
 
-	switch rs.currentMode {
+	switch mode {
 	case models.ModeTUN:
 		if rs.isRunning {
 			response["status"] = "TUN service is running"
@@ -224,21 +235,36 @@ func (rs *RunService) SwitchMode(targetMode string) map[string]interface{} {
 		}
 	}
 
+	authoritativeMode := rs.resolveAuthoritativeModeLocked()
+
 	// Check if already in target mode and running
-	if rs.currentMode == targetModeEnum && rs.isRunning {
+	if authoritativeMode == targetModeEnum && rs.isRunning {
 		return map[string]interface{}{
 			"status":       "already_running",
-			"current_mode": string(rs.currentMode),
-			"message":      "Already running in " + string(rs.currentMode) + " mode",
+			"current_mode": string(authoritativeMode),
+			"message":      "Already running in " + string(authoritativeMode) + " mode",
 		}
 	}
 
-	// Perform the mode transition
-	previousMode := rs.currentMode
-	if previousMode != targetModeEnum && rs.isRunning {
+	previousMode := authoritativeMode
+	wasRunning := rs.isRunning
+	if previousMode != targetModeEnum && wasRunning {
 		logger.Info("Stopping " + string(previousMode) + " service before switching to " + string(targetModeEnum) + " mode...")
 		rs.isRunning = false
 		rs.stopServiceSync(previousMode)
+	}
+
+	if err := applyIngressModeUpdater(targetModeEnum); err != nil {
+		if previousMode != targetModeEnum {
+			rs.rollbackToPreviousModeLocked(previousMode, wasRunning)
+		}
+		return map[string]interface{}{
+			"error":          "switch_failed",
+			"status":         "failed",
+			"msg":            fmt.Sprintf("failed to activate ingress mode %s: %v", targetModeEnum, err),
+			"current_mode":   string(rs.resolveAuthoritativeModeLocked()),
+			"rollback_state": map[string]interface{}{"mode": string(previousMode), "running": rs.isRunning},
+		}
 	}
 
 	rs.currentMode = targetModeEnum
@@ -264,16 +290,33 @@ func (rs *RunService) SwitchMode(targetMode string) map[string]interface{} {
 		response["details"] = "HTTP proxy server will be ready in a moment"
 		response["next_action"] = "HTTP service starts automatically, you can begin using it after 1 second"
 
-		// Start HTTP service in background
-		rs.isRunning = true // 设置运行状态
-		go func() {
-			logger.Info("Starting HTTP proxy server...")
-			// HTTP 服务内部会检查是否已经在运行，避免重复启动
-			httpServer.StartMitmHttp()
-			// 服务停止时，状态会在 StopService 中更新
-		}()
+		if wasRunning || targetModeEnum == models.ModeHTTP {
+			rs.isRunning = true
+			go func() {
+				logger.Info("Starting HTTP proxy server...")
+				httpStartRunner()
+			}()
+		}
 
 	case models.ModeTUN:
+		if wasRunning {
+			tunResult := rs.handleTUNStartResultLocked(tunStartRunner())
+			if status, ok := tunResult["status"].(string); ok && status == "failed" {
+				rs.rollbackFromActivationFailureLocked(previousMode, tunResult)
+				return map[string]interface{}{
+					"error":          "switch_failed",
+					"status":         "failed",
+					"msg":            fmt.Sprintf("failed to start %s mode during hot switch", targetModeEnum),
+					"target_result":  tunResult,
+					"current_mode":   string(rs.resolveAuthoritativeModeLocked()),
+					"rollback_state": map[string]interface{}{"mode": string(previousMode), "running": rs.isRunning},
+				}
+			}
+			response["message"] = "Hot switched to TUN mode and started TUN service"
+			response["next_step"] = "TUN service is active"
+			break
+		}
+
 		response["message"] = "Switched to TUN mode. Use start to activate the TUN service"
 		response["usage"] = "POST /api/run/start with InnerToken"
 		response["next_step"] = "Call start to initialize and start the TUN interface"
@@ -287,12 +330,116 @@ func (rs *RunService) stopServiceSync(mode models.RunMode) {
 	switch mode {
 	case models.ModeHTTP:
 		logger.Info("Stopping HTTP proxy server...")
-		httpServer.StopHttpProxy()
+		httpStopRunner()
 		logger.Info("HTTP proxy server stopped")
 
 	case models.ModeTUN:
 		logger.Info("Stopping TUN service...")
-		tun.Stop()
+		tunStopRunner()
 		logger.Info("TUN service stopped")
 	}
+}
+
+func (rs *RunService) resolveAuthoritativeModeLocked() models.RunMode {
+	if mode, ok := activeIngressModeResolver(); ok {
+		rs.currentMode = mode
+		return mode
+	}
+	return rs.currentMode
+}
+
+func (rs *RunService) rollbackToPreviousModeLocked(previousMode models.RunMode, shouldRun bool) {
+	if err := applyIngressModeUpdater(previousMode); err != nil {
+		logger.Error(fmt.Sprintf("Failed to roll back ingress mode to %s: %v", previousMode, err))
+	}
+	rs.currentMode = previousMode
+	if shouldRun {
+		rs.isRunning = true
+		rs.startModeAsync(previousMode)
+	}
+}
+
+func (rs *RunService) rollbackFromActivationFailureLocked(previousMode models.RunMode, targetResult map[string]interface{}) {
+	rs.isRunning = false
+	if err := applyIngressModeUpdater(previousMode); err != nil {
+		logger.Error(fmt.Sprintf("Failed to roll back ingress mode after activation failure: %v", err))
+	}
+	rs.currentMode = previousMode
+	rs.isRunning = true
+	rs.startModeAsync(previousMode)
+	logger.Error(fmt.Sprintf("Hot switch activation failed, rolled back to %s mode: %+v", previousMode, targetResult))
+}
+
+func (rs *RunService) startModeAsync(mode models.RunMode) {
+	switch mode {
+	case models.ModeHTTP:
+		go func() {
+			logger.Info("Starting HTTP proxy server...")
+			httpStartRunner()
+		}()
+	case models.ModeTUN:
+		go func() {
+			res := rs.startTUN()
+			if status, ok := res["status"].(string); ok && status == "failed" {
+				logger.Error(fmt.Sprintf("Rollback TUN restart failed: %+v", res))
+			}
+		}()
+	}
+}
+
+func activeIngressModeFromSnapshot() (models.RunMode, bool) {
+	active := config.GetRoutingApplyStore().ActiveSnapshot()
+	snapshot, ok := active.(*routing.RuntimeSnapshot)
+	if !ok || snapshot == nil {
+		return "", false
+	}
+	mode := models.RunMode(strings.ToLower(strings.TrimSpace(snapshot.IngressMode())))
+	if mode != models.ModeHTTP && mode != models.ModeTUN {
+		return "", false
+	}
+	return mode, true
+}
+
+func applyIngressModeToSnapshot(mode models.RunMode) error {
+	store := config.GetRoutingApplyStore()
+	canonical := store.ActiveCanonicalSchema()
+	if canonical == nil {
+		return fmt.Errorf("active routing snapshot is not initialized")
+	}
+	canonical.Ingress.Mode = string(mode)
+
+	raw, err := json.Marshal(canonical)
+	if err != nil {
+		return fmt.Errorf("marshal canonical routing schema failed: %w", err)
+	}
+
+	_, err = store.Apply(raw, func(cfg *config.CanonicalRoutingSchema) (any, error) {
+		return routing.CompileRuntimeSnapshot(cfg)
+	})
+	if err != nil {
+		return fmt.Errorf("apply ingress mode snapshot failed: %w", err)
+	}
+	return nil
+}
+
+func defaultStartTUN() map[string]string {
+	go runner2.Start()
+	return <-runner2.RunStatusChan
+}
+
+func (rs *RunService) handleTUNStartResultLocked(res map[string]string) map[string]interface{} {
+	if status, ok := res["status"]; ok {
+		switch status {
+		case "failed":
+			rs.isRunning = false
+		case "success":
+			rs.isRunning = true
+		}
+	}
+
+	result := make(map[string]interface{}, len(res))
+	for k, v := range res {
+		result[k] = v
+	}
+	return result
 }

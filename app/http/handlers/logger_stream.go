@@ -47,7 +47,7 @@ func (lsh *LogStreamHandler) HandleLogStream(w http.ResponseWriter, r *http.Requ
 		response := LogEntryResponse{
 			Level:     LogLevelTypeToString(entry.Level),
 			Timestamp: entry.Timestamp.Format("2006-01-02 15:04:05.000"),
-			Message:   entry.Message,
+			Message:   redactSensitiveLogMessage(entry.Message),
 			Source:    entry.Source,
 			TraceID:   entry.TraceID,
 		}

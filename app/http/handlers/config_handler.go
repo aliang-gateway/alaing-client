@@ -1,21 +1,15 @@
 package handlers
 
 import (
-	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
-	"sync"
-	"time"
 
 	"nursor.org/nursorgate/app/http/common"
 	"nursor.org/nursorgate/common/logger"
-	"nursor.org/nursorgate/common/model"
-)
-
-var (
-	routingConfigStoreMu sync.RWMutex
-	routingConfigStore   = model.NewRoutingRulesConfig()
+	"nursor.org/nursorgate/processor/config"
+	"nursor.org/nursorgate/processor/routing"
 )
 
 // ConfigHandler provides a local (non-Nacos) routing-config compatibility API.
@@ -48,58 +42,16 @@ func (h *ConfigHandler) HandleToggleRuleStatus(w http.ResponseWriter, r *http.Re
 		return
 	}
 	ruleID := pathParts[0]
-
-	var req struct {
-		Enabled bool `json:"enabled"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		common.ErrorBadRequest(w, "Invalid JSON format", map[string]interface{}{"error": err.Error()})
-		return
-	}
-
-	routingConfigStoreMu.Lock()
-	defer routingConfigStoreMu.Unlock()
-
-	cfg := cloneRoutingConfigLocked()
-	ruleFound := false
-	ruleSets := []*model.RoutingRuleSet{&cfg.ToSocks, &cfg.BlackList, &cfg.Aliang}
-	for _, rs := range ruleSets {
-		for i := range rs.Rules {
-			if rs.Rules[i].ID == ruleID {
-				rs.Rules[i].Enabled = req.Enabled
-				rs.Rules[i].UpdatedAt = time.Now()
-				ruleFound = true
-				break
-			}
-		}
-		if ruleFound {
-			break
-		}
-	}
-
-	if !ruleFound {
-		common.ErrorNotFound(w, fmt.Sprintf("Rule with id '%s' not found", ruleID))
-		return
-	}
-
-	cfg.UpdatedAt = time.Now()
-	routingConfigStore = cfg
-	common.Success(w, map[string]interface{}{
-		"message": "Rule toggled successfully",
-		"rule_id": ruleID,
-		"enabled": req.Enabled,
-	})
+	common.ErrorBadRequest(w, "Legacy mutable rule toggle write path is removed; update canonical routing config via /api/config/routing", map[string]interface{}{"rule_id": ruleID})
 }
 
 func (h *ConfigHandler) HandleAutoUpdateStatus(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
-		routingConfigStoreMu.RLock()
-		defer routingConfigStoreMu.RUnlock()
 		common.Success(w, map[string]interface{}{
 			"auto_update": false,
-			"source":      "local",
-			"updated_at":  routingConfigStore.UpdatedAt,
+			"source":      "canonical",
+			"updated_at":  "",
 		})
 	case http.MethodPut:
 		// Compatibility endpoint: auto-update is no longer supported in simplified mode.
@@ -113,41 +65,54 @@ func (h *ConfigHandler) HandleAutoUpdateStatus(w http.ResponseWriter, r *http.Re
 }
 
 func (h *ConfigHandler) handleGetRoutingConfig(w http.ResponseWriter) {
-	routingConfigStoreMu.RLock()
-	defer routingConfigStoreMu.RUnlock()
-	common.Success(w, routingConfigStore)
+	common.Success(w, activeCanonicalRoutingConfig())
 }
 
 func (h *ConfigHandler) handleUpdateRoutingConfig(w http.ResponseWriter, r *http.Request) {
-	var cfg model.RoutingRulesConfig
-	if err := json.NewDecoder(r.Body).Decode(&cfg); err != nil {
+	raw, err := ioReadAll(r)
+	if err != nil {
 		common.ErrorBadRequest(w, "Invalid JSON format", map[string]interface{}{"error": err.Error()})
 		return
 	}
-	if err := cfg.Validate(); err != nil {
+
+	applyResult, err := config.GetRoutingApplyStore().Apply(raw, func(canonical *config.CanonicalRoutingSchema) (any, error) {
+		return routing.CompileRuntimeSnapshot(canonical)
+	})
+	if err != nil {
 		common.ErrorBadRequest(w, "Configuration validation failed", map[string]interface{}{"error": err.Error()})
 		return
 	}
 
-	routingConfigStoreMu.Lock()
-	defer routingConfigStoreMu.Unlock()
-	cfg.UpdatedAt = time.Now()
-	routingConfigStore = &cfg
-	logger.Info("Routing configuration updated (local store)")
+	logger.Info("Routing configuration updated (canonical apply store)")
 	common.Success(w, map[string]interface{}{
 		"message": "Configuration updated successfully",
-		"source":  "local",
+		"source":  "canonical",
+		"version": applyResult.Version,
+		"hash":    applyResult.Hash,
 	})
 }
 
-func cloneRoutingConfigLocked() *model.RoutingRulesConfig {
-	data, err := routingConfigStore.ToJSON()
-	if err != nil {
-		return model.NewRoutingRulesConfig()
+func ioReadAll(r *http.Request) ([]byte, error) {
+	if r == nil || r.Body == nil {
+		return nil, fmt.Errorf("request body is empty")
 	}
-	cfg, err := model.NewRoutingRulesConfigFromJSON(data)
-	if err != nil {
-		return model.NewRoutingRulesConfig()
+	defer r.Body.Close()
+	return io.ReadAll(r.Body)
+}
+
+func activeCanonicalRoutingConfig() *config.CanonicalRoutingSchema {
+	canonical := config.GetRoutingApplyStore().ActiveCanonicalSchema()
+	if canonical == nil {
+		return &config.CanonicalRoutingSchema{
+			Version: config.CanonicalRoutingSchemaVersion,
+			Ingress: config.CanonicalIngressConfig{Mode: "tun"},
+			Egress: config.CanonicalEgressConfig{
+				Direct:   config.CanonicalEgressBranch{Enabled: true},
+				ToAliang: config.CanonicalEgressBranch{Enabled: false},
+				ToSocks:  config.CanonicalSocksEgressBranch{Enabled: false, Upstream: config.CanonicalSocksUpstream{Type: "socks"}},
+			},
+			Routing: config.CanonicalRoutingConfig{Rules: []config.CanonicalRoutingRule{}},
+		}
 	}
-	return cfg
+	return canonical
 }
