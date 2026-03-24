@@ -8,8 +8,6 @@ import (
 	"nursor.org/nursorgate/processor/config"
 )
 
-<<<<<<< HEAD
-=======
 func boolPtr(v bool) *bool { return &v }
 
 func TestCompileRuntimeSnapshotFromRuntimeInputs_AIRulesPrecedeProxyRules(t *testing.T) {
@@ -96,7 +94,6 @@ func TestCompileRuntimeSnapshotFromRuntimeInputs_ProxyTypeMapsToToSocksUpstreamT
 	}
 }
 
->>>>>>> opencode/hidden-wizard
 func TestSnapshotCompile_DisabledTargetDeny(t *testing.T) {
 	snapshot := NewRuntimeSnapshotForDecision(
 		NewSnapshotBranchCapabilities(true, false, true),
