@@ -74,11 +74,11 @@ func (rs *RunService) SetRunning(running bool) {
 // StartService starts the service for the current mode
 func (rs *RunService) StartService() map[string]interface{} {
 	startupState := runtime.GetStartupState()
-	if startupState.GetStatus() != runtime.READY {
+	if !canStartProxyWithStatus(startupState.GetStatus()) {
 		return map[string]interface{}{
 			"error":  "activation_required",
 			"status": "failed",
-			"msg":    "需要先登录后再启动网关。",
+			"msg":    "系统尚未准备好启动代理，请先完成登录或配置恢复。",
 		}
 	}
 
@@ -126,6 +126,10 @@ func (rs *RunService) StartService() map[string]interface{} {
 			"msg":    "Unknown mode: " + string(startMode),
 		}
 	}
+}
+
+func canStartProxyWithStatus(status runtime.StartupStatus) bool {
+	return status == runtime.READY || status == runtime.CONFIGURED
 }
 
 // startTUN handles TUN mode startup

@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"encoding/json"
 	"testing"
 	"time"
 
@@ -171,5 +172,32 @@ func TestSoftwareConfigStore_ActivateAndMergeByLatest(t *testing.T) {
 		t.Fatalf("find deleted cfg-2 failed: %v", err)
 	} else if found {
 		t.Fatal("expected cfg-2 deleted")
+	}
+
+	if err := store.SaveEffectiveConfigSnapshot(models.SoftwareEffectiveConfigSnapshot{
+		Software:       "opencode",
+		ConfigUUID:     "cfg-3",
+		ConfigName:     "config-three",
+		ConfigFilePath: "/tmp/c.json",
+		ConfigVersion:  "v2",
+		ConfigFormat:   models.ConfigFormatJSON,
+		SnapshotJSON:   `{"core":{"aliangServer":{"type":"vmess","core_server":"ai-gateway.nursor.org:443"}},"customer":{"proxy":{"type":"http"}},"currentProxy":"direct"}`,
+	}); err != nil {
+		t.Fatalf("save effective snapshot failed: %v", err)
+	}
+
+	latest, err := store.GetLatestEffectiveConfigSnapshot()
+	if err != nil {
+		t.Fatalf("get latest effective snapshot failed: %v", err)
+	}
+	if latest.ConfigUUID != "cfg-3" || latest.Software != "opencode" {
+		t.Fatalf("unexpected latest effective snapshot metadata: %+v", latest)
+	}
+	var latestPayload map[string]interface{}
+	if err := json.Unmarshal([]byte(latest.SnapshotJSON), &latestPayload); err != nil {
+		t.Fatalf("latest snapshot json invalid: %v", err)
+	}
+	if _, ok := latestPayload["core"]; !ok {
+		t.Fatalf("expected latest snapshot core section, got %v", latestPayload)
 	}
 }

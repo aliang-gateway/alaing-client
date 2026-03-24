@@ -11,10 +11,11 @@ import (
 	"nursor.org/nursorgate/processor/statistic"
 )
 
+var isDev = true
+
 // Handlers holds all HTTP handler instances
 type Handlers struct {
 	Logger        *handlers.LogHandler
-	Proxy         *handlers.ProxyHandler
 	ProxyRegistry *handlers.ProxyRegistryHandler
 	SoftwareCfg   *handlers.SoftwareConfigHandler
 	Token         *handlers.TokenHandler
@@ -48,7 +49,6 @@ func NewHandlers() *Handlers {
 
 	return &Handlers{
 		Logger:             handlers.NewLogHandler(logService, logConfigService),
-		Proxy:              handlers.NewProxyHandler(),
 		ProxyRegistry:      handlers.NewProxyRegistryHandler(proxyRepository),
 		SoftwareCfg:        handlers.NewSoftwareConfigHandler(softwareCfgService),
 		Token:              handlers.NewTokenHandler(tokenService),
@@ -82,10 +82,6 @@ func RegisterRoutes(h *Handlers, mux *http.ServeMux) {
 	register("/api/logs/level", h.Logger.HandleSetLogLevel, http.MethodPost)
 	register("/api/logs/config", h.Logger.HandleLogConfig, http.MethodGet, http.MethodPost)
 	register("/api/logs/stream", h.LogStream.HandleLogStream, http.MethodGet)
-
-	// Proxy routes (/api/proxy/*)
-	register("/api/proxy/current/get", h.Proxy.HandleGetCurrentProxy, http.MethodGet)
-	register("/api/proxy/current/set", h.Proxy.HandleSetCurrentProxy, http.MethodPost)
 
 	// Proxy registry routes (/api/proxy/registry/*)
 	register("/api/proxy/list", h.ProxyRegistry.HandleProxyRegistryList, http.MethodGet)
@@ -154,6 +150,11 @@ func RegisterRoutes(h *Handlers, mux *http.ServeMux) {
 	register("/api/config/routing", h.Config.HandleRoutingConfig, http.MethodGet, http.MethodPost)
 	register("/api/config/routing/rules/", h.Config.HandleToggleRuleStatus, http.MethodPut)
 	register("/api/config/routing/auto-update", h.Config.HandleAutoUpdateStatus, http.MethodGet, http.MethodPut)
+	register("/api/config/customer", h.Config.HandleCustomerConfig, http.MethodGet, http.MethodPost, http.MethodPut)
+	register("/api/config/customer/providers", h.Config.HandlePresetAIRuleProviders, http.MethodGet)
+	if isDev {
+		register("/api/config/core", h.Config.HandleCoreConfig, http.MethodGet, http.MethodPost, http.MethodPut)
+	}
 
 	// Traffic Statistics API (/api/stats/traffic/*)
 	register("/api/stats/traffic/", h.TrafficStats.HandleGetStats, http.MethodGet)

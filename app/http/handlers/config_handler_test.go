@@ -5,9 +5,11 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
 
+	"nursor.org/nursorgate/app/http/services"
 	"nursor.org/nursorgate/processor/config"
 )
 
@@ -256,4 +258,251 @@ func TestCanonicalOnly_ConfigHandler_RoutingBoundary(t *testing.T) {
 			t.Fatalf("expected version in success payload, got %#v", data["version"])
 		}
 	})
+}
+
+func TestConfigHandler_CustomerConfigGetAndUpdate(t *testing.T) {
+	config.ResetGlobalConfigForTest()
+	config.ResetEffectiveConfigCommitCoordinatorForTest()
+	t.Cleanup(func() {
+		config.ResetGlobalConfigForTest()
+		config.ResetEffectiveConfigCommitCoordinatorForTest()
+	})
+
+	config.SetGlobalConfig(&config.Config{
+		APIServer:    "https://api.example.com",
+		CurrentProxy: "direct",
+		BaseProxies: map[string]*config.BaseProxyConfig{
+			"aliang": {
+				Type:       "vmess",
+				CoreServer: "ai-gateway.nursor.org:443",
+			},
+		},
+		Core: &config.CoreConfig{
+			AliangServer: &config.BaseProxyConfig{Type: "vmess", CoreServer: "ai-gateway.nursor.org:443"},
+		},
+		Customer: &config.CustomerConfig{
+			Proxy: &config.CustomerProxyConfig{Type: "http"},
+			AIRules: map[string]*config.CustomerAIRuleSetting{
+				"openai": {
+					Enable:  boolPtr(true),
+					Exclude: []string{"api.openai.com"},
+				},
+			},
+		},
+	})
+
+	h := NewConfigHandler()
+	h.customerConfigService = services.NewCustomerConfigService()
+
+	getReq := httptest.NewRequest(http.MethodGet, "/api/config/customer", nil)
+	getRec := httptest.NewRecorder()
+	h.HandleCustomerConfig(getRec, getReq)
+	if getRec.Code != http.StatusOK {
+		t.Fatalf("initial get status=%d body=%s", getRec.Code, getRec.Body.String())
+	}
+	getData := decodeCommonResponseData(t, getRec)
+	initialCustomer, _ := getData["customer"].(map[string]interface{})
+	if initialCustomer == nil {
+		t.Fatalf("expected customer object in get response: %v", getData)
+	}
+
+	payload := []byte(`{"proxy":{"type":"http"},"ai_rules":{"claude":{"enable":true,"exclude":["claude.ai"]}},"proxy_rules":["*.example.com"]}`)
+	updateReq := httptest.NewRequest(http.MethodPost, "/api/config/customer", bytes.NewReader(payload))
+	updateRec := httptest.NewRecorder()
+	h.HandleCustomerConfig(updateRec, updateReq)
+	if updateRec.Code != http.StatusOK {
+		t.Fatalf("update status=%d body=%s", updateRec.Code, updateRec.Body.String())
+	}
+	updateData := decodeCommonResponseData(t, updateRec)
+	updatedCustomer, _ := updateData["customer"].(map[string]interface{})
+	if updatedCustomer == nil {
+		t.Fatalf("expected customer object in update response: %v", updateData)
+	}
+	aiRules, _ := updatedCustomer["ai_rules"].(map[string]interface{})
+	if _, ok := aiRules["claude"]; !ok {
+		t.Fatalf("expected claude ai rule in updated customer config: %v", updatedCustomer)
+	}
+
+	coordinator := config.GetEffectiveConfigCommitCoordinator()
+	if coordinator.Version() == 0 {
+		t.Fatalf("expected coordinator version increment after update")
+	}
+	committed := coordinator.LastCommittedSnapshot()
+	if committed == nil {
+		t.Fatal("expected committed snapshot")
+	}
+	if committed.FilePath != "./config.new.json" {
+		t.Fatalf("expected customer commit file path ./config.new.json, got %q", committed.FilePath)
+	}
+	if !strings.Contains(committed.Content, `"claude"`) {
+		t.Fatalf("expected committed snapshot content to include updated customer rule: %s", committed.Content)
+	}
+
+	updatedCfg := config.GetGlobalConfig()
+	if updatedCfg == nil || updatedCfg.Customer == nil {
+		t.Fatal("expected global config customer to be updated")
+	}
+	if _, ok := updatedCfg.Customer.AIRules["claude"]; !ok {
+		t.Fatalf("expected global config customer ai_rules to contain claude: %+v", updatedCfg.Customer)
+	}
+
+}
+
+func TestConfigHandler_CustomerConfigRejectsForbiddenOrUnknownFields(t *testing.T) {
+	config.ResetGlobalConfigForTest()
+	config.ResetEffectiveConfigCommitCoordinatorForTest()
+	t.Cleanup(func() {
+		config.ResetGlobalConfigForTest()
+		config.ResetEffectiveConfigCommitCoordinatorForTest()
+	})
+
+	config.SetGlobalConfig(&config.Config{
+		APIServer:    "https://api.example.com",
+		CurrentProxy: "direct",
+		Customer: &config.CustomerConfig{
+			Proxy: &config.CustomerProxyConfig{Type: "http"},
+		},
+	})
+
+	h := NewConfigHandler()
+	h.customerConfigService = services.NewCustomerConfigService()
+
+	cases := []struct {
+		name         string
+		method       string
+		payload      string
+		expectErrSub string
+	}{
+		{
+			name:         "reject unknown customer field",
+			method:       http.MethodPost,
+			payload:      `{"proxy":{"type":"http"},"forbidden":true}`,
+			expectErrSub: "customer.forbidden is forbidden",
+		},
+		{
+			name:         "reject core field wrapper",
+			method:       http.MethodPut,
+			payload:      `{"customer":{"proxy":{"type":"http"}},"core":{"engine":{"mtu":1400}}}`,
+			expectErrSub: "customer.core is forbidden",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			before := config.GetEffectiveConfigCommitCoordinator().Version()
+			req := httptest.NewRequest(tc.method, "/api/config/customer", bytes.NewReader([]byte(tc.payload)))
+			rec := httptest.NewRecorder()
+			h.HandleCustomerConfig(rec, req)
+
+			if rec.Code != http.StatusBadRequest {
+				t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
+			}
+			data := decodeCommonResponseData(t, rec)
+			errMsg, _ := data["error_msg"].(string)
+			if errMsg != "Configuration validation failed" {
+				t.Fatalf("expected deterministic validation failure message, got %q", errMsg)
+			}
+			details, _ := data["details"].(map[string]interface{})
+			detailErr, _ := details["error"].(string)
+			if !strings.Contains(detailErr, tc.expectErrSub) {
+				t.Fatalf("expected error detail to contain %q, got %q", tc.expectErrSub, detailErr)
+			}
+			after := config.GetEffectiveConfigCommitCoordinator().Version()
+			if after != before {
+				t.Fatalf("expected no coordinator commit on validation failure: before=%d after=%d", before, after)
+			}
+		})
+	}
+}
+
+func TestConfigHandler_CustomerConfigUpdateSucceedsWhenGlobalConfigNilAndFileExists(t *testing.T) {
+	config.ResetGlobalConfigForTest()
+	config.ResetEffectiveConfigCommitCoordinatorForTest()
+	t.Cleanup(func() {
+		config.ResetGlobalConfigForTest()
+		config.ResetEffectiveConfigCommitCoordinatorForTest()
+		_ = os.Remove("./config.new.json")
+	})
+
+	seed := []byte(`{
+		"api_server":"https://api.example.com",
+		"currentProxy":"direct",
+		"baseProxies":{"aliang":{"type":"vmess","core_server":"ai-gateway.nursor.org:443"}},
+		"customer":{
+			"proxy":{"type":"http"},
+			"ai_rules":{"openai":{"enable":true,"exclude":["api.openai.com"]}},
+			"proxy_rules":[]
+		}
+	}`)
+	if err := os.WriteFile("./config.new.json", seed, 0644); err != nil {
+		t.Fatalf("seed config.new.json failed: %v", err)
+	}
+
+	h := NewConfigHandler()
+	h.customerConfigService = services.NewCustomerConfigService()
+
+	payload := []byte(`{"customer":{"proxy":{"type":"socks","server":"127.0.0.1:1080"},"ai_rules":{},"proxy_rules":[]}}`)
+	req := httptest.NewRequest(http.MethodPost, "/api/config/customer", bytes.NewReader(payload))
+	rec := httptest.NewRecorder()
+	h.HandleCustomerConfig(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
+	}
+
+	data := decodeCommonResponseData(t, rec)
+	customer, _ := data["customer"].(map[string]interface{})
+	if customer == nil {
+		t.Fatalf("expected customer object in response: %v", data)
+	}
+	proxy, _ := customer["proxy"].(map[string]interface{})
+	if proxy == nil {
+		t.Fatalf("expected proxy object in customer response: %v", customer)
+	}
+	if proxy["type"] != "socks" {
+		t.Fatalf("expected updated proxy type socks, got %#v", proxy["type"])
+	}
+	if proxy["server"] != "127.0.0.1:1080" {
+		t.Fatalf("expected updated proxy server 127.0.0.1:1080, got %#v", proxy["server"])
+	}
+}
+
+func TestConfigHandler_CustomerConfigUpdateSucceedsWhenGlobalConfigAndFileMissing(t *testing.T) {
+	config.ResetGlobalConfigForTest()
+	config.ResetEffectiveConfigCommitCoordinatorForTest()
+	_ = os.Remove("./config.new.json")
+	t.Cleanup(func() {
+		config.ResetGlobalConfigForTest()
+		config.ResetEffectiveConfigCommitCoordinatorForTest()
+		_ = os.Remove("./config.new.json")
+	})
+
+	h := NewConfigHandler()
+	h.customerConfigService = services.NewCustomerConfigService()
+
+	payload := []byte(`{"customer":{"proxy":{"type":"socks","server":"127.0.0.1:1080"},"ai_rules":{},"proxy_rules":[]}}`)
+	req := httptest.NewRequest(http.MethodPost, "/api/config/customer", bytes.NewReader(payload))
+	rec := httptest.NewRecorder()
+	h.HandleCustomerConfig(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
+	}
+
+	data := decodeCommonResponseData(t, rec)
+	customer, _ := data["customer"].(map[string]interface{})
+	if customer == nil {
+		t.Fatalf("expected customer object in response: %v", data)
+	}
+	proxy, _ := customer["proxy"].(map[string]interface{})
+	if proxy == nil {
+		t.Fatalf("expected proxy object in customer response: %v", customer)
+	}
+	if proxy["type"] != "socks" {
+		t.Fatalf("expected updated proxy type socks, got %#v", proxy["type"])
+	}
+}
+
+func boolPtr(v bool) *bool {
+	return &v
 }

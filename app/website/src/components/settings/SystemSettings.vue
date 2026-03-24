@@ -13,8 +13,72 @@
             <p class="text-[10px] text-slate-500">Toggle between TUN and HTTP</p>
           </div>
           <div class="flex rounded bg-slate-100 p-1 dark:bg-slate-800">
-            <button type="button" class="rounded bg-primary px-3 py-1 text-[10px] font-bold text-white shadow-sm">TUN</button>
-            <button type="button" class="px-3 py-1 text-[10px] font-bold text-slate-500">HTTP</button>
+            <button
+              type="button"
+              :disabled="loadingMode || savingMode || switchingMode"
+              :class="[
+                'rounded px-3 py-1 text-[10px] font-bold transition',
+                selectedMode === 'tun'
+                  ? 'bg-primary text-white shadow-sm'
+                  : 'text-slate-500 hover:bg-slate-200 dark:text-slate-300 dark:hover:bg-slate-700/70'
+              ]"
+              @click="selectedMode = 'tun'"
+            >
+              TUN
+            </button>
+            <button
+              type="button"
+              :disabled="loadingMode || savingMode || switchingMode"
+              :class="[
+                'rounded px-3 py-1 text-[10px] font-bold transition',
+                selectedMode === 'http'
+                  ? 'bg-primary text-white shadow-sm'
+                  : 'text-slate-500 hover:bg-slate-200 dark:text-slate-300 dark:hover:bg-slate-700/70'
+              ]"
+              @click="selectedMode = 'http'"
+            >
+              HTTP
+            </button>
+          </div>
+        </div>
+
+        <div class="space-y-3 rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-900/50">
+          <div class="flex flex-wrap items-center gap-2 text-[11px] text-slate-600 dark:text-slate-300">
+            <span class="rounded bg-slate-200 px-2 py-0.5 font-semibold dark:bg-slate-700">Backend: {{ backendMode.toUpperCase() }}</span>
+            <span class="rounded bg-slate-200 px-2 py-0.5 font-semibold dark:bg-slate-700">Selected: {{ selectedMode.toUpperCase() }}</span>
+            <span v-if="isRunning !== null" class="rounded bg-slate-200 px-2 py-0.5 font-semibold dark:bg-slate-700">
+              {{ isRunning ? 'Running' : 'Stopped' }}
+            </span>
+          </div>
+          <p v-if="modeStatus" class="text-[11px] text-slate-500 dark:text-slate-400">{{ modeStatus }}</p>
+          <p v-if="modeError" class="text-[11px] text-red-500">{{ modeError }}</p>
+          <p v-if="modeSuccess" class="text-[11px] text-emerald-600 dark:text-emerald-400">{{ modeSuccess }}</p>
+
+          <div class="grid grid-cols-1 gap-2 sm:grid-cols-3">
+            <button
+              type="button"
+              class="rounded bg-slate-900 px-3 py-2 text-[11px] font-bold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-primary"
+              :disabled="loadingMode || savingMode || switchingMode"
+              @click="refreshModeState"
+            >
+              {{ loadingMode ? 'Refreshing...' : 'Refresh State' }}
+            </button>
+            <button
+              type="button"
+              class="rounded border border-slate-300 px-3 py-2 text-[11px] font-bold text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800"
+              :disabled="loadingMode || savingMode || switchingMode"
+              @click="saveMode"
+            >
+              {{ savingMode ? 'Saving...' : 'Save Mode' }}
+            </button>
+            <button
+              type="button"
+              class="rounded bg-primary px-3 py-2 text-[11px] font-bold text-white transition hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
+              :disabled="loadingMode || switchingMode"
+              @click="switchMode"
+            >
+              {{ switchingMode ? 'Switching...' : 'Switch Now' }}
+            </button>
           </div>
         </div>
 
@@ -98,6 +162,101 @@
 
 <script>
 export default {
-  name: 'SystemSettings'
+  name: 'SystemSettings',
+  data() {
+    return {
+      selectedMode: 'tun',
+      backendMode: 'tun',
+      isRunning: null,
+      modeStatus: '',
+      modeError: '',
+      modeSuccess: '',
+      loadingMode: false,
+      savingMode: false,
+      switchingMode: false
+    };
+  },
+  mounted() {
+    this.refreshModeState();
+  },
+  methods: {
+    clearMessages() {
+      this.modeError = '';
+      this.modeSuccess = '';
+    },
+    async requestJSON(url, options = {}) {
+      const res = await fetch(url, options);
+      const payload = await res.json().catch(() => ({}));
+      if (!res.ok || payload?.code !== 0) {
+        const msg = payload?.msg || payload?.message || `Request failed (${res.status})`;
+        throw new Error(msg);
+      }
+      return payload?.data ?? payload;
+    },
+    normalizeMode(mode) {
+      return mode === 'http' ? 'http' : 'tun';
+    },
+    async refreshModeState() {
+      this.loadingMode = true;
+      this.clearMessages();
+      try {
+        const runStatus = await this.requestJSON('/api/run/status');
+        const mode = this.normalizeMode(runStatus?.current_mode);
+        this.backendMode = mode;
+        this.selectedMode = mode;
+        this.isRunning = Boolean(runStatus?.is_running);
+        this.modeStatus = typeof runStatus?.status === 'string' ? runStatus.status : '';
+      } catch (err) {
+        this.modeError = err instanceof Error ? err.message : 'Failed to load run mode status.';
+      } finally {
+        this.loadingMode = false;
+      }
+    },
+    async saveMode() {
+      this.savingMode = true;
+      this.clearMessages();
+      try {
+        const routingCfg = await this.requestJSON('/api/config/routing');
+        const nextCfg = {
+          ...routingCfg,
+          ingress: {
+            ...(routingCfg?.ingress || {}),
+            mode: this.selectedMode
+          }
+        };
+        await this.requestJSON('/api/config/routing', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(nextCfg)
+        });
+        this.modeSuccess = `Mode config saved as ${this.selectedMode.toUpperCase()}.`;
+      } catch (err) {
+        this.modeError = err instanceof Error ? err.message : 'Failed to save run mode.';
+      } finally {
+        this.savingMode = false;
+      }
+    },
+    async switchMode() {
+      this.switchingMode = true;
+      this.clearMessages();
+      try {
+        const result = await this.requestJSON('/api/run/swift', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ mode: this.selectedMode })
+        });
+        const status = typeof result?.status === 'string' ? result.status : '';
+        if (status === 'failed') {
+          throw new Error(result?.msg || 'Mode switch failed');
+        }
+        this.modeSuccess = `Switched to ${this.selectedMode.toUpperCase()} mode successfully.`;
+        await this.refreshModeState();
+      } catch (err) {
+        this.modeError = err instanceof Error ? err.message : 'Failed to switch mode.';
+      } finally {
+        this.switchingMode = false;
+      }
+    }
+  }
 }
 </script>

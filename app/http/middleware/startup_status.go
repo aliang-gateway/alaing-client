@@ -30,11 +30,11 @@ func StartupStatusMiddleware(next http.Handler) http.Handler {
 			return
 		}
 
-		// All other APIs require READY status
+		// All other APIs require a startup state that is ready for proxy operations
 		startupState := runtime.GetStartupState()
 		status := startupState.GetStatus()
 
-		if status != runtime.READY {
+		if !isProxyOperableStatus(status) {
 			// System not ready for proxy operations
 			if path == "/api/run/start" {
 				respondSystemNotReady(w, status)
@@ -96,4 +96,8 @@ func respondSystemNotReady(w http.ResponseWriter, status runtime.StartupStatus) 
 		"status":            statusStr,
 		"suggested_actions": suggestedActions,
 	})
+}
+
+func isProxyOperableStatus(status runtime.StartupStatus) bool {
+	return status == runtime.READY || status == runtime.CONFIGURED
 }

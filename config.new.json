@@ -50,9 +50,9 @@
           }
         },
         "proxy_rules": [
-            "domains,cursor.com,proxy",
-            "domains,*.cursor.com,proxy",
-            "domains,*.nursor.org,proxy"
+            "domains,cursor.com",
+            "domains,*.cursor.com",
+            "domains,*.nursor.org"
         ]
     }
 }

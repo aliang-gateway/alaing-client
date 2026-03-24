@@ -1,9 +1,10 @@
 <template>
   <div
+    v-if="currentPage === 'settings'"
     id="settings-page"
-    class="page-container content-section hidden flex-1 min-w-0 h-full overflow-hidden bg-background-light dark:bg-background-dark"
+    class="page-container content-section active flex-1 min-w-0 h-full overflow-hidden bg-background-light dark:bg-background-dark"
   >
-    <div class="relative flex min-h-screen w-full flex-col overflow-hidden">
+    <div class="relative flex h-full w-full flex-col overflow-y-auto">
       <header class="sticky top-0 z-50 w-full border-b border-primary/10 bg-white/80 backdrop-blur-md dark:bg-background-dark/80">
         <div class="mx-auto flex h-16 w-full max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
           <div class="flex items-center gap-3">
@@ -53,6 +54,7 @@
               type="button"
               id="backToDashboard"
               class="flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-slate-100 dark:hover:bg-slate-800"
+              @click="goDashboard"
             >
               <span class="material-symbols-outlined">arrow_back</span>
             </button>
@@ -63,7 +65,15 @@
 
         <div v-if="activeTopTab === 'settings'" class="grid grid-cols-1 gap-8 lg:grid-cols-12">
           <section class="flex flex-col gap-4 lg:col-span-8">
-            <RulesSettings />
+            <RulesSettings
+              :config="customerConfig"
+              :preset-providers="presetProviders"
+              :loading="isLoadingCustomerConfig"
+              :saving="isSavingCustomerConfig"
+              :error="customerConfigError"
+              :version="customerConfigVersion"
+              @save="saveCustomerConfig"
+            />
           </section>
 
           <aside class="flex flex-col gap-6 lg:col-span-4">
@@ -77,7 +87,7 @@
         </section>
       </main>
 
-      <footer class="mt-auto border-t border-slate-100 py-6 dark:border-slate-800">
+      <footer class="border-t border-slate-100 py-6 dark:border-slate-800">
         <div class="mx-auto flex max-w-7xl items-center justify-between px-4 text-[10px] font-medium text-slate-400 sm:px-6 lg:px-8">
           <div>© 2024 ALiang Gateway. All rights reserved.</div>
           <div class="flex gap-4 uppercase tracking-tighter">
@@ -109,6 +119,70 @@ import RulesSettings from './settings/RulesSettings.vue';
 import UserInfoSettings from './settings/UserInfoSettings.vue';
 import LogsSettings from './settings/LogsSettings.vue';
 import SystemSettings from './settings/SystemSettings.vue';
+import { useNavigation } from '../composables/useNavigation';
+
+function createDefaultCustomerConfig() {
+  return {
+    proxy: {
+      type: 'socks',
+      server: ''
+    },
+    ai_rules: {},
+    proxy_rules: { enabled: true, rules: [] }
+  };
+}
+
+function normalizeStringList(items = []) {
+  return Array.isArray(items)
+    ? items.map(item => String(item).trim()).filter(Boolean)
+    : [];
+}
+
+function normalizeAiRules(aiRules = {}) {
+  if (!aiRules || typeof aiRules !== 'object' || Array.isArray(aiRules)) {
+    return {};
+  }
+
+  return Object.fromEntries(
+    Object.entries(aiRules).map(([provider, incoming]) => [provider, {
+      enable: Boolean(incoming?.enable),
+      exclude: normalizeStringList(incoming?.exclude)
+    }])
+  );
+}
+
+function normalizeProxyRules(raw) {
+  if (!raw) {
+    return { enabled: true, rules: [] };
+  }
+  if (Array.isArray(raw)) {
+    return { enabled: true, rules: normalizeStringList(raw) };
+  }
+  if (typeof raw === 'object') {
+    return {
+      enabled: Boolean(raw.enabled),
+      rules: normalizeStringList(raw.rules)
+    };
+  }
+  return { enabled: true, rules: [] };
+}
+
+function normalizeCustomerConfig(payload = {}) {
+  const defaults = createDefaultCustomerConfig();
+  return {
+    proxy: {
+      type: payload?.proxy?.type === 'http' ? 'http' : defaults.proxy.type,
+      server: typeof payload?.proxy?.server === 'string' ? payload.proxy.server : defaults.proxy.server
+    },
+    ai_rules: normalizeAiRules(payload?.ai_rules),
+    proxy_rules: normalizeProxyRules(payload?.proxy_rules)
+  };
+}
+
+function cloneCustomerConfig(config) {
+  return JSON.parse(JSON.stringify(config));
+}
+
 
 export default {
   name: 'SettingsPage',
@@ -118,9 +192,20 @@ export default {
     LogsSettings,
     SystemSettings
   },
+  setup() {
+    const { currentPage, showDashboard } = useNavigation();
+    return { currentPage, goDashboard: showDashboard };
+  },
   data() {
     return {
-      activeTopTab: 'settings'
+      activeTopTab: 'settings',
+      presetProviders: [],
+      customerConfig: createDefaultCustomerConfig(),
+      customerConfigVersion: '',
+      customerConfigError: '',
+      isLoadingCustomerConfig: false,
+      isSavingCustomerConfig: false,
+      hasLoadedCustomerConfig: false
     };
   },
   watch: {
@@ -132,12 +217,93 @@ export default {
       this.syncLegacyTab('rules');
     }
   },
-  mounted() {
-    this.syncLegacyTab('rules');
+  async mounted() {
+    try {
+      await Promise.all([
+        this.loadPresetProviders(),
+        this.loadCustomerConfig()
+      ]);
+    } catch (err) {
+      console.error('SettingsPage mounted error:', err);
+    }
   },
   methods: {
+    async loadPresetProviders() {
+      const HARDCODED_PRESETS = [
+        { key: 'openai', label: 'OpenAI', default_exclude: ['openai.com', 'chatgpt.com'] },
+        { key: 'claude', label: 'Claude', default_exclude: ['claude.ai', 'anthropic.com'] },
+        { key: 'cursor', label: 'Cursor', default_exclude: ['api.cursor.com'] },
+        { key: 'copilot', label: 'Copilot', default_exclude: ['copilot.microsoft.com'] }
+      ];
+
+      // Direct fetch — avoids relying on window.customerConfigGetProviders being injected
+      try {
+        const res = await fetch('/api/config/customer/providers');
+        if (res.ok) {
+          const json = await res.json();
+          const providers = json?.data?.providers;
+          if (Array.isArray(providers) && providers.length > 0) {
+            this.presetProviders = providers;
+            return;
+          }
+        }
+      } catch (err) {
+        console.warn('Failed to fetch preset providers from API, using fallback', err);
+      }
+
+      this.presetProviders = HARDCODED_PRESETS;
+    },
+    async loadCustomerConfig() {
+      this.isLoadingCustomerConfig = true;
+      this.customerConfigError = '';
+
+      try {
+        const res = await fetch('/api/config/customer');
+        if (!res.ok) throw new Error('Failed to load customer configuration.');
+        const json = await res.json();
+        const data = json?.data || json;
+        this.customerConfig = normalizeCustomerConfig(data?.customer);
+        this.customerConfigVersion = typeof data?.version === 'string' ? data.version : '';
+        this.hasLoadedCustomerConfig = true;
+        this.customerConfigError = '';
+      } catch (error) {
+        this.customerConfig = createDefaultCustomerConfig();
+        this.customerConfigVersion = '';
+        this.customerConfigError = error instanceof Error ? error.message : 'Failed to load customer configuration.';
+      } finally {
+        this.isLoadingCustomerConfig = false;
+      }
+    },
+    async saveCustomerConfig(nextConfig) {
+      this.isSavingCustomerConfig = true;
+      this.customerConfigError = '';
+
+      const normalizedConfig = normalizeCustomerConfig(nextConfig);
+
+      try {
+        const res = await fetch('/api/config/customer', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ customer: cloneCustomerConfig(normalizedConfig) })
+        });
+        if (!res.ok) {
+          const errJson = await res.json().catch(() => ({}));
+          throw new Error(errJson?.msg || 'Failed to save customer configuration.');
+        }
+        const json = await res.json();
+        const data = json?.data || json;
+        this.customerConfig = normalizeCustomerConfig(data?.customer || normalizedConfig);
+        this.customerConfigVersion = typeof data?.version === 'string' ? data.version : this.customerConfigVersion;
+        this.customerConfigError = '';
+      } catch (error) {
+        this.customerConfigError = error instanceof Error ? error.message : 'Failed to save customer configuration.';
+        throw error;
+      } finally {
+        this.isSavingCustomerConfig = false;
+      }
+    },
     syncLegacyTab(tabName) {
-      const tab = this.$el?.querySelector(`.settings-tab[data-tab="${tabName}"]`);
+      const tab = document.querySelector(`.settings-tab[data-tab="${tabName}"]`);
       if (tab instanceof HTMLElement) {
         tab.click();
       }

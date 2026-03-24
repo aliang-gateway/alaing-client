@@ -41,12 +41,10 @@ func runTray(cmd *cobra.Command, args []string) error {
 	}
 	defer guard.Close()
 
-	// Load configuration (same as start command)
-	if configPath != "" {
-		logger.Info("Loading configuration from file: " + configPath)
-		if err := LoadAndApplyConfig(configPath); err != nil {
-			return err
-		}
+	// Load startup configuration using the same precedence as start command:
+	// --config > ./config.new.json > ~/.aliang/config.json > database snapshot > embedded default
+	if err := ApplyStartupConfig(configPath); err != nil {
+		return err
 	}
 
 	// Start the tray application

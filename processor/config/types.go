@@ -1,7 +1,12 @@
 package config
 
 import (
+	"encoding/json"
 	"fmt"
+	"net"
+	"sort"
+	"strconv"
+	"strings"
 	"time"
 )
 
@@ -235,6 +240,117 @@ type Config struct {
 	DNSPreResolution *DNSPreResolutionConfig     `json:"dnsPreResolution,omitempty"` // DNS预解析配置
 	SocksProxy       *Socks5Config               `json:"socksProxy,omitempty"`       // 可选：默认 SOCKS5 出站
 	SNIAllowlist     []string                    `json:"sni_allowlist,omitempty"`    // SNI 允许列表（命中则 MITM 并转发到 Aliang）
+
+	Core     *CoreConfig     `json:"core,omitempty"`
+	Customer *CustomerConfig `json:"customer,omitempty"`
+
+	customerUnknownFields []string            `json:"-"`
+	aiRuleUnknownFields   map[string][]string `json:"-"`
+}
+
+type CoreConfig struct {
+	Engine       *CoreEngineConfig `json:"engine,omitempty"`
+	AliangServer *BaseProxyConfig  `json:"aliangServer,omitempty"`
+}
+
+type CoreEngineConfig struct {
+	MTU                      int    `json:"mtu"`
+	Mark                     int    `json:"fwmark"`
+	RestAPI                  string `json:"restapi"`
+	Device                   string `json:"device"`
+	LogLevel                 string `json:"loglevel"`
+	Interface                string `json:"interface"`
+	TCPModerateReceiveBuffer bool   `json:"tcp-moderate-receive-buffer"`
+	TCPSendBufferSize        string `json:"tcp-send-buffer-size"`
+	TCPReceiveBufferSize     string `json:"tcp-receive-buffer-size"`
+	MulticastGroups          string `json:"multicast-groups"`
+	TUNPreUp                 string `json:"tun-pre-up"`
+	TUNPostUp                string `json:"tun-post-up"`
+	UDPTimeout               string `json:"udp-timeout"`
+}
+
+type CustomerConfig struct {
+	Proxy      *CustomerProxyConfig              `json:"proxy,omitempty"`
+	AIRules    map[string]*CustomerAIRuleSetting `json:"ai_rules,omitempty"`
+	ProxyRules *CustomerProxyRulesConfig         `json:"proxy_rules,omitempty"`
+}
+
+// CustomerProxyRulesConfig wraps proxy rule lines with an enabled flag.
+// It accepts both the legacy []string format and the new {enabled, rules} object.
+type CustomerProxyRulesConfig struct {
+	Enabled bool     `json:"enabled"`
+	Rules   []string `json:"rules,omitempty"`
+}
+
+// UnmarshalJSON supports backward-compatible deserialization:
+//   - []string → enabled=true, rules=<array>
+//   - {"enabled":…,"rules":…} → passthrough
+func (c *CustomerProxyRulesConfig) UnmarshalJSON(data []byte) error {
+	var arr []string
+	if err := json.Unmarshal(data, &arr); err == nil {
+		c.Enabled = true
+		c.Rules = arr
+		return nil
+	}
+
+	type alias CustomerProxyRulesConfig
+	var obj alias
+	if err := json.Unmarshal(data, &obj); err != nil {
+		return err
+	}
+	c.Enabled = obj.Enabled
+	c.Rules = obj.Rules
+	return nil
+}
+
+type CustomerProxyConfig struct {
+	Type     string `json:"type"`
+	Server   string `json:"server,omitempty"`
+	Username string `json:"username,omitempty"`
+	Password string `json:"password,omitempty"`
+}
+
+type CustomerAIRuleSetting struct {
+	Enable  *bool    `json:"enable,omitempty"`
+	Exclude []string `json:"exclude,omitempty"`
+}
+
+// AIRuleProviderPreset describes a known AI provider that can be configured.
+type AIRuleProviderPreset struct {
+	Key            string   `json:"key"`
+	Label          string   `json:"label"`
+	DefaultExclude []string `json:"default_exclude,omitempty"`
+}
+
+// PresetAIRuleProviders is the system-known list of AI rule providers.
+var PresetAIRuleProviders = []AIRuleProviderPreset{
+	{Key: "openai", Label: "OpenAI", DefaultExclude: []string{"openai.com", "chatgpt.com"}},
+	{Key: "claude", Label: "Claude", DefaultExclude: []string{"claude.ai", "anthropic.com"}},
+	{Key: "cursor", Label: "Cursor", DefaultExclude: []string{"api.cursor.com"}},
+	{Key: "copilot", Label: "Copilot", DefaultExclude: []string{"copilot.microsoft.com"}},
+}
+
+func (c *Config) UnmarshalJSON(data []byte) error {
+	var root map[string]json.RawMessage
+	if err := json.Unmarshal(data, &root); err != nil {
+		return err
+	}
+
+	customerUnknown, aiRuleUnknown, err := extractCustomerUnknownFields(root)
+	if err != nil {
+		return err
+	}
+
+	type configAlias Config
+	var decoded configAlias
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		return err
+	}
+
+	*c = Config(decoded)
+	c.customerUnknownFields = customerUnknown
+	c.aiRuleUnknownFields = aiRuleUnknown
+	return nil
 }
 
 // GetTokenActivateURL returns the complete Token activation URL
@@ -259,6 +375,14 @@ func (c *Config) GetRemoteConfigURL() string {
 
 // Validate validates the configuration
 func (c *Config) Validate() error {
+	if err := c.validateCustomerEditableSurface(); err != nil {
+		return err
+	}
+
+	if err := c.bridgeRuntimeFieldsFromNewModel(); err != nil {
+		return err
+	}
+
 	if c.APIServer == "" {
 		return fmt.Errorf("api_server is required in configuration")
 	}
@@ -277,4 +401,220 @@ func (c *Config) Validate() error {
 	}
 
 	return nil
+}
+
+func (c *Config) bridgeRuntimeFieldsFromNewModel() error {
+	if c == nil {
+		return nil
+	}
+
+	if c.Core != nil && c.Core.AliangServer != nil {
+		if c.BaseProxies == nil {
+			c.BaseProxies = make(map[string]*BaseProxyConfig)
+		}
+		c.BaseProxies["aliang"] = &BaseProxyConfig{
+			Type:       c.Core.AliangServer.Type,
+			CoreServer: c.Core.AliangServer.CoreServer,
+		}
+	}
+
+	if c.Customer != nil && c.Customer.Proxy != nil {
+		switch c.Customer.Proxy.Type {
+		case "socks":
+			serverHost, serverPort, err := parseHostPort(c.Customer.Proxy.Server)
+			if err != nil {
+				return fmt.Errorf("customer.proxy.server: %w", err)
+			}
+			c.SocksProxy = &Socks5Config{
+				Server:     serverHost,
+				ServerPort: serverPort,
+				Username:   c.Customer.Proxy.Username,
+				Password:   c.Customer.Proxy.Password,
+			}
+			c.CurrentProxy = "socks"
+		case "http":
+			c.SocksProxy = nil
+			c.CurrentProxy = "direct"
+		}
+	}
+
+	if c.Customer != nil && len(c.Customer.AIRules) > 0 {
+		allowlist := make([]string, 0)
+		for _, provider := range sortedMapKeys(c.Customer.AIRules) {
+			rule := c.Customer.AIRules[provider]
+			if rule == nil || rule.Enable == nil || !*rule.Enable {
+				continue
+			}
+			allowlist = append(allowlist, rule.Exclude...)
+		}
+		c.SNIAllowlist = dedupeTrimmedDomains(allowlist)
+	}
+
+	return nil
+}
+
+func (c *Config) validateCustomerEditableSurface() error {
+	if c == nil || c.Customer == nil {
+		return nil
+	}
+
+	if c.Customer.Proxy != nil {
+		switch c.Customer.Proxy.Type {
+		case "http", "socks":
+		default:
+			return fmt.Errorf("customer.proxy.type must be one of [http socks], got %q", c.Customer.Proxy.Type)
+		}
+	}
+
+	for provider, rule := range c.Customer.AIRules {
+		if strings.TrimSpace(provider) == "" {
+			return fmt.Errorf("customer.ai_rules provider key cannot be empty")
+		}
+		if rule == nil {
+			return fmt.Errorf("customer.ai_rules.%s must be an object with editable fields [enable exclude]", provider)
+		}
+		if rule.Enable == nil {
+			return fmt.Errorf("customer.ai_rules.%s.enable is required and editable", provider)
+		}
+		for i := range rule.Exclude {
+			rule.Exclude[i] = strings.TrimSpace(rule.Exclude[i])
+			if rule.Exclude[i] == "" {
+				return fmt.Errorf("customer.ai_rules.%s.exclude[%d] cannot be empty", provider, i)
+			}
+		}
+	}
+
+	if err := c.customerUnknownKeyErrors(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (c *Config) customerUnknownKeyErrors() error {
+	if len(c.customerUnknownFields) > 0 {
+		sorted := append([]string(nil), c.customerUnknownFields...)
+		sort.Strings(sorted)
+		return fmt.Errorf("customer.%s is forbidden: editable customer fields are [proxy ai_rules proxy_rules]", sorted[0])
+	}
+
+	providers := make([]string, 0, len(c.aiRuleUnknownFields))
+	for provider := range c.aiRuleUnknownFields {
+		providers = append(providers, provider)
+	}
+	sort.Strings(providers)
+	for _, provider := range providers {
+		unknown := c.aiRuleUnknownFields[provider]
+		if len(unknown) == 0 {
+			continue
+		}
+		sortedUnknown := append([]string(nil), unknown...)
+		sort.Strings(sortedUnknown)
+		return fmt.Errorf("customer.ai_rules.%s.%s is forbidden: editable ai_rules fields are [enable exclude]", provider, sortedUnknown[0])
+	}
+
+	return nil
+}
+
+func extractCustomerUnknownFields(root map[string]json.RawMessage) ([]string, map[string][]string, error) {
+	unknownCustomer := make([]string, 0)
+	unknownAIRules := make(map[string][]string)
+
+	rawCustomer, ok := root["customer"]
+	if !ok {
+		return unknownCustomer, unknownAIRules, nil
+	}
+
+	var customerRoot map[string]json.RawMessage
+	if err := json.Unmarshal(rawCustomer, &customerRoot); err != nil {
+		return nil, nil, fmt.Errorf("customer must be an object")
+	}
+
+	for key := range customerRoot {
+		switch key {
+		case "proxy", "ai_rules", "proxy_rules":
+		default:
+			unknownCustomer = append(unknownCustomer, key)
+		}
+	}
+
+	rawAIRules, ok := customerRoot["ai_rules"]
+	if !ok {
+		return unknownCustomer, unknownAIRules, nil
+	}
+
+	var aiRoot map[string]json.RawMessage
+	if err := json.Unmarshal(rawAIRules, &aiRoot); err != nil {
+		return nil, nil, fmt.Errorf("customer.ai_rules must be an object")
+	}
+
+	for provider, rawProvider := range aiRoot {
+		var fields map[string]json.RawMessage
+		if err := json.Unmarshal(rawProvider, &fields); err != nil {
+			return nil, nil, fmt.Errorf("customer.ai_rules.%s must be an object with editable fields [enable exclude]", provider)
+		}
+		for key := range fields {
+			switch key {
+			case "enable", "exclude":
+			default:
+				unknownAIRules[provider] = append(unknownAIRules[provider], key)
+			}
+		}
+	}
+
+	return unknownCustomer, unknownAIRules, nil
+}
+
+func parseHostPort(server string) (string, uint16, error) {
+	host, portRaw, err := net.SplitHostPort(strings.TrimSpace(server))
+	if err != nil {
+		return "", 0, fmt.Errorf("must be host:port, got %q", server)
+	}
+	host = strings.TrimSpace(host)
+	portRaw = strings.TrimSpace(portRaw)
+	if host == "" {
+		return "", 0, fmt.Errorf("host is required")
+	}
+	if portRaw == "" {
+		return "", 0, fmt.Errorf("port is required")
+	}
+
+	port, err := strconv.Atoi(portRaw)
+	if err != nil {
+		return "", 0, fmt.Errorf("invalid port %q", portRaw)
+	}
+	if port < 1 || port > 65535 {
+		return "", 0, fmt.Errorf("port must be in range 1-65535")
+	}
+
+	return host, uint16(port), nil
+}
+
+func sortedMapKeys(values map[string]*CustomerAIRuleSetting) []string {
+	keys := make([]string, 0, len(values))
+	for key := range values {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	return keys
+}
+
+func dedupeTrimmedDomains(in []string) []string {
+	if len(in) == 0 {
+		return nil
+	}
+	seen := make(map[string]struct{}, len(in))
+	out := make([]string, 0, len(in))
+	for _, value := range in {
+		normalized := strings.ToLower(strings.TrimSpace(value))
+		if normalized == "" {
+			continue
+		}
+		if _, exists := seen[normalized]; exists {
+			continue
+		}
+		seen[normalized] = struct{}{}
+		out = append(out, normalized)
+	}
+	return out
 }

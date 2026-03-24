@@ -1,5 +1,6 @@
 <template>
   <div
+    v-if="currentPage === 'dashboard'"
     id="dashboard-page"
     class="page-container content-section active flex flex-row flex-1 min-w-0 h-full overflow-hidden"
   >
@@ -39,52 +40,66 @@
       </div>
       <div class="p-8 flex flex-col items-center justify-center gap-6">
         <div class="relative">
-          <div class="absolute -inset-4 rounded-full bg-primary/20 scale-110"></div>
+          <div class="absolute -inset-4 rounded-full scale-110 transition-all" :class="powerButtonHaloClass"></div>
           <button
             type="button"
-            class="relative size-24 bg-primary text-white rounded-full flex items-center justify-center shadow-lg shadow-primary/40 hover:bg-primary/90 transition-all"
+            :disabled="powerButtonDisabled"
+            :title="powerButtonTitle"
+            class="relative size-24 rounded-full border flex items-center justify-center transition-all disabled:cursor-not-allowed"
+            :class="powerButtonClass"
+            @click="toggleProxyPower"
           >
-            <span class="material-symbols-outlined text-4xl font-bold">power_settings_new</span>
+            <span
+              v-if="runActionLoading"
+              class="inline-block size-8 border-4 border-white/30 border-t-white rounded-full animate-spin"
+            ></span>
+            <span v-else class="material-symbols-outlined text-4xl font-bold">power_settings_new</span>
           </button>
         </div>
         <div class="text-center">
-          <p class="text-sm font-semibold text-slate-600 dark:text-slate-400">System Proxy Active</p>
-          <p class="text-xs text-slate-400 mt-1">Protecting 12 applications</p>
+          <p class="text-sm font-semibold text-slate-600 dark:text-slate-400">{{ proxyStatusTitle }}</p>
+          <p class="text-xs text-slate-400 mt-1">{{ runActionLoading ? powerButtonBusyText : proxyStatusSubtitle }}</p>
         </div>
       </div>
       <div class="mx-6 p-4 bg-slate-50 dark:bg-slate-800/50 rounded border border-slate-100 dark:border-slate-700">
         <div class="flex justify-between items-start mb-3">
           <p class="text-xs font-bold text-slate-500 uppercase">Network Status</p>
-          <span class="material-symbols-outlined text-primary text-sm">verified</span>
+          <span
+            v-if="certLoading"
+            class="inline-block size-4 border-2 border-slate-200 border-t-slate-400 rounded-full animate-spin"
+          ></span>
+          <span
+            v-else
+            class="material-symbols-outlined text-sm"
+            :class="networkStatusIconClass"
+          >{{ networkStatusIcon }}</span>
         </div>
-        <div class="space-y-2">
-          <div class="flex justify-between text-sm">
-            <span class="text-slate-500">Mode:</span>
-            <span class="font-medium text-slate-700 dark:text-slate-200">TUN/HTTP</span>
-          </div>
+          <div class="space-y-2">
+            <div class="flex justify-between text-sm">
+              <span class="text-slate-500">Mode:</span>
+              <span class="font-medium text-slate-700 dark:text-slate-200">{{ runModeLabel }}</span>
+            </div>
           <div class="flex justify-between text-sm">
             <span class="text-slate-500">Protocol:</span>
             <span class="font-medium text-slate-700 dark:text-slate-200">SOCKS5</span>
           </div>
           <div class="flex justify-between text-sm">
             <span class="text-slate-500">Certificate:</span>
-            <span class="font-medium text-primary">Installed</span>
+            <span class="font-medium" :class="certBadgeClass">{{ certBadgeText }}</span>
           </div>
         </div>
         <div class="grid grid-cols-2 gap-2 mt-4">
           <button
             type="button"
-            id="sidebarCertDetailsBtn"
             class="px-3 py-1.5 text-xs font-bold border border-slate-200 dark:border-slate-600 rounded hover:bg-white dark:hover:bg-slate-700 transition-colors"
-            @click.prevent
+            @click="openCertModal"
           >
             Details
           </button>
           <button
             type="button"
-            id="sidebarCertReinstallBtn"
             class="px-3 py-1.5 text-xs font-bold bg-primary/10 text-primary rounded hover:bg-primary/20 transition-colors"
-            @click.prevent
+            @click="handleReinstall"
           >
             Re-install
           </button>
@@ -96,13 +111,10 @@
           <button
             type="button"
             @click="emit('openQuickSetup')"
-            class="w-full flex items-center justify-between px-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded text-sm font-medium hover:border-primary transition-colors"
+            class="w-full flex items-center gap-3 px-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded text-sm font-medium hover:border-primary transition-colors"
           >
-            <div class="flex items-center gap-3">
-              <span class="material-symbols-outlined text-slate-400 text-lg">bolt</span>
-              Quick Setup
-            </div>
-            <span class="material-symbols-outlined text-slate-400 text-sm">arrow_forward_ios</span>
+            <span class="material-symbols-outlined text-slate-400 text-lg">bolt</span>
+            Quick Setup
           </button>
         </div>
         <button
@@ -115,8 +127,8 @@
         </button>
         <button
           type="button"
-          id="goToSettingsBtn"
           class="w-full flex items-center gap-3 px-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded text-sm font-medium hover:border-primary transition-colors"
+          @click="showSettings"
         >
           <span class="material-symbols-outlined text-slate-400 text-lg">settings</span>
           More Settings
@@ -153,7 +165,6 @@
           <div class="flex items-center gap-1">
             <button
               type="button"
-              id="headerSettingsBtn"
               class="size-10 flex items-center justify-center rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 transition-colors"
             >
               <span class="material-symbols-outlined">settings</span>
@@ -507,9 +518,14 @@
 </template>
 
 <script setup>
-import { computed, ref } from 'vue';
+import { computed, ref, onMounted, onUnmounted } from 'vue';
+import { useCertStatus } from '../composables/useCertStatus';
+import { useNavigation } from '../composables/useNavigation';
 
-const emit = defineEmits(['openQuickSetup']);
+const { certStatus, loading: certLoading, startPolling, stopPolling } = useCertStatus();
+const { currentPage, showSettings } = useNavigation();
+
+const emit = defineEmits(['openQuickSetup', 'openCertModal', 'startCertReinstall']);
 
 const requestFilter = ref('all');
 const pathSearch = ref('');
@@ -517,6 +533,15 @@ const isQuickChatOpen = ref(false);
 const quickChatInput = ref('');
 const isQuickChatSending = ref(false);
 const quickChatMessages = ref([]);
+const runMode = ref('unknown');
+const runIsRunning = ref(false);
+const runStatus = ref('');
+const runDescription = ref('');
+const runSyncError = ref('');
+const runActionLoading = ref(false);
+const runActionMessage = ref('');
+const startupStatus = ref('UNKNOWN');
+let runStatusTimer = null;
 
 function openQuickChat() {
   isQuickChatOpen.value = true;
@@ -525,6 +550,235 @@ function openQuickChat() {
 function closeQuickChat() {
   isQuickChatOpen.value = false;
 }
+
+function openCertModal() {
+  emit('openCertModal');
+}
+
+function handleReinstall() {
+  if (!confirm('确定要重新安装证书吗？\n将执行：移除旧证书 → 重新生成 → 安装到系统')) {
+    return;
+  }
+  emit('openCertModal');
+  setTimeout(() => emit('startCertReinstall'), 300);
+}
+
+const runModeLabel = computed(() => {
+  if (runMode.value === 'tun') return 'TUN';
+  if (runMode.value === 'http') return 'HTTP';
+  return 'Unknown';
+});
+
+const proxyStatusTitle = computed(() => {
+  if (runSyncError.value) return 'System Proxy Status Unknown';
+  if (runIsRunning.value) return 'System Proxy Active';
+  if (!canStartProxy.value) return 'System Proxy Not Ready';
+  return 'System Proxy Inactive';
+});
+
+const proxyStatusSubtitle = computed(() => {
+  if (runActionMessage.value) return runActionMessage.value;
+  if (runSyncError.value) return `Sync failed: ${runSyncError.value}`;
+  if (!canStartProxy.value) {
+    switch (startupStatus.value) {
+      case 'UNCONFIGURED':
+        return 'Disabled: no backend user session was found. Please log in or restore local user info first.';
+      case 'CONFIGURING':
+        return 'Disabled: account activation is still in progress. Please wait until the backend is ready.';
+      default:
+        return `Disabled: backend startup status is ${startupStatus.value}. Proxy start is blocked until it becomes ready.`;
+    }
+  }
+  if (runDescription.value) return runDescription.value;
+  if (runStatus.value) return runStatus.value;
+  return runIsRunning.value ? 'Service is running' : 'Service is stopped';
+});
+
+const powerButtonBusyText = computed(() => (runIsRunning.value ? 'Stopping proxy...' : 'Starting proxy...'));
+
+const canStartProxy = computed(() => startupStatus.value === 'READY' || startupStatus.value === 'CONFIGURED');
+
+const powerButtonTitle = computed(() => {
+  if (runActionLoading.value) return powerButtonBusyText.value;
+  if (powerButtonDisabled.value && !runIsRunning.value) return proxyStatusSubtitle.value;
+  return runIsRunning.value ? 'Stop proxy' : 'Start proxy';
+});
+
+const powerButtonHaloClass = computed(() => {
+  if (powerButtonDisabled.value && !runIsRunning.value) {
+    return 'bg-slate-300/50 dark:bg-slate-700/50';
+  }
+  if (runIsRunning.value) {
+    return 'bg-rose-500/20';
+  }
+  return 'bg-primary/20';
+});
+
+const powerButtonClass = computed(() => {
+  if (powerButtonDisabled.value && !runIsRunning.value) {
+    return 'border-slate-400 bg-slate-300 text-slate-500 shadow-none dark:border-slate-600 dark:bg-slate-700 dark:text-slate-400';
+  }
+  if (runIsRunning.value) {
+    return 'border-rose-400 bg-rose-500 text-white shadow-lg shadow-rose-500/40 hover:bg-rose-500/90';
+  }
+  return 'border-primary/70 bg-primary text-white shadow-lg shadow-primary/40 hover:bg-primary/90';
+});
+
+const powerButtonDisabled = computed(() => {
+  if (runActionLoading.value) return true;
+  if (runIsRunning.value) return false;
+  return !canStartProxy.value;
+});
+
+async function syncRunStatus() {
+  try {
+    const response = await fetch('/api/run/status');
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+    const payload = await response.json();
+    if (payload?.code !== 0) {
+      throw new Error(payload?.msg || 'Failed to sync run status');
+    }
+    const data = payload?.data || {};
+    const normalizedMode = String(data?.current_mode || '').toLowerCase();
+    runMode.value = normalizedMode === 'http' ? 'http' : normalizedMode === 'tun' ? 'tun' : 'unknown';
+    runIsRunning.value = Boolean(data?.is_running);
+    runStatus.value = typeof data?.status === 'string' ? data.status : '';
+    runDescription.value = typeof data?.description === 'string' ? data.description : '';
+    runSyncError.value = '';
+  } catch (error) {
+    runSyncError.value = error instanceof Error ? error.message : 'Unknown error';
+  }
+}
+
+async function syncStartupStatus() {
+  try {
+    const response = await fetch('/api/startup/status');
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+    const payload = await response.json();
+    if (payload?.code !== 0) {
+      throw new Error(payload?.msg || 'Failed to sync startup status');
+    }
+    const data = payload?.data || {};
+    startupStatus.value = typeof data?.status === 'string' ? data.status : 'UNKNOWN';
+  } catch (error) {
+    startupStatus.value = 'UNKNOWN';
+  }
+}
+
+async function toggleProxyPower() {
+  if (runActionLoading.value) return;
+  runActionLoading.value = true;
+  runActionMessage.value = '';
+  runSyncError.value = '';
+  try {
+    await syncStartupStatus();
+    if (!runIsRunning.value && !canStartProxy.value) {
+      throw new Error(proxyStatusSubtitle.value);
+    }
+    if (runMode.value === 'unknown') {
+      await syncRunStatus();
+    }
+    const endpoint = runIsRunning.value ? '/api/run/stop' : '/api/run/start';
+    const actionText = runIsRunning.value ? 'stop' : 'start';
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' }
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      const detail = payload?.msg || payload?.message || payload?.data?.status || `HTTP ${response.status}`;
+      throw new Error(`Failed to ${actionText} proxy: ${detail}`);
+    }
+    if (payload?.code !== 0) {
+      throw new Error(payload?.msg || payload?.message || `Failed to ${actionText} proxy`);
+    }
+    const data = payload?.data || {};
+    if (data?.status === 'failed') {
+      throw new Error(data?.msg || `Failed to ${actionText} proxy`);
+    }
+
+    runActionMessage.value = runIsRunning.value ? 'Proxy stopped successfully.' : 'Proxy start request sent successfully.';
+    await syncStartupStatus();
+    await syncRunStatus();
+  } catch (error) {
+    runSyncError.value = error instanceof Error ? error.message : 'Proxy action failed';
+  } finally {
+    runActionLoading.value = false;
+    if (runActionMessage.value) {
+      window.setTimeout(() => {
+        runActionMessage.value = '';
+      }, 2500);
+    }
+  }
+}
+
+const certOverallState = computed(() => {
+  const s = certStatus.value;
+  if (!s) return 'unknown';
+  if (s.is_trusted) return 'trusted';
+  if (s.is_installed) return 'installed';
+  if (s.is_exported) return 'exported';
+  return 'not_found';
+});
+
+const networkStatusIcon = computed(() => {
+  switch (certOverallState.value) {
+    case 'trusted': return 'verified';
+    case 'installed': return 'shield';
+    case 'exported': return 'upload_file';
+    case 'not_found': return 'error';
+    default: return 'help';
+  }
+});
+
+const networkStatusIconClass = computed(() => {
+  switch (certOverallState.value) {
+    case 'trusted': return 'text-emerald-500';
+    case 'installed': return 'text-blue-500';
+    case 'exported': return 'text-amber-500';
+    case 'not_found': return 'text-red-500';
+    default: return 'text-slate-400';
+  }
+});
+
+const certBadgeText = computed(() => {
+  switch (certOverallState.value) {
+    case 'trusted': return 'Trusted';
+    case 'installed': return 'Installed';
+    case 'exported': return 'Generated';
+    case 'not_found': return 'Not Found';
+    default: return 'Loading...';
+  }
+});
+
+const certBadgeClass = computed(() => {
+  switch (certOverallState.value) {
+    case 'trusted': return 'text-emerald-500';
+    case 'installed': return 'text-blue-500';
+    case 'exported': return 'text-amber-500';
+    case 'not_found': return 'text-red-500';
+    default: return 'text-slate-400';
+  }
+});
+
+onMounted(() => {
+  startPolling();
+  syncStartupStatus();
+  syncRunStatus();
+  runStatusTimer = window.setInterval(syncRunStatus, 10000);
+});
+
+onUnmounted(() => {
+  stopPolling();
+  if (runStatusTimer !== null) {
+    window.clearInterval(runStatusTimer);
+    runStatusTimer = null;
+  }
+});
 
 async function sendQuickChat() {
   const text = quickChatInput.value.trim();
@@ -679,5 +933,3 @@ function formatDuration(ms) {
   return `${Number(ms || 0)} ms`;
 }
 </script>
-
-

@@ -2,6 +2,7 @@ package routing
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 
 	"nursor.org/nursorgate/common/model"
@@ -267,37 +268,184 @@ func CompileRuntimeSnapshotFromLegacyConfig(cfg *model.RoutingRulesConfig) (*Run
 }
 
 func CompileRuntimeSnapshotFromRuntimeInputs(cfg *config.Config, switches model.RulesSettings) (*RuntimeSnapshot, error) {
-	legacy := model.NewRoutingRulesConfig()
-	legacy.Settings.AliangEnabled = switches.AliangEnabled
-	legacy.Settings.SocksEnabled = switches.SocksEnabled
-	legacy.Settings.GeoIPEnabled = switches.GeoIPEnabled
-
-	if cfg != nil {
-		legacy.Aliang.Rules = make([]model.RoutingRule, 0, len(cfg.SNIAllowlist))
-		for i, domain := range cfg.SNIAllowlist {
-			normalizedDomain := strings.ToLower(strings.TrimSpace(domain))
-			if normalizedDomain == "" {
-				continue
-			}
-			legacy.Aliang.Rules = append(legacy.Aliang.Rules, model.RoutingRule{
-				ID:        fmt.Sprintf("aliang_allowlist_%d", i),
-				Type:      model.RuleTypeDomain,
-				Condition: normalizedDomain,
-				Enabled:   true,
-			})
-		}
-		legacy.Aliang.Count = len(legacy.Aliang.Rules)
-		legacy.Settings.SocksEnabled = switches.SocksEnabled && cfg.SocksProxy != nil
-	}
-
-	snapshot, err := CompileRuntimeSnapshotFromLegacyConfig(legacy)
+	canonical, err := compileCanonicalRoutingFromRuntimeInputs(cfg, switches)
 	if err != nil {
 		return nil, err
 	}
 
-	if legacy.Settings.SocksEnabled {
-		snapshot.defaultAction = SnapshotActionToSocks
+	return CompileRuntimeSnapshot(canonical)
+}
+
+func compileCanonicalRoutingFromRuntimeInputs(cfg *config.Config, switches model.RulesSettings) (*config.CanonicalRoutingSchema, error) {
+	canonical := &config.CanonicalRoutingSchema{
+		Version: config.CanonicalRoutingSchemaVersion,
+		Ingress: config.CanonicalIngressConfig{Mode: "tun"},
+		Egress: config.CanonicalEgressConfig{
+			Direct:   config.CanonicalEgressBranch{Enabled: true},
+			ToAliang: config.CanonicalEgressBranch{Enabled: switches.AliangEnabled},
+			ToSocks:  config.CanonicalSocksEgressBranch{Enabled: false},
+		},
+		Routing: config.CanonicalRoutingConfig{Rules: []config.CanonicalRoutingRule{}},
 	}
 
-	return snapshot, nil
+	aiDomains := collectAIDomains(cfg)
+	proxyRuleDomains := collectProxyRuleDomains(cfg)
+
+	upstreamType, hasToSocks := resolveToSocksUpstreamType(cfg)
+	canonical.Egress.ToSocks.Enabled = switches.SocksEnabled && hasToSocks
+	if canonical.Egress.ToSocks.Enabled {
+		canonical.Egress.ToSocks.Upstream.Type = upstreamType
+	}
+
+	rules := make([]config.CanonicalRoutingRule, 0, len(aiDomains)+len(proxyRuleDomains))
+	for i, domain := range aiDomains {
+		rules = append(rules, config.CanonicalRoutingRule{
+			ID:        fmt.Sprintf("ai_allowlist_%d", i),
+			Type:      string(model.RuleTypeDomain),
+			Condition: domain,
+			Enabled:   true,
+			Target:    string(SnapshotActionToAliang),
+		})
+	}
+
+	for i, domain := range proxyRuleDomains {
+		rules = append(rules, config.CanonicalRoutingRule{
+			ID:        fmt.Sprintf("proxy_rule_%d", i),
+			Type:      string(model.RuleTypeDomain),
+			Condition: domain,
+			Enabled:   true,
+			Target:    string(SnapshotActionToSocks),
+		})
+	}
+	canonical.Routing.Rules = rules
+
+	if canonical.Egress.ToSocks.Enabled {
+		canonical.Routing.DefaultEgress = string(SnapshotActionToSocks)
+	} else {
+		canonical.Routing.DefaultEgress = string(SnapshotActionDirect)
+	}
+
+	if err := canonical.Validate(); err != nil {
+		return nil, fmt.Errorf("compile runtime canonical routing failed: %w", err)
+	}
+
+	return canonical, nil
+}
+
+func collectAIDomains(cfg *config.Config) []string {
+	if cfg == nil {
+		return nil
+	}
+
+	domains := make([]string, 0)
+	if cfg.Customer != nil && len(cfg.Customer.AIRules) > 0 {
+		providers := make([]string, 0, len(cfg.Customer.AIRules))
+		for provider := range cfg.Customer.AIRules {
+			providers = append(providers, provider)
+		}
+		sort.Strings(providers)
+
+		for _, provider := range providers {
+			rule := cfg.Customer.AIRules[provider]
+			if rule == nil || rule.Enable == nil || !*rule.Enable {
+				continue
+			}
+			domains = append(domains, rule.Exclude...)
+		}
+	}
+
+	domains = append(domains, cfg.SNIAllowlist...)
+	return dedupeNormalizedDomains(domains)
+}
+
+func collectProxyRuleDomains(cfg *config.Config) []string {
+	if cfg == nil || cfg.Customer == nil {
+		return nil
+	}
+
+	pr := cfg.Customer.ProxyRules
+	if pr == nil || !pr.Enabled {
+		return nil
+	}
+
+	domains := make([]string, 0, len(pr.Rules))
+	for _, rawRule := range pr.Rules {
+		domain, ok := parseProxyRuleDomain(rawRule)
+		if !ok {
+			continue
+		}
+		domains = append(domains, domain)
+	}
+	return dedupeNormalizedDomains(domains)
+}
+
+func parseProxyRuleDomain(rawRule string) (string, bool) {
+	rule := strings.TrimSpace(rawRule)
+	if rule == "" {
+		return "", false
+	}
+
+	parts := strings.Split(rule, ",")
+	if len(parts) == 1 {
+		normalized := strings.ToLower(strings.TrimSpace(parts[0]))
+		return normalized, normalized != ""
+	}
+
+	for i := range parts {
+		parts[i] = strings.TrimSpace(parts[i])
+	}
+	if len(parts) < 2 {
+		return "", false
+	}
+
+	first := strings.ToLower(parts[0])
+	if first == "domain" || first == "domains" {
+		normalized := strings.ToLower(parts[1])
+		return normalized, normalized != ""
+	}
+
+	normalized := strings.ToLower(parts[len(parts)-1])
+	if strings.EqualFold(normalized, "proxy") && len(parts) >= 2 {
+		normalized = strings.ToLower(parts[len(parts)-2])
+	}
+	return normalized, normalized != ""
+}
+
+func resolveToSocksUpstreamType(cfg *config.Config) (string, bool) {
+	if cfg != nil && cfg.Customer != nil && cfg.Customer.Proxy != nil {
+		proxyType := strings.ToLower(strings.TrimSpace(cfg.Customer.Proxy.Type))
+		switch proxyType {
+		case "http":
+			return "http", true
+		case "socks":
+			return "socks", true
+		}
+	}
+
+	if cfg != nil && cfg.SocksProxy != nil {
+		return "socks", true
+	}
+
+	return "", false
+}
+
+func dedupeNormalizedDomains(in []string) []string {
+	if len(in) == 0 {
+		return nil
+	}
+
+	seen := make(map[string]struct{}, len(in))
+	out := make([]string, 0, len(in))
+	for _, raw := range in {
+		normalized := strings.ToLower(strings.TrimSpace(raw))
+		if normalized == "" {
+			continue
+		}
+		if _, exists := seen[normalized]; exists {
+			continue
+		}
+		seen[normalized] = struct{}{}
+		out = append(out, normalized)
+	}
+	return out
 }

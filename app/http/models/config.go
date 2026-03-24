@@ -135,6 +135,22 @@ func (SoftwareConfigOperationLog) TableName() string {
 	return "software_config_operation_logs"
 }
 
+type SoftwareEffectiveConfigSnapshot struct {
+	ID             uint      `json:"id" gorm:"primaryKey;autoIncrement"`
+	Software       string    `json:"software" gorm:"type:varchar(128);not null;index"`
+	ConfigUUID     string    `json:"config_uuid" gorm:"type:varchar(64);index"`
+	ConfigName     string    `json:"config_name" gorm:"type:varchar(255)"`
+	ConfigFilePath string    `json:"config_file_path" gorm:"type:text"`
+	ConfigVersion  string    `json:"config_version" gorm:"type:varchar(128)"`
+	ConfigFormat   string    `json:"config_format" gorm:"type:varchar(16)"`
+	SnapshotJSON   string    `json:"snapshot_json" gorm:"type:text;not null"`
+	CreatedAt      time.Time `json:"created_at" gorm:"autoCreateTime;index"`
+}
+
+func (SoftwareEffectiveConfigSnapshot) TableName() string {
+	return "software_effective_config_snapshots"
+}
+
 type LogSoftwareConfigOperationRequest struct {
 	Action     string `json:"action"`
 	Software   string `json:"software"`

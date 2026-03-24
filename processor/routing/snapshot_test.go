@@ -8,6 +8,95 @@ import (
 	"nursor.org/nursorgate/processor/config"
 )
 
+<<<<<<< HEAD
+=======
+func boolPtr(v bool) *bool { return &v }
+
+func TestCompileRuntimeSnapshotFromRuntimeInputs_AIRulesPrecedeProxyRules(t *testing.T) {
+	cfg := &config.Config{
+		Customer: &config.CustomerConfig{
+			Proxy: &config.CustomerProxyConfig{Type: "socks"},
+			AIRules: map[string]*config.CustomerAIRuleSetting{
+				"openai": {
+					Enable:  boolPtr(true),
+					Exclude: []string{"api.openai.com"},
+				},
+			},
+			ProxyRules: &config.CustomerProxyRulesConfig{Enabled: true, Rules: []string{"domain,api.openai.com,proxy"}},
+		},
+	}
+
+	snapshot, err := CompileRuntimeSnapshotFromRuntimeInputs(cfg, model.RulesSettings{AliangEnabled: true, SocksEnabled: true})
+	if err != nil {
+		t.Fatalf("CompileRuntimeSnapshotFromRuntimeInputs() error = %v", err)
+	}
+
+	decision, err := DecideRouteFromSnapshot(snapshot, &MatchContext{Domain: "api.openai.com", IP: "1.1.1.1"})
+	if err != nil {
+		t.Fatalf("DecideRouteFromSnapshot() error = %v", err)
+	}
+	if decision != RouteToAliang {
+		t.Fatalf("decision = %s, want %s", decision, RouteToAliang)
+	}
+}
+
+func TestCompileRuntimeSnapshotFromRuntimeInputs_NonAIRulesMatchProxyRules(t *testing.T) {
+	cfg := &config.Config{
+		Customer: &config.CustomerConfig{
+			Proxy:      &config.CustomerProxyConfig{Type: "socks"},
+			AIRules:    map[string]*config.CustomerAIRuleSetting{},
+			ProxyRules: &config.CustomerProxyRulesConfig{Enabled: true, Rules: []string{"domain,cursor.com,proxy"}},
+		},
+	}
+
+	snapshot, err := CompileRuntimeSnapshotFromRuntimeInputs(cfg, model.RulesSettings{AliangEnabled: true, SocksEnabled: true})
+	if err != nil {
+		t.Fatalf("CompileRuntimeSnapshotFromRuntimeInputs() error = %v", err)
+	}
+
+	decision, err := DecideRouteFromSnapshot(snapshot, &MatchContext{Domain: "cursor.com", IP: "8.8.8.8"})
+	if err != nil {
+		t.Fatalf("DecideRouteFromSnapshot() error = %v", err)
+	}
+	if decision != RouteToSocks {
+		t.Fatalf("decision = %s, want %s", decision, RouteToSocks)
+	}
+}
+
+func TestCompileRuntimeSnapshotFromRuntimeInputs_ProxyTypeMapsToToSocksUpstreamType(t *testing.T) {
+	tests := []struct {
+		name          string
+		proxyType     string
+		wantUpstream  string
+		socksEnabled  bool
+		wantToSocksOn bool
+	}{
+		{name: "customer proxy http maps to http upstream", proxyType: "http", wantUpstream: "http", socksEnabled: true, wantToSocksOn: true},
+		{name: "customer proxy socks maps to socks upstream", proxyType: "socks", wantUpstream: "socks", socksEnabled: true, wantToSocksOn: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			canonical, err := compileCanonicalRoutingFromRuntimeInputs(&config.Config{
+				Customer: &config.CustomerConfig{
+					Proxy: &config.CustomerProxyConfig{Type: tt.proxyType},
+				},
+			}, model.RulesSettings{AliangEnabled: true, SocksEnabled: tt.socksEnabled})
+			if err != nil {
+				t.Fatalf("compileCanonicalRoutingFromRuntimeInputs() error = %v", err)
+			}
+
+			if canonical.Egress.ToSocks.Enabled != tt.wantToSocksOn {
+				t.Fatalf("toSocks.enabled = %v, want %v", canonical.Egress.ToSocks.Enabled, tt.wantToSocksOn)
+			}
+			if canonical.Egress.ToSocks.Upstream.Type != tt.wantUpstream {
+				t.Fatalf("toSocks.upstream.type = %q, want %q", canonical.Egress.ToSocks.Upstream.Type, tt.wantUpstream)
+			}
+		})
+	}
+}
+
+>>>>>>> opencode/hidden-wizard
 func TestSnapshotCompile_DisabledTargetDeny(t *testing.T) {
 	snapshot := NewRuntimeSnapshotForDecision(
 		NewSnapshotBranchCapabilities(true, false, true),
