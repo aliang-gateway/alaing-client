@@ -3,8 +3,6 @@ async function loadRulesData() {
         const statusData = await apiGet('/rules/engine/status');
 
         const isEnabled = statusData.engineEnabled || false;
-        const geoipEnabled = statusData.geoipEnabled || false;
-
         appState.ruleEngineStatus.isEnabled = isEnabled;
         appState.ruleEngineStatus.lastUpdated = Date.now();
 
@@ -95,33 +93,47 @@ async function loadRoutingConfig() {
     try {
         const config = await apiGet('/config/routing');
         if (config) {
-            populateRulesUI(config);
+            populateRulesUI(toCanonicalRoutingConfig(config));
         }
     } catch (error) {
         console.error('加载路由配置失败:', error);
-        populateRulesUI({
-            to_door: { rules: [] },
-            black_list: { rules: [] },
-            none_lane: { rules: [] },
-            settings: { geoip_enabled: false, none_lane_enabled: false }
-        });
+        populateRulesUI(buildDefaultCanonicalRoutingConfig());
     }
+}
+
+function buildDefaultCanonicalRoutingConfig() {
+    return {
+        version: 1,
+        ingress: { mode: 'tun' },
+        egress: {
+            direct: { enabled: true },
+            toAliang: { enabled: false },
+            toSocks: { enabled: false, upstream: { type: 'socks' } }
+        },
+        routing: { rules: [] }
+    };
+}
+
+function toCanonicalRoutingConfig(config) {
+    if (config?.ingress && config?.egress && Array.isArray(config?.routing?.rules)) {
+        return config;
+    }
+    return buildDefaultCanonicalRoutingConfig();
+}
+
+function rulesByTarget(config, target) {
+    return (config?.routing?.rules || []).filter(rule => rule.target === target);
 }
 
 function populateRulesUI(config) {
     const geoipSwitch = document.getElementById('geoipEnabledSwitch');
-    const nonelaneSwitch = document.getElementById('nonelaneEnabledSwitch');
 
     if (geoipSwitch) {
-        geoipSwitch.checked = config.settings?.geoip_enabled || false;
-    }
-    if (nonelaneSwitch) {
-        nonelaneSwitch.checked = config.settings?.none_lane_enabled || false;
+        geoipSwitch.checked = false;
     }
 
-    populateRuleTable('toDoorRulesBody', config.to_door?.rules || [], 'to_door');
-    populateRuleTable('blacklistRulesBody', config.black_list?.rules || [], 'black_list');
-    populateRuleTable('nonelaneRulesBody', config.none_lane?.rules || [], 'none_lane');
+    populateRuleTable('rulesTableBody', rulesByTarget(config, 'toSocks'), 'toSocks');
+    populateRuleTable('rulesTableBody', rulesByTarget(config, 'toAliang'), 'toAliang');
 
     appState.routingConfig = config;
 }
@@ -135,7 +147,7 @@ function populateRuleTable(tableBodyId, rules, ruleSet) {
         return;
     }
 
-    tbody.innerHTML = rules.map((rule, index) => {
+    tbody.innerHTML = rules.map((rule) => {
         const typeText = getTypeText(rule.type);
         const enabledChecked = rule.enabled ? 'checked' : '';
 
@@ -163,10 +175,10 @@ function populateRuleTable(tableBodyId, rules, ruleSet) {
         `;
     }).join('');
 
-    bindRuleTableEvents(tbody, ruleSet);
+    bindRuleTableEvents(tbody);
 }
 
-function bindRuleTableEvents(tbody, ruleSet) {
+function bindRuleTableEvents(tbody) {
     tbody.querySelectorAll('.rule-toggle').forEach(toggle => {
         toggle.addEventListener('change', async (e) => {
             const ruleId = e.target.dataset.ruleId;
@@ -237,13 +249,7 @@ function editRule(ruleId, ruleSet) {
     }
 
     let rule = null;
-    const ruleSetMap = {
-        'to_door': config.to_door?.rules || [],
-        'black_list': config.black_list?.rules || [],
-        'none_lane': config.none_lane?.rules || []
-    };
-
-    const rules = ruleSetMap[ruleSet];
+    const rules = rulesByTarget(config, ruleSet);
     if (rules) {
         rule = rules.find(r => r.id === ruleId);
     }
@@ -277,16 +283,12 @@ async function deleteRule(ruleId, ruleSet) {
             return;
         }
 
-        const ruleSetMap = {
-            'to_door': config.to_door,
-            'black_list': config.black_list,
-            'none_lane': config.none_lane
-        };
-
-        const targetSet = ruleSetMap[ruleSet];
-        if (targetSet && targetSet.rules) {
-            targetSet.rules = targetSet.rules.filter(r => r.id !== ruleId);
-        }
+        config.routing.rules = (config.routing.rules || []).filter(rule => {
+            if (rule.id !== ruleId) {
+                return true;
+            }
+            return rule.target !== ruleSet;
+        });
 
         await apiPost('/config/routing', config);
         showSuccess('规则已删除');
@@ -372,32 +374,21 @@ async function saveRuleFromModal() {
             type: type,
             condition: condition,
             enabled: enabled,
-            created_at: new Date().toISOString()
+            target: ruleSet
         };
 
-        const ruleSetMap = {
-            'to_door': config.to_door,
-            'black_list': config.black_list,
-            'none_lane': config.none_lane
-        };
-
-        const targetSet = ruleSetMap[ruleSet];
-        if (!targetSet) {
-            showError('规则集未找到');
-            return;
-        }
-
-        if (!targetSet.rules) {
-            targetSet.rules = [];
+        if (!Array.isArray(config.routing?.rules)) {
+            config.routing = config.routing || {};
+            config.routing.rules = [];
         }
 
         if (ruleId) {
-            const index = targetSet.rules.findIndex(r => r.id === ruleId);
+            const index = config.routing.rules.findIndex(r => r.id === ruleId && r.target === ruleSet);
             if (index !== -1) {
-                targetSet.rules[index] = rule;
+                config.routing.rules[index] = rule;
             }
         } else {
-            targetSet.rules.push(rule);
+            config.routing.rules.push(rule);
         }
 
         await apiPost('/config/routing', config);
@@ -433,12 +424,10 @@ async function saveGlobalRoutingConfig() {
             return;
         }
 
-        if (!config.settings) {
-            config.settings = {};
-        }
-
-        config.settings.geoip_enabled = document.getElementById('geoipEnabledSwitch').checked;
-        config.settings.none_lane_enabled = document.getElementById('nonelaneEnabledSwitch').checked;
+        config.egress = config.egress || {};
+        config.egress.direct = config.egress.direct || { enabled: true };
+        config.egress.toSocks = config.egress.toSocks || { enabled: false, upstream: { type: 'socks' } };
+        config.egress.toAliang = config.egress.toAliang || { enabled: false };
 
         await apiPost('/config/routing', config);
         showSuccess('配置已保存');
@@ -450,20 +439,6 @@ async function saveGlobalRoutingConfig() {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-    const addToDoorBtn = document.getElementById('addToDoorRuleBtn');
-    const addBlacklistBtn = document.getElementById('addBlacklistRuleBtn');
-    const addNonelaneBtn = document.getElementById('addNonelaneRuleBtn');
-
-    if (addToDoorBtn) {
-        addToDoorBtn.addEventListener('click', () => addRule('to_door'));
-    }
-    if (addBlacklistBtn) {
-        addBlacklistBtn.addEventListener('click', () => addRule('black_list'));
-    }
-    if (addNonelaneBtn) {
-        addNonelaneBtn.addEventListener('click', () => addRule('none_lane'));
-    }
-
     const ruleEditSaveBtn = document.getElementById('ruleEditSaveBtn');
     if (ruleEditSaveBtn) {
         ruleEditSaveBtn.addEventListener('click', saveRuleFromModal);
@@ -481,7 +456,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 });
 
-document.getElementById('rulesEnableBtn').addEventListener('click', (event) => {
+document.getElementById('rulesEnableBtn')?.addEventListener('click', (event) => {
     const btn = event.target.closest('button');
     showLoading(btn);
     apiPost('/rules/engine/enable')
@@ -497,7 +472,7 @@ document.getElementById('rulesEnableBtn').addEventListener('click', (event) => {
         });
 });
 
-document.getElementById('rulesDisableBtn').addEventListener('click', (event) => {
+document.getElementById('rulesDisableBtn')?.addEventListener('click', (event) => {
     const btn = event.target.closest('button');
     showLoading(btn);
     apiPost('/rules/engine/disable')
@@ -513,14 +488,14 @@ document.getElementById('rulesDisableBtn').addEventListener('click', (event) => 
         });
 });
 
-document.getElementById('rulesReloadBtn').addEventListener('click', (event) => {
+document.getElementById('rulesReloadBtn')?.addEventListener('click', (event) => {
     const btn = event.target.closest('button');
     showLoading(btn);
     showError('重新加载功能暂未实现');
     hideLoading(btn);
 });
 
-document.getElementById('rulesClearCacheBtn').addEventListener('click', (event) => {
+document.getElementById('rulesClearCacheBtn')?.addEventListener('click', (event) => {
     const btn = event.target.closest('button');
     showLoading(btn);
     apiPost('/rules/cache/clear')
@@ -536,7 +511,7 @@ document.getElementById('rulesClearCacheBtn').addEventListener('click', (event) 
         });
 });
 
-document.getElementById('rulesLookupBtn').addEventListener('click', (event) => {
+document.getElementById('rulesLookupBtn')?.addEventListener('click', (event) => {
     const btn = event.target.closest('button');
     const ip = document.getElementById('rulesLookupDomain').value.trim();
 

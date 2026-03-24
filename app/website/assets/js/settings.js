@@ -1,4 +1,10 @@
-document.addEventListener('DOMContentLoaded', () => {
+let settingsBindingsApplied = false;
+
+function applySettingsBindings() {
+    if (settingsBindingsApplied) {
+        return;
+    }
+
     const dashboardPage = document.getElementById('dashboard-page');
     const settingsPage = document.getElementById('settings-page');
     const goToSettingsBtn = document.getElementById('goToSettingsBtn');
@@ -30,12 +36,14 @@ document.addEventListener('DOMContentLoaded', () => {
         dashboardPage.classList.add('active');
     };
 
-    if (dashboardPage && settingsPage) {
-        appState.currentPage = 'dashboard';
-        dashboardPage.classList.add('active');
-        dashboardPage.classList.remove('hidden');
-        settingsPage.classList.add('hidden');
+    if (!dashboardPage || !settingsPage) {
+        return;
     }
+
+    appState.currentPage = 'dashboard';
+    dashboardPage.classList.add('active');
+    dashboardPage.classList.remove('hidden');
+    settingsPage.classList.add('hidden');
 
     if (goToSettingsBtn) {
         goToSettingsBtn.addEventListener('click', showSettingsPage);
@@ -134,4 +142,9 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
     }
-});
+
+    settingsBindingsApplied = true;
+}
+
+document.addEventListener('DOMContentLoaded', applySettingsBindings);
+window.addEventListener('app:mounted', applySettingsBindings);

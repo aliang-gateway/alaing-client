@@ -93,14 +93,14 @@ func isValidCountryCode(code string) bool {
 type SetType string
 
 const (
-	SetTypeToSocks   SetType = "to_socks"   // SOCKS proxy rules
-	SetTypeBlacklist SetType = "black_list" // Blacklist rules (reserved)
-	SetTypeAliang    SetType = "aliang"     // Aliang rules
+	SetTypeToSocks SetType = "to_socks"
+	SetTypeDirect  SetType = "direct"
+	SetTypeAliang  SetType = "aliang"
 )
 
 // RoutingRuleSet represents a collection of routing rules
 type RoutingRuleSet struct {
-	SetType   SetType       `json:"set_type" validate:"required,oneof=to_socks black_list aliang"`
+	SetType   SetType       `json:"set_type" validate:"required,oneof=to_socks direct aliang"`
 	Rules     []RoutingRule `json:"rules" validate:"dive"`
 	Count     int           `json:"count" validate:"min=0,max=10000"`
 	UpdatedAt time.Time     `json:"updated_at"`
@@ -109,7 +109,7 @@ type RoutingRuleSet struct {
 // Validate validates the RoutingRuleSet
 func (rs *RoutingRuleSet) Validate() error {
 	// SetType validation
-	if rs.SetType != SetTypeToSocks && rs.SetType != SetTypeBlacklist && rs.SetType != SetTypeAliang {
+	if rs.SetType != SetTypeToSocks && rs.SetType != SetTypeDirect && rs.SetType != SetTypeAliang {
 		return errors.New("invalid set type")
 	}
 
@@ -150,7 +150,7 @@ func (s *RulesSettings) Validate() error {
 // RoutingRulesConfig represents the complete routing configuration
 type RoutingRulesConfig struct {
 	ToSocks   RoutingRuleSet `json:"to_socks" validate:"required,dive"`
-	BlackList RoutingRuleSet `json:"black_list" validate:"required,dive"`
+	Direct    RoutingRuleSet `json:"direct" validate:"required,dive"`
 	Aliang    RoutingRuleSet `json:"aliang" validate:"required,dive"`
 	Settings  RulesSettings  `json:"settings" validate:"required"`
 	Version   int            `json:"version" validate:"min=1"`
@@ -164,8 +164,8 @@ func (rc *RoutingRulesConfig) Validate() error {
 	if err := rc.ToSocks.Validate(); err != nil {
 		return fmt.Errorf("to_socks validation failed: %v", err)
 	}
-	if err := rc.BlackList.Validate(); err != nil {
-		return fmt.Errorf("black_list validation failed: %v", err)
+	if err := rc.Direct.Validate(); err != nil {
+		return fmt.Errorf("direct validation failed: %v", err)
 	}
 	if err := rc.Aliang.Validate(); err != nil {
 		return fmt.Errorf("aliang validation failed: %v", err)
@@ -199,8 +199,8 @@ func NewRoutingRulesConfig() *RoutingRulesConfig {
 			Count:     0,
 			UpdatedAt: now,
 		},
-		BlackList: RoutingRuleSet{
-			SetType:   SetTypeBlacklist,
+		Direct: RoutingRuleSet{
+			SetType:   SetTypeDirect,
 			Rules:     []RoutingRule{},
 			Count:     0,
 			UpdatedAt: now,

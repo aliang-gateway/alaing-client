@@ -2,6 +2,7 @@ package tcp
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"net/netip"
@@ -11,9 +12,64 @@ import (
 	"nursor.org/nursorgate/inbound/tun/dialer"
 	M "nursor.org/nursorgate/inbound/tun/metadata"
 	"nursor.org/nursorgate/outbound"
+	outboundproxy "nursor.org/nursorgate/outbound/proxy"
+	"nursor.org/nursorgate/processor/config"
 	"nursor.org/nursorgate/processor/rules"
 	"nursor.org/nursorgate/processor/statistic"
 )
+
+const (
+	DenyReasonToAliangDisabled     = "toAliang_disabled"
+	DenyReasonToAliangUnavailable  = "toAliang_unavailable"
+	DenyReasonToSocksDisabled      = "toSocks_disabled"
+	DenyReasonToSocksMisconfigured = "toSocks_misconfigured"
+	DenyReasonToSocksUnavailable   = "toSocks_unavailable"
+	DenyReasonToSocksUnsupported   = "toSocks_unsupported_upstream_type"
+	toSocksUpstreamTypeSocks       = "socks"
+	toSocksUpstreamTypeHTTP        = "http"
+	toSocksBranchName              = "toSocks"
+	toAliangBranchName             = "toAliang"
+)
+
+type BranchDenyError struct {
+	Branch string
+	Reason string
+	Cause  error
+}
+
+func (e *BranchDenyError) Error() string {
+	if e == nil {
+		return "route denied"
+	}
+	if e.Cause == nil {
+		return fmt.Sprintf("route denied: branch=%s reason=%s", e.Branch, e.Reason)
+	}
+	return fmt.Sprintf("route denied: branch=%s reason=%s: %v", e.Branch, e.Reason, e.Cause)
+}
+
+func (e *BranchDenyError) Unwrap() error {
+	if e == nil {
+		return nil
+	}
+	return e.Cause
+}
+
+func newBranchDenyError(branch, reason string, cause error) error {
+	return &BranchDenyError{Branch: branch, Reason: reason, Cause: cause}
+}
+
+func IsBranchDenyError(err error) bool {
+	var denyErr *BranchDenyError
+	return errors.As(err, &denyErr)
+}
+
+func BranchDenyReason(err error) string {
+	var denyErr *BranchDenyError
+	if errors.As(err, &denyErr) {
+		return denyErr.Reason
+	}
+	return ""
+}
 
 // parseNetIPAddr converts a string IP to netip.Addr
 func parseNetIPAddr(ipStr string) (netip.Addr, error) {
@@ -238,6 +294,11 @@ func (h *TCPConnectionHandler) handleTLS(
 		// Store route decision in metadata for caching
 		metadata.Route = "RouteToCursor"
 
+		aliangProxy, err := h.getAliangProxyForExecution()
+		if err != nil {
+			return nil, nil, err
+		}
+
 		// MITM proxy route (Cursor/Aliang)
 		// Extract SNI for MITM if we have it
 		mitmedSNI := sni
@@ -252,11 +313,6 @@ func (h *TCPConnectionHandler) handleTLS(
 		}
 
 		// Connect through Aliang proxy
-		aliangProxy, err := outbound.GetRegistry().GetAliang()
-		if err != nil {
-			return nil, nil, err
-		}
-
 		remote, err := aliangProxy.DialContext(ctx, metadata)
 		if err != nil {
 			return nil, nil, err
@@ -268,17 +324,11 @@ func (h *TCPConnectionHandler) handleTLS(
 		// Store route decision in metadata for caching
 		metadata.Route = "RouteToSocks"
 
-		// Route through SOCKS proxy if configured, else fall back to direct
-		socksProxy, err := outbound.GetRegistry().Get("socks")
+		socksProxy, upstreamType, err := h.getToSocksProxyForExecution()
 		if err != nil {
-			logger.Warn(fmt.Sprintf("SOCKS proxy not configured, falling back to direct: %v", err))
-			metadata.Route = "RouteDirect"
-			remote, err := h.dialDirect(ctx, metadata)
-			if err != nil {
-				return nil, nil, err
-			}
-			return remote, wrapped, nil
+			return nil, nil, err
 		}
+		logger.Debug(fmt.Sprintf("toSocks execution using upstream type: %s", upstreamType))
 
 		remote, err := socksProxy.DialContext(ctx, metadata)
 		if err != nil {
@@ -313,14 +363,64 @@ func (h *TCPConnectionHandler) dialDirect(ctx context.Context, metadata *M.Metad
 	return conn, nil
 }
 
-// dialViaSocksOrDirect routes traffic through SOCKS if available, otherwise direct.
 func (h *TCPConnectionHandler) dialViaSocksOrDirect(ctx context.Context, metadata *M.Metadata) (net.Conn, error) {
-	socksProxy, err := outbound.GetRegistry().Get("socks")
-	if err == nil {
-		metadata.Route = "RouteToSocks"
-		return socksProxy.DialContext(ctx, metadata)
+	socksProxy, upstreamType, err := h.getToSocksProxyForExecution()
+	if err != nil {
+		return nil, err
+	}
+	logger.Debug(fmt.Sprintf("toSocks execution using upstream type: %s", upstreamType))
+
+	metadata.Route = "RouteToSocks"
+	return socksProxy.DialContext(ctx, metadata)
+}
+
+func (h *TCPConnectionHandler) getAliangProxyForExecution() (outboundproxy.Proxy, error) {
+	canonical := config.GetRoutingApplyStore().ActiveCanonicalSchema()
+	if canonical != nil && !canonical.Egress.ToAliang.Enabled {
+		return nil, newBranchDenyError(toAliangBranchName, DenyReasonToAliangDisabled, nil)
 	}
 
-	metadata.Route = "RouteDirect"
-	return h.dialDirect(ctx, metadata)
+	aliangProxy, err := outbound.GetRegistry().GetAliang()
+	if err != nil {
+		return nil, newBranchDenyError(toAliangBranchName, DenyReasonToAliangUnavailable, err)
+	}
+
+	return aliangProxy, nil
+}
+
+func (h *TCPConnectionHandler) getToSocksProxyForExecution() (outboundproxy.Proxy, string, error) {
+	canonical := config.GetRoutingApplyStore().ActiveCanonicalSchema()
+	upstreamType := toSocksUpstreamTypeSocks
+
+	if canonical != nil {
+		if !canonical.Egress.ToSocks.Enabled {
+			return nil, "", newBranchDenyError(toSocksBranchName, DenyReasonToSocksDisabled, nil)
+		}
+
+		upstreamType = canonical.Egress.ToSocks.Upstream.Type
+		if upstreamType == "" {
+			return nil, "", newBranchDenyError(toSocksBranchName, DenyReasonToSocksMisconfigured, nil)
+		}
+	}
+
+	proxyName := ""
+	switch upstreamType {
+	case toSocksUpstreamTypeSocks:
+		proxyName = "socks"
+	case toSocksUpstreamTypeHTTP:
+		proxyName = "http"
+	default:
+		return nil, "", newBranchDenyError(
+			toSocksBranchName,
+			DenyReasonToSocksUnsupported,
+			fmt.Errorf("upstream.type=%s", upstreamType),
+		)
+	}
+
+	socksProxy, err := outbound.GetRegistry().Get(proxyName)
+	if err != nil {
+		return nil, "", newBranchDenyError(toSocksBranchName, DenyReasonToSocksUnavailable, err)
+	}
+
+	return socksProxy, upstreamType, nil
 }

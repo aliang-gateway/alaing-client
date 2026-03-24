@@ -63,7 +63,7 @@ func openSoftwareConfigDB(dbPath string) (*gorm.DB, error) {
 		return nil, fmt.Errorf("failed to open sqlite database: %w", err)
 	}
 
-	if err := db.AutoMigrate(&models.SoftwareConfig{}, &models.SoftwareConfigOperationLog{}); err != nil {
+	if err := db.AutoMigrate(&models.SoftwareConfig{}, &models.SoftwareConfigOperationLog{}, &models.SoftwareEffectiveConfigSnapshot{}); err != nil {
 		return nil, fmt.Errorf("failed to migrate software_configs table: %w", err)
 	}
 
@@ -213,6 +213,25 @@ func (s *SoftwareConfigStore) SaveOperationLog(log models.SoftwareConfigOperatio
 		return err
 	}
 	return s.db.Create(&log).Error
+}
+
+func (s *SoftwareConfigStore) SaveEffectiveConfigSnapshot(snapshot models.SoftwareEffectiveConfigSnapshot) error {
+	if err := s.ensureReady(); err != nil {
+		return err
+	}
+	return s.db.Create(&snapshot).Error
+}
+
+func (s *SoftwareConfigStore) GetLatestEffectiveConfigSnapshot() (*models.SoftwareEffectiveConfigSnapshot, error) {
+	if err := s.ensureReady(); err != nil {
+		return nil, err
+	}
+
+	var snapshot models.SoftwareEffectiveConfigSnapshot
+	if err := s.db.Order("created_at DESC, id DESC").First(&snapshot).Error; err != nil {
+		return nil, err
+	}
+	return &snapshot, nil
 }
 
 func (s *SoftwareConfigStore) MergeByLatest(incoming []models.SoftwareConfig) (inserted int, updated int, keptLocalNewer int, err error) {

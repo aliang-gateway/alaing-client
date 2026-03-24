@@ -2,6 +2,8 @@ package handlers
 
 import (
 	"errors"
+	"regexp"
+	"strings"
 
 	"nursor.org/nursorgate/common/logger"
 )
@@ -12,6 +14,13 @@ var (
 	ErrInvalidDurationFormat = errors.New("invalid duration format")
 	ErrNoValidConfigFields   = errors.New("no valid configuration fields provided")
 	ErrInvalidRequestBody    = errors.New("invalid request body")
+)
+
+const redactionMarker = "***REDACTED***"
+
+var (
+	bearerTokenPattern     = regexp.MustCompile(`(?i)\bBearer\s+[^\s]+`)
+	sensitiveKeyValPattern = regexp.MustCompile(`(?i)\b(token|secret|password|api_key|apikey|access_key|refresh_token|sentry_dsn|dsn)\b(\s*[:=]\s*)("?)([^"\s]+)("?)`)
 )
 
 // LogLevelTypeToString converts logger.LogLevelType to string
@@ -67,6 +76,20 @@ func maskSensitiveData(data string) string {
 		return "***"
 	}
 	return data[:8] + "***"
+}
+
+func redactSensitiveLogMessage(message string) string {
+	if message == "" {
+		return ""
+	}
+	redacted := bearerTokenPattern.ReplaceAllStringFunc(message, func(match string) string {
+		parts := strings.SplitN(match, " ", 2)
+		if len(parts) != 2 {
+			return redactionMarker
+		}
+		return parts[0] + " " + redactionMarker
+	})
+	return sensitiveKeyValPattern.ReplaceAllString(redacted, "$1$2$3"+redactionMarker+"$5")
 }
 
 // BuildResponse creates a standardized API response

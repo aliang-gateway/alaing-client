@@ -1,5 +1,6 @@
 <template>
   <div
+    v-if="currentPage === 'dashboard'"
     id="dashboard-page"
     class="page-container content-section active flex flex-row flex-1 min-w-0 h-full overflow-hidden"
   >
@@ -55,7 +56,15 @@
       <div class="mx-6 p-4 bg-slate-50 dark:bg-slate-800/50 rounded border border-slate-100 dark:border-slate-700">
         <div class="flex justify-between items-start mb-3">
           <p class="text-xs font-bold text-slate-500 uppercase">Network Status</p>
-          <span class="material-symbols-outlined text-primary text-sm">verified</span>
+          <span
+            v-if="certLoading"
+            class="inline-block size-4 border-2 border-slate-200 border-t-slate-400 rounded-full animate-spin"
+          ></span>
+          <span
+            v-else
+            class="material-symbols-outlined text-sm"
+            :class="networkStatusIconClass"
+          >{{ networkStatusIcon }}</span>
         </div>
         <div class="space-y-2">
           <div class="flex justify-between text-sm">
@@ -68,23 +77,21 @@
           </div>
           <div class="flex justify-between text-sm">
             <span class="text-slate-500">Certificate:</span>
-            <span class="font-medium text-primary">Installed</span>
+            <span class="font-medium" :class="certBadgeClass">{{ certBadgeText }}</span>
           </div>
         </div>
         <div class="grid grid-cols-2 gap-2 mt-4">
           <button
             type="button"
-            id="sidebarCertDetailsBtn"
             class="px-3 py-1.5 text-xs font-bold border border-slate-200 dark:border-slate-600 rounded hover:bg-white dark:hover:bg-slate-700 transition-colors"
-            @click.prevent
+            @click="openCertModal"
           >
             Details
           </button>
           <button
             type="button"
-            id="sidebarCertReinstallBtn"
             class="px-3 py-1.5 text-xs font-bold bg-primary/10 text-primary rounded hover:bg-primary/20 transition-colors"
-            @click.prevent
+            @click="handleReinstall"
           >
             Re-install
           </button>
@@ -96,13 +103,10 @@
           <button
             type="button"
             @click="emit('openQuickSetup')"
-            class="w-full flex items-center justify-between px-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded text-sm font-medium hover:border-primary transition-colors"
+            class="w-full flex items-center gap-3 px-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded text-sm font-medium hover:border-primary transition-colors"
           >
-            <div class="flex items-center gap-3">
-              <span class="material-symbols-outlined text-slate-400 text-lg">bolt</span>
-              Quick Setup
-            </div>
-            <span class="material-symbols-outlined text-slate-400 text-sm">arrow_forward_ios</span>
+            <span class="material-symbols-outlined text-slate-400 text-lg">bolt</span>
+            Quick Setup
           </button>
         </div>
         <button
@@ -115,8 +119,8 @@
         </button>
         <button
           type="button"
-          id="goToSettingsBtn"
           class="w-full flex items-center gap-3 px-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded text-sm font-medium hover:border-primary transition-colors"
+          @click="showSettings"
         >
           <span class="material-symbols-outlined text-slate-400 text-lg">settings</span>
           More Settings
@@ -153,7 +157,6 @@
           <div class="flex items-center gap-1">
             <button
               type="button"
-              id="headerSettingsBtn"
               class="size-10 flex items-center justify-center rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 transition-colors"
             >
               <span class="material-symbols-outlined">settings</span>
@@ -507,9 +510,14 @@
 </template>
 
 <script setup>
-import { computed, ref } from 'vue';
+import { computed, ref, onMounted, onUnmounted } from 'vue';
+import { useCertStatus } from '../composables/useCertStatus';
+import { useNavigation } from '../composables/useNavigation';
 
-const emit = defineEmits(['openQuickSetup']);
+const { certStatus, loading: certLoading, startPolling, stopPolling } = useCertStatus();
+const { currentPage, showSettings } = useNavigation();
+
+const emit = defineEmits(['openQuickSetup', 'openCertModal', 'startCertReinstall']);
 
 const requestFilter = ref('all');
 const pathSearch = ref('');
@@ -525,6 +533,75 @@ function openQuickChat() {
 function closeQuickChat() {
   isQuickChatOpen.value = false;
 }
+
+function openCertModal() {
+  emit('openCertModal');
+}
+
+function handleReinstall() {
+  if (!confirm('确定要重新安装证书吗？\n将执行：移除旧证书 → 重新生成 → 安装到系统')) {
+    return;
+  }
+  emit('openCertModal');
+  setTimeout(() => emit('startCertReinstall'), 300);
+}
+
+const certOverallState = computed(() => {
+  const s = certStatus.value;
+  if (!s) return 'unknown';
+  if (s.is_trusted) return 'trusted';
+  if (s.is_installed) return 'installed';
+  if (s.is_exported) return 'exported';
+  return 'not_found';
+});
+
+const networkStatusIcon = computed(() => {
+  switch (certOverallState.value) {
+    case 'trusted': return 'verified';
+    case 'installed': return 'shield';
+    case 'exported': return 'upload_file';
+    case 'not_found': return 'error';
+    default: return 'help';
+  }
+});
+
+const networkStatusIconClass = computed(() => {
+  switch (certOverallState.value) {
+    case 'trusted': return 'text-emerald-500';
+    case 'installed': return 'text-blue-500';
+    case 'exported': return 'text-amber-500';
+    case 'not_found': return 'text-red-500';
+    default: return 'text-slate-400';
+  }
+});
+
+const certBadgeText = computed(() => {
+  switch (certOverallState.value) {
+    case 'trusted': return 'Trusted';
+    case 'installed': return 'Installed';
+    case 'exported': return 'Generated';
+    case 'not_found': return 'Not Found';
+    default: return 'Loading...';
+  }
+});
+
+const certBadgeClass = computed(() => {
+  switch (certOverallState.value) {
+    case 'trusted': return 'text-emerald-500';
+    case 'installed': return 'text-blue-500';
+    case 'exported': return 'text-amber-500';
+    case 'not_found': return 'text-red-500';
+    default: return 'text-slate-400';
+  }
+});
+
+onMounted(() => {
+  startPolling();
+});
+
+onUnmounted(() => {
+  stopPolling();
+});
 
 async function sendQuickChat() {
   const text = quickChatInput.value.trim();

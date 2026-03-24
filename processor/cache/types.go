@@ -19,6 +19,8 @@ const (
 
 	// RouteDirect routes traffic directly without proxy
 	RouteDirect RouteDecision = "direct"
+
+	RouteDeny RouteDecision = "deny"
 )
 
 // CacheEntry represents a cached routing decision for an IP-domain pair

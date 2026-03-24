@@ -20,12 +20,7 @@
     <div id="rulesStatus" class="hidden"></div>
     <div id="rules-status-badge" class="hidden"></div>
     <div id="rules-status-text" class="hidden"></div>
-    <table><tbody id="toDoorRulesBody" class="hidden"></tbody></table>
-    <table><tbody id="blacklistRulesBody" class="hidden"></tbody></table>
-    <table><tbody id="nonelaneRulesBody" class="hidden"></tbody></table>
-    <button type="button" id="addBlacklistRuleBtn" class="hidden"></button>
-    <button type="button" id="addNonelaneRuleBtn" class="hidden"></button>
-    <button type="button" id="addToDoorRuleBtn" class="hidden"></button>
+    <table><tbody id="rulesTableBody" class="hidden"></tbody></table>
     <button type="button" id="logsFullscreenBtn" class="hidden"></button>
     <div id="logCount" class="hidden"></div>
     <button type="button" id="logFilterBtn" class="hidden"></button>
@@ -49,15 +44,6 @@
     <div id="dnsHotIPsContainer" class="hidden"></div>
     <button type="button" id="dnsRefreshBtn" class="hidden"></button>
     <button type="button" id="dnsClearAllBtn" class="hidden"></button>
-    <select id="proxySelect" class="hidden"><option value="">-</option></select>
-    <button type="button" id="switchProxyBtn" class="hidden"></button>
-    <button type="button" id="testLatencyBtn" class="hidden"></button>
-    <table><tbody id="proxyTableBody" class="hidden"></tbody></table>
-    <div id="currentProxyDisplay" class="hidden"></div>
-    <div id="proxyDetailModal" class="hidden modal"></div>
-    <div id="proxyDetailTitle" class="hidden"></div>
-    <div id="proxyDetailJson" class="hidden"></div>
-    <button type="button" id="copyProxyDetailBtn" class="hidden"></button>
     <div id="statusIndicator" class="hidden"></div>
     <div id="statusText" class="hidden"></div>
     <button type="button" id="dashStartBtn" class="hidden"></button>
@@ -67,7 +53,6 @@
     <div id="dashRunMode" class="hidden"></div>
     <div id="dashRuleStatus" class="hidden"></div>
     <div id="dashProxyCount" class="hidden"></div>
-    <div id="dashDoorCount" class="hidden"></div>
     <div id="dashLastUpdate" class="hidden"></div>
     <canvas id="trafficChart" class="hidden"></canvas>
     <canvas id="domainPieChart" class="hidden"></canvas>
@@ -84,7 +69,6 @@
     <button type="button" id="goToSettingsBtnCompat" class="hidden"></button>
     <div id="logs-page" class="hidden"></div>
     <div id="rules-page" class="hidden"></div>
-    <div id="proxy-control-page" class="hidden"></div>
     <div id="userinfo-page" class="hidden"></div>
     <div id="dnscache-page" class="hidden"></div>
     <div id="conditionError" class="hidden"></div>

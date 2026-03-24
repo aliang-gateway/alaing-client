@@ -50,7 +50,7 @@ async function loadLogs() {
     }
 }
 
-document.getElementById('logsRefreshBtn').addEventListener('click', (event) => {
+document.getElementById('logsRefreshBtn')?.addEventListener('click', (event) => {
     const btn = event.target.closest('button');
     showLoading(btn);
     loadLogs()
@@ -65,7 +65,7 @@ document.getElementById('logsRefreshBtn').addEventListener('click', (event) => {
         });
 });
 
-document.getElementById('logsClearBtn').addEventListener('click', (event) => {
+document.getElementById('logsClearBtn')?.addEventListener('click', (event) => {
     const btn = event.target.closest('button');
     if (!confirm('确定要清空所有日志吗？')) {
         return;
@@ -157,17 +157,17 @@ function applyLogFilter() {
     showSuccess('过滤已应用');
 }
 
-document.getElementById('logConfigSaveBtn').addEventListener('click', saveLogConfig);
-document.getElementById('logFilterBtn').addEventListener('click', applyLogFilter);
+document.getElementById('logConfigSaveBtn')?.addEventListener('click', saveLogConfig);
+document.getElementById('logFilterBtn')?.addEventListener('click', applyLogFilter);
 
-document.getElementById('wsConnectBtn').addEventListener('click', (event) => {
+document.getElementById('wsConnectBtn')?.addEventListener('click', (event) => {
     const btn = event.target.closest('button');
     showLoading(btn);
     logWebSocket.connect();
     hideLoading(btn);
 });
 
-document.getElementById('wsDisconnectBtn').addEventListener('click', (event) => {
+document.getElementById('wsDisconnectBtn')?.addEventListener('click', (event) => {
     const btn = event.target.closest('button');
     showLoading(btn);
     logWebSocket.disconnect();
@@ -175,7 +175,7 @@ document.getElementById('wsDisconnectBtn').addEventListener('click', (event) => 
     hideLoading(btn);
 });
 
-document.getElementById('logsFullscreenBtn').addEventListener('click', () => {
+document.getElementById('logsFullscreenBtn')?.addEventListener('click', () => {
     const logsPage = document.getElementById('logs-page');
     const fullscreenBtn = document.getElementById('logsFullscreenBtn');
     const btnIcon = fullscreenBtn.querySelector('i');

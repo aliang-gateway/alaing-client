@@ -1,8 +1,15 @@
 <template>
   <div class="flex h-screen overflow-hidden">
-    <DashboardPage @open-quick-setup="isQuickSetupOpen = true" />
+    <DashboardPage
+      @open-quick-setup="isQuickSetupOpen = true"
+      @open-cert-modal="isCertModalOpen = true"
+      @start-cert-reinstall="certModalRef?.startReinstall()"
+    />
     <SettingsPage />
-    <CertManagementModal />
+    <CertManagementModal
+      ref="certModalRef"
+      v-model="isCertModalOpen"
+    />
     <QuickSetupModal :open="isQuickSetupOpen" @close="isQuickSetupOpen = false" />
     <CompatibilityAnchors />
   </div>
@@ -17,6 +24,8 @@ import QuickSetupModal from './components/QuickSetupModal.vue';
 import CompatibilityAnchors from './components/CompatibilityAnchors.vue';
 
 const isQuickSetupOpen = ref(false);
+const isCertModalOpen = ref(false);
+const certModalRef = ref(null);
 </script>
 
 <style>

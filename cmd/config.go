@@ -18,6 +18,16 @@ import (
 //go:embed config.default.json
 var defaultConfigData string
 
+const startupLocalConfigPath = "./config.new.json"
+
+type startupConfigSource string
+
+const (
+	startupConfigSourceExplicitPath startupConfigSource = "--config"
+	startupConfigSourceLocalFile    startupConfigSource = "./config.new.json"
+	startupConfigSourceEmbedded     startupConfigSource = "embedded default"
+)
+
 // Re-export config types for backward compatibility
 type Config = config.Config
 
@@ -34,6 +44,51 @@ func IsUsingDefaultConfig() bool {
 // GetDefaultConfigBytes 返回嵌入的默认配置字节数据
 func GetDefaultConfigBytes() []byte {
 	return []byte(defaultConfigData)
+}
+
+func resolveStartupConfigSource(explicitConfigPath string) (startupConfigSource, string, error) {
+	if explicitConfigPath != "" {
+		return startupConfigSourceExplicitPath, explicitConfigPath, nil
+	}
+
+	if _, err := os.Stat(startupLocalConfigPath); err == nil {
+		return startupConfigSourceLocalFile, startupLocalConfigPath, nil
+	} else if !os.IsNotExist(err) {
+		return "", "", fmt.Errorf("failed to inspect %s: %w", startupLocalConfigPath, err)
+	}
+
+	return startupConfigSourceEmbedded, "", nil
+}
+
+func ApplyStartupConfig(explicitConfigPath string) error {
+	source, selectedPath, err := resolveStartupConfigSource(explicitConfigPath)
+	if err != nil {
+		return err
+	}
+
+	switch source {
+	case startupConfigSourceExplicitPath:
+		logger.Info(fmt.Sprintf("Loading configuration from explicit --config path: %s", selectedPath))
+		if err := LoadAndApplyConfig(selectedPath); err != nil {
+			return fmt.Errorf("failed to load startup config from --config path %s: %w", selectedPath, err)
+		}
+		logger.Info(fmt.Sprintf("Startup configuration source: %s", source))
+		return nil
+	case startupConfigSourceLocalFile:
+		logger.Info(fmt.Sprintf("Loading configuration from current directory file: %s", selectedPath))
+		if err := LoadAndApplyConfig(selectedPath); err != nil {
+			return fmt.Errorf("failed to load startup config from %s (fail-fast, no fallback): %w", selectedPath, err)
+		}
+		logger.Info(fmt.Sprintf("Startup configuration source: %s", source))
+		return nil
+	default:
+		logger.Info("No explicit --config or ./config.new.json found, using embedded default configuration")
+		if err := ApplyDefaultConfig(); err != nil {
+			return fmt.Errorf("failed to apply startup config from embedded default: %w", err)
+		}
+		logger.Info(fmt.Sprintf("Startup configuration source: %s", source))
+		return nil
+	}
 }
 
 // LoadConfig 从文件加载配置

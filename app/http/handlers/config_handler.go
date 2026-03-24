@@ -1,28 +1,29 @@
 package handlers
 
 import (
-	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
-	"sync"
-	"time"
 
 	"nursor.org/nursorgate/app/http/common"
+	"nursor.org/nursorgate/app/http/services"
 	"nursor.org/nursorgate/common/logger"
-	"nursor.org/nursorgate/common/model"
-)
-
-var (
-	routingConfigStoreMu sync.RWMutex
-	routingConfigStore   = model.NewRoutingRulesConfig()
+	"nursor.org/nursorgate/processor/config"
+	"nursor.org/nursorgate/processor/routing"
 )
 
 // ConfigHandler provides a local (non-Nacos) routing-config compatibility API.
-type ConfigHandler struct{}
+type ConfigHandler struct {
+	customerConfigService *services.CustomerConfigService
+	coreConfigService     *services.CoreConfigService
+}
 
 func NewConfigHandler() *ConfigHandler {
-	return &ConfigHandler{}
+	return &ConfigHandler{
+		customerConfigService: services.NewCustomerConfigService(),
+		coreConfigService:     services.NewCoreConfigService(),
+	}
 }
 
 func (h *ConfigHandler) HandleRoutingConfig(w http.ResponseWriter, r *http.Request) {
@@ -48,58 +49,16 @@ func (h *ConfigHandler) HandleToggleRuleStatus(w http.ResponseWriter, r *http.Re
 		return
 	}
 	ruleID := pathParts[0]
-
-	var req struct {
-		Enabled bool `json:"enabled"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		common.ErrorBadRequest(w, "Invalid JSON format", map[string]interface{}{"error": err.Error()})
-		return
-	}
-
-	routingConfigStoreMu.Lock()
-	defer routingConfigStoreMu.Unlock()
-
-	cfg := cloneRoutingConfigLocked()
-	ruleFound := false
-	ruleSets := []*model.RoutingRuleSet{&cfg.ToSocks, &cfg.BlackList, &cfg.Aliang}
-	for _, rs := range ruleSets {
-		for i := range rs.Rules {
-			if rs.Rules[i].ID == ruleID {
-				rs.Rules[i].Enabled = req.Enabled
-				rs.Rules[i].UpdatedAt = time.Now()
-				ruleFound = true
-				break
-			}
-		}
-		if ruleFound {
-			break
-		}
-	}
-
-	if !ruleFound {
-		common.ErrorNotFound(w, fmt.Sprintf("Rule with id '%s' not found", ruleID))
-		return
-	}
-
-	cfg.UpdatedAt = time.Now()
-	routingConfigStore = cfg
-	common.Success(w, map[string]interface{}{
-		"message": "Rule toggled successfully",
-		"rule_id": ruleID,
-		"enabled": req.Enabled,
-	})
+	common.ErrorBadRequest(w, "Legacy mutable rule toggle write path is removed; update canonical routing config via /api/config/routing", map[string]interface{}{"rule_id": ruleID})
 }
 
 func (h *ConfigHandler) HandleAutoUpdateStatus(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
-		routingConfigStoreMu.RLock()
-		defer routingConfigStoreMu.RUnlock()
 		common.Success(w, map[string]interface{}{
 			"auto_update": false,
-			"source":      "local",
-			"updated_at":  routingConfigStore.UpdatedAt,
+			"source":      "canonical",
+			"updated_at":  "",
 		})
 	case http.MethodPut:
 		// Compatibility endpoint: auto-update is no longer supported in simplified mode.
@@ -112,42 +71,185 @@ func (h *ConfigHandler) HandleAutoUpdateStatus(w http.ResponseWriter, r *http.Re
 	}
 }
 
+func (h *ConfigHandler) HandleCustomerConfig(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case http.MethodGet:
+		h.handleGetCustomerConfig(w)
+	case http.MethodPost, http.MethodPut:
+		h.handleUpdateCustomerConfig(w, r)
+	default:
+		common.Error(w, http.StatusMethodNotAllowed, "Method not allowed", nil)
+	}
+}
+
+func (h *ConfigHandler) HandlePresetAIRuleProviders(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		common.Error(w, http.StatusMethodNotAllowed, "Method not allowed", nil)
+		return
+	}
+	common.Success(w, map[string]interface{}{
+		"providers": h.customerConfigService.GetPresetAIRuleProviders(),
+	})
+}
+
+func (h *ConfigHandler) HandleCoreConfig(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case http.MethodGet:
+		h.handleGetCoreConfig(w)
+	case http.MethodPost, http.MethodPut:
+		h.handleUpdateCoreConfig(w, r)
+	default:
+		common.Error(w, http.StatusMethodNotAllowed, "Method not allowed", nil)
+	}
+}
+
 func (h *ConfigHandler) handleGetRoutingConfig(w http.ResponseWriter) {
-	routingConfigStoreMu.RLock()
-	defer routingConfigStoreMu.RUnlock()
-	common.Success(w, routingConfigStore)
+	common.Success(w, activeCanonicalRoutingConfig())
 }
 
 func (h *ConfigHandler) handleUpdateRoutingConfig(w http.ResponseWriter, r *http.Request) {
-	var cfg model.RoutingRulesConfig
-	if err := json.NewDecoder(r.Body).Decode(&cfg); err != nil {
+	raw, err := ioReadAll(r)
+	if err != nil {
 		common.ErrorBadRequest(w, "Invalid JSON format", map[string]interface{}{"error": err.Error()})
 		return
 	}
-	if err := cfg.Validate(); err != nil {
+
+	applyResult, err := config.GetRoutingApplyStore().Apply(raw, func(canonical *config.CanonicalRoutingSchema) (any, error) {
+		return routing.CompileRuntimeSnapshot(canonical)
+	})
+	if err != nil {
 		common.ErrorBadRequest(w, "Configuration validation failed", map[string]interface{}{"error": err.Error()})
 		return
 	}
 
-	routingConfigStoreMu.Lock()
-	defer routingConfigStoreMu.Unlock()
-	cfg.UpdatedAt = time.Now()
-	routingConfigStore = &cfg
-	logger.Info("Routing configuration updated (local store)")
+	logger.Info("Routing configuration updated (canonical apply store)")
 	common.Success(w, map[string]interface{}{
 		"message": "Configuration updated successfully",
-		"source":  "local",
+		"source":  "canonical",
+		"version": applyResult.Version,
+		"hash":    applyResult.Hash,
 	})
 }
 
-func cloneRoutingConfigLocked() *model.RoutingRulesConfig {
-	data, err := routingConfigStore.ToJSON()
-	if err != nil {
-		return model.NewRoutingRulesConfig()
+func (h *ConfigHandler) handleGetCustomerConfig(w http.ResponseWriter) {
+	if h.customerConfigService == nil {
+		common.ErrorInternalServer(w, "Customer config service is not initialized", nil)
+		return
 	}
-	cfg, err := model.NewRoutingRulesConfigFromJSON(data)
+
+	customer, version, err := h.customerConfigService.GetCommittedCustomerConfig()
 	if err != nil {
-		return model.NewRoutingRulesConfig()
+		common.ErrorInternalServer(w, "Failed to get customer config", map[string]interface{}{"error": err.Error()})
+		return
 	}
-	return cfg
+
+	common.Success(w, map[string]interface{}{
+		"customer": customer,
+		"version":  version,
+		"source":   "committed",
+	})
+}
+
+func (h *ConfigHandler) handleUpdateCustomerConfig(w http.ResponseWriter, r *http.Request) {
+	if h.customerConfigService == nil {
+		common.ErrorInternalServer(w, "Customer config service is not initialized", nil)
+		return
+	}
+
+	raw, err := ioReadAll(r)
+	if err != nil {
+		common.ErrorBadRequest(w, "Invalid JSON format", map[string]interface{}{"error": err.Error()})
+		return
+	}
+
+	result, err := h.customerConfigService.UpdateCommittedCustomerConfig(raw)
+	if err != nil {
+		if services.IsCustomerConfigValidationError(err) {
+			common.ErrorBadRequest(w, "Configuration validation failed", map[string]interface{}{"error": err.Error()})
+			return
+		}
+		common.ErrorInternalServer(w, "Failed to update customer config", map[string]interface{}{"error": err.Error()})
+		return
+	}
+
+	common.Success(w, map[string]interface{}{
+		"message":  "Customer config updated successfully",
+		"customer": result.Customer,
+		"version":  result.Version,
+		"source":   "committed",
+	})
+}
+
+func (h *ConfigHandler) handleGetCoreConfig(w http.ResponseWriter) {
+	if h.coreConfigService == nil {
+		common.ErrorInternalServer(w, "Core config service is not initialized", nil)
+		return
+	}
+
+	core, version, err := h.coreConfigService.GetCommittedCoreConfig()
+	if err != nil {
+		common.ErrorInternalServer(w, "Failed to get core config", map[string]interface{}{"error": err.Error()})
+		return
+	}
+
+	common.Success(w, map[string]interface{}{
+		"core":    core,
+		"version": version,
+		"source":  "committed",
+	})
+}
+
+func (h *ConfigHandler) handleUpdateCoreConfig(w http.ResponseWriter, r *http.Request) {
+	if h.coreConfigService == nil {
+		common.ErrorInternalServer(w, "Core config service is not initialized", nil)
+		return
+	}
+
+	raw, err := ioReadAll(r)
+	if err != nil {
+		common.ErrorBadRequest(w, "Invalid JSON format", map[string]interface{}{"error": err.Error()})
+		return
+	}
+
+	result, err := h.coreConfigService.UpdateCommittedCoreConfig(raw)
+	if err != nil {
+		if services.IsCoreConfigValidationError(err) {
+			common.ErrorBadRequest(w, "Configuration validation failed", map[string]interface{}{"error": err.Error()})
+			return
+		}
+		common.ErrorInternalServer(w, "Failed to update core config", map[string]interface{}{"error": err.Error()})
+		return
+	}
+
+	common.Success(w, map[string]interface{}{
+		"message": "Core config updated successfully",
+		"core":    result.Core,
+		"version": result.Version,
+		"source":  "committed",
+	})
+}
+
+func ioReadAll(r *http.Request) ([]byte, error) {
+	if r == nil || r.Body == nil {
+		return nil, fmt.Errorf("request body is empty")
+	}
+	defer r.Body.Close()
+	return io.ReadAll(r.Body)
+}
+
+func activeCanonicalRoutingConfig() *config.CanonicalRoutingSchema {
+	canonical := config.GetRoutingApplyStore().ActiveCanonicalSchema()
+	if canonical == nil {
+		return &config.CanonicalRoutingSchema{
+			Version: config.CanonicalRoutingSchemaVersion,
+			Ingress: config.CanonicalIngressConfig{Mode: "tun"},
+			Egress: config.CanonicalEgressConfig{
+				Direct:   config.CanonicalEgressBranch{Enabled: true},
+				ToAliang: config.CanonicalEgressBranch{Enabled: false},
+				ToSocks:  config.CanonicalSocksEgressBranch{Enabled: false, Upstream: config.CanonicalSocksUpstream{Type: "socks"}},
+			},
+			Routing: config.CanonicalRoutingConfig{Rules: []config.CanonicalRoutingRule{}},
+		}
+	}
+	return canonical
 }

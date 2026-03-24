@@ -11,6 +11,7 @@ import (
 	"nursor.org/nursorgate/processor/cache"
 	"nursor.org/nursorgate/processor/config"
 	"nursor.org/nursorgate/processor/geoip"
+	"nursor.org/nursorgate/processor/routing"
 )
 
 // RuleEngine evaluates routing rules in priority order
@@ -86,6 +87,11 @@ func (e *RuleEngine) EvaluateRoute(ctx *EvaluationContext) (*RuleResult, error) 
 
 	// TODO(US2): Implement routing decision logic with priority: Aliang > SOCKS > GeoIP > Direct
 
+	snapshot, err := e.compileRuntimeSnapshot()
+	if err != nil {
+		return nil, err
+	}
+
 	// Priority 2: Check cache (avoid repeated SNI extraction)
 	if result := e.checkCache(ctx); result != nil {
 		return result, nil
@@ -105,8 +111,9 @@ func (e *RuleEngine) EvaluateRoute(ctx *EvaluationContext) (*RuleResult, error) 
 		return result, nil
 	}
 
-	// Priority 5: Default routing decision
-	return e.defaultRoute(ctx), nil
+	result := e.evaluateWithSnapshot(snapshot, ctx)
+	e.cacheResult(ctx, result)
+	return result, nil
 }
 
 // checkBypassRules removed - will be reimplemented as part of routing decision engine in US2
@@ -154,27 +161,41 @@ func (e *RuleEngine) checkCache(ctx *EvaluationContext) *RuleResult {
 
 // checkAllowlist checks local SNI allowlist and default SOCKS fallback.
 func (e *RuleEngine) checkAllowlist(ctx *EvaluationContext) *RuleResult {
-	cfg := config.GetGlobalConfig()
-	if cfg == nil || ctx.Domain == "" {
+	if ctx.Domain == "" {
 		return nil
 	}
 
-	if IsDomainAllowed(ctx.Domain, cfg.SNIAllowlist) {
-		return &RuleResult{
-			Route:       cache.RouteToCursor,
-			MatchedRule: "sni_allowlist",
-			RequiresSNI: false,
-			Reason:      fmt.Sprintf("Domain %s matched SNI allowlist", ctx.Domain),
+	snapshot, err := e.compileRuntimeSnapshot()
+	if err != nil {
+		return nil
+	}
+
+	for _, rule := range snapshot.Rules() {
+		if !rule.Enabled() {
+			continue
+		}
+		if rule.Type() != "domain" {
+			continue
+		}
+		if rule.Target() != routing.SnapshotActionToAliang {
+			continue
+		}
+		if MatchDomain(rule.Condition(), ctx.Domain) {
+			return &RuleResult{
+				Route:       cache.RouteToCursor,
+				MatchedRule: "snapshot_allowlist",
+				RequiresSNI: false,
+				Reason:      fmt.Sprintf("Domain %s matched snapshot allowlist", ctx.Domain),
+			}
 		}
 	}
 
-	// Default for non-allowlist domain: route to SOCKS if enabled, else direct
-	if cfg.SocksProxy != nil {
+	if snapshot.BranchCapabilities().ToSocks() {
 		return &RuleResult{
 			Route:       cache.RouteToSocks,
-			MatchedRule: "default_socks",
+			MatchedRule: "snapshot_default_socks",
 			RequiresSNI: false,
-			Reason:      "Default route to SOCKS proxy",
+			Reason:      "Default route to SOCKS proxy from snapshot",
 		}
 	}
 
@@ -228,17 +249,68 @@ func (e *RuleEngine) checkGeoIP(ctx *EvaluationContext) *RuleResult {
 func (e *RuleEngine) defaultRoute(ctx *EvaluationContext) *RuleResult {
 	// For TLS traffic (port 443) without domain, we need SNI extraction
 	requiresSNI := ctx.DstPort == 443 && ctx.Domain == ""
-
 	defaultRoute := cache.RouteDirect
-	if cfg := config.GetGlobalConfig(); cfg != nil && cfg.SocksProxy != nil {
-		defaultRoute = cache.RouteToSocks
-	}
 
 	return &RuleResult{
 		Route:       defaultRoute,
 		MatchedRule: "default",
 		RequiresSNI: requiresSNI,
 		Reason:      "No rules matched, using default route",
+	}
+}
+
+func (e *RuleEngine) compileRuntimeSnapshot() (*routing.RuntimeSnapshot, error) {
+	switchStatus := routing.GetSwitchManager().GetStatus()
+	snapshot, err := routing.CompileRuntimeSnapshotFromRuntimeInputs(config.GetGlobalConfig(), switchStatus)
+	if err != nil {
+		return nil, fmt.Errorf("compile runtime snapshot failed: %w", err)
+	}
+	return snapshot, nil
+}
+
+func (e *RuleEngine) evaluateWithSnapshot(snapshot *routing.RuntimeSnapshot, ctx *EvaluationContext) *RuleResult {
+	routeCtx := &routing.MatchContext{
+		Domain: ctx.Domain,
+	}
+	if ctx.DstIP.IsValid() && !ctx.DstIP.IsUnspecified() {
+		routeCtx.IP = ctx.DstIP.String()
+	}
+
+	decision, err := routing.DecideRouteFromSnapshot(snapshot, routeCtx)
+	if err != nil {
+		return e.defaultRoute(ctx)
+	}
+
+	requiresSNI := ctx.DstPort == 443 && ctx.Domain == ""
+	switch decision {
+	case routing.RouteToAliang:
+		return &RuleResult{
+			Route:       cache.RouteToCursor,
+			MatchedRule: "snapshot",
+			RequiresSNI: requiresSNI,
+			Reason:      "snapshot decision: toAliang",
+		}
+	case routing.RouteToSocks:
+		return &RuleResult{
+			Route:       cache.RouteToSocks,
+			MatchedRule: "snapshot",
+			RequiresSNI: requiresSNI,
+			Reason:      "snapshot decision: toSocks",
+		}
+	case routing.RouteDeny:
+		return &RuleResult{
+			Route:       cache.RouteDeny,
+			MatchedRule: "snapshot_deny",
+			RequiresSNI: false,
+			Reason:      "snapshot decision: deny",
+		}
+	default:
+		return &RuleResult{
+			Route:       cache.RouteDirect,
+			MatchedRule: "snapshot",
+			RequiresSNI: requiresSNI,
+			Reason:      "snapshot decision: direct",
+		}
 	}
 }
 

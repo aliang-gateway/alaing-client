@@ -141,25 +141,13 @@ function updateRulesButtonStates() {
 
 async function loadDashboard() {
     try {
-        const [runStatus, proxyList, doorMembers, rulesStatus] = await Promise.all([
+        const [runStatus, rulesStatus] = await Promise.all([
             apiGet('/run/status'),
-            apiGet('/proxy/list'),
-            apiGet('/proxy/door/members').catch(() => ({ members: [] })),
             apiGet('/rules/engine/status').catch(() => null)
         ]);
 
-        let currentProxyDisplay = '-';
-        try {
-            const currentProxy = await apiGet('/proxy/current/get');
-            if (currentProxy && currentProxy.name && !currentProxy.error) {
-                currentProxyDisplay = currentProxy.show_name || currentProxy.name;
-            }
-        } catch (error) {
-            console.log('当前代理未设置:', error.message);
-        }
-
         const isRunning = runStatus.is_running || false;
-        
+
         appState.runStatus.isRunning = isRunning;
         appState.runStatus.currentMode = runStatus.current_mode || 'unknown';
         appState.runStatus.lastUpdated = Date.now();
@@ -176,14 +164,12 @@ async function loadDashboard() {
         } else {
             runningStatusText = runStatus.current_mode === 'tun' ? 'TUN 模式（未启动）' : 'HTTP 模式（未启动）';
         }
-        
+
         document.getElementById('dashRunStatus').textContent = runningStatusText;
-        document.getElementById('dashCurrentProxy').textContent = currentProxyDisplay;
+        document.getElementById('dashCurrentProxy').textContent = '-';
         document.getElementById('dashRunMode').textContent = runStatus.current_mode || '-';
         document.getElementById('dashRuleStatus').textContent = rulesStatus?.engineEnabled ? '启用' : '禁用';
-        const proxyCount = proxyList?.proxies ? Object.keys(proxyList.proxies).length : (proxyList?.count || 0);
-        document.getElementById('dashProxyCount').textContent = proxyCount;
-        document.getElementById('dashDoorCount').textContent = doorMembers?.members?.length || 0;
+        document.getElementById('dashProxyCount').textContent = '-';
         document.getElementById('dashLastUpdate').textContent = new Date().toLocaleTimeString();
 
         const indicator = document.getElementById('statusIndicator');
@@ -195,7 +181,7 @@ async function loadDashboard() {
             indicator.className = 'status-indicator stopped';
             statusText.textContent = 'NonelaneCore - 已停止';
         }
-        
+
         updateButtonStates();
 
         await loadStatsData().catch(error => console.error('Failed to load stats:', error));
@@ -206,7 +192,7 @@ async function loadDashboard() {
     }
 }
 
-document.getElementById('dashStartBtn').addEventListener('click', (event) => {
+document.getElementById('dashStartBtn')?.addEventListener('click', (event) => {
     const btn = event.currentTarget;
     showLoading(btn);
     apiPost('/run/start')
@@ -232,7 +218,7 @@ document.getElementById('dashStartBtn').addEventListener('click', (event) => {
         });
 });
 
-document.getElementById('dashStopBtn').addEventListener('click', (event) => {
+document.getElementById('dashStopBtn')?.addEventListener('click', (event) => {
     const btn = event.currentTarget;
     showLoading(btn);
     apiPost('/run/stop')

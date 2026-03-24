@@ -1,6 +1,7 @@
 package services
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -10,9 +11,36 @@ import (
 
 	"nursor.org/nursorgate/app/http/models"
 	"nursor.org/nursorgate/app/http/storage"
+	"nursor.org/nursorgate/processor/config"
 )
 
 func TestSoftwareConfigService_SaveActivateAndCloudSync(t *testing.T) {
+	config.ResetGlobalConfigForTest()
+	t.Cleanup(config.ResetGlobalConfigForTest)
+	config.SetGlobalConfig(&config.Config{
+		APIServer:    "https://api.example.com",
+		CurrentProxy: "direct",
+		Core: &config.CoreConfig{
+			AliangServer: &config.BaseProxyConfig{
+				Type:       "vmess",
+				CoreServer: "ai-gateway.nursor.org:443",
+			},
+		},
+		Customer: &config.CustomerConfig{
+			Proxy: &config.CustomerProxyConfig{
+				Type: "http",
+			},
+			AIRules: map[string]*config.CustomerAIRuleSetting{
+				"openai": {
+					Enable: boolPtr(true),
+					Exclude: []string{
+						"api.openai.com",
+					},
+				},
+			},
+		},
+	})
+
 	store, err := storage.NewSoftwareConfigStoreWithDBPath(t.TempDir() + "/service.db")
 	if err != nil {
 		t.Fatalf("create store failed: %v", err)
@@ -66,6 +94,33 @@ func TestSoftwareConfigService_SaveActivateAndCloudSync(t *testing.T) {
 	}
 	if !opencodeActive.InUse {
 		t.Fatal("expected opencode active in_use=true")
+	}
+
+	latestSnapshot, err := service.GetLatestEffectiveConfigSnapshot()
+	if err != nil {
+		t.Fatalf("get latest effective snapshot failed: %v", err)
+	}
+	if latestSnapshot == nil {
+		t.Fatal("expected latest effective snapshot")
+	}
+	if latestSnapshot.ConfigUUID != "svc-1" || latestSnapshot.Software != "opencode" {
+		t.Fatalf("unexpected latest effective snapshot metadata: %+v", latestSnapshot)
+	}
+	var effectivePayload map[string]interface{}
+	if err := json.Unmarshal([]byte(latestSnapshot.SnapshotJSON), &effectivePayload); err != nil {
+		t.Fatalf("effective snapshot json invalid: %v", err)
+	}
+	if _, ok := effectivePayload["core"]; !ok {
+		t.Fatalf("expected core in effective payload: %v", effectivePayload)
+	}
+	if _, ok := effectivePayload["customer"]; !ok {
+		t.Fatalf("expected customer in effective payload: %v", effectivePayload)
+	}
+	if _, ok := effectivePayload["currentProxy"]; !ok {
+		t.Fatalf("expected currentProxy runtime-effective field in payload: %v", effectivePayload)
+	}
+	if _, ok := effectivePayload["sni_allowlist"]; !ok {
+		t.Fatalf("expected sni_allowlist runtime-effective field in payload: %v", effectivePayload)
 	}
 
 	claudeOnlyBeforePull, err := service.ListBySoftware("claude")
@@ -224,4 +279,8 @@ func TestSoftwareConfigService_SaveActivateAndCloudSync(t *testing.T) {
 	if err := service.Delete(models.DeleteSoftwareConfigRequest{UUID: "svc-3"}); err != nil {
 		t.Fatalf("delete config failed: %v", err)
 	}
+}
+
+func boolPtr(value bool) *bool {
+	return &value
 }

@@ -3,7 +3,6 @@ const appState = {
     currentPage: 'dashboard',
     proxies: [],
     currentProxy: null,
-    doorMembers: [],
     loading: false,
     // 新增状态属性
     runStatus: {

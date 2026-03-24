@@ -1,5 +1,14 @@
 const API_BASE = '/api';
 
+function firstNonEmptyString(values) {
+    for (const value of values) {
+        if (typeof value === 'string' && value.trim()) {
+            return value;
+        }
+    }
+    return '';
+}
+
 async function apiCall(endpoint, options = {}) {
     try {
         const response = await fetch(`${API_BASE}${endpoint}`, {
@@ -13,7 +22,15 @@ async function apiCall(endpoint, options = {}) {
         const data = await response.json();
 
         if (!response.ok) {
-            throw new Error(data.msg || data.message || '请求失败');
+            const detail = firstNonEmptyString([
+                data?.data?.details?.error,
+                data?.data?.error_msg,
+                data?.data?.error,
+                data?.msg,
+                data?.message,
+                data?.error
+            ]);
+            throw new Error(detail || '请求失败');
         }
 
         return data.data || data;
@@ -104,3 +121,19 @@ async function softwareConfigLog(action, software, config_uuid = '', config_name
         detail
     });
 }
+
+async function customerConfigGet() {
+    return apiGet('/config/customer');
+}
+
+async function customerConfigSave(payload) {
+    return apiPost('/config/customer', payload);
+}
+
+async function customerConfigGetProviders() {
+    return apiGet('/config/customer/providers');
+}
+
+window.customerConfigGet = customerConfigGet;
+window.customerConfigSave = customerConfigSave;
+window.customerConfigGetProviders = customerConfigGetProviders;

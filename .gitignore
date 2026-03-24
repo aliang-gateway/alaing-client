@@ -57,3 +57,5 @@ aliang
 .local/
 .play
 .playwright-mcp
+app/website/node_modules
+app/website/dist

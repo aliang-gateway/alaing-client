@@ -18,7 +18,7 @@ async function loadRunStatus() {
     }
 }
 
-document.getElementById('runStartBtn').addEventListener('click', (event) => {
+document.getElementById('runStartBtn')?.addEventListener('click', (event) => {
     const btn = event.currentTarget;
     showLoading(btn);
     apiPost('/run/start')
@@ -40,7 +40,7 @@ document.getElementById('runStartBtn').addEventListener('click', (event) => {
         });
 });
 
-document.getElementById('runStopBtn').addEventListener('click', (event) => {
+document.getElementById('runStopBtn')?.addEventListener('click', (event) => {
     const btn = event.currentTarget;
     showLoading(btn);
     apiPost('/run/stop')
@@ -62,7 +62,7 @@ document.getElementById('runStopBtn').addEventListener('click', (event) => {
         });
 });
 
-document.getElementById('runModeBtn').addEventListener('click', (event) => {
+document.getElementById('runModeBtn')?.addEventListener('click', (event) => {
     const btn = event.currentTarget;
     const currentMode = document.querySelector('input[name="runMode"]:checked').value;
 

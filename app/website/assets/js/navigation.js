@@ -28,9 +28,6 @@ function switchPage(page) {
                 clearInterval(dashboardStatsInterval);
             }
         }, 1500);
-    } else if (page === 'proxy-control') {
-        loadProxyData();
-        loadRunStatus();
     } else if (page === 'rules') {
         loadRulesData();
         loadRoutingConfig();

@@ -1,107 +1,62 @@
 {
-  "engine": {
-    "mtu": 0,
-    "fwmark": 0,
-    "restapi": "",
-    "device": "utun0",
-    "loglevel": "info",
-    "interface": "en0",
-    "tcp-moderate-receive-buffer": false,
-    "tcp-send-buffer-size": "",
-    "tcp-receive-buffer-size": "",
-    "multicast-groups": "",
-    "tun-pre-up": "",
-    "tun-post-up": "",
-    "udp-timeout": "60s"
-  },
-  "currentProxy": "door",
-  "coreServer": "ai-gateway.nursor.org:443",
-  "baseProxies": {
-    "aliang": {
-      "type": "aliang",
-      "core_server": "ai-gateway.nursor.org:443"
-    }
-  },
-  "doorProxy": {
-    "type": "door",
-    "members": [
-      {
-        "showname": "Hong Kong Node 01",
-        "type": "vless",
-        "latency": 45,
-        "vless": {
-          "server": "node1.nursor.org:35001",
-          "uuid": "74cddcdd-6d48-41cf-8e62-902e7c943fe7",
-          "flow": "xtls-rprx-vision",
-          "tls_enabled": true,
-          "sni": "www.microsoft.com",
-          "reality_enabled": true,
-          "public_key": "sAtJcW2xLIUWRE-_7KHGEAtvHx-P1sDbjrrgrt4_XCo",
-          "short_id": "",
-          "short_id_list": ",ef,b79e62,7d87a3,f4bfb2,ecdc,048cc1,be,872a9cb601,4e642a,d0a4cc,6a37c85b4d,facf,e2e46bb5,5fe83d984b7c,884c,f2e4c3af,7b79c5,b7a05d,b6920fa248,0975,95,4d3bd40917,57d89cd6ed9a"
+    "core": {
+        "engine": {
+            "mtu": 0,
+            "fwmark": 0,
+            "restapi": "",
+            "device": "utun0",
+            "loglevel": "info",
+            "interface": "en0",
+            "tcp-moderate-receive-buffer": false,
+            "tcp-send-buffer-size": "",
+            "tcp-receive-buffer-size": "",
+            "multicast-groups": "",
+            "tun-pre-up": "",
+            "tun-post-up": "",
+            "udp-timeout": "60s"
+        },
+        "aliangServer": {
+            "type": "aliang",
+            "core_server": "ai-gateway.nursor.org:443"
         }
-      },
-      {
-        "showname": "Japan Node 01",
-        "type": "vless",
-        "latency": 68,
-        "vless": {
-          "server": "jp1.example.com:443",
-          "uuid": "your-uuid-here",
-          "flow": "",
-          "tls_enabled": true,
-          "sni": "www.google.com",
-          "reality_enabled": false,
-          "public_key": "",
-          "short_id": "",
-          "short_id_list": ""
-        }
-      },
-      {
-        "showname": "US Node 01",
-        "type": "shadowsocks",
-        "latency": 185,
-        "shadowsocks": {
-          "server": "us1.example.com:443",
-          "method": "aes-256-gcm",
-          "password": "your-password-here",
-          "obfs_mode": "tls",
-          "obfs_host": "cloudflare.com"
-        }
-      }
-    ]
-  },
-  "routingRules": {
-    "geoip": {
-      "enabled": true,
-      "databasePath": "~/.aliang/GeoLite2-Country.mmdb",
-      "chinaDirect": true
     },
-    "bypassRules": {
-      "enabled": true,
-      "domains": [
-        "*.apple.com",
-        "*.icloud.com",
-        "*.microsoft.com",
-        "*.windowsupdate.com"
-      ],
-      "domainSuffixes": [
-        ".cn",
-        ".gov.cn",
-        ".edu.cn"
-      ],
-      "ipRanges": [
-        "192.168.0.0/16",
-        "10.0.0.0/8",
-        "172.16.0.0/12",
-        "127.0.0.0/8",
-        "169.254.0.0/16"
-      ]
-    },
-    "ipDomainCache": {
-      "enabled": true,
-      "maxEntries": 10000,
-      "ttl": "5m"
+    "customer": {
+        "proxy": {
+            "type": "socks",
+            "server": "127.0.0.1:1080",
+            "username": "",
+            "password": ""
+        },
+        "ai_rules":{
+          "openai":{
+            "enable": true,
+            "exclude": [
+              "api.openai.com",
+              "cdn.openai.com"
+            ]
+          },
+          "claude":{
+            "enable": true,
+            "exclude": [
+              "claude.ai",
+              "claude.com"
+            ]
+          },
+          "gemini":{
+            "enable": true,
+            "exclude": [
+              "gemini.google.com"
+            ]
+          }
+        },
+        "proxy_rules": {
+          "enabled": true,
+          "rules":[
+            "domains,cursor.com",
+            "domains,*.cursor.com",
+            "domains,*.nursor.org",
+            "ip,192.168.0.0/16"
+        ]
+        }
     }
-  }
 }

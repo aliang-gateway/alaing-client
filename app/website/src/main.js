@@ -8,8 +8,11 @@ import '../assets/styles.css';
 window.bootstrap = bootstrap;
 window.Chart = Chart;
 
-createApp(App).mount('#app');
+async function bootstrapApp() {
+  await loadLegacyScripts();
+  createApp(App).mount('#app');
+  window.dispatchEvent(new Event('app:mounted'));
+}
 
-loadLegacyScripts();
-
+bootstrapApp();
 

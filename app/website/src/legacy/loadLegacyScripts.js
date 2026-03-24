@@ -6,7 +6,6 @@ import apiScriptUrl from '../../assets/js/api.js?url';
 import dashboardUiScriptUrl from '../../assets/js/dashboard-ui.js?url';
 import statusScriptUrl from '../../assets/js/status.js?url';
 import chartsScriptUrl from '../../assets/js/charts.js?url';
-import proxyScriptUrl from '../../assets/js/proxy.js?url';
 import runControlScriptUrl from '../../assets/js/run-control.js?url';
 import rulesScriptUrl from '../../assets/js/rules.js?url';
 import websocketScriptUrl from '../../assets/js/websocket.js?url';
@@ -26,7 +25,6 @@ const legacyScriptOrder = [
   dashboardUiScriptUrl,
   statusScriptUrl,
   chartsScriptUrl,
-  proxyScriptUrl,
   runControlScriptUrl,
   rulesScriptUrl,
   websocketScriptUrl,

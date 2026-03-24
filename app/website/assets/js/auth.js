@@ -17,6 +17,7 @@ async function loadAuthUserInfo() {
 
 function displayUserInfo(userInfo) {
     const container = document.getElementById('authUserInfoContainer');
+    if (!container) return;
     const balanceEl = document.getElementById('userBalance');
     const trafficPercent = userInfo.traffic_total > 0
         ? Math.round((userInfo.traffic_used / userInfo.traffic_total) * 100)
@@ -75,9 +76,11 @@ function displayUserInfo(userInfo) {
         </div>
     `;
 
-    document.getElementById('authLogoutBtn').style.display = 'inline-block';
+    const logoutBtn = document.getElementById('authLogoutBtn');
+    if (logoutBtn) logoutBtn.style.display = 'inline-block';
 
-    document.getElementById('authRefreshStatusCard').style.display = 'block';
+    const refreshCard = document.getElementById('authRefreshStatusCard');
+    if (refreshCard) refreshCard.style.display = 'block';
 
     if (balanceEl) {
         const balance = Number(userInfo.balance || userInfo.amount || 0);
@@ -87,6 +90,7 @@ function displayUserInfo(userInfo) {
 
 function displayNoUserInfo() {
     const container = document.getElementById('authUserInfoContainer');
+    if (!container) return;
     const balanceEl = document.getElementById('userBalance');
     container.innerHTML = `
         <div class="text-center text-muted py-4">
@@ -94,9 +98,11 @@ function displayNoUserInfo() {
         </div>
     `;
 
-    document.getElementById('authLogoutBtn').style.display = 'none';
+    const logoutBtn = document.getElementById('authLogoutBtn');
+    if (logoutBtn) logoutBtn.style.display = 'none';
 
-    document.getElementById('authRefreshStatusCard').style.display = 'none';
+    const refreshCard = document.getElementById('authRefreshStatusCard');
+    if (refreshCard) refreshCard.style.display = 'none';
 
     if (balanceEl) {
         balanceEl.textContent = '--';
@@ -121,24 +127,29 @@ function updateRefreshStatus(status) {
     const errorEl = document.getElementById('authRefreshError');
     const errorMsgEl = document.getElementById('authRefreshErrorMsg');
 
+    if (!runningBadge) return;
+
     runningBadge.className = status.is_running ? 'badge bg-success' : 'badge bg-secondary';
     runningBadge.textContent = status.is_running ? '运行中' : '未运行';
 
-    if (status.last_update_time) {
+    if (lastUpdateEl && status.last_update_time) {
         lastUpdateEl.textContent = formatDateTime(status.last_update_time);
     }
 
-    refreshIntervalEl.textContent = status.refresh_interval || '1 分钟';
+    if (refreshIntervalEl) {
+        refreshIntervalEl.textContent = status.refresh_interval || '1 分钟';
+    }
 
     if (status.last_error) {
-        errorEl.style.display = 'block';
-        errorMsgEl.textContent = status.last_error;
+        if (errorEl) errorEl.style.display = 'block';
+        if (errorMsgEl) errorMsgEl.textContent = status.last_error;
     } else {
-        errorEl.style.display = 'none';
+        if (errorEl) errorEl.style.display = 'none';
+        if (errorMsgEl) errorMsgEl.textContent = '';
     }
 }
 
-document.getElementById('authActivateBtn').addEventListener('click', async () => {
+document.getElementById('authActivateBtn')?.addEventListener('click', async () => {
     const token = document.getElementById('authTokenInput').value.trim();
     if (!token) {
         showError('请输入 Token');
@@ -164,7 +175,7 @@ document.getElementById('authActivateBtn').addEventListener('click', async () =>
     }
 });
 
-document.getElementById('authLogoutBtn').addEventListener('click', async () => {
+document.getElementById('authLogoutBtn')?.addEventListener('click', async () => {
     if (!confirm('确定要登出吗？')) {
         return;
     }

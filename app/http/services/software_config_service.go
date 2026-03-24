@@ -6,9 +6,11 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -19,6 +21,7 @@ import (
 	"nursor.org/nursorgate/app/http/models"
 	"nursor.org/nursorgate/app/http/storage"
 	"nursor.org/nursorgate/common/cache"
+	"nursor.org/nursorgate/processor/config"
 )
 
 type SoftwareConfigService struct {
@@ -78,11 +81,59 @@ func (s *SoftwareConfigService) Activate(req models.ActivateSoftwareConfigReques
 		return nil, err
 	}
 
-	if err := writeConfigFile(cfg.FilePath, cfg.Content); err != nil {
-		return nil, err
-	}
+	coordinator := config.GetEffectiveConfigCommitCoordinator()
+	_, err = coordinator.Commit(
+		&config.EffectiveConfigSnapshot{
+			UUID:     cfg.UUID,
+			Software: cfg.Software,
+			Name:     cfg.Name,
+			FilePath: cfg.FilePath,
+			Version:  cfg.Version,
+			Format:   cfg.Format,
+			Content:  cfg.Content,
+		},
+		func(snapshot *config.EffectiveConfigSnapshot) error {
+			if snapshot == nil {
+				return errors.New("file snapshot is required")
+			}
+			return writeConfigFile(snapshot.FilePath, snapshot.Content)
+		},
+		func(snapshot *config.EffectiveConfigSnapshot) error {
+			if snapshot == nil {
+				return errors.New("db snapshot is required")
+			}
+			if err := s.store.Activate(models.SoftwareConfig{
+				UUID:      snapshot.UUID,
+				Software:  snapshot.Software,
+				Name:      snapshot.Name,
+				FilePath:  snapshot.FilePath,
+				Version:   snapshot.Version,
+				InUse:     true,
+				Format:    snapshot.Format,
+				Content:   snapshot.Content,
+				CreatedAt: cfg.CreatedAt,
+				UpdatedAt: cfg.UpdatedAt,
+			}); err != nil {
+				return err
+			}
 
-	if err := s.store.Activate(*cfg); err != nil {
+			effectiveSnapshotJSON, err := buildEffectiveSnapshotJSON(snapshot)
+			if err != nil {
+				return err
+			}
+
+			return s.store.SaveEffectiveConfigSnapshot(models.SoftwareEffectiveConfigSnapshot{
+				Software:       snapshot.Software,
+				ConfigUUID:     snapshot.UUID,
+				ConfigName:     snapshot.Name,
+				ConfigFilePath: snapshot.FilePath,
+				ConfigVersion:  snapshot.Version,
+				ConfigFormat:   snapshot.Format,
+				SnapshotJSON:   effectiveSnapshotJSON,
+			})
+		},
+	)
+	if err != nil {
 		return nil, err
 	}
 	_ = s.store.SaveOperationLog(models.SoftwareConfigOperationLog{
@@ -281,6 +332,10 @@ func (s *SoftwareConfigService) LogOperation(req models.LogSoftwareConfigOperati
 		Detail:     strings.TrimSpace(req.Detail),
 	}
 	return s.store.SaveOperationLog(log)
+}
+
+func (s *SoftwareConfigService) GetLatestEffectiveConfigSnapshot() (*models.SoftwareEffectiveConfigSnapshot, error) {
+	return s.store.GetLatestEffectiveConfigSnapshot()
 }
 
 func (s *SoftwareConfigService) CompareWithCloud(req models.CompareSoftwareConfigRequest) (*models.CompareSoftwareConfigResponse, error) {
@@ -611,4 +666,190 @@ func writeConfigFile(filePath string, content string) error {
 		return err
 	}
 	return os.WriteFile(filePath, []byte(content), 0o644)
+}
+
+func buildEffectiveSnapshotJSON(snapshot *config.EffectiveConfigSnapshot) (string, error) {
+	if snapshot == nil {
+		return "", errors.New("effective config snapshot is required")
+	}
+
+	merged := make(map[string]interface{})
+
+	globalCfg := config.GetGlobalConfig()
+	if globalCfg != nil {
+		globalRaw, err := json.Marshal(globalCfg)
+		if err != nil {
+			return "", fmt.Errorf("marshal global config: %w", err)
+		}
+		if err := json.Unmarshal(globalRaw, &merged); err != nil {
+			return "", fmt.Errorf("unmarshal global config: %w", err)
+		}
+	}
+
+	contentMap, err := parseConfigContentToMap(snapshot.Format, snapshot.Content)
+	if err != nil {
+		return "", err
+	}
+	for key, value := range contentMap {
+		merged[key] = value
+	}
+
+	if err := enrichRuntimeEffectiveFields(merged); err != nil {
+		return "", err
+	}
+
+	merged["effective_snapshot_meta"] = map[string]interface{}{
+		"config_uuid":      snapshot.UUID,
+		"software":         snapshot.Software,
+		"config_name":      snapshot.Name,
+		"config_file_path": snapshot.FilePath,
+		"config_version":   snapshot.Version,
+		"config_format":    snapshot.Format,
+		"committed_at":     time.Now().UTC().Format(time.RFC3339),
+	}
+
+	raw, err := json.Marshal(merged)
+	if err != nil {
+		return "", fmt.Errorf("marshal effective snapshot json: %w", err)
+	}
+	return string(raw), nil
+}
+
+func parseConfigContentToMap(format string, content string) (map[string]interface{}, error) {
+	result := make(map[string]interface{})
+
+	trimmedFormat := strings.ToLower(strings.TrimSpace(format))
+	if trimmedFormat == "yml" {
+		trimmedFormat = models.ConfigFormatYAML
+	}
+
+	switch trimmedFormat {
+	case models.ConfigFormatJSON:
+		if err := json.Unmarshal([]byte(content), &result); err != nil {
+			return nil, fmt.Errorf("invalid json content for effective snapshot: %w", err)
+		}
+	case models.ConfigFormatYAML:
+		if err := yaml.Unmarshal([]byte(content), &result); err != nil {
+			return nil, fmt.Errorf("invalid yaml content for effective snapshot: %w", err)
+		}
+	default:
+		return nil, fmt.Errorf("unsupported config format for effective snapshot: %s", format)
+	}
+
+	return result, nil
+}
+
+func enrichRuntimeEffectiveFields(snapshot map[string]interface{}) error {
+	if snapshot == nil {
+		return errors.New("effective snapshot payload is nil")
+	}
+
+	coreMap, _ := snapshot["core"].(map[string]interface{})
+	customerMap, _ := snapshot["customer"].(map[string]interface{})
+
+	baseProxies, _ := snapshot["baseProxies"].(map[string]interface{})
+	if baseProxies == nil {
+		baseProxies = make(map[string]interface{})
+	}
+	if coreMap != nil {
+		if aliangServer, ok := coreMap["aliangServer"].(map[string]interface{}); ok {
+			baseProxies["aliang"] = map[string]interface{}{
+				"type":        toString(aliangServer["type"]),
+				"core_server": toString(aliangServer["core_server"]),
+			}
+		}
+	}
+	if len(baseProxies) > 0 {
+		snapshot["baseProxies"] = baseProxies
+	}
+
+	if customerMap != nil {
+		if customerProxy, ok := customerMap["proxy"].(map[string]interface{}); ok {
+			proxyType := strings.ToLower(strings.TrimSpace(toString(customerProxy["type"])))
+			switch proxyType {
+			case "socks":
+				host, port, err := parseProxyServer(toString(customerProxy["server"]))
+				if err != nil {
+					return err
+				}
+				snapshot["currentProxy"] = "socks"
+				snapshot["socksProxy"] = map[string]interface{}{
+					"server":     host,
+					"serverPort": port,
+					"username":   toString(customerProxy["username"]),
+					"password":   toString(customerProxy["password"]),
+				}
+			case "http":
+				snapshot["currentProxy"] = "direct"
+				delete(snapshot, "socksProxy")
+			}
+		}
+
+		if aiRules, ok := customerMap["ai_rules"].(map[string]interface{}); ok {
+			allowlist := make([]string, 0)
+			for _, rawRule := range aiRules {
+				ruleMap, ok := rawRule.(map[string]interface{})
+				if !ok {
+					continue
+				}
+				enabled, _ := ruleMap["enable"].(bool)
+				if !enabled {
+					continue
+				}
+				rawExclude, _ := ruleMap["exclude"].([]interface{})
+				for _, domain := range rawExclude {
+					trimmed := strings.TrimSpace(toString(domain))
+					if trimmed != "" {
+						allowlist = append(allowlist, trimmed)
+					}
+				}
+			}
+			if len(allowlist) > 0 {
+				snapshot["sni_allowlist"] = dedupeStrings(allowlist)
+			}
+		}
+	}
+
+	return nil
+}
+
+func parseProxyServer(server string) (string, int, error) {
+	host, portRaw, err := net.SplitHostPort(strings.TrimSpace(server))
+	if err != nil {
+		return "", 0, fmt.Errorf("customer.proxy.server must be host:port for effective snapshot")
+	}
+	port, err := strconv.Atoi(portRaw)
+	if err != nil || port < 1 || port > 65535 {
+		return "", 0, fmt.Errorf("customer.proxy.server has invalid port for effective snapshot")
+	}
+	return host, port, nil
+}
+
+func toString(value interface{}) string {
+	if value == nil {
+		return ""
+	}
+	switch v := value.(type) {
+	case string:
+		return strings.TrimSpace(v)
+	default:
+		return strings.TrimSpace(fmt.Sprint(v))
+	}
+}
+
+func dedupeStrings(in []string) []string {
+	seen := make(map[string]struct{}, len(in))
+	out := make([]string, 0, len(in))
+	for _, value := range in {
+		trimmed := strings.TrimSpace(value)
+		if trimmed == "" {
+			continue
+		}
+		if _, exists := seen[trimmed]; exists {
+			continue
+		}
+		seen[trimmed] = struct{}{}
+		out = append(out, trimmed)
+	}
+	return out
 }

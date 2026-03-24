@@ -1,6 +1,8 @@
 package config
 
 import (
+	"encoding/json"
+	"strings"
 	"testing"
 )
 
@@ -316,5 +318,221 @@ func TestSocks5ConfigValidate(t *testing.T) {
 				t.Errorf("Validate() error message = %v, want %v", err.Error(), tt.errMsg)
 			}
 		})
+	}
+}
+
+func TestConfigValidate_NewModelBridge_MapsRuntimeFields(t *testing.T) {
+	payload := []byte(`{
+		"api_server": "https://api.example.com",
+		"core": {
+			"aliangServer": {
+				"type": "aliang",
+				"core_server": "ai-gateway.nursor.org:443"
+			}
+		},
+		"customer": {
+			"proxy": {
+				"type": "socks",
+				"server": "127.0.0.1:1080",
+				"username": "u",
+				"password": "p"
+			},
+			"ai_rules": {
+				"openai": {
+					"enable": true,
+					"exclude": ["api.openai.com", "cdn.openai.com"]
+				},
+				"claude": {
+					"enable": false,
+					"exclude": ["claude.ai"]
+				}
+			},
+			"proxy_rules": ["domains,cursor.com,proxy"]
+		}
+	}`)
+
+	var cfg Config
+	if err := json.Unmarshal(payload, &cfg); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("Validate() error = %v", err)
+	}
+
+	if cfg.CurrentProxy != "socks" {
+		t.Fatalf("CurrentProxy = %q, want socks", cfg.CurrentProxy)
+	}
+	if cfg.SocksProxy == nil {
+		t.Fatal("SocksProxy is nil, want bridged socks config")
+	}
+	if cfg.SocksProxy.Server != "127.0.0.1" || cfg.SocksProxy.ServerPort != 1080 {
+		t.Fatalf("SocksProxy = %#v, want host 127.0.0.1 port 1080", cfg.SocksProxy)
+	}
+	if cfg.BaseProxies == nil || cfg.BaseProxies["aliang"] == nil {
+		t.Fatal("BaseProxies[\"aliang\"] missing after bridge")
+	}
+	if got := cfg.BaseProxies["aliang"].CoreServer; got != "ai-gateway.nursor.org:443" {
+		t.Fatalf("BaseProxies[\"aliang\"].CoreServer = %q", got)
+	}
+	if len(cfg.SNIAllowlist) != 2 {
+		t.Fatalf("SNIAllowlist len = %d, want 2", len(cfg.SNIAllowlist))
+	}
+
+	// Verify backward-compatible proxy_rules deserialization (legacy []string)
+	if cfg.Customer.ProxyRules == nil {
+		t.Fatal("ProxyRules is nil, want backward-compatible parsing")
+	}
+	if !cfg.Customer.ProxyRules.Enabled {
+		t.Fatal("ProxyRules.Enabled = false, want true (legacy array defaults to enabled)")
+	}
+	if len(cfg.Customer.ProxyRules.Rules) != 1 || cfg.Customer.ProxyRules.Rules[0] != "domains,cursor.com,proxy" {
+		t.Fatalf("ProxyRules.Rules = %v, want [domains,cursor.com,proxy]", cfg.Customer.ProxyRules.Rules)
+	}
+}
+
+func TestProxyRulesConfig_Unmarshal(t *testing.T) {
+	t.Run("legacy array format", func(t *testing.T) {
+		data := []byte(`["a","b","c"]`)
+		var cfg CustomerProxyRulesConfig
+		if err := json.Unmarshal(data, &cfg); err != nil {
+			t.Fatalf("Unmarshal() error = %v", err)
+		}
+		if !cfg.Enabled {
+			t.Fatal("Enabled = false, want true")
+		}
+		if len(cfg.Rules) != 3 {
+			t.Fatalf("Rules len = %d, want 3", len(cfg.Rules))
+		}
+	})
+
+	t.Run("object format", func(t *testing.T) {
+		data := []byte(`{"enabled":false,"rules":["x","y"]}`)
+		var cfg CustomerProxyRulesConfig
+		if err := json.Unmarshal(data, &cfg); err != nil {
+			t.Fatalf("Unmarshal() error = %v", err)
+		}
+		if cfg.Enabled {
+			t.Fatal("Enabled = true, want false")
+		}
+		if len(cfg.Rules) != 2 {
+			t.Fatalf("Rules len = %d, want 2", len(cfg.Rules))
+		}
+	})
+
+	t.Run("null value", func(t *testing.T) {
+		data := []byte(`null`)
+		var cfg CustomerProxyRulesConfig
+		if err := json.Unmarshal(data, &cfg); err != nil {
+			t.Fatalf("Unmarshal() error = %v", err)
+		}
+	})
+}
+
+func TestConfigValidate_CustomerProxyTypeEnum(t *testing.T) {
+	payload := []byte(`{
+		"api_server": "https://api.example.com",
+		"customer": {
+			"proxy": {
+				"type": "socks5",
+				"server": "127.0.0.1:1080"
+			}
+		}
+	}`)
+
+	var cfg Config
+	if err := json.Unmarshal(payload, &cfg); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+	err := cfg.Validate()
+	if err == nil {
+		t.Fatal("Validate() error = nil, want enum validation error")
+	}
+	if !strings.Contains(err.Error(), "customer.proxy.type must be one of [http socks]") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestConfigValidate_ForbidUnknownCustomerField(t *testing.T) {
+	payload := []byte(`{
+		"api_server": "https://api.example.com",
+		"customer": {
+			"proxy": {
+				"type": "http",
+				"server": "127.0.0.1:1080"
+			},
+			"forbidden": true
+		}
+	}`)
+
+	var cfg Config
+	if err := json.Unmarshal(payload, &cfg); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+	err := cfg.Validate()
+	if err == nil {
+		t.Fatal("Validate() error = nil, want forbidden field error")
+	}
+	if !strings.Contains(err.Error(), "customer.forbidden is forbidden") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestConfigValidate_ForbidUnknownAIRulesField(t *testing.T) {
+	payload := []byte(`{
+		"api_server": "https://api.example.com",
+		"customer": {
+			"proxy": {
+				"type": "http",
+				"server": "127.0.0.1:1080"
+			},
+			"ai_rules": {
+				"openai": {
+					"enable": true,
+					"exclude": ["api.openai.com"],
+					"mode": "all"
+				}
+			}
+		}
+	}`)
+
+	var cfg Config
+	if err := json.Unmarshal(payload, &cfg); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+	err := cfg.Validate()
+	if err == nil {
+		t.Fatal("Validate() error = nil, want forbidden ai_rules field error")
+	}
+	if !strings.Contains(err.Error(), "customer.ai_rules.openai.mode is forbidden") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestConfigValidate_AIRulesEnableRequired(t *testing.T) {
+	payload := []byte(`{
+		"api_server": "https://api.example.com",
+		"customer": {
+			"proxy": {
+				"type": "http",
+				"server": "127.0.0.1:1080"
+			},
+			"ai_rules": {
+				"openai": {
+					"exclude": ["api.openai.com"]
+				}
+			}
+		}
+	}`)
+
+	var cfg Config
+	if err := json.Unmarshal(payload, &cfg); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+	err := cfg.Validate()
+	if err == nil {
+		t.Fatal("Validate() error = nil, want missing enable error")
+	}
+	if !strings.Contains(err.Error(), "customer.ai_rules.openai.enable is required") {
+		t.Fatalf("unexpected error: %v", err)
 	}
 }

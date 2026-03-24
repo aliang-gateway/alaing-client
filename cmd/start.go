@@ -77,20 +77,8 @@ func runStart(cmd *cobra.Command, args []string) error {
 	// Get the global startup state
 	startupState := runtime.GetStartupState()
 
-	// Load configuration (from file or default)
-	if configPath != "" {
-		// Load from local config file
-		logger.Info(fmt.Sprintf("Loading configuration from file: %s", configPath))
-		if err := LoadAndApplyConfig(configPath); err != nil {
-			return fmt.Errorf("failed to load config from file: %w", err)
-		}
-	} else {
-		// Use default embedded configuration
-		logger.Info("No config file provided, using embedded default configuration...")
-		if err := ApplyDefaultConfig(); err != nil {
-			return fmt.Errorf("failed to apply default config: %w", err)
-		}
-		setUseDefaultConfig(true)
+	if err := ApplyStartupConfig(configPath); err != nil {
+		return fmt.Errorf("failed to initialize startup configuration: %w", err)
 	}
 
 	// Determine initial startup status based on login state
