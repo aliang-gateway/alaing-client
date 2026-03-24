@@ -12,10 +12,11 @@ import (
 
 	"nursor.org/nursorgate/app/http/models"
 	"nursor.org/nursorgate/app/http/storage"
+	"nursor.org/nursorgate/common/cache"
 	"nursor.org/nursorgate/processor/config"
 )
 
-const customerConfigFilePath = "./config.new.json"
+const customerConfigFilePath = "~/.aliang/config.json"
 
 type CustomerConfigService struct {
 	store *storage.SoftwareConfigStore
@@ -130,7 +131,11 @@ func (s *CustomerConfigService) UpdateCommittedCustomerConfig(payload []byte) (*
 			if err := json.Unmarshal([]byte(snapshot.Content), &fileCfg); err != nil {
 				return fmt.Errorf("decode snapshot content for file persist: %w", err)
 			}
-			return config.SaveConfigToFile(&fileCfg, snapshot.FilePath)
+			expandedPath, err := cache.ExpandHomePath(snapshot.FilePath)
+			if err != nil {
+				return fmt.Errorf("expand file path: %w", err)
+			}
+			return config.SaveConfigToFile(&fileCfg, expandedPath)
 		},
 		func(snapshot *config.EffectiveConfigSnapshot) error {
 			if snapshot == nil {
@@ -273,7 +278,11 @@ func resolveBaseConfigForCustomerUpdate() (*config.Config, error) {
 		return &committedCfg, nil
 	}
 
-	raw, err := os.ReadFile(customerConfigFilePath)
+	configPath, err := cache.ExpandHomePath(customerConfigFilePath)
+	if err != nil {
+		return nil, fmt.Errorf("expand config file path: %w", err)
+	}
+	raw, err := os.ReadFile(configPath)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return bootstrapBaseConfigForCustomerUpdate(), nil

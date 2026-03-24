@@ -11,7 +11,6 @@
       v-model="isCertModalOpen"
     />
     <QuickSetupModal :open="isQuickSetupOpen" @close="isQuickSetupOpen = false" />
-    <CompatibilityAnchors />
   </div>
 </template>
 
@@ -21,7 +20,6 @@ import DashboardPage from './components/DashboardPage.vue';
 import SettingsPage from './components/SettingsPage.vue';
 import CertManagementModal from './components/CertManagementModal.vue';
 import QuickSetupModal from './components/QuickSetupModal.vue';
-import CompatibilityAnchors from './components/CompatibilityAnchors.vue';
 
 const isQuickSetupOpen = ref(false);
 const isCertModalOpen = ref(false);

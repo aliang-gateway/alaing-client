@@ -1,62 +1,62 @@
 {
-    "core": {
-        "engine": {
-            "mtu": 0,
-            "fwmark": 0,
-            "restapi": "",
-            "device": "utun0",
-            "loglevel": "info",
-            "interface": "en0",
-            "tcp-moderate-receive-buffer": false,
-            "tcp-send-buffer-size": "",
-            "tcp-receive-buffer-size": "",
-            "multicast-groups": "",
-            "tun-pre-up": "",
-            "tun-post-up": "",
-            "udp-timeout": "60s"
-        },
-        "aliangServer": {
-            "type": "aliang",
-            "core_server": "ai-gateway.nursor.org:443"
-        }
-    },
-    "customer": {
-        "proxy": {
-            "type": "socks",
-            "server": "127.0.0.1:1080",
-            "username": "",
-            "password": ""
-        },
-        "ai_rules":{
-          "openai":{
-            "enable": true,
-            "exclude": [
-              "api.openai.com",
-              "cdn.openai.com"
-            ]
-          },
-          "claude":{
-            "enable": true,
-            "exclude": [
-              "claude.ai",
-              "claude.com"
-            ]
-          },
-          "gemini":{
-            "enable": true,
-            "exclude": [
-              "gemini.google.com"
-            ]
-          }
-        },
-        "proxy_rules": {
-          "enabled": true,
-          "rules":[
-            "domains,cursor.com",
-            "domains,*.cursor.com",
-            "domains,*.nursor.org",
-            "ip,192.168.0.0/16"
-        ]
-        }
+  "api_server": "https://api.example.com",
+  "currentProxy": "socks",
+  "baseProxies": {
+    "aliang": {
+      "type": "aliang",
+      "core_server": "ai-gateway.nursor.org:443"
     }
+  },
+  "socksProxy": {
+    "server_host": "123.123.123.123",
+    "server_port": 123
+  },
+  "core": {
+    "engine": {
+      "mtu": 0,
+      "fwmark": 0,
+      "restapi": "",
+      "device": "utun0",
+      "loglevel": "info",
+      "interface": "en0",
+      "tcp-moderate-receive-buffer": false,
+      "tcp-send-buffer-size": "",
+      "tcp-receive-buffer-size": "",
+      "multicast-groups": "",
+      "tun-pre-up": "",
+      "tun-post-up": "",
+      "udp-timeout": "60s"
+    },
+    "aliangServer": {
+      "type": "aliang",
+      "core_server": "ai-gateway.nursor.org:443"
+    }
+  },
+  "customer": {
+    "proxy": {
+      "type": "socks",
+      "server": "123.123.123.123:123"
+    },
+    "ai_rules": {
+      "claude": {
+        "enable": true
+      },
+      "copilot": {
+        "enable": true
+      },
+      "cursor": {
+        "enable": true
+      },
+      "openai": {
+        "enable": false
+      }
+    },
+    "proxy_rules": {
+      "enabled": true,
+      "rules": [
+        "domain,123.com",
+        "ip,172.1.13.1/24"
+      ]
+    }
+  }
 }

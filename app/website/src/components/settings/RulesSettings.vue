@@ -99,10 +99,10 @@
               <label v-if="isDev" class="space-y-2">
                 <span class="text-xs font-semibold uppercase tracking-wide text-slate-500">Exclude domains</span>
                 <textarea
-                  :value="toMultiline(form.ai_rules[provider].exclude)"
+                  :value="_providerExcludeTexts[provider]"
                   class="min-h-28 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 font-mono text-sm text-slate-700 shadow-sm transition focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
                   placeholder="example.com&#10;api.example.com"
-                  @input="updateProviderExclude(provider, $event.target.value)"
+                  @input="_providerExcludeTexts[provider] = $event.target.value"
                 ></textarea>
               </label>
             </article>
@@ -127,10 +127,10 @@
           <label class="space-y-2">
             <span class="text-xs font-semibold uppercase tracking-wide text-slate-500">Rules list</span>
             <textarea
-              :value="toMultiline(form.proxy_rules.rules)"
+              :value="_proxyRulesText"
               class="min-h-40 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 font-mono text-sm text-slate-700 shadow-sm transition focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
               placeholder="domain,example.com,proxy&#10;api.example.com"
-              @input="updateProxyRules($event.target.value)"
+              @input="_proxyRulesText = $event.target.value"
             ></textarea>
           </label>
         </section>
@@ -150,35 +150,6 @@
           </button>
         </div>
       </form>
-    </div>
-
-    <div class="compat-anchors" aria-hidden="true">
-      <div id="rulesStatus"></div>
-      <div id="rules-status-badge"></div>
-      <div id="rules-status-text"></div>
-      <div id="rulesCacheCount"></div>
-      <div id="rulesCacheSize"></div>
-      <div id="cache-hit-rate"></div>
-      <div id="total-cache"></div>
-      <div id="cache-last-update"></div>
-      <input id="geoipEnabledSwitch" type="checkbox" />
-      <button id="rulesEnableBtn" type="button"></button>
-      <button id="rulesDisableBtn" type="button"></button>
-      <button id="rulesReloadBtn" type="button"></button>
-      <button id="rulesClearCacheBtn" type="button"></button>
-      <input id="rulesLookupDomain" type="text" />
-      <button id="rulesLookupBtn" type="button"></button>
-      <textarea id="rulesLookupResult"></textarea>
-      <div id="ruleEditModal"></div>
-      <select id="ruleTypeSelect"><option value="">-</option></select>
-      <input id="ruleConditionInput" type="text" />
-      <input id="ruleEnabledCheckbox" type="checkbox" />
-      <input id="ruleIdInput" type="text" />
-      <input id="ruleSetInput" type="text" />
-      <div id="ruleEditModalTitle"></div>
-      <div id="conditionError"></div>
-      <div id="typeHelpText"></div>
-      <button id="ruleEditSaveBtn" type="button"></button>
     </div>
   </div>
 </template>
@@ -312,11 +283,14 @@ export default {
   data() {
     return {
       isDev: import.meta.env.VITE_MODE === 'dev',
-      form: normalizeConfig(this.config)
+      form: normalizeConfig(this.config),
+      _proxyRulesText: '',
+      _providerExcludeTexts: {}
     };
   },
   created() {
     this.ensureProviders();
+    this.syncTextFromForm();
   },
   computed: {
     providerOrder() {
@@ -338,12 +312,14 @@ export default {
       handler(nextConfig) {
         this.form = normalizeConfig(nextConfig);
         this.ensureProviders();
+        this.syncTextFromForm();
       }
     },
     presetProviders: {
       deep: true,
       handler() {
         this.ensureProviders();
+        this.syncTextFromForm();
       }
     }
   },
@@ -359,17 +335,22 @@ export default {
       const preset = presetProviders.find(p => p.key === key);
       return preset ? preset.label : key;
     },
-    toMultiline(items = []) {
-      return items.join('\n');
-    },
-    updateProviderExclude(provider, value) {
-      this.form.ai_rules[provider].exclude = sanitizeLines(value);
-    },
-    updateProxyRules(value) {
-      this.form.proxy_rules.rules = sanitizeLines(value);
+    syncTextFromForm() {
+      this._proxyRulesText = (this.form.proxy_rules.rules || []).join('\n');
+      for (const key of Object.keys(this.form.ai_rules)) {
+        if (!this._providerExcludeTexts[key]) {
+          this._providerExcludeTexts[key] = (this.form.ai_rules[key].exclude || []).join('\n');
+        }
+      }
     },
     async handleSubmit() {
       const normalized = normalizeConfig(this.form);
+      normalized.proxy_rules.rules = sanitizeLines(this._proxyRulesText);
+      for (const [key, text] of Object.entries(this._providerExcludeTexts)) {
+        if (normalized.ai_rules[key]) {
+          normalized.ai_rules[key].exclude = sanitizeLines(text);
+        }
+      }
       this.$emit('save', normalized);
     }
   }

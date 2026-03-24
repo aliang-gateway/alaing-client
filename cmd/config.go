@@ -6,7 +6,9 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"path/filepath"
 
+	"nursor.org/nursorgate/app/http/storage"
 	"nursor.org/nursorgate/common/logger"
 	"nursor.org/nursorgate/outbound"
 	"nursor.org/nursorgate/processor/config"
@@ -25,6 +27,8 @@ type startupConfigSource string
 const (
 	startupConfigSourceExplicitPath startupConfigSource = "--config"
 	startupConfigSourceLocalFile    startupConfigSource = "./config.new.json"
+	startupConfigSourceUserHome     startupConfigSource = "~/.aliang/config.json"
+	startupConfigSourceDatabase     startupConfigSource = "database snapshot"
 	startupConfigSourceEmbedded     startupConfigSource = "embedded default"
 )
 
@@ -57,6 +61,18 @@ func resolveStartupConfigSource(explicitConfigPath string) (startupConfigSource,
 		return "", "", fmt.Errorf("failed to inspect %s: %w", startupLocalConfigPath, err)
 	}
 
+	// Check ~/.aliang/config.json
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return "", "", fmt.Errorf("failed to get user home directory: %w", err)
+	}
+	homeConfigPath := filepath.Join(homeDir, ".aliang", "config.json")
+	if _, err := os.Stat(homeConfigPath); err == nil {
+		return startupConfigSourceUserHome, homeConfigPath, nil
+	} else if !os.IsNotExist(err) {
+		return "", "", fmt.Errorf("failed to inspect %s: %w", homeConfigPath, err)
+	}
+
 	return startupConfigSourceEmbedded, "", nil
 }
 
@@ -81,14 +97,61 @@ func ApplyStartupConfig(explicitConfigPath string) error {
 		}
 		logger.Info(fmt.Sprintf("Startup configuration source: %s", source))
 		return nil
+	case startupConfigSourceUserHome:
+		logger.Info(fmt.Sprintf("Loading configuration from user home: %s", selectedPath))
+		if err := LoadAndApplyConfig(selectedPath); err != nil {
+			return fmt.Errorf("failed to load startup config from %s (fail-fast, no fallback): %w", selectedPath, err)
+		}
+		logger.Info(fmt.Sprintf("Startup configuration source: %s", source))
+		return nil
 	default:
-		logger.Info("No explicit --config or ./config.new.json found, using embedded default configuration")
+		// No config file found — try to restore from database before falling back to embedded default
+		logger.Info("No config file found, attempting to restore configuration from database...")
+		if restored, err := tryRestoreConfigFromDatabase(); err != nil {
+			logger.Warn(fmt.Sprintf("Database config restore failed: %v", err))
+		} else if restored != nil {
+			logger.Info("Startup configuration source: database snapshot")
+			if err := ApplyConfig(restored); err != nil {
+				logger.Warn(fmt.Sprintf("Database config applied with warnings: %v", err))
+				// Don't fail — fall through to embedded default
+			} else {
+				setUseDefaultConfig(false)
+				return nil
+			}
+		}
+
+		logger.Info("No config file or database snapshot found, using embedded default configuration")
 		if err := ApplyDefaultConfig(); err != nil {
 			return fmt.Errorf("failed to apply startup config from embedded default: %w", err)
 		}
 		logger.Info(fmt.Sprintf("Startup configuration source: %s", source))
 		return nil
 	}
+}
+
+// tryRestoreConfigFromDatabase attempts to load the most recent effective config
+// snapshot from the software_configs database. Returns nil, nil if no snapshot exists.
+func tryRestoreConfigFromDatabase() (*Config, error) {
+	store := storage.NewSoftwareConfigStore()
+	if store == nil {
+		return nil, fmt.Errorf("config store is nil")
+	}
+
+	snapshot, err := store.GetLatestEffectiveConfigSnapshot()
+	if err != nil {
+		return nil, fmt.Errorf("failed to query latest snapshot: %w", err)
+	}
+	if snapshot == nil {
+		return nil, nil
+	}
+
+	var cfg config.Config
+	if err := json.Unmarshal([]byte(snapshot.SnapshotJSON), &cfg); err != nil {
+		return nil, fmt.Errorf("failed to parse snapshot json: %w", err)
+	}
+
+	logger.Info(fmt.Sprintf("Configuration restored from database snapshot (id=%d, created_at=%v)", snapshot.ID, snapshot.CreatedAt))
+	return &cfg, nil
 }
 
 // LoadConfig 从文件加载配置
