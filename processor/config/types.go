@@ -460,7 +460,7 @@ func (c *Config) validateCustomerEditableSurface() error {
 
 	if c.Customer.Proxy != nil {
 		switch c.Customer.Proxy.Type {
-		case "http", "socks":
+		case "http", "socks5", "socks":
 		default:
 			return fmt.Errorf("customer.proxy.type must be one of [http socks], got %q", c.Customer.Proxy.Type)
 		}

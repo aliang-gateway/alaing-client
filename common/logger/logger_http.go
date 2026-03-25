@@ -45,3 +45,8 @@ func HttpWarn(v ...interface{}) {
 func HttpError(v ...interface{}) {
 	GetMainLogger().Error(v...)
 }
+
+// HttpTrace logs trace message to the unified logger.
+func HttpTrace(v ...interface{}) {
+	GetMainLogger().Trace(v...)
+}
