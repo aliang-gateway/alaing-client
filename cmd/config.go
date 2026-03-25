@@ -17,7 +17,7 @@ import (
 
 // Embed the default configuration
 //
-//go:embed config.default.json
+//go:embed config.json
 var defaultConfigData string
 
 const startupLocalConfigPath = "./config.new.json"
@@ -209,7 +209,7 @@ func ApplyConfig(cfg *Config) error {
 
 	// Phase 3: Set the active default proxy for routing decisions
 	// Determines which proxy is used when no specific routing rule applies
-	if err := setEffectiveDefaultProxy(cfg.CurrentProxy); err != nil {
+	if err := setEffectiveDefaultProxy(cfg.EffectiveDefaultProxy()); err != nil {
 		return fmt.Errorf("phase 3 - failed to set default proxy: %w", err)
 	}
 	logger.Debug("Phase 3: Default proxy set for routing")
@@ -261,20 +261,7 @@ func registerBuiltinProxies(cfg *Config) error {
 	}
 
 	// 2. 注册 aliang 代理
-	coreServer := ""
-	// 首先尝试从 AliangCoreServer 字段读取
-	if cfg.BaseProxies != nil {
-		// 其次尝试从 BaseProxies["aliang"].CoreServer 读取
-		if aliangConfig, exists := cfg.BaseProxies["aliang"]; exists && aliangConfig != nil {
-			coreServer = aliangConfig.CoreServer
-		}
-	}
-
-	// 如果配置中没有指定，使用默认值
-	if coreServer == "" {
-		coreServer = "ai-gateway.nursor.org:443"
-		logger.Debug("Using default Aliang server address")
-	}
+	coreServer := cfg.EffectiveAliangCoreServer()
 
 	if err := registry.RegisterAliang(coreServer); err != nil {
 		return fmt.Errorf("failed to register aliang proxy: %w", err)
@@ -287,20 +274,24 @@ func registerBuiltinProxies(cfg *Config) error {
 
 // registerSocksProxy registers optional SOCKS5 proxy
 func registerSocksProxy(cfg *config.Config) error {
-	if cfg.SocksProxy == nil {
+	socksCfg, err := cfg.EffectiveSocksProxy()
+	if err != nil {
+		return fmt.Errorf("invalid customer socks5 proxy config: %w", err)
+	}
+	if socksCfg == nil {
 		logger.Debug("No socks proxy configured")
 		return nil
 	}
 
 	// Validate config (already validated in cfg.Validate, but keep safe)
-	if err := cfg.SocksProxy.Validate(); err != nil {
+	if err := socksCfg.Validate(); err != nil {
 		return fmt.Errorf("invalid socks proxy config: %w", err)
 	}
 
-	addr := fmt.Sprintf("%s:%d", cfg.SocksProxy.Server, cfg.SocksProxy.ServerPort)
+	addr := fmt.Sprintf("%s:%d", socksCfg.Server, socksCfg.ServerPort)
 	proxyInstance := outbound.GetRegistry()
 
-	socksProxy, err := outbound.CreateSocksProxy(addr, cfg.SocksProxy.Username, cfg.SocksProxy.Password)
+	socksProxy, err := outbound.CreateSocksProxy(addr, socksCfg.Username, socksCfg.Password)
 	if err != nil {
 		return fmt.Errorf("failed to create socks proxy: %w", err)
 	}

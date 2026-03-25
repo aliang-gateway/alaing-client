@@ -1,6 +1,7 @@
 package test
 
 import (
+	"strings"
 	"testing"
 
 	"nursor.org/nursorgate/app/http/services"
@@ -46,10 +47,10 @@ func TestRunServiceWithDefaultConfig(t *testing.T) {
 	// 验证消息
 	if msg, ok := result["msg"]; !ok {
 		t.Fatal("Result should contain 'msg' field")
-	} else if msg != "需要先登录后再启动网关。" {
+	} else if !strings.Contains(msg.(string), "登录或配置恢复") {
 		t.Fatalf("Message mismatch: got '%v'", msg)
 	}
-	t.Log("✓ Step 6: Error message verified - '需要先登录后再启动网关。'")
+	t.Log("✓ Step 6: Error message verified - login/session-restore guidance")
 
 	// 打印完整响应
 	t.Logf("\nFull API response when using default config:\n%+v\n", result)

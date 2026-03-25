@@ -347,14 +347,14 @@ func collectAIDomains(cfg *config.Config) []string {
 
 		for _, provider := range providers {
 			rule := cfg.Customer.AIRules[provider]
-			if rule == nil || rule.Enable == nil || !*rule.Enable {
+			if rule == nil || rule.Enble == nil || !*rule.Enble {
 				continue
 			}
 			domains = append(domains, rule.Exclude...)
 		}
 	}
 
-	domains = append(domains, cfg.SNIAllowlist...)
+	domains = append(domains, cfg.EffectiveAIAllowlist()...)
 	return dedupeNormalizedDomains(domains)
 }
 
@@ -363,13 +363,13 @@ func collectProxyRuleDomains(cfg *config.Config) []string {
 		return nil
 	}
 
-	pr := cfg.Customer.ProxyRules
-	if pr == nil || !pr.Enabled {
-		return nil
-	}
+		rules := cfg.Customer.ProxyRules
+		if len(rules) == 0 {
+			return nil
+		}
 
-	domains := make([]string, 0, len(pr.Rules))
-	for _, rawRule := range pr.Rules {
+		domains := make([]string, 0, len(rules))
+		for _, rawRule := range rules {
 		domain, ok := parseProxyRuleDomain(rawRule)
 		if !ok {
 			continue
@@ -417,13 +417,9 @@ func resolveToSocksUpstreamType(cfg *config.Config) (string, bool) {
 		switch proxyType {
 		case "http":
 			return "http", true
-		case "socks":
+		case "socks5":
 			return "socks", true
 		}
-	}
-
-	if cfg != nil && cfg.SocksProxy != nil {
-		return "socks", true
 	}
 
 	return "", false

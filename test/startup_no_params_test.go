@@ -3,6 +3,7 @@ package test
 import (
 	"net"
 	"net/http"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -10,6 +11,7 @@ import (
 
 	"nursor.org/nursorgate/app/http/middleware"
 	"nursor.org/nursorgate/cmd"
+	auth "nursor.org/nursorgate/processor/auth"
 	"nursor.org/nursorgate/processor/config"
 	"nursor.org/nursorgate/processor/runtime"
 )
@@ -149,7 +151,7 @@ func TestStartupStatusAPIAccess(t *testing.T) {
 	})
 
 	// Register routes with middleware
-	mux.HandleFunc("/api/auth/activate",
+	mux.HandleFunc("/api/auth/login",
 		middleware.StartupStatusMiddleware(mockHandler).ServeHTTP)
 	mux.HandleFunc("/api/proxy/list",
 		middleware.StartupStatusMiddleware(mockHandler).ServeHTTP)
@@ -168,7 +170,7 @@ func TestStartupStatusAPIAccess(t *testing.T) {
 	baseURL := "http://" + listener.Addr().String()
 
 	// Test configuration API - should be allowed
-	resp, err := http.Get(baseURL + "/api/auth/activate")
+	resp, err := http.Get(baseURL + "/api/auth/login")
 	require.Nil(t, err)
 	defer resp.Body.Close()
 	assert.Equal(t, http.StatusOK, resp.StatusCode,
@@ -196,12 +198,13 @@ func TestStartupStatusAPIAccess(t *testing.T) {
 
 // setupTestEnvironment prepares the test environment
 func setupTestEnvironment(t *testing.T) {
-	// t.TempDir() creates an isolated temporary directory that is automatically cleaned up
-	_ = t.TempDir()
+	baseDir := t.TempDir()
+	t.Setenv("HOME", filepath.Join(baseDir, "home"))
+	t.Setenv("NURSOR_CACHE_DIR", filepath.Join(baseDir, "cache"))
 
-	// Reset global states to ensure test isolation
 	config.ResetGlobalConfigForTest()
 	cmd.ResetGlobalStartupStateForTest()
+	auth.ResetAuthPersistenceForTest()
 }
 
 // teardownTestEnvironment cleans up after the test

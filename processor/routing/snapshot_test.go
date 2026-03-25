@@ -13,14 +13,14 @@ func boolPtr(v bool) *bool { return &v }
 func TestCompileRuntimeSnapshotFromRuntimeInputs_AIRulesPrecedeProxyRules(t *testing.T) {
 	cfg := &config.Config{
 		Customer: &config.CustomerConfig{
-			Proxy: &config.CustomerProxyConfig{Type: "socks"},
+			Proxy: &config.CustomerProxyConfig{Type: "socks5"},
 			AIRules: map[string]*config.CustomerAIRuleSetting{
 				"openai": {
-					Enable:  boolPtr(true),
+					Enble:   boolPtr(true),
 					Exclude: []string{"api.openai.com"},
 				},
 			},
-			ProxyRules: &config.CustomerProxyRulesConfig{Enabled: true, Rules: []string{"domain,api.openai.com,proxy"}},
+			ProxyRules: []string{"domain,api.openai.com,proxy"},
 		},
 	}
 
@@ -41,9 +41,9 @@ func TestCompileRuntimeSnapshotFromRuntimeInputs_AIRulesPrecedeProxyRules(t *tes
 func TestCompileRuntimeSnapshotFromRuntimeInputs_NonAIRulesMatchProxyRules(t *testing.T) {
 	cfg := &config.Config{
 		Customer: &config.CustomerConfig{
-			Proxy:      &config.CustomerProxyConfig{Type: "socks"},
+			Proxy:      &config.CustomerProxyConfig{Type: "socks5"},
 			AIRules:    map[string]*config.CustomerAIRuleSetting{},
-			ProxyRules: &config.CustomerProxyRulesConfig{Enabled: true, Rules: []string{"domain,cursor.com,proxy"}},
+			ProxyRules: []string{"domain,cursor.com,proxy"},
 		},
 	}
 
@@ -70,7 +70,7 @@ func TestCompileRuntimeSnapshotFromRuntimeInputs_ProxyTypeMapsToToSocksUpstreamT
 		wantToSocksOn bool
 	}{
 		{name: "customer proxy http maps to http upstream", proxyType: "http", wantUpstream: "http", socksEnabled: true, wantToSocksOn: true},
-		{name: "customer proxy socks maps to socks upstream", proxyType: "socks", wantUpstream: "socks", socksEnabled: true, wantToSocksOn: true},
+		{name: "customer proxy socks5 maps to socks upstream", proxyType: "socks5", wantUpstream: "socks", socksEnabled: true, wantToSocksOn: true},
 	}
 
 	for _, tt := range tests {

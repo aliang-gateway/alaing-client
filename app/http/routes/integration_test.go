@@ -7,6 +7,10 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
+
+	auth "nursor.org/nursorgate/processor/auth"
+	"nursor.org/nursorgate/processor/config"
 )
 
 func TestRunStopAndCertHTTPIntegration(t *testing.T) {
@@ -198,4 +202,203 @@ func TestCoreConfigRouteRegisteredWhenDev(t *testing.T) {
 	if _, ok := data["core"]; !ok {
 		t.Fatalf("expected core field in data: %v", data)
 	}
+}
+
+func TestAuthLegacyRoutesRemovedAndCanonicalRoutesRegistered(t *testing.T) {
+	h := NewHandlers()
+	mux := http.NewServeMux()
+	RegisterRoutes(h, mux)
+
+	legacyPaths := []string{
+		"/api/auth/activate",
+		"/api/auth/userinfo",
+		"/api/auth/refresh-status",
+	}
+
+	for _, path := range legacyPaths {
+		req := httptest.NewRequest(http.MethodGet, path, nil)
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+		if rec.Code != http.StatusNotFound {
+			t.Fatalf("expected legacy route %s to be removed with 404, got %d body=%s", path, rec.Code, rec.Body.String())
+		}
+	}
+
+	canonicalPaths := []struct {
+		path   string
+		method string
+	}{
+		{path: "/api/auth/login", method: http.MethodPost},
+		{path: "/api/auth/session", method: http.MethodGet},
+		{path: "/api/auth/refresh", method: http.MethodPost},
+		{path: "/api/auth/me", method: http.MethodGet},
+		{path: "/api/auth/logout", method: http.MethodPost},
+	}
+
+	for _, route := range canonicalPaths {
+		req := httptest.NewRequest(route.method, route.path, bytes.NewReader([]byte(`{}`)))
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+		if rec.Code == http.StatusNotFound {
+			t.Fatalf("expected canonical route %s to be registered, got 404", route.path)
+		}
+	}
+}
+
+func TestAuthSessionAndUserCenterLifecycleIntegration(t *testing.T) {
+	baseDir := t.TempDir()
+	t.Setenv("HOME", baseDir)
+	t.Setenv("NURSOR_CACHE_DIR", baseDir)
+
+	auth.ResetAuthPersistenceForTest()
+	config.ResetGlobalConfigForTest()
+	t.Cleanup(func() {
+		auth.ResetAuthPersistenceForTest()
+		config.ResetGlobalConfigForTest()
+	})
+
+	config.SetGlobalConfig(&config.Config{})
+
+	h := NewHandlers()
+	mux := http.NewServeMux()
+	RegisterRoutes(h, mux)
+
+	sessionReq := httptest.NewRequest(http.MethodGet, "/api/auth/session", nil)
+	sessionRec := httptest.NewRecorder()
+	mux.ServeHTTP(sessionRec, sessionReq)
+	if sessionRec.Code != http.StatusOK {
+		t.Fatalf("auth session status=%d body=%s", sessionRec.Code, sessionRec.Body.String())
+	}
+
+	var sessionResp map[string]interface{}
+	if err := json.Unmarshal(sessionRec.Body.Bytes(), &sessionResp); err != nil {
+		t.Fatalf("decode auth session response failed: %v", err)
+	}
+	sessionData, _ := sessionResp["data"].(map[string]interface{})
+	if sessionData["status"] != "no_session" {
+		t.Fatalf("expected no_session status, got %#v", sessionData["status"])
+	}
+
+	profileReq := httptest.NewRequest(http.MethodGet, "/api/user-center/profile", nil)
+	profileRec := httptest.NewRecorder()
+	mux.ServeHTTP(profileRec, profileReq)
+	if profileRec.Code != http.StatusOK {
+		t.Fatalf("user-center profile status=%d body=%s", profileRec.Code, profileRec.Body.String())
+	}
+
+	var profileResp map[string]interface{}
+	if err := json.Unmarshal(profileRec.Body.Bytes(), &profileResp); err != nil {
+		t.Fatalf("decode user-center profile response failed: %v", err)
+	}
+	profileData, _ := profileResp["data"].(map[string]interface{})
+	if profileData["status"] != "unauthenticated" {
+		t.Fatalf("expected unauthenticated profile status, got %#v", profileData["status"])
+	}
+
+	userInfo := &auth.UserInfo{
+		AccessToken:  "",
+		RefreshToken: "",
+		TokenType:    "Bearer",
+		Username:     "restored-user",
+		Email:        "restored@example.com",
+		InnerToken:   "inner-token-1",
+		UpdatedAt:    time.Now(),
+	}
+	if err := auth.SaveUserInfo(userInfo); err != nil {
+		t.Fatalf("failed to save persisted auth user info: %v", err)
+	}
+
+	secondSessionReq := httptest.NewRequest(http.MethodGet, "/api/auth/session", nil)
+	secondSessionRec := httptest.NewRecorder()
+	mux.ServeHTTP(secondSessionRec, secondSessionReq)
+	if secondSessionRec.Code != http.StatusOK {
+		t.Fatalf("auth session restore status=%d body=%s", secondSessionRec.Code, secondSessionRec.Body.String())
+	}
+
+	var secondSessionResp map[string]interface{}
+	if err := json.Unmarshal(secondSessionRec.Body.Bytes(), &secondSessionResp); err != nil {
+		t.Fatalf("decode auth session restore response failed: %v", err)
+	}
+	secondSessionData, _ := secondSessionResp["data"].(map[string]interface{})
+	if secondSessionData["status"] != "success" {
+		t.Fatalf("expected success status for restored session, got %#v", secondSessionData["status"])
+	}
+	restoredPayload, _ := secondSessionData["data"].(map[string]interface{})
+	if restoredPayload["username"] != "restored-user" {
+		t.Fatalf("expected restored username=restored-user, got %#v", restoredPayload["username"])
+	}
+
+	meReq := httptest.NewRequest(http.MethodGet, "/api/auth/me", nil)
+	meRec := httptest.NewRecorder()
+	mux.ServeHTTP(meRec, meReq)
+	if meRec.Code != http.StatusOK {
+		t.Fatalf("auth me status=%d body=%s", meRec.Code, meRec.Body.String())
+	}
+	var meResp map[string]interface{}
+	if err := json.Unmarshal(meRec.Body.Bytes(), &meResp); err != nil {
+		t.Fatalf("decode auth me response failed: %v", err)
+	}
+	meData, _ := meResp["data"].(map[string]interface{})
+	if meData["status"] != "success" {
+		t.Fatalf("expected auth me success status, got %#v", meData["status"])
+	}
+	mePayload, _ := meData["data"].(map[string]interface{})
+	if mePayload["username"] != "restored-user" {
+		t.Fatalf("expected auth me username=restored-user, got %#v", mePayload["username"])
+	}
+
+	logoutReq := httptest.NewRequest(http.MethodPost, "/api/auth/logout", bytes.NewReader([]byte(`{}`)))
+	logoutReq.Header.Set("Content-Type", "application/json")
+	logoutRec := httptest.NewRecorder()
+	mux.ServeHTTP(logoutRec, logoutReq)
+	if logoutRec.Code != http.StatusOK {
+		t.Fatalf("auth logout status=%d body=%s", logoutRec.Code, logoutRec.Body.String())
+	}
+	var logoutResp map[string]interface{}
+	if err := json.Unmarshal(logoutRec.Body.Bytes(), &logoutResp); err != nil {
+		t.Fatalf("decode logout response failed: %v", err)
+	}
+	logoutData, _ := logoutResp["data"].(map[string]interface{})
+	if logoutData["status"] != "success" {
+		t.Fatalf("expected logout success status, got %#v", logoutData["status"])
+	}
+
+	persisted, err := auth.HasPersistedUserInfo()
+	if err != nil {
+		t.Fatalf("failed to check persisted user info after logout: %v", err)
+	}
+	if persisted {
+		t.Fatalf("expected persisted user info to be removed after logout")
+	}
+
+	meAfterLogoutReq := httptest.NewRequest(http.MethodGet, "/api/auth/me", nil)
+	meAfterLogoutRec := httptest.NewRecorder()
+	mux.ServeHTTP(meAfterLogoutRec, meAfterLogoutReq)
+	if meAfterLogoutRec.Code != http.StatusOK {
+		t.Fatalf("auth me after logout status=%d body=%s", meAfterLogoutRec.Code, meAfterLogoutRec.Body.String())
+	}
+	var meAfterLogoutResp map[string]interface{}
+	if err := json.Unmarshal(meAfterLogoutRec.Body.Bytes(), &meAfterLogoutResp); err != nil {
+		t.Fatalf("decode auth me after logout response failed: %v", err)
+	}
+	meAfterLogoutData, _ := meAfterLogoutResp["data"].(map[string]interface{})
+	if meAfterLogoutData["status"] != "no_user" {
+		t.Fatalf("expected no_user status after logout, got %#v", meAfterLogoutData["status"])
+	}
+
+	usageReq := httptest.NewRequest(http.MethodGet, "/api/user-center/usage/summary", nil)
+	usageRec := httptest.NewRecorder()
+	mux.ServeHTTP(usageRec, usageReq)
+	if usageRec.Code != http.StatusOK {
+		t.Fatalf("user-center usage status=%d body=%s", usageRec.Code, usageRec.Body.String())
+	}
+	var usageResp map[string]interface{}
+	if err := json.Unmarshal(usageRec.Body.Bytes(), &usageResp); err != nil {
+		t.Fatalf("decode user-center usage response failed: %v", err)
+	}
+	usageData, _ := usageResp["data"].(map[string]interface{})
+	if usageData["status"] != "unauthenticated" {
+		t.Fatalf("expected unauthenticated usage status after logout, got %#v", usageData["status"])
+	}
+
 }

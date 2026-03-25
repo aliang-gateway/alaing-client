@@ -231,8 +231,9 @@ func (h *DefaultTLSHandler) buildRoutingRulesConfig() *model.RoutingRulesConfig 
 		return rc
 	}
 
-	rules := make([]model.RoutingRule, 0, len(cfg.SNIAllowlist))
-	for i, domain := range cfg.SNIAllowlist {
+	allowlist := cfg.EffectiveAIAllowlist()
+	rules := make([]model.RoutingRule, 0, len(allowlist))
+	for i, domain := range allowlist {
 		normalizedDomain := strings.ToLower(strings.TrimSpace(domain))
 		if normalizedDomain == "" {
 			continue
@@ -258,7 +259,7 @@ func (h *DefaultTLSHandler) buildRoutingRulesConfig() *model.RoutingRulesConfig 
 func (h *DefaultTLSHandler) defaultFallbackRoute() ProxyRoute {
 	cfg := config.GetGlobalConfig()
 	switchStatus := routing.GetSwitchManager().GetStatus()
-	if cfg != nil && cfg.SocksProxy != nil && switchStatus.SocksEnabled {
+	if cfg != nil && cfg.EffectiveDefaultProxy() == "socks" && switchStatus.SocksEnabled {
 		return RouteToLocalProxy
 	}
 	return RouteDirect

@@ -321,10 +321,10 @@ func TestSocks5ConfigValidate(t *testing.T) {
 	}
 }
 
-func TestConfigValidate_NewModelBridge_MapsRuntimeFields(t *testing.T) {
+func TestConfigValidate_NewModelHelpers_ExposeRuntimeValues(t *testing.T) {
 	payload := []byte(`{
-		"api_server": "https://api.example.com",
 		"core": {
+			"api_server": "https://api.example.com",
 			"aliangServer": {
 				"type": "aliang",
 				"core_server": "ai-gateway.nursor.org:443"
@@ -332,18 +332,18 @@ func TestConfigValidate_NewModelBridge_MapsRuntimeFields(t *testing.T) {
 		},
 		"customer": {
 			"proxy": {
-				"type": "socks",
+				"type": "socks5",
 				"server": "127.0.0.1:1080",
 				"username": "u",
 				"password": "p"
 			},
 			"ai_rules": {
 				"openai": {
-					"enable": true,
+					"enble": true,
 					"exclude": ["api.openai.com", "cdn.openai.com"]
 				},
 				"claude": {
-					"enable": false,
+					"enble": false,
 					"exclude": ["claude.ai"]
 				}
 			},
@@ -359,78 +359,34 @@ func TestConfigValidate_NewModelBridge_MapsRuntimeFields(t *testing.T) {
 		t.Fatalf("Validate() error = %v", err)
 	}
 
-	if cfg.CurrentProxy != "socks" {
-		t.Fatalf("CurrentProxy = %q, want socks", cfg.CurrentProxy)
+	if cfg.EffectiveDefaultProxy() != "socks" {
+		t.Fatalf("EffectiveDefaultProxy() = %q, want socks", cfg.EffectiveDefaultProxy())
 	}
-	if cfg.SocksProxy == nil {
-		t.Fatal("SocksProxy is nil, want bridged socks config")
+	socksCfg, err := cfg.EffectiveSocksProxy()
+	if err != nil {
+		t.Fatalf("EffectiveSocksProxy() error = %v", err)
 	}
-	if cfg.SocksProxy.Server != "127.0.0.1" || cfg.SocksProxy.ServerPort != 1080 {
-		t.Fatalf("SocksProxy = %#v, want host 127.0.0.1 port 1080", cfg.SocksProxy)
+	if socksCfg == nil {
+		t.Fatal("EffectiveSocksProxy() = nil, want derived socks config")
 	}
-	if cfg.BaseProxies == nil || cfg.BaseProxies["aliang"] == nil {
-		t.Fatal("BaseProxies[\"aliang\"] missing after bridge")
+	if socksCfg.Server != "127.0.0.1" || socksCfg.ServerPort != 1080 {
+		t.Fatalf("EffectiveSocksProxy() = %#v, want host 127.0.0.1 port 1080", socksCfg)
 	}
-	if got := cfg.BaseProxies["aliang"].CoreServer; got != "ai-gateway.nursor.org:443" {
-		t.Fatalf("BaseProxies[\"aliang\"].CoreServer = %q", got)
+	if got := cfg.EffectiveAliangCoreServer(); got != "ai-gateway.nursor.org:443" {
+		t.Fatalf("EffectiveAliangCoreServer() = %q", got)
 	}
-	if len(cfg.SNIAllowlist) != 2 {
-		t.Fatalf("SNIAllowlist len = %d, want 2", len(cfg.SNIAllowlist))
+	if got := cfg.EffectiveAIAllowlist(); len(got) != 2 {
+		t.Fatalf("EffectiveAIAllowlist len = %d, want 2", len(got))
 	}
 
-	// Verify backward-compatible proxy_rules deserialization (legacy []string)
-	if cfg.Customer.ProxyRules == nil {
-		t.Fatal("ProxyRules is nil, want backward-compatible parsing")
-	}
-	if !cfg.Customer.ProxyRules.Enabled {
-		t.Fatal("ProxyRules.Enabled = false, want true (legacy array defaults to enabled)")
-	}
-	if len(cfg.Customer.ProxyRules.Rules) != 1 || cfg.Customer.ProxyRules.Rules[0] != "domains,cursor.com,proxy" {
-		t.Fatalf("ProxyRules.Rules = %v, want [domains,cursor.com,proxy]", cfg.Customer.ProxyRules.Rules)
+	if len(cfg.Customer.ProxyRules) != 1 || cfg.Customer.ProxyRules[0] != "domains,cursor.com,proxy" {
+		t.Fatalf("ProxyRules = %v, want [domains,cursor.com,proxy]", cfg.Customer.ProxyRules)
 	}
 }
 
-func TestProxyRulesConfig_Unmarshal(t *testing.T) {
-	t.Run("legacy array format", func(t *testing.T) {
-		data := []byte(`["a","b","c"]`)
-		var cfg CustomerProxyRulesConfig
-		if err := json.Unmarshal(data, &cfg); err != nil {
-			t.Fatalf("Unmarshal() error = %v", err)
-		}
-		if !cfg.Enabled {
-			t.Fatal("Enabled = false, want true")
-		}
-		if len(cfg.Rules) != 3 {
-			t.Fatalf("Rules len = %d, want 3", len(cfg.Rules))
-		}
-	})
-
-	t.Run("object format", func(t *testing.T) {
-		data := []byte(`{"enabled":false,"rules":["x","y"]}`)
-		var cfg CustomerProxyRulesConfig
-		if err := json.Unmarshal(data, &cfg); err != nil {
-			t.Fatalf("Unmarshal() error = %v", err)
-		}
-		if cfg.Enabled {
-			t.Fatal("Enabled = true, want false")
-		}
-		if len(cfg.Rules) != 2 {
-			t.Fatalf("Rules len = %d, want 2", len(cfg.Rules))
-		}
-	})
-
-	t.Run("null value", func(t *testing.T) {
-		data := []byte(`null`)
-		var cfg CustomerProxyRulesConfig
-		if err := json.Unmarshal(data, &cfg); err != nil {
-			t.Fatalf("Unmarshal() error = %v", err)
-		}
-	})
-}
-
-func TestConfigValidate_CustomerProxyTypeEnum(t *testing.T) {
+func TestConfigValidate_CustomerProxyTypeAcceptsSocks5(t *testing.T) {
 	payload := []byte(`{
-		"api_server": "https://api.example.com",
+		"core": {"api_server": "https://api.example.com"},
 		"customer": {
 			"proxy": {
 				"type": "socks5",
@@ -444,17 +400,14 @@ func TestConfigValidate_CustomerProxyTypeEnum(t *testing.T) {
 		t.Fatalf("json.Unmarshal() error = %v", err)
 	}
 	err := cfg.Validate()
-	if err == nil {
-		t.Fatal("Validate() error = nil, want enum validation error")
-	}
-	if !strings.Contains(err.Error(), "customer.proxy.type must be one of [http socks]") {
-		t.Fatalf("unexpected error: %v", err)
+	if err != nil {
+		t.Fatalf("Validate() error = %v, want nil for socks5", err)
 	}
 }
 
 func TestConfigValidate_ForbidUnknownCustomerField(t *testing.T) {
 	payload := []byte(`{
-		"api_server": "https://api.example.com",
+		"core": {"api_server": "https://api.example.com"},
 		"customer": {
 			"proxy": {
 				"type": "http",
@@ -479,7 +432,7 @@ func TestConfigValidate_ForbidUnknownCustomerField(t *testing.T) {
 
 func TestConfigValidate_ForbidUnknownAIRulesField(t *testing.T) {
 	payload := []byte(`{
-		"api_server": "https://api.example.com",
+		"core": {"api_server": "https://api.example.com"},
 		"customer": {
 			"proxy": {
 				"type": "http",
@@ -487,7 +440,7 @@ func TestConfigValidate_ForbidUnknownAIRulesField(t *testing.T) {
 			},
 			"ai_rules": {
 				"openai": {
-					"enable": true,
+					"enble": true,
 					"exclude": ["api.openai.com"],
 					"mode": "all"
 				}
@@ -510,7 +463,7 @@ func TestConfigValidate_ForbidUnknownAIRulesField(t *testing.T) {
 
 func TestConfigValidate_AIRulesEnableRequired(t *testing.T) {
 	payload := []byte(`{
-		"api_server": "https://api.example.com",
+		"core": {"api_server": "https://api.example.com"},
 		"customer": {
 			"proxy": {
 				"type": "http",
@@ -532,7 +485,7 @@ func TestConfigValidate_AIRulesEnableRequired(t *testing.T) {
 	if err == nil {
 		t.Fatal("Validate() error = nil, want missing enable error")
 	}
-	if !strings.Contains(err.Error(), "customer.ai_rules.openai.enable is required") {
+	if !strings.Contains(err.Error(), "customer.ai_rules.openai.enble is required") {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }

@@ -8,7 +8,7 @@ import (
 func TestConfig_ResetGlobalConfigForTest_ClearsConfigAndFlags(t *testing.T) {
 	ResetGlobalConfigForTest()
 
-	SetGlobalConfig(&Config{APIServer: "https://api.example.com"})
+	SetGlobalConfig(&Config{Core: &CoreConfig{APIServer: "https://api.example.com"}})
 	SetUsingDefaultConfig(true)
 	SetHasLocalUserInfo(true)
 
@@ -38,11 +38,13 @@ func TestConfig_SetAndGetGlobalConfig_ThreadSafe(t *testing.T) {
 			defer wg.Done()
 			for j := 0; j < iterations; j++ {
 				cfg := &Config{
-					APIServer:    "https://api.example.com",
-					CurrentProxy: "door",
+					Core: &CoreConfig{APIServer: "https://api.example.com"},
+					Customer: &CustomerConfig{
+						Proxy: &CustomerProxyConfig{Type: "http"},
+					},
 				}
 				if (id+j)%2 == 0 {
-					cfg.CurrentProxy = "nonelane"
+					cfg.Customer.Proxy = &CustomerProxyConfig{Type: "socks5", Server: "127.0.0.1:1080"}
 				}
 				SetGlobalConfig(cfg)
 				_ = GetGlobalConfig()
@@ -55,7 +57,7 @@ func TestConfig_SetAndGetGlobalConfig_ThreadSafe(t *testing.T) {
 	if finalCfg == nil {
 		t.Fatal("GetGlobalConfig() returned nil after concurrent SetGlobalConfig calls")
 	}
-	if finalCfg.CurrentProxy != "door" && finalCfg.CurrentProxy != "nonelane" {
-		t.Fatalf("unexpected CurrentProxy value %q", finalCfg.CurrentProxy)
+	if got := finalCfg.EffectiveDefaultProxy(); got != "direct" && got != "socks" {
+		t.Fatalf("unexpected EffectiveDefaultProxy value %q", got)
 	}
 }

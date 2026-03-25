@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -269,22 +270,15 @@ func TestConfigHandler_CustomerConfigGetAndUpdate(t *testing.T) {
 	})
 
 	config.SetGlobalConfig(&config.Config{
-		APIServer:    "https://api.example.com",
-		CurrentProxy: "direct",
-		BaseProxies: map[string]*config.BaseProxyConfig{
-			"aliang": {
-				Type:       "vmess",
-				CoreServer: "ai-gateway.nursor.org:443",
-			},
-		},
 		Core: &config.CoreConfig{
-			AliangServer: &config.BaseProxyConfig{Type: "vmess", CoreServer: "ai-gateway.nursor.org:443"},
+			APIServer:    "https://api.example.com",
+			AliangServer: &config.AliangServerConfig{Type: "aliang", CoreServer: "ai-gateway.nursor.org:443"},
 		},
 		Customer: &config.CustomerConfig{
 			Proxy: &config.CustomerProxyConfig{Type: "http"},
 			AIRules: map[string]*config.CustomerAIRuleSetting{
 				"openai": {
-					Enable:  boolPtr(true),
+					Enble:   boolPtr(true),
 					Exclude: []string{"api.openai.com"},
 				},
 			},
@@ -306,7 +300,7 @@ func TestConfigHandler_CustomerConfigGetAndUpdate(t *testing.T) {
 		t.Fatalf("expected customer object in get response: %v", getData)
 	}
 
-	payload := []byte(`{"proxy":{"type":"http"},"ai_rules":{"claude":{"enable":true,"exclude":["claude.ai"]}},"proxy_rules":["*.example.com"]}`)
+	payload := []byte(`{"proxy":{"type":"http"},"ai_rules":{"claude":{"enble":true,"exclude":["claude.ai"]}},"proxy_rules":["*.example.com"]}`)
 	updateReq := httptest.NewRequest(http.MethodPost, "/api/config/customer", bytes.NewReader(payload))
 	updateRec := httptest.NewRecorder()
 	h.HandleCustomerConfig(updateRec, updateReq)
@@ -331,8 +325,8 @@ func TestConfigHandler_CustomerConfigGetAndUpdate(t *testing.T) {
 	if committed == nil {
 		t.Fatal("expected committed snapshot")
 	}
-	if committed.FilePath != "./config.new.json" {
-		t.Fatalf("expected customer commit file path ./config.new.json, got %q", committed.FilePath)
+	if committed.FilePath != "~/.aliang/config.json" {
+		t.Fatalf("expected customer commit file path ~/.aliang/config.json, got %q", committed.FilePath)
 	}
 	if !strings.Contains(committed.Content, `"claude"`) {
 		t.Fatalf("expected committed snapshot content to include updated customer rule: %s", committed.Content)
@@ -357,8 +351,9 @@ func TestConfigHandler_CustomerConfigRejectsForbiddenOrUnknownFields(t *testing.
 	})
 
 	config.SetGlobalConfig(&config.Config{
-		APIServer:    "https://api.example.com",
-		CurrentProxy: "direct",
+		Core: &config.CoreConfig{
+			APIServer: "https://api.example.com",
+		},
 		Customer: &config.CustomerConfig{
 			Proxy: &config.CustomerProxyConfig{Type: "http"},
 		},
@@ -424,24 +419,34 @@ func TestConfigHandler_CustomerConfigUpdateSucceedsWhenGlobalConfigNilAndFileExi
 		_ = os.Remove("./config.new.json")
 	})
 
+	tempHome := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(tempHome, ".aliang"), 0755); err != nil {
+		t.Fatalf("mkdir temp home .aliang failed: %v", err)
+	}
+	t.Setenv("HOME", tempHome)
+
 	seed := []byte(`{
-		"api_server":"https://api.example.com",
-		"currentProxy":"direct",
-		"baseProxies":{"aliang":{"type":"vmess","core_server":"ai-gateway.nursor.org:443"}},
+		"core":{"api_server":"https://sub2api.liang.home","aliangServer":{"type":"aliang","core_server":"ai-gateway.nursor.org:443"}},
 		"customer":{
 			"proxy":{"type":"http"},
-			"ai_rules":{"openai":{"enable":true,"exclude":["api.openai.com"]}},
+			"ai_rules":{"openai":{"enble":true,"exclude":["api.openai.com"]}},
 			"proxy_rules":[]
 		}
 	}`)
 	if err := os.WriteFile("./config.new.json", seed, 0644); err != nil {
 		t.Fatalf("seed config.new.json failed: %v", err)
 	}
+	if err := os.WriteFile(filepath.Join(tempHome, ".aliang", "config.json"), []byte(`{
+		"core":{"api_server":"https://api.example.com","aliangServer":{"type":"aliang","core_server":"wrong.example.com:443"}},
+		"customer":{"proxy":{"type":"http"}}
+	}`), 0644); err != nil {
+		t.Fatalf("seed temp home config failed: %v", err)
+	}
 
 	h := NewConfigHandler()
 	h.customerConfigService = services.NewCustomerConfigService()
 
-	payload := []byte(`{"customer":{"proxy":{"type":"socks","server":"127.0.0.1:1080"},"ai_rules":{},"proxy_rules":[]}}`)
+	payload := []byte(`{"customer":{"proxy":{"type":"socks5","server":"127.0.0.1:1080"},"ai_rules":{},"proxy_rules":[]}}`)
 	req := httptest.NewRequest(http.MethodPost, "/api/config/customer", bytes.NewReader(payload))
 	rec := httptest.NewRecorder()
 	h.HandleCustomerConfig(rec, req)
@@ -459,11 +464,19 @@ func TestConfigHandler_CustomerConfigUpdateSucceedsWhenGlobalConfigNilAndFileExi
 	if proxy == nil {
 		t.Fatalf("expected proxy object in customer response: %v", customer)
 	}
-	if proxy["type"] != "socks" {
-		t.Fatalf("expected updated proxy type socks, got %#v", proxy["type"])
+	if proxy["type"] != "socks5" {
+		t.Fatalf("expected updated proxy type socks5, got %#v", proxy["type"])
 	}
 	if proxy["server"] != "127.0.0.1:1080" {
 		t.Fatalf("expected updated proxy server 127.0.0.1:1080, got %#v", proxy["server"])
+	}
+
+	committed := config.GetEffectiveConfigCommitCoordinator().LastCommittedSnapshot()
+	if committed == nil {
+		t.Fatal("expected committed snapshot")
+	}
+	if !strings.Contains(committed.Content, `"api_server":"https://sub2api.liang.home"`) {
+		t.Fatalf("expected committed snapshot to preserve startup api_server, got %s", committed.Content)
 	}
 }
 
@@ -480,7 +493,7 @@ func TestConfigHandler_CustomerConfigUpdateSucceedsWhenGlobalConfigAndFileMissin
 	h := NewConfigHandler()
 	h.customerConfigService = services.NewCustomerConfigService()
 
-	payload := []byte(`{"customer":{"proxy":{"type":"socks","server":"127.0.0.1:1080"},"ai_rules":{},"proxy_rules":[]}}`)
+	payload := []byte(`{"customer":{"proxy":{"type":"socks5","server":"127.0.0.1:1080"},"ai_rules":{},"proxy_rules":[]}}`)
 	req := httptest.NewRequest(http.MethodPost, "/api/config/customer", bytes.NewReader(payload))
 	rec := httptest.NewRecorder()
 	h.HandleCustomerConfig(rec, req)
@@ -498,8 +511,8 @@ func TestConfigHandler_CustomerConfigUpdateSucceedsWhenGlobalConfigAndFileMissin
 	if proxy == nil {
 		t.Fatalf("expected proxy object in customer response: %v", customer)
 	}
-	if proxy["type"] != "socks" {
-		t.Fatalf("expected updated proxy type socks, got %#v", proxy["type"])
+	if proxy["type"] != "socks5" {
+		t.Fatalf("expected updated proxy type socks5, got %#v", proxy["type"])
 	}
 }
 

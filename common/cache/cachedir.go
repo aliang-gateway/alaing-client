@@ -28,6 +28,12 @@ var (
 	cacheDirOnce sync.Once
 )
 
+// ResetCacheDirForTest clears the package cache-dir singleton so tests can isolate HOME/env changes.
+func ResetCacheDirForTest() {
+	cacheDir = ""
+	cacheDirOnce = sync.Once{}
+}
+
 // GetCacheDir returns the cache directory path.
 // It resolves paths in the following order:
 // 1. NURSOR_CACHE_DIR environment variable (if set)

@@ -6,11 +6,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"net"
 	"net/http"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"time"
 
@@ -694,10 +692,6 @@ func buildEffectiveSnapshotJSON(snapshot *config.EffectiveConfigSnapshot) (strin
 		merged[key] = value
 	}
 
-	if err := enrichRuntimeEffectiveFields(merged); err != nil {
-		return "", err
-	}
-
 	merged["effective_snapshot_meta"] = map[string]interface{}{
 		"config_uuid":      snapshot.UUID,
 		"software":         snapshot.Software,
@@ -737,119 +731,4 @@ func parseConfigContentToMap(format string, content string) (map[string]interfac
 	}
 
 	return result, nil
-}
-
-func enrichRuntimeEffectiveFields(snapshot map[string]interface{}) error {
-	if snapshot == nil {
-		return errors.New("effective snapshot payload is nil")
-	}
-
-	coreMap, _ := snapshot["core"].(map[string]interface{})
-	customerMap, _ := snapshot["customer"].(map[string]interface{})
-
-	baseProxies, _ := snapshot["baseProxies"].(map[string]interface{})
-	if baseProxies == nil {
-		baseProxies = make(map[string]interface{})
-	}
-	if coreMap != nil {
-		if aliangServer, ok := coreMap["aliangServer"].(map[string]interface{}); ok {
-			baseProxies["aliang"] = map[string]interface{}{
-				"type":        toString(aliangServer["type"]),
-				"core_server": toString(aliangServer["core_server"]),
-			}
-		}
-	}
-	if len(baseProxies) > 0 {
-		snapshot["baseProxies"] = baseProxies
-	}
-
-	if customerMap != nil {
-		if customerProxy, ok := customerMap["proxy"].(map[string]interface{}); ok {
-			proxyType := strings.ToLower(strings.TrimSpace(toString(customerProxy["type"])))
-			switch proxyType {
-			case "socks":
-				host, port, err := parseProxyServer(toString(customerProxy["server"]))
-				if err != nil {
-					return err
-				}
-				snapshot["currentProxy"] = "socks"
-				snapshot["socksProxy"] = map[string]interface{}{
-					"server":     host,
-					"serverPort": port,
-					"username":   toString(customerProxy["username"]),
-					"password":   toString(customerProxy["password"]),
-				}
-			case "http":
-				snapshot["currentProxy"] = "direct"
-				delete(snapshot, "socksProxy")
-			}
-		}
-
-		if aiRules, ok := customerMap["ai_rules"].(map[string]interface{}); ok {
-			allowlist := make([]string, 0)
-			for _, rawRule := range aiRules {
-				ruleMap, ok := rawRule.(map[string]interface{})
-				if !ok {
-					continue
-				}
-				enabled, _ := ruleMap["enable"].(bool)
-				if !enabled {
-					continue
-				}
-				rawExclude, _ := ruleMap["exclude"].([]interface{})
-				for _, domain := range rawExclude {
-					trimmed := strings.TrimSpace(toString(domain))
-					if trimmed != "" {
-						allowlist = append(allowlist, trimmed)
-					}
-				}
-			}
-			if len(allowlist) > 0 {
-				snapshot["sni_allowlist"] = dedupeStrings(allowlist)
-			}
-		}
-	}
-
-	return nil
-}
-
-func parseProxyServer(server string) (string, int, error) {
-	host, portRaw, err := net.SplitHostPort(strings.TrimSpace(server))
-	if err != nil {
-		return "", 0, fmt.Errorf("customer.proxy.server must be host:port for effective snapshot")
-	}
-	port, err := strconv.Atoi(portRaw)
-	if err != nil || port < 1 || port > 65535 {
-		return "", 0, fmt.Errorf("customer.proxy.server has invalid port for effective snapshot")
-	}
-	return host, port, nil
-}
-
-func toString(value interface{}) string {
-	if value == nil {
-		return ""
-	}
-	switch v := value.(type) {
-	case string:
-		return strings.TrimSpace(v)
-	default:
-		return strings.TrimSpace(fmt.Sprint(v))
-	}
-}
-
-func dedupeStrings(in []string) []string {
-	seen := make(map[string]struct{}, len(in))
-	out := make([]string, 0, len(in))
-	for _, value := range in {
-		trimmed := strings.TrimSpace(value)
-		if trimmed == "" {
-			continue
-		}
-		if _, exists := seen[trimmed]; exists {
-			continue
-		}
-		seen[trimmed] = struct{}{}
-		out = append(out, trimmed)
-	}
-	return out
 }

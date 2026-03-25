@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strings"
 	"syscall"
 
 	"github.com/spf13/cobra"
@@ -140,17 +141,14 @@ func runStart(cmd *cobra.Command, args []string) error {
 // - READY: Has local user info AND using default config → system ready (if fetch succeeds)
 // - CONFIGURED: Has local user info BUT NOT using default config → needs fetch
 func determineInitialStartupStatus(tokenFlag string) runtime.StartupStatus {
-	// Check if local user info exists by trying to get its path
 	hasLocalUserInfo := false
-	if userInfoPath, err := auth.GetUserInfoPath(); err == nil {
-		if _, err := os.Stat(userInfoPath); err == nil {
-			hasLocalUserInfo = true
-		}
+	hasLocalUserInfo, localUserErr := auth.HasPersistedUserInfo()
+	if localUserErr != nil {
+		logger.Warn(fmt.Sprintf("Failed to inspect persisted auth session: %v", localUserErr))
+		hasLocalUserInfo = false
 	}
 
-	// Determine status based on conditions
-	if tokenFlag != "" {
-		// Token provided → system is in configuration process
+	if strings.TrimSpace(tokenFlag) != "" {
 		logger.Debug("Token provided via --token, status: CONFIGURING")
 		return runtime.CONFIGURING
 	}
@@ -164,7 +162,6 @@ func determineInitialStartupStatus(tokenFlag string) runtime.StartupStatus {
 		return runtime.CONFIGURED
 	}
 
-	// No token, no local user info → unconfigured
 	logger.Info("No token and no local user info found, status: UNCONFIGURED")
 	return runtime.UNCONFIGURED
 }

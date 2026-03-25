@@ -20,7 +20,8 @@ var (
 // This replaces both SetGlobalResolver for simple cases and provides
 // full configuration support for DNS pre-resolution.
 func InitGlobalResolver(primaryProxy, fallbackProxy proxy.Proxy, cfg *config.Config) error {
-	if cfg == nil || cfg.DNSPreResolution == nil || !cfg.DNSPreResolution.Enabled {
+	dnsCfg := cfg.EffectiveDNSPreResolution()
+	if cfg == nil || dnsCfg == nil || !dnsCfg.Enabled {
 		logger.Info("[DNS] DNS resolution disabled in config")
 		return nil
 	}
@@ -29,12 +30,12 @@ func InitGlobalResolver(primaryProxy, fallbackProxy proxy.Proxy, cfg *config.Con
 	hybridResolver := NewHybridResolver(
 		&DNSConfig{
 			Type:             ResolverTypeHybrid,
-			PrimaryDNS:       cfg.DNSPreResolution.GetPrimaryDNS(),
-			FallbackDNS:      cfg.DNSPreResolution.GetFallbackDNS(),
-			SystemDNSEnabled: cfg.DNSPreResolution.SystemDNSFallback,
-			Timeout:          cfg.DNSPreResolution.GetTimeout(),
-			MaxTTL:           cfg.DNSPreResolution.GetMaxCacheTTL(),
-			CacheEnabled:     cfg.DNSPreResolution.CacheResults,
+			PrimaryDNS:       dnsCfg.GetPrimaryDNS(),
+			FallbackDNS:      dnsCfg.GetFallbackDNS(),
+			SystemDNSEnabled: dnsCfg.SystemDNSFallback,
+			Timeout:          dnsCfg.GetTimeout(),
+			MaxTTL:           dnsCfg.GetMaxCacheTTL(),
+			CacheEnabled:     dnsCfg.CacheResults,
 		},
 		primaryProxy,  // primary dialer (implements proxy.Dialer)
 		fallbackProxy, // fallback dialer (implements proxy.Dialer)

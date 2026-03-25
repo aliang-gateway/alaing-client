@@ -234,13 +234,6 @@ func (c *DNSPreResolutionConfig) Validate() error {
 
 // Config 完整配置结构
 type Config struct {
-	APIServer        string                      `json:"api_server"` // 必须配置：Token激活、刷新、Inbound的基础URL
-	CurrentProxy     string                      `json:"currentProxy"`
-	BaseProxies      map[string]*BaseProxyConfig `json:"baseProxies"`
-	DNSPreResolution *DNSPreResolutionConfig     `json:"dnsPreResolution,omitempty"` // DNS预解析配置
-	SocksProxy       *Socks5Config               `json:"socksProxy,omitempty"`       // 可选：默认 SOCKS5 出站
-	SNIAllowlist     []string                    `json:"sni_allowlist,omitempty"`    // SNI 允许列表（命中则 MITM 并转发到 Aliang）
-
 	Core     *CoreConfig     `json:"core,omitempty"`
 	Customer *CustomerConfig `json:"customer,omitempty"`
 
@@ -249,8 +242,9 @@ type Config struct {
 }
 
 type CoreConfig struct {
-	Engine       *CoreEngineConfig `json:"engine,omitempty"`
-	AliangServer *BaseProxyConfig  `json:"aliangServer,omitempty"`
+	Engine       *CoreEngineConfig   `json:"engine,omitempty"`
+	AliangServer *AliangServerConfig `json:"aliangServer,omitempty"`
+	APIServer    string              `json:"api_server,omitempty"`
 }
 
 type CoreEngineConfig struct {
@@ -272,35 +266,12 @@ type CoreEngineConfig struct {
 type CustomerConfig struct {
 	Proxy      *CustomerProxyConfig              `json:"proxy,omitempty"`
 	AIRules    map[string]*CustomerAIRuleSetting `json:"ai_rules,omitempty"`
-	ProxyRules *CustomerProxyRulesConfig         `json:"proxy_rules,omitempty"`
+	ProxyRules []string                          `json:"proxy_rules,omitempty"`
 }
 
-// CustomerProxyRulesConfig wraps proxy rule lines with an enabled flag.
-// It accepts both the legacy []string format and the new {enabled, rules} object.
-type CustomerProxyRulesConfig struct {
-	Enabled bool     `json:"enabled"`
-	Rules   []string `json:"rules,omitempty"`
-}
-
-// UnmarshalJSON supports backward-compatible deserialization:
-//   - []string → enabled=true, rules=<array>
-//   - {"enabled":…,"rules":…} → passthrough
-func (c *CustomerProxyRulesConfig) UnmarshalJSON(data []byte) error {
-	var arr []string
-	if err := json.Unmarshal(data, &arr); err == nil {
-		c.Enabled = true
-		c.Rules = arr
-		return nil
-	}
-
-	type alias CustomerProxyRulesConfig
-	var obj alias
-	if err := json.Unmarshal(data, &obj); err != nil {
-		return err
-	}
-	c.Enabled = obj.Enabled
-	c.Rules = obj.Rules
-	return nil
+type AliangServerConfig struct {
+	Type       string `json:"type"`
+	CoreServer string `json:"core_server,omitempty"`
 }
 
 type CustomerProxyConfig struct {
@@ -311,8 +282,39 @@ type CustomerProxyConfig struct {
 }
 
 type CustomerAIRuleSetting struct {
-	Enable  *bool    `json:"enable,omitempty"`
+	Enble   *bool    `json:"enble,omitempty"`
 	Exclude []string `json:"exclude,omitempty"`
+}
+
+func (c *CustomerAIRuleSetting) UnmarshalJSON(data []byte) error {
+	type alias struct {
+		Enble   *bool    `json:"enble,omitempty"`
+		Enable  *bool    `json:"enable,omitempty"`
+		Exclude []string `json:"exclude,omitempty"`
+	}
+
+	var decoded alias
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		return err
+	}
+
+	c.Enble = decoded.Enble
+	if c.Enble == nil {
+		c.Enble = decoded.Enable
+	}
+	c.Exclude = decoded.Exclude
+	return nil
+}
+
+func (c CustomerAIRuleSetting) MarshalJSON() ([]byte, error) {
+	type alias struct {
+		Enble   *bool    `json:"enble,omitempty"`
+		Exclude []string `json:"exclude,omitempty"`
+	}
+	return json.Marshal(alias{
+		Enble:   c.Enble,
+		Exclude: c.Exclude,
+	})
 }
 
 // AIRuleProviderPreset describes a known AI provider that can be configured.
@@ -355,22 +357,58 @@ func (c *Config) UnmarshalJSON(data []byte) error {
 
 // GetTokenActivateURL returns the complete Token activation URL
 func (c *Config) GetTokenActivateURL() string {
-	return fmt.Sprintf("%s/api/user/auth/new/activate", c.APIServer)
+	return fmt.Sprintf("%s/api/user/auth/new/activate", c.APIBaseURL())
 }
 
 // GetPlanStatusURL returns the complete Plan status URL
 func (c *Config) GetPlanStatusURL() string {
-	return fmt.Sprintf("%s/api/user/auth/info/plan/info", c.APIServer)
+	return fmt.Sprintf("%s/api/user/auth/info/plan/info", c.APIBaseURL())
+}
+
+func (c *Config) GetAuthLoginURL() string {
+	return fmt.Sprintf("%s/api/v1/auth/login", c.APIBaseURL())
+}
+
+func (c *Config) GetAuthRefreshURL() string {
+	return fmt.Sprintf("%s/api/v1/auth/refresh", c.APIBaseURL())
+}
+
+func (c *Config) GetAuthLogoutURL() string {
+	return fmt.Sprintf("%s/api/v1/auth/logout", c.APIBaseURL())
+}
+
+func (c *Config) GetAuthMeURL() string {
+	return fmt.Sprintf("%s/api/v1/auth/me", c.APIBaseURL())
+}
+
+func (c *Config) GetUserProfileURL() string {
+	return fmt.Sprintf("%s/api/v1/user/profile", c.APIBaseURL())
+}
+
+func (c *Config) GetUserUpdateURL() string {
+	return fmt.Sprintf("%s/api/v1/user", c.APIBaseURL())
+}
+
+func (c *Config) GetSubscriptionsSummaryURL() string {
+	return fmt.Sprintf("%s/api/v1/subscriptions/summary", c.APIBaseURL())
+}
+
+func (c *Config) GetSubscriptionsProgressURL() string {
+	return fmt.Sprintf("%s/api/v1/subscriptions/progress", c.APIBaseURL())
+}
+
+func (c *Config) GetRedeemURL() string {
+	return fmt.Sprintf("%s/api/v1/redeem", c.APIBaseURL())
 }
 
 // GetInboundsURL returns the complete Inbounds API URL
 func (c *Config) GetInboundsURL() string {
-	return fmt.Sprintf("%s/api/production/prod/sui/user/sui/inbounds", c.APIServer)
+	return fmt.Sprintf("%s/api/production/prod/sui/user/sui/inbounds", c.APIBaseURL())
 }
 
 // GetRemoteConfigURL returns the complete remote configuration URL
 func (c *Config) GetRemoteConfigURL() string {
-	return fmt.Sprintf("%s/api/config", c.APIServer)
+	return fmt.Sprintf("%s/api/config", c.APIBaseURL())
 }
 
 // Validate validates the configuration
@@ -379,75 +417,23 @@ func (c *Config) Validate() error {
 		return err
 	}
 
-	if err := c.bridgeRuntimeFieldsFromNewModel(); err != nil {
-		return err
-	}
-
-	if c.APIServer == "" {
-		return fmt.Errorf("api_server is required in configuration")
+	if strings.TrimSpace(c.APIBaseURL()) == "" {
+		return fmt.Errorf("core.api_server is required in configuration")
 	}
 
 	// Validate DNS pre-resolution configuration
-	if c.DNSPreResolution != nil {
-		if err := c.DNSPreResolution.Validate(); err != nil {
+	if dnsCfg := c.EffectiveDNSPreResolution(); dnsCfg != nil {
+		if err := dnsCfg.Validate(); err != nil {
 			return fmt.Errorf("invalid DNS pre-resolution configuration: %w", err)
 		}
 	}
 
-	if c.SocksProxy != nil {
-		if err := c.SocksProxy.Validate(); err != nil {
+	if socksCfg, err := c.EffectiveSocksProxy(); err != nil {
+		return fmt.Errorf("invalid customer proxy configuration: %w", err)
+	} else if socksCfg != nil {
+		if err := socksCfg.Validate(); err != nil {
 			return fmt.Errorf("invalid socksProxy configuration: %w", err)
 		}
-	}
-
-	return nil
-}
-
-func (c *Config) bridgeRuntimeFieldsFromNewModel() error {
-	if c == nil {
-		return nil
-	}
-
-	if c.Core != nil && c.Core.AliangServer != nil {
-		if c.BaseProxies == nil {
-			c.BaseProxies = make(map[string]*BaseProxyConfig)
-		}
-		c.BaseProxies["aliang"] = &BaseProxyConfig{
-			Type:       c.Core.AliangServer.Type,
-			CoreServer: c.Core.AliangServer.CoreServer,
-		}
-	}
-
-	if c.Customer != nil && c.Customer.Proxy != nil {
-		switch c.Customer.Proxy.Type {
-		case "socks":
-			serverHost, serverPort, err := parseHostPort(c.Customer.Proxy.Server)
-			if err != nil {
-				return fmt.Errorf("customer.proxy.server: %w", err)
-			}
-			c.SocksProxy = &Socks5Config{
-				Server:     serverHost,
-				ServerPort: serverPort,
-				Username:   c.Customer.Proxy.Username,
-				Password:   c.Customer.Proxy.Password,
-			}
-			c.CurrentProxy = "socks"
-		case "http":
-			c.SocksProxy = nil
-			c.CurrentProxy = "direct"
-		}
-	}
-
-	if c.Customer != nil && len(c.Customer.AIRules) > 0 {
-		allowlist := make([]string, 0)
-		for _, provider := range sortedMapKeys(c.Customer.AIRules) {
-			rule := c.Customer.AIRules[provider]
-			if rule == nil || rule.Enable == nil || !*rule.Enable {
-				continue
-			}
-			allowlist = append(allowlist, rule.Exclude...)
-		}
-		c.SNIAllowlist = dedupeTrimmedDomains(allowlist)
 	}
 
 	return nil
@@ -460,9 +446,9 @@ func (c *Config) validateCustomerEditableSurface() error {
 
 	if c.Customer.Proxy != nil {
 		switch c.Customer.Proxy.Type {
-		case "http", "socks5", "socks":
+		case "http", "socks5":
 		default:
-			return fmt.Errorf("customer.proxy.type must be one of [http socks], got %q", c.Customer.Proxy.Type)
+			return fmt.Errorf("customer.proxy.type must be one of [http socks5], got %q", c.Customer.Proxy.Type)
 		}
 	}
 
@@ -471,16 +457,23 @@ func (c *Config) validateCustomerEditableSurface() error {
 			return fmt.Errorf("customer.ai_rules provider key cannot be empty")
 		}
 		if rule == nil {
-			return fmt.Errorf("customer.ai_rules.%s must be an object with editable fields [enable exclude]", provider)
+			return fmt.Errorf("customer.ai_rules.%s must be an object with editable fields [enble exclude]", provider)
 		}
-		if rule.Enable == nil {
-			return fmt.Errorf("customer.ai_rules.%s.enable is required and editable", provider)
+		if rule.Enble == nil {
+			return fmt.Errorf("customer.ai_rules.%s.enble is required and editable", provider)
 		}
 		for i := range rule.Exclude {
 			rule.Exclude[i] = strings.TrimSpace(rule.Exclude[i])
 			if rule.Exclude[i] == "" {
 				return fmt.Errorf("customer.ai_rules.%s.exclude[%d] cannot be empty", provider, i)
 			}
+		}
+	}
+
+	for i := range c.Customer.ProxyRules {
+		c.Customer.ProxyRules[i] = strings.TrimSpace(c.Customer.ProxyRules[i])
+		if c.Customer.ProxyRules[i] == "" {
+			return fmt.Errorf("customer.proxy_rules[%d] cannot be empty", i)
 		}
 	}
 
@@ -510,7 +503,7 @@ func (c *Config) customerUnknownKeyErrors() error {
 		}
 		sortedUnknown := append([]string(nil), unknown...)
 		sort.Strings(sortedUnknown)
-		return fmt.Errorf("customer.ai_rules.%s.%s is forbidden: editable ai_rules fields are [enable exclude]", provider, sortedUnknown[0])
+		return fmt.Errorf("customer.ai_rules.%s.%s is forbidden: editable ai_rules fields are [enble exclude]", provider, sortedUnknown[0])
 	}
 
 	return nil
@@ -551,11 +544,11 @@ func extractCustomerUnknownFields(root map[string]json.RawMessage) ([]string, ma
 	for provider, rawProvider := range aiRoot {
 		var fields map[string]json.RawMessage
 		if err := json.Unmarshal(rawProvider, &fields); err != nil {
-			return nil, nil, fmt.Errorf("customer.ai_rules.%s must be an object with editable fields [enable exclude]", provider)
+			return nil, nil, fmt.Errorf("customer.ai_rules.%s must be an object with editable fields [enble exclude]", provider)
 		}
 		for key := range fields {
 			switch key {
-			case "enable", "exclude":
+			case "enble", "enable", "exclude":
 			default:
 				unknownAIRules[provider] = append(unknownAIRules[provider], key)
 			}
@@ -588,6 +581,74 @@ func parseHostPort(server string) (string, uint16, error) {
 	}
 
 	return host, uint16(port), nil
+}
+
+func (c *Config) APIBaseURL() string {
+	if c == nil || c.Core == nil {
+		return ""
+	}
+	return strings.TrimSpace(c.Core.APIServer)
+}
+
+func (c *Config) EffectiveAliangCoreServer() string {
+	if c != nil && c.Core != nil && c.Core.AliangServer != nil && strings.TrimSpace(c.Core.AliangServer.CoreServer) != "" {
+		return strings.TrimSpace(c.Core.AliangServer.CoreServer)
+	}
+	return "ai-gateway.nursor.org:443"
+}
+
+func (c *Config) EffectiveDefaultProxy() string {
+	if c == nil || c.Customer == nil || c.Customer.Proxy == nil {
+		return "direct"
+	}
+	switch strings.ToLower(strings.TrimSpace(c.Customer.Proxy.Type)) {
+	case "socks5":
+		return "socks"
+	default:
+		return "direct"
+	}
+}
+
+func (c *Config) EffectiveSocksProxy() (*Socks5Config, error) {
+	if c == nil || c.Customer == nil || c.Customer.Proxy == nil {
+		return nil, nil
+	}
+	if strings.ToLower(strings.TrimSpace(c.Customer.Proxy.Type)) != "socks5" {
+		return nil, nil
+	}
+
+	serverHost, serverPort, err := parseHostPort(c.Customer.Proxy.Server)
+	if err != nil {
+		return nil, fmt.Errorf("customer.proxy.server: %w", err)
+	}
+
+	return &Socks5Config{
+		Server:     serverHost,
+		ServerPort: serverPort,
+		Username:   c.Customer.Proxy.Username,
+		Password:   c.Customer.Proxy.Password,
+	}, nil
+}
+
+func (c *Config) EffectiveAIAllowlist() []string {
+	if c == nil || c.Customer == nil || len(c.Customer.AIRules) == 0 {
+		return nil
+	}
+
+	allowlist := make([]string, 0)
+	for _, provider := range sortedMapKeys(c.Customer.AIRules) {
+		rule := c.Customer.AIRules[provider]
+		if rule == nil || rule.Enble == nil || !*rule.Enble {
+			continue
+		}
+		allowlist = append(allowlist, rule.Exclude...)
+	}
+
+	return dedupeTrimmedDomains(allowlist)
+}
+
+func (c *Config) EffectiveDNSPreResolution() *DNSPreResolutionConfig {
+	return GetDNSPreResolutionConfig()
 }
 
 func sortedMapKeys(values map[string]*CustomerAIRuleSetting) []string {

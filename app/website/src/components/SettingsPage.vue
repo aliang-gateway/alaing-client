@@ -33,10 +33,10 @@
           </nav>
           <div class="flex items-center gap-4">
             <div class="hidden text-right text-xs lg:flex lg:flex-col">
-              <span class="font-bold text-slate-900 dark:text-white">John Doe</span>
+              <span class="font-bold text-slate-900 dark:text-white">{{ userDisplayName }}</span>
               <span class="flex items-center gap-1 text-primary">
                 <span class="h-1.5 w-1.5 rounded-full bg-primary"></span>
-                Pro Member
+                {{ planLabel }}
               </span>
             </div>
             <div
@@ -63,9 +63,28 @@
           <div class="rounded bg-primary/10 px-3 py-1 text-xs font-bold text-primary">LIVE</div>
         </div>
 
+        <div
+          class="mb-6 rounded-xl border px-4 py-3 text-sm"
+          :class="isAuthenticated ? 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300' : 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-300'"
+        >
+          {{ authNotice }}
+        </div>
+
         <div v-if="activeTopTab === 'settings'" class="grid grid-cols-1 gap-8 lg:grid-cols-12">
           <section class="flex flex-col gap-4 lg:col-span-8">
+            <div
+              v-if="!isAuthenticated"
+              class="rounded-2xl border border-dashed border-slate-300 bg-white px-6 py-8 text-center shadow-sm dark:border-slate-700 dark:bg-slate-900"
+            >
+              <div class="mx-auto max-w-2xl space-y-3">
+                <h2 class="text-xl font-bold text-slate-900 dark:text-white">Login required for settings changes</h2>
+                <p class="text-sm text-slate-500 dark:text-slate-300">
+                  Customer config editing stays blocked until a backend auth session is restored or you log in with the account card on this page.
+                </p>
+              </div>
+            </div>
             <RulesSettings
+              v-else
               :config="customerConfig"
               :preset-providers="presetProviders"
               :loading="isLoadingCustomerConfig"
@@ -78,11 +97,22 @@
 
           <aside class="flex flex-col gap-6 lg:col-span-4">
             <UserInfoSettings />
-            <SystemSettings />
+            <SystemSettings v-if="isAuthenticated" />
           </aside>
         </div>
 
         <section v-else class="flex flex-col gap-4">
+          <div
+            v-if="!isAuthenticated"
+            class="rounded-2xl border border-dashed border-slate-300 bg-white px-6 py-8 text-center shadow-sm dark:border-slate-700 dark:bg-slate-900"
+          >
+            <div class="mx-auto max-w-2xl space-y-3">
+              <h2 class="text-xl font-bold text-slate-900 dark:text-white">Login required for log access</h2>
+              <p class="text-sm text-slate-500 dark:text-slate-300">
+                Logs remain hidden until you log in. The login form stays available in the account card when you switch back to the Settings tab.
+              </p>
+            </div>
+          </div>
           <LogsSettings />
         </section>
       </main>
@@ -120,15 +150,16 @@ import UserInfoSettings from './settings/UserInfoSettings.vue';
 import LogsSettings from './settings/LogsSettings.vue';
 import SystemSettings from './settings/SystemSettings.vue';
 import { useNavigation } from '../composables/useNavigation';
+import { useAuthStore } from '../stores/auth';
 
 function createDefaultCustomerConfig() {
   return {
     proxy: {
-      type: 'socks',
+      type: 'socks5',
       server: ''
     },
     ai_rules: {},
-    proxy_rules: { enabled: true, rules: [] }
+    proxy_rules: []
   };
 }
 
@@ -145,26 +176,14 @@ function normalizeAiRules(aiRules = {}) {
 
   return Object.fromEntries(
     Object.entries(aiRules).map(([provider, incoming]) => [provider, {
-      enable: Boolean(incoming?.enable),
+      enble: Boolean(incoming?.enble ?? incoming?.enable),
       exclude: normalizeStringList(incoming?.exclude)
     }])
   );
 }
 
 function normalizeProxyRules(raw) {
-  if (!raw) {
-    return { enabled: true, rules: [] };
-  }
-  if (Array.isArray(raw)) {
-    return { enabled: true, rules: normalizeStringList(raw) };
-  }
-  if (typeof raw === 'object') {
-    return {
-      enabled: Boolean(raw.enabled),
-      rules: normalizeStringList(raw.rules)
-    };
-  }
-  return { enabled: true, rules: [] };
+  return normalizeStringList(raw);
 }
 
 function normalizeCustomerConfig(payload = {}) {
@@ -183,6 +202,52 @@ function cloneCustomerConfig(config) {
   return JSON.parse(JSON.stringify(config));
 }
 
+function isPlainObject(value) {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+}
+
+function areArraysEqual(left = [], right = []) {
+  if (left.length !== right.length) {
+    return false;
+  }
+  return left.every((value, index) => value === right[index]);
+}
+
+function buildCustomerConfigPatch(nextConfig, currentConfig) {
+  return buildConfigPatch(normalizeCustomerConfig(nextConfig), normalizeCustomerConfig(currentConfig));
+}
+
+function buildConfigPatch(nextValue, currentValue) {
+  if (typeof nextValue === 'string') {
+    const trimmed = nextValue.trim();
+    if (!trimmed || trimmed === String(currentValue ?? '').trim()) {
+      return undefined;
+    }
+    return trimmed;
+  }
+
+  if (Array.isArray(nextValue)) {
+    const normalizedCurrent = Array.isArray(currentValue) ? currentValue : [];
+    return areArraysEqual(nextValue, normalizedCurrent) ? undefined : [...nextValue];
+  }
+
+  if (isPlainObject(nextValue)) {
+    const patch = {};
+    const currentObject = isPlainObject(currentValue) ? currentValue : {};
+
+    for (const [key, value] of Object.entries(nextValue)) {
+      const nextPatch = buildConfigPatch(value, currentObject[key]);
+      if (nextPatch !== undefined) {
+        patch[key] = nextPatch;
+      }
+    }
+
+    return Object.keys(patch).length ? patch : undefined;
+  }
+
+  return Object.is(nextValue, currentValue) ? undefined : nextValue;
+}
+
 
 export default {
   name: 'SettingsPage',
@@ -194,7 +259,15 @@ export default {
   },
   setup() {
     const { currentPage, showDashboard } = useNavigation();
-    return { currentPage, goDashboard: showDashboard };
+    const { isAuthenticated, userDisplayName, planLabel, authNotice } = useAuthStore();
+    return {
+      currentPage,
+      goDashboard: showDashboard,
+      isAuthenticated,
+      userDisplayName,
+      planLabel,
+      authNotice
+    };
   },
   data() {
     return {
@@ -279,12 +352,18 @@ export default {
       this.customerConfigError = '';
 
       const normalizedConfig = normalizeCustomerConfig(nextConfig);
+      const patch = buildCustomerConfigPatch(normalizedConfig, this.customerConfig);
 
       try {
+        if (!patch || !Object.keys(patch).length) {
+          this.customerConfigError = '';
+          return;
+        }
+
         const res = await fetch('/api/config/customer', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ customer: cloneCustomerConfig(normalizedConfig) })
+          body: JSON.stringify({ customer: cloneCustomerConfig(patch) })
         });
         if (!res.ok) {
           const errJson = await res.json().catch(() => ({}));

@@ -217,7 +217,7 @@ func normalizeCorePayload(payload []byte) (json.RawMessage, error) {
 				if key == "core" {
 					continue
 				}
-				return nil, fmt.Errorf("core.%s is forbidden: editable core fields are [engine aliangServer]", key)
+				return nil, fmt.Errorf("core.%s is forbidden: editable core fields are [engine aliangServer api_server]", key)
 			}
 		}
 		return rawCore, nil
@@ -225,9 +225,9 @@ func normalizeCorePayload(payload []byte) (json.RawMessage, error) {
 
 	for key := range rawRoot {
 		switch key {
-		case "engine", "aliangServer":
+		case "engine", "aliangServer", "api_server":
 		default:
-			return nil, fmt.Errorf("core.%s is forbidden: editable core fields are [engine aliangServer]", key)
+			return nil, fmt.Errorf("core.%s is forbidden: editable core fields are [engine aliangServer api_server]", key)
 		}
 	}
 

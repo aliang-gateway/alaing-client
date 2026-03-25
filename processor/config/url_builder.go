@@ -29,6 +29,42 @@ func (ub *URLBuilder) GetPlanStatusURL() (string, error) {
 	return ub.getAndValidateURL(ub.cfg.GetPlanStatusURL())
 }
 
+func (ub *URLBuilder) GetAuthLoginURL() (string, error) {
+	return ub.getAndValidateURL(ub.cfg.GetAuthLoginURL())
+}
+
+func (ub *URLBuilder) GetAuthRefreshURL() (string, error) {
+	return ub.getAndValidateURL(ub.cfg.GetAuthRefreshURL())
+}
+
+func (ub *URLBuilder) GetAuthLogoutURL() (string, error) {
+	return ub.getAndValidateURL(ub.cfg.GetAuthLogoutURL())
+}
+
+func (ub *URLBuilder) GetAuthMeURL() (string, error) {
+	return ub.getAndValidateURL(ub.cfg.GetAuthMeURL())
+}
+
+func (ub *URLBuilder) GetUserProfileURL() (string, error) {
+	return ub.getAndValidateURL(ub.cfg.GetUserProfileURL())
+}
+
+func (ub *URLBuilder) GetUserUpdateURL() (string, error) {
+	return ub.getAndValidateURL(ub.cfg.GetUserUpdateURL())
+}
+
+func (ub *URLBuilder) GetSubscriptionsSummaryURL() (string, error) {
+	return ub.getAndValidateURL(ub.cfg.GetSubscriptionsSummaryURL())
+}
+
+func (ub *URLBuilder) GetSubscriptionsProgressURL() (string, error) {
+	return ub.getAndValidateURL(ub.cfg.GetSubscriptionsProgressURL())
+}
+
+func (ub *URLBuilder) GetRedeemURL() (string, error) {
+	return ub.getAndValidateURL(ub.cfg.GetRedeemURL())
+}
+
 // GetInboundsURL 获取 Inbounds URL
 func (ub *URLBuilder) GetInboundsURL() (string, error) {
 	return ub.getAndValidateURL(ub.cfg.GetInboundsURL())
@@ -37,7 +73,7 @@ func (ub *URLBuilder) GetInboundsURL() (string, error) {
 // getAndValidateURL 通用的 URL 获取和验证方法
 func (ub *URLBuilder) getAndValidateURL(fullURL string) (string, error) {
 	if fullURL == "" {
-		return "", fmt.Errorf("API URL not configured in config.api_server")
+		return "", fmt.Errorf("API URL not configured in config.core.api_server")
 	}
 
 	if !IsValidURL(fullURL) {

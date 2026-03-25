@@ -45,7 +45,7 @@
                 v-model="form.proxy.type"
                 class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm transition focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
               >
-                <option value="socks">SOCKS</option>
+                <option value="socks5">SOCKS5</option>
                 <option value="http">HTTP</option>
               </select>
             </label>
@@ -90,7 +90,7 @@
                   <p class="text-xs text-slate-500">{{ provider }}</p>
                 </div>
                 <label class="inline-flex cursor-pointer items-center gap-2 text-xs font-semibold text-slate-600 dark:text-slate-200">
-                  <input v-model="form.ai_rules[provider].enable" class="peer sr-only" type="checkbox" />
+                  <input v-model="form.ai_rules[provider].enble" class="peer sr-only" type="checkbox" />
                   <span class="relative h-6 w-11 rounded-full bg-slate-300 transition-colors after:absolute after:left-0.5 after:top-0.5 after:h-5 after:w-5 after:rounded-full after:bg-white after:transition-transform after:content-[''] peer-checked:bg-primary peer-checked:after:translate-x-5 peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-primary dark:bg-slate-700"></span>
                   
                 </label>
@@ -117,11 +117,6 @@
               <h3 class="font-semibold text-slate-900 dark:text-white">Proxy Rules</h3>
               <p class="text-xs text-slate-500">Edit `customer.proxy_rules`, one rule per line.</p>
             </div>
-            <label class="ml-auto inline-flex cursor-pointer items-center gap-2 text-xs font-semibold text-slate-600 dark:text-slate-200">
-              <input v-model="form.proxy_rules.enabled" class="peer sr-only" type="checkbox" />
-              <span class="relative h-6 w-11 rounded-full bg-slate-300 transition-colors after:absolute after:left-0.5 after:top-0.5 after:h-5 after:w-5 after:rounded-full after:bg-white after:transition-transform after:content-[''] peer-checked:bg-primary peer-checked:after:translate-x-5 peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-primary dark:bg-slate-700"></span>
-              Enabled
-            </label>
           </div>
 
           <label class="space-y-2">
@@ -158,11 +153,11 @@
 function defaultConfig() {
   return {
     proxy: {
-      type: 'socks',
+      type: 'socks5',
       server: ''
     },
     ai_rules: {},
-    proxy_rules: { enabled: true, rules: [] }
+    proxy_rules: []
   };
 }
 
@@ -186,26 +181,14 @@ function normalizeAiRules(aiRules = {}) {
 
   return Object.fromEntries(
     Object.entries(aiRules).map(([provider, value]) => [provider, {
-      enable: Boolean(value?.enable),
+      enble: Boolean(value?.enble ?? value?.enable),
       exclude: normalizeStringList(value?.exclude)
     }])
   );
 }
 
 function normalizeProxyRules(raw) {
-  if (!raw) {
-    return { enabled: true, rules: [] };
-  }
-  if (Array.isArray(raw)) {
-    return { enabled: true, rules: normalizeStringList(raw) };
-  }
-  if (typeof raw === 'object') {
-    return {
-      enabled: Boolean(raw.enabled),
-      rules: normalizeStringList(raw.rules)
-    };
-  }
-  return { enabled: true, rules: [] };
+  return normalizeStringList(raw);
 }
 
 function normalizeConfig(config = {}) {
@@ -327,7 +310,7 @@ export default {
     ensureProviders() {
       for (const p of this.presetProviders) {
         if (!(p.key in this.form.ai_rules)) {
-          this.form.ai_rules[p.key] = { enable: false, exclude: [] };
+          this.form.ai_rules[p.key] = { enble: false, exclude: [] };
         }
       }
     },
@@ -336,7 +319,7 @@ export default {
       return preset ? preset.label : key;
     },
     syncTextFromForm() {
-      this._proxyRulesText = (this.form.proxy_rules.rules || []).join('\n');
+      this._proxyRulesText = (this.form.proxy_rules || []).join('\n');
       for (const key of Object.keys(this.form.ai_rules)) {
         if (!this._providerExcludeTexts[key]) {
           this._providerExcludeTexts[key] = (this.form.ai_rules[key].exclude || []).join('\n');
@@ -345,7 +328,7 @@ export default {
     },
     async handleSubmit() {
       const normalized = normalizeConfig(this.form);
-      normalized.proxy_rules.rules = sanitizeLines(this._proxyRulesText);
+      normalized.proxy_rules = sanitizeLines(this._proxyRulesText);
       for (const [key, text] of Object.entries(this._providerExcludeTexts)) {
         if (normalized.ai_rules[key]) {
           normalized.ai_rules[key].exclude = sanitizeLines(text);

@@ -18,11 +18,10 @@ func TestSoftwareConfigService_SaveActivateAndCloudSync(t *testing.T) {
 	config.ResetGlobalConfigForTest()
 	t.Cleanup(config.ResetGlobalConfigForTest)
 	config.SetGlobalConfig(&config.Config{
-		APIServer:    "https://api.example.com",
-		CurrentProxy: "direct",
 		Core: &config.CoreConfig{
-			AliangServer: &config.BaseProxyConfig{
-				Type:       "vmess",
+			APIServer: "https://api.example.com",
+			AliangServer: &config.AliangServerConfig{
+				Type:       "aliang",
 				CoreServer: "ai-gateway.nursor.org:443",
 			},
 		},
@@ -32,7 +31,7 @@ func TestSoftwareConfigService_SaveActivateAndCloudSync(t *testing.T) {
 			},
 			AIRules: map[string]*config.CustomerAIRuleSetting{
 				"openai": {
-					Enable: boolPtr(true),
+					Enble: boolPtr(true),
 					Exclude: []string{
 						"api.openai.com",
 					},
@@ -115,12 +114,6 @@ func TestSoftwareConfigService_SaveActivateAndCloudSync(t *testing.T) {
 	}
 	if _, ok := effectivePayload["customer"]; !ok {
 		t.Fatalf("expected customer in effective payload: %v", effectivePayload)
-	}
-	if _, ok := effectivePayload["currentProxy"]; !ok {
-		t.Fatalf("expected currentProxy runtime-effective field in payload: %v", effectivePayload)
-	}
-	if _, ok := effectivePayload["sni_allowlist"]; !ok {
-		t.Fatalf("expected sni_allowlist runtime-effective field in payload: %v", effectivePayload)
 	}
 
 	claudeOnlyBeforePull, err := service.ListBySoftware("claude")

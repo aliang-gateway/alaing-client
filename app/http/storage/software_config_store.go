@@ -48,6 +48,13 @@ func getSoftwareConfigDB() (*gorm.DB, error) {
 	return softwareConfigDB, softwareConfigDBErr
 }
 
+// ResetSoftwareConfigDBForTest clears the package singleton so tests can isolate db path resolution.
+func ResetSoftwareConfigDBForTest() {
+	softwareConfigDB = nil
+	softwareConfigDBErr = nil
+	softwareConfigDBOnce = sync.Once{}
+}
+
 func openSoftwareConfigDB(dbPath string) (*gorm.DB, error) {
 	if dbPath == "" {
 		return nil, errors.New("software config db path is empty")

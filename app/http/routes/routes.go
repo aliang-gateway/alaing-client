@@ -30,6 +30,7 @@ type Handlers struct {
 	TrafficStats  *handlers.TrafficStatsHandler
 	HTTPStats     *handlers.HTTPStatsHandler
 	Chat          *handlers.ChatHandler
+	UserCenter    *handlers.UserCenterHandler
 
 	statsCollector     *statistic.StatsCollector
 	httpStatsCollector *statistic.HTTPStatsCollector
@@ -63,6 +64,7 @@ func NewHandlers() *Handlers {
 		TrafficStats:       handlers.NewTrafficStatsHandler(statsCollector),
 		HTTPStats:          handlers.NewHTTPStatsHandler(httpStatsCollector),
 		Chat:               handlers.NewChatHandler(),
+		UserCenter:         handlers.NewUserCenterHandler(),
 		statsCollector:     statsCollector,
 		httpStatsCollector: httpStatsCollector,
 	}
@@ -103,9 +105,10 @@ func RegisterRoutes(h *Handlers, mux *http.ServeMux) {
 	register("/api/token/set", h.Token.HandleTokenSet, http.MethodPost)
 
 	// Authentication routes (/api/auth/*)
-	register("/api/auth/activate", h.Auth.HandleActivateToken, http.MethodPost)
-	register("/api/auth/userinfo", h.Auth.HandleGetUserInfo, http.MethodGet)
-	register("/api/auth/refresh-status", h.Auth.HandleGetRefreshStatus, http.MethodGet)
+	register("/api/auth/login", h.Auth.HandleLogin, http.MethodPost)
+	register("/api/auth/session", h.Auth.HandleRestoreSession, http.MethodGet)
+	register("/api/auth/refresh", h.Auth.HandleRefreshSession, http.MethodPost)
+	register("/api/auth/me", h.Auth.HandleMe, http.MethodGet)
 	register("/api/auth/logout", h.Auth.HandleLogout, http.MethodPost)
 
 	// Run mode routes (/api/run/*)
@@ -171,6 +174,11 @@ func RegisterRoutes(h *Handlers, mux *http.ServeMux) {
 	register("/api/stats/http/preset-domains", h.HTTPStats.HandleGetPresetDomains, http.MethodGet)
 
 	register("/api/chat/completions", h.Chat.HandleCompletions, http.MethodPost)
+
+	register("/api/user-center/profile", h.UserCenter.HandleProfile, http.MethodGet, http.MethodPut)
+	register("/api/user-center/usage/summary", h.UserCenter.HandleGetUsageSummary, http.MethodGet)
+	register("/api/user-center/usage/progress", h.UserCenter.HandleGetUsageProgress, http.MethodGet)
+	register("/api/user-center/redeem", h.UserCenter.HandleRedeemCode, http.MethodPost)
 
 	registerDocsRoutes(mux, catalog)
 }

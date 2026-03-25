@@ -7,17 +7,21 @@
     <aside
       class="w-80 lg:w-96 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 flex flex-col h-full overflow-y-auto custom-scrollbar"
     >
-      <div class="p-8 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/20">
+      <div
+        class="p-8 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/20 transition-colors"
+        :class="!isAuthenticated ? 'cursor-pointer hover:bg-primary/5 dark:hover:bg-primary/10' : ''"
+        :role="!isAuthenticated ? 'button' : undefined"
+        :tabindex="!isAuthenticated ? 0 : undefined"
+        @click="handleAccountCardClick"
+        @keydown.enter.prevent="handleAccountCardClick"
+        @keydown.space.prevent="handleAccountCardClick"
+      >
         <div class="flex items-center gap-4">
           <div class="relative group">
             <div
-              class="size-14 ring-2 ring-primary ring-offset-2 dark:ring-offset-slate-900 rounded-xl overflow-hidden shadow-sm transition-transform duration-300 group-hover:scale-105"
+              class="size-14 ring-2 ring-primary ring-offset-2 dark:ring-offset-slate-900 rounded-xl overflow-hidden shadow-sm transition-transform duration-300 group-hover:scale-105 flex items-center justify-center bg-gradient-to-br from-primary to-emerald-500 text-white"
             >
-              <img
-                alt="User avatar"
-                class="w-full h-full object-cover"
-                src="https://lh3.googleusercontent.com/aida-public/AB6AXuBe4dmnKyGk_XawBt0uNW9E5uEFaIM3EsR5Fc_1I1RXhICJBndC8O_xmynJ0wCM6F7c2J8VdktjImaCqgRPBNrHLCHbvPsfHSyfuhmPaR6UJsJ9Mbj-M0g5dRpiXfW3ZoP3w2xuOq6hCD4sTfDTbJqMK9FHsJ3DU3DsBKF0SMuQITir97QPEC2hviK9f26s-g9gxmmITj4LSyILlnLedqYEwhvESK6n_tNiLuhY94eW6ZQkVkw4YzzgyFb18ZVhgN-8vEcW7oqsIeI"
-              />
+              <span class="text-lg font-bold uppercase tracking-[0.2em] ml-[0.2em]">{{ userAvatarText }}</span>
             </div>
             <div
               class="absolute -bottom-1 -right-1 size-4 bg-primary border-2 border-white dark:border-slate-900 rounded-full"
@@ -25,16 +29,32 @@
           </div>
           <div>
             <div class="flex items-center gap-1.5">
-              <h2 class="font-bold text-slate-900 dark:text-white tracking-tight">Alex Rivera</h2>
+              <h2 class="font-bold text-slate-900 dark:text-white tracking-tight">{{ userDisplayName }}</h2>
             </div>
             <div class="flex items-center gap-2 mt-1">
               <span
                 class="px-2 py-0.5 bg-primary/10 text-primary text-[10px] font-bold rounded uppercase tracking-wider"
               >
-                Pro Developer
+                {{ planLabel }}
               </span>
             </div>
-            <p class="text-slate-400 text-[11px] mt-1.5 font-medium">Valid until Dec 31, 2025</p>
+            <p class="text-slate-400 text-[11px] mt-1.5 font-medium">{{ accountSubtitle }}</p>
+          </div>
+        </div>
+        <div
+          class="mt-4 rounded-lg border px-3 py-2 text-xs"
+          :class="isAuthenticated ? 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300' : 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-300'"
+        >
+          <div class="flex items-center justify-between gap-3">
+            <span>{{ authNotice }}</span>
+            <button
+              v-if="!isAuthenticated"
+              type="button"
+              class="shrink-0 rounded-md bg-white/80 px-2.5 py-1 text-[11px] font-semibold text-amber-700 transition hover:bg-white dark:bg-slate-900/70 dark:text-amber-200 dark:hover:bg-slate-900"
+              @click.stop="openLoginModal"
+            >
+              立即登录
+            </button>
           </div>
         </div>
       </div>
@@ -110,8 +130,10 @@
         <div class="group relative">
           <button
             type="button"
-            @click="emit('openQuickSetup')"
+            :disabled="!isAuthenticated"
+            @click="openQuickSetup"
             class="w-full flex items-center gap-3 px-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded text-sm font-medium hover:border-primary transition-colors"
+            :class="!isAuthenticated ? 'cursor-not-allowed opacity-60 hover:border-slate-200 dark:hover:border-slate-700' : ''"
           >
             <span class="material-symbols-outlined text-slate-400 text-lg">bolt</span>
             Quick Setup
@@ -119,8 +141,10 @@
         </div>
         <button
           type="button"
+          :disabled="!isAuthenticated"
           @click="openQuickChat"
           class="w-full flex items-center gap-3 px-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded text-sm font-medium hover:border-primary transition-colors"
+          :class="!isAuthenticated ? 'cursor-not-allowed opacity-60 hover:border-slate-200 dark:hover:border-slate-700' : ''"
         >
           <span class="material-symbols-outlined text-slate-400 text-lg">chat_bubble</span>
           Quick Chat
@@ -128,7 +152,7 @@
         <button
           type="button"
           class="w-full flex items-center gap-3 px-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded text-sm font-medium hover:border-primary transition-colors"
-          @click="showSettings"
+          @click="handleShowSettings"
         >
           <span class="material-symbols-outlined text-slate-400 text-lg">settings</span>
           More Settings
@@ -461,6 +485,84 @@
     </main>
 
     <div
+      v-if="isLoginModalOpen"
+      class="fixed inset-0 z-[1000] flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm"
+      @click.self="closeLoginModal"
+    >
+      <div class="w-full max-w-md overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-900">
+        <div class="border-b border-slate-200 bg-slate-50/80 px-5 py-4 dark:border-slate-700 dark:bg-slate-800/60">
+          <div class="flex items-start justify-between gap-4">
+            <div>
+              <p class="text-xs font-bold uppercase tracking-[0.2em] text-primary">Account Access</p>
+              <h3 class="mt-1 text-lg font-semibold text-slate-900 dark:text-slate-100">登录后继续使用 Dashboard</h3>
+              <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                登录后可解锁代理控制、Quick Setup、Quick Chat 与账户相关功能。
+              </p>
+            </div>
+            <button
+              type="button"
+              class="rounded-lg p-1.5 text-slate-500 transition hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+              :disabled="loginPending"
+              @click="closeLoginModal"
+            >
+              <span class="material-symbols-outlined text-lg">close</span>
+            </button>
+          </div>
+        </div>
+
+        <form class="space-y-4 p-5" @submit.prevent="submitLogin">
+          <div class="rounded-xl border border-dashed border-amber-200 bg-amber-50/70 p-4 text-xs text-amber-700 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-200">
+            当前未登录。输入账户信息后，弹窗会在登录成功后自动关闭。
+          </div>
+
+          <div>
+            <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">Email</label>
+            <input
+              v-model.trim="loginEmail"
+              type="email"
+              autocomplete="username"
+              class="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none transition focus:border-primary dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+              placeholder="name@example.com"
+              :disabled="loginPending"
+            />
+          </div>
+
+          <div>
+            <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">Password</label>
+            <input
+              v-model="loginPassword"
+              type="password"
+              autocomplete="current-password"
+              class="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none transition focus:border-primary dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+              placeholder="Enter your password"
+              :disabled="loginPending"
+            />
+          </div>
+
+          <p v-if="loginError" class="text-xs text-rose-500">{{ loginError }}</p>
+
+          <div class="flex gap-3 pt-1">
+            <button
+              type="button"
+              class="inline-flex h-11 flex-1 items-center justify-center rounded-lg border border-slate-200 px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:text-slate-100 dark:hover:bg-slate-800"
+              :disabled="loginPending"
+              @click="closeLoginModal"
+            >
+              取消
+            </button>
+            <button
+              type="submit"
+              class="inline-flex h-11 flex-1 items-center justify-center rounded-lg bg-primary px-4 text-sm font-semibold text-white transition hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
+              :disabled="loginPending"
+            >
+              {{ loginPending ? '登录中...' : '登录' }}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <div
       v-if="isQuickChatOpen"
       class="fixed inset-0 z-[1000] flex items-center justify-center bg-black/50 p-4"
       @click.self="closeQuickChat"
@@ -518,17 +620,22 @@
 </template>
 
 <script setup>
-import { computed, ref, onMounted, onUnmounted } from 'vue';
+import { computed, ref, onMounted, onUnmounted, watch } from 'vue';
 import { useCertStatus } from '../composables/useCertStatus';
 import { useNavigation } from '../composables/useNavigation';
+import { useAuthStore } from '../stores/auth';
 
 const { certStatus, loading: certLoading, startPolling, stopPolling } = useCertStatus();
 const { currentPage, showSettings } = useNavigation();
+const { isAuthenticated, user, userDisplayName, planLabel, authNotice, loginPending, loginError, loginWithPassword } = useAuthStore();
 
 const emit = defineEmits(['openQuickSetup', 'openCertModal', 'startCertReinstall']);
 
 const requestFilter = ref('all');
 const pathSearch = ref('');
+const isLoginModalOpen = ref(false);
+const loginEmail = ref('');
+const loginPassword = ref('');
 const isQuickChatOpen = ref(false);
 const quickChatInput = ref('');
 const isQuickChatSending = ref(false);
@@ -543,7 +650,74 @@ const runActionMessage = ref('');
 const startupStatus = ref('UNKNOWN');
 let runStatusTimer = null;
 
+const accountSubtitle = computed(() => {
+  if (!isAuthenticated.value) {
+    return 'Log in to unlock proxy controls and account-linked usage.';
+  }
+  if (user.value?.endTime) {
+    return `Valid until ${user.value.endTime}`;
+  }
+  return 'Authenticated session active';
+});
+
+const userAvatarText = computed(() => {
+  const emailPrefix = typeof user.value?.email === 'string' ? user.value.email.trim().slice(0, 2) : '';
+  if (emailPrefix) {
+    return emailPrefix;
+  }
+
+  const usernamePrefix = typeof user.value?.username === 'string' ? user.value.username.trim().slice(0, 2) : '';
+  if (usernamePrefix) {
+    return usernamePrefix;
+  }
+
+  return 'GU';
+});
+
+function openQuickSetup() {
+  if (!isAuthenticated.value) {
+    return;
+  }
+  emit('openQuickSetup');
+}
+
+function handleAccountCardClick() {
+  if (isAuthenticated.value) {
+    return;
+  }
+  openLoginModal();
+}
+
+function openLoginModal() {
+  if (isAuthenticated.value) {
+    return;
+  }
+  isLoginModalOpen.value = true;
+}
+
+function closeLoginModal() {
+  if (loginPending.value) {
+    return;
+  }
+  isLoginModalOpen.value = false;
+  loginPassword.value = '';
+}
+
+async function submitLogin() {
+  const success = await loginWithPassword({
+    email: loginEmail.value,
+    password: loginPassword.value
+  });
+
+  if (success) {
+    closeLoginModal();
+  }
+}
+
 function openQuickChat() {
+  if (!isAuthenticated.value) {
+    return;
+  }
   isQuickChatOpen.value = true;
 }
 
@@ -563,6 +737,10 @@ function handleReinstall() {
   setTimeout(() => emit('startCertReinstall'), 300);
 }
 
+function handleShowSettings() {
+  showSettings();
+}
+
 const runModeLabel = computed(() => {
   if (runMode.value === 'tun') return 'TUN';
   if (runMode.value === 'http') return 'HTTP';
@@ -579,6 +757,9 @@ const proxyStatusTitle = computed(() => {
 const proxyStatusSubtitle = computed(() => {
   if (runActionMessage.value) return runActionMessage.value;
   if (runSyncError.value) return `Sync failed: ${runSyncError.value}`;
+  if (!isAuthenticated.value) {
+    return 'Disabled: login required before proxy operations can start.';
+  }
   if (!canStartProxy.value) {
     switch (startupStatus.value) {
       case 'UNCONFIGURED':
@@ -596,7 +777,12 @@ const proxyStatusSubtitle = computed(() => {
 
 const powerButtonBusyText = computed(() => (runIsRunning.value ? 'Stopping proxy...' : 'Starting proxy...'));
 
-const canStartProxy = computed(() => startupStatus.value === 'READY' || startupStatus.value === 'CONFIGURED');
+const canStartProxy = computed(() => {
+  if (!isAuthenticated.value) {
+    return false;
+  }
+  return startupStatus.value === 'READY' || startupStatus.value === 'CONFIGURED';
+});
 
 const powerButtonTitle = computed(() => {
   if (runActionLoading.value) return powerButtonBusyText.value;
@@ -780,7 +966,22 @@ onUnmounted(() => {
   }
 });
 
+watch(isAuthenticated, (authenticated) => {
+  if (authenticated) {
+    isLoginModalOpen.value = false;
+    loginPassword.value = '';
+  }
+});
+
 async function sendQuickChat() {
+  if (!isAuthenticated.value) {
+    quickChatMessages.value.push({
+      role: 'assistant',
+      content: '请先登录，随后才能使用 Quick Chat。'
+    });
+    return;
+  }
+
   const text = quickChatInput.value.trim();
   if (!text || isQuickChatSending.value) {
     return;

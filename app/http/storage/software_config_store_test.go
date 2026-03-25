@@ -181,7 +181,7 @@ func TestSoftwareConfigStore_ActivateAndMergeByLatest(t *testing.T) {
 		ConfigFilePath: "/tmp/c.json",
 		ConfigVersion:  "v2",
 		ConfigFormat:   models.ConfigFormatJSON,
-		SnapshotJSON:   `{"core":{"aliangServer":{"type":"vmess","core_server":"ai-gateway.nursor.org:443"}},"customer":{"proxy":{"type":"http"}},"currentProxy":"direct"}`,
+		SnapshotJSON:   `{"core":{"api_server":"https://api.example.com","aliangServer":{"type":"aliang","core_server":"ai-gateway.nursor.org:443"}},"customer":{"proxy":{"type":"http"}}}`,
 	}); err != nil {
 		t.Fatalf("save effective snapshot failed: %v", err)
 	}

@@ -68,13 +68,14 @@ func (h *StartupHandler) HandleStartupDetail(w http.ResponseWriter, r *http.Requ
 	fetchSuccess := startupState.GetFetchSuccess()
 	userInfo := startupState.GetUserInfo()
 
-	// Check if local user info exists
-	hasLocalUserInfo := false
-	userInfoPath, err := authuser.GetUserInfoPath()
-	if err == nil {
-		// Try to load to verify existence
-		_, err := authuser.LoadUserInfo()
-		hasLocalUserInfo = err == nil
+	hasLocalUserInfo, checkErr := authuser.HasPersistedUserInfo()
+	if checkErr != nil {
+		hasLocalUserInfo = false
+	}
+
+	authStoragePath, pathErr := authuser.GetAuthSessionDBPath()
+	if pathErr != nil {
+		authStoragePath = ""
 	}
 
 	// Build detailed response
@@ -89,7 +90,7 @@ func (h *StartupHandler) HandleStartupDetail(w http.ResponseWriter, r *http.Requ
 		},
 		"user": map[string]interface{}{
 			"has_local_info": hasLocalUserInfo,
-			"info_path":      userInfoPath,
+			"info_path":      authStoragePath,
 		},
 		"diagnostics": map[string]interface{}{
 			"timestamp":              startupState.GetTimestamp().Unix(),
@@ -116,8 +117,8 @@ func (h *StartupHandler) HandleStartupDetail(w http.ResponseWriter, r *http.Requ
 // getStatusDescription returns a human-readable description of the status
 func getStatusDescription(status runtime.StartupStatus) string {
 	descriptions := map[runtime.StartupStatus]string{
-		runtime.UNCONFIGURED: "System awaiting configuration - no token and no local user info found",
-		runtime.CONFIGURING:  "System configuring - token provided, activation in progress",
+		runtime.UNCONFIGURED: "System awaiting authentication - no local session found",
+		runtime.CONFIGURING:  "System authenticating - login/session restore in progress",
 		runtime.CONFIGURED:   "System configured - user info loaded but not started",
 		runtime.READY:        "System ready - user authenticated",
 	}
@@ -140,22 +141,24 @@ func getFetchStatusMessage(success bool) string {
 func getSuggestedActions(status runtime.StartupStatus) []string {
 	actions := map[runtime.StartupStatus][]string{
 		runtime.UNCONFIGURED: {
-			"POST /api/auth/activate - Activate with token",
+			"POST /api/auth/login - Login with email/password",
+			"GET /api/auth/session - Try local session restore",
 			"GET /api/startup/status - Check status again",
 		},
 		runtime.CONFIGURING: {
-			"GET /api/startup/status - Check activation progress",
-			"Wait for token activation to complete",
+			"GET /api/auth/session - Retry local session restore",
+			"POST /api/auth/login - Login if no local session",
+			"GET /api/startup/status - Check authentication progress",
 		},
 		runtime.CONFIGURED: {
-			"System has user info but proxy not started",
-			"Call /api/run/start to start proxy",
-			"POST /api/auth/activate - Retry with fresh token",
+			"System has authenticated user info but proxy not started",
+			"POST /api/run/start - Start proxy",
+			"POST /api/auth/refresh - Refresh auth session",
 		},
 		runtime.READY: {
 			"System ready for proxy operations",
 			"GET /api/proxy/list - List available proxies",
-			"GET /api/auth/userinfo - Check user information",
+			"GET /api/auth/me - Check user information",
 		},
 	}
 
@@ -169,17 +172,17 @@ func getSuggestedActions(status runtime.StartupStatus) []string {
 func getStatusTransitionInfo(status runtime.StartupStatus) map[string]interface{} {
 	transitions := map[runtime.StartupStatus]map[string]interface{}{
 		runtime.UNCONFIGURED: {
-			"description": "Initial state - no configuration",
+			"description": "Initial state - no authenticated session",
 			"possible_transitions": []string{
-				"→ CONFIGURING (token provided)",
-				"→ READY (local user info found)",
+				"→ CONFIGURING (authentication session initialization)",
+				"→ READY (local session restored or login successful)",
 			},
 		},
 		runtime.CONFIGURING: {
-			"description": "Activation in progress",
+			"description": "Authentication in progress",
 			"possible_transitions": []string{
-				"→ READY (token activation success)",
-				"→ UNCONFIGURED (token activation failed, no local fallback)",
+				"→ READY (session restore or login success)",
+				"→ UNCONFIGURED (authentication failed, no local session)",
 			},
 		},
 		runtime.CONFIGURED: {

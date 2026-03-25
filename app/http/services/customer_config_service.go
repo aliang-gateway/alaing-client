@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
+	"reflect"
 	"sort"
 	"strings"
 
@@ -17,6 +19,7 @@ import (
 )
 
 const customerConfigFilePath = "~/.aliang/config.json"
+const startupLocalCustomerBaseConfigPath = "./config.new.json"
 
 type CustomerConfigService struct {
 	store *storage.SoftwareConfigStore
@@ -88,12 +91,6 @@ func (s *CustomerConfigService) UpdateCommittedCustomerConfig(payload []byte) (*
 	globalCfg, err := resolveBaseConfigForCustomerUpdate()
 	if err != nil {
 		return nil, err
-	}
-
-	// Ensure api_server is present so full config validation passes
-	// even when the committed snapshot has an empty value.
-	if strings.TrimSpace(globalCfg.APIServer) == "" {
-		globalCfg.APIServer = "https://api.example.com"
 	}
 
 	mergedContent, nextCfg, err := mergeCustomerPayload(globalCfg, payload)
@@ -189,7 +186,7 @@ func mergeCustomerPayload(baseCfg *config.Config, payload []byte) (string, *conf
 		return "", nil, errors.New("global config is not initialized")
 	}
 
-	customerRaw, err := normalizeCustomerPayload(payload)
+	customerPatch, err := normalizeCustomerPayload(payload)
 	if err != nil {
 		return "", nil, err
 	}
@@ -203,7 +200,23 @@ func mergeCustomerPayload(baseCfg *config.Config, payload []byte) (string, *conf
 	if err := json.Unmarshal(baseRaw, &root); err != nil {
 		return "", nil, fmt.Errorf("decode current config: %w", err)
 	}
-	root["customer"] = customerRaw
+
+	var currentCustomer map[string]interface{}
+	if rawCustomer, ok := root["customer"]; ok && len(rawCustomer) > 0 {
+		if err := json.Unmarshal(rawCustomer, &currentCustomer); err != nil {
+			return "", nil, fmt.Errorf("decode current customer config: %w", err)
+		}
+	}
+	if currentCustomer == nil {
+		currentCustomer = map[string]interface{}{}
+	}
+
+	mergedCustomer := deepMergeJSONObjects(currentCustomer, customerPatch)
+	mergedCustomerRaw, err := json.Marshal(mergedCustomer)
+	if err != nil {
+		return "", nil, fmt.Errorf("marshal merged customer config: %w", err)
+	}
+	root["customer"] = mergedCustomerRaw
 
 	mergedRaw, err := json.Marshal(root)
 	if err != nil {
@@ -218,7 +231,7 @@ func mergeCustomerPayload(baseCfg *config.Config, payload []byte) (string, *conf
 	return string(mergedRaw), &nextCfg, nil
 }
 
-func normalizeCustomerPayload(payload []byte) (json.RawMessage, error) {
+func normalizeCustomerPayload(payload []byte) (map[string]interface{}, error) {
 	var rawRoot map[string]json.RawMessage
 	if err := json.Unmarshal(payload, &rawRoot); err != nil {
 		return nil, fmt.Errorf("invalid json format: %w", err)
@@ -240,10 +253,89 @@ func normalizeCustomerPayload(payload []byte) (json.RawMessage, error) {
 			sort.Strings(forbidden)
 			return nil, fmt.Errorf("customer.%s is forbidden: editable customer fields are [proxy ai_rules proxy_rules]", forbidden[0])
 		}
-		return rawCustomer, nil
+		rawRoot = map[string]json.RawMessage{}
+		if err := json.Unmarshal(rawCustomer, &rawRoot); err != nil {
+			return nil, fmt.Errorf("invalid customer json format: %w", err)
+		}
+	} else {
+		if err := validateEditableCustomerKeys(rawRoot); err != nil {
+			return nil, err
+		}
 	}
 
-	return json.RawMessage(payload), nil
+	normalized := make(map[string]interface{}, len(rawRoot))
+	for key, rawValue := range rawRoot {
+		var value interface{}
+		if err := json.Unmarshal(rawValue, &value); err != nil {
+			return nil, fmt.Errorf("invalid customer.%s format: %w", key, err)
+		}
+		normalized[key] = value
+	}
+
+	return normalized, nil
+}
+
+func validateEditableCustomerKeys(rawRoot map[string]json.RawMessage) error {
+	for key := range rawRoot {
+		switch key {
+		case "proxy", "ai_rules", "proxy_rules":
+		default:
+			return fmt.Errorf("customer.%s is forbidden: editable customer fields are [proxy ai_rules proxy_rules]", key)
+		}
+	}
+	return nil
+}
+
+func deepMergeJSONObjects(base, patch map[string]interface{}) map[string]interface{} {
+	if len(base) == 0 && len(patch) == 0 {
+		return map[string]interface{}{}
+	}
+
+	merged := make(map[string]interface{}, len(base)+len(patch))
+	for key, value := range base {
+		merged[key] = cloneJSONValue(value)
+	}
+
+	for key, value := range patch {
+		if value == nil {
+			continue
+		}
+
+		baseMap, baseIsMap := merged[key].(map[string]interface{})
+		patchMap, patchIsMap := value.(map[string]interface{})
+		if baseIsMap && patchIsMap {
+			merged[key] = deepMergeJSONObjects(baseMap, patchMap)
+			continue
+		}
+		merged[key] = cloneJSONValue(value)
+	}
+
+	return merged
+}
+
+func cloneJSONValue(value interface{}) interface{} {
+	switch typed := value.(type) {
+	case map[string]interface{}:
+		cloned := make(map[string]interface{}, len(typed))
+		for key, child := range typed {
+			cloned[key] = cloneJSONValue(child)
+		}
+		return cloned
+	case []interface{}:
+		cloned := make([]interface{}, len(typed))
+		for i, child := range typed {
+			cloned[i] = cloneJSONValue(child)
+		}
+		return cloned
+	default:
+		if typed == nil {
+			return nil
+		}
+		if reflect.TypeOf(typed).Kind() == reflect.Slice {
+			return typed
+		}
+		return typed
+	}
 }
 
 func extractCustomerFromConfigContent(content string) (map[string]interface{}, error) {
@@ -278,29 +370,57 @@ func resolveBaseConfigForCustomerUpdate() (*config.Config, error) {
 		return &committedCfg, nil
 	}
 
-	configPath, err := cache.ExpandHomePath(customerConfigFilePath)
-	if err != nil {
-		return nil, fmt.Errorf("expand config file path: %w", err)
-	}
-	raw, err := os.ReadFile(configPath)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return bootstrapBaseConfigForCustomerUpdate(), nil
+	for _, candidatePath := range customerUpdateBaseConfigCandidates() {
+		fileCfg, found, err := readConfigFromPath(candidatePath)
+		if err != nil {
+			return nil, err
 		}
-		return nil, fmt.Errorf("read config file: %w", err)
+		if found {
+			return fileCfg, nil
+		}
 	}
 
-	var fileCfg config.Config
-	if err := json.Unmarshal(raw, &fileCfg); err != nil {
-		return nil, fmt.Errorf("decode config file: %w", err)
-	}
-
-	return &fileCfg, nil
+	return bootstrapBaseConfigForCustomerUpdate(), nil
 }
 
 func bootstrapBaseConfigForCustomerUpdate() *config.Config {
 	return &config.Config{
-		APIServer:    "https://api.example.com",
-		CurrentProxy: "direct",
+		Core: &config.CoreConfig{
+			APIServer: "https://sub2api.liang.home",
+		},
+		Customer: &config.CustomerConfig{},
 	}
+}
+
+func customerUpdateBaseConfigCandidates() []string {
+	return []string{
+		startupLocalCustomerBaseConfigPath,
+		customerConfigFilePath,
+	}
+}
+
+func readConfigFromPath(path string) (*config.Config, bool, error) {
+	resolvedPath := path
+	if strings.HasPrefix(path, "~") {
+		expandedPath, err := cache.ExpandHomePath(path)
+		if err != nil {
+			return nil, false, fmt.Errorf("expand config file path %q: %w", path, err)
+		}
+		resolvedPath = expandedPath
+	}
+
+	raw, err := os.ReadFile(resolvedPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, false, nil
+		}
+		return nil, false, fmt.Errorf("read config file %q: %w", resolvedPath, err)
+	}
+
+	var fileCfg config.Config
+	if err := json.Unmarshal(raw, &fileCfg); err != nil {
+		return nil, false, fmt.Errorf("decode config file %q: %w", filepath.Clean(resolvedPath), err)
+	}
+
+	return &fileCfg, true, nil
 }

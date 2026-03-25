@@ -1,16 +1,25 @@
 package cmd
 
 import (
-	"os"
-	"path/filepath"
 	"testing"
+	"time"
 
+	auth "nursor.org/nursorgate/processor/auth"
 	"nursor.org/nursorgate/processor/runtime"
 )
 
+func setupStartupStatusTestAuthEnv(t *testing.T) {
+	baseDir := t.TempDir()
+	t.Setenv("HOME", baseDir)
+	t.Setenv("NURSOR_CACHE_DIR", baseDir)
+	auth.ResetAuthPersistenceForTest()
+	t.Cleanup(func() {
+		auth.ResetAuthPersistenceForTest()
+	})
+}
+
 func TestDetermineInitialStartupStatus_WhenTokenProvided_ReturnsConfiguring(t *testing.T) {
-	tempHome := t.TempDir()
-	t.Setenv("HOME", tempHome)
+	setupStartupStatusTestAuthEnv(t)
 
 	previousDefault := IsUsingDefaultConfig()
 	setUseDefaultConfig(false)
@@ -25,8 +34,7 @@ func TestDetermineInitialStartupStatus_WhenTokenProvided_ReturnsConfiguring(t *t
 }
 
 func TestDetermineInitialStartupStatus_WhenNoTokenNoLocalUser_ReturnsUnconfigured(t *testing.T) {
-	tempHome := t.TempDir()
-	t.Setenv("HOME", tempHome)
+	setupStartupStatusTestAuthEnv(t)
 
 	previousDefault := IsUsingDefaultConfig()
 	setUseDefaultConfig(false)
@@ -41,15 +49,16 @@ func TestDetermineInitialStartupStatus_WhenNoTokenNoLocalUser_ReturnsUnconfigure
 }
 
 func TestDetermineInitialStartupStatus_WhenNoTokenWithLocalUserAndDefaultConfig_ReturnsReady(t *testing.T) {
-	tempHome := t.TempDir()
-	t.Setenv("HOME", tempHome)
+	setupStartupStatusTestAuthEnv(t)
 
-	userInfoPath := filepath.Join(tempHome, ".nonelane", "userinfo.json")
-	if err := os.MkdirAll(filepath.Dir(userInfoPath), 0o755); err != nil {
-		t.Fatalf("failed to create user info dir: %v", err)
-	}
-	if err := os.WriteFile(userInfoPath, []byte(`{"username":"tester"}`), 0o600); err != nil {
-		t.Fatalf("failed to create user info file: %v", err)
+	if err := auth.SaveUserInfo(&auth.UserInfo{
+		AccessToken:  "access-token",
+		RefreshToken: "refresh-token",
+		Username:     "tester",
+		InnerToken:   "inner-token",
+		UpdatedAt:    time.Now(),
+	}); err != nil {
+		t.Fatalf("failed to save sqlite user info: %v", err)
 	}
 
 	previousDefault := IsUsingDefaultConfig()
@@ -65,15 +74,16 @@ func TestDetermineInitialStartupStatus_WhenNoTokenWithLocalUserAndDefaultConfig_
 }
 
 func TestDetermineInitialStartupStatus_WhenNoTokenWithLocalUserAndCustomConfig_ReturnsConfigured(t *testing.T) {
-	tempHome := t.TempDir()
-	t.Setenv("HOME", tempHome)
+	setupStartupStatusTestAuthEnv(t)
 
-	userInfoPath := filepath.Join(tempHome, ".nonelane", "userinfo.json")
-	if err := os.MkdirAll(filepath.Dir(userInfoPath), 0o755); err != nil {
-		t.Fatalf("failed to create user info dir: %v", err)
-	}
-	if err := os.WriteFile(userInfoPath, []byte(`{"username":"tester"}`), 0o600); err != nil {
-		t.Fatalf("failed to create user info file: %v", err)
+	if err := auth.SaveUserInfo(&auth.UserInfo{
+		AccessToken:  "access-token",
+		RefreshToken: "refresh-token",
+		Username:     "tester",
+		InnerToken:   "inner-token",
+		UpdatedAt:    time.Now(),
+	}); err != nil {
+		t.Fatalf("failed to save sqlite user info: %v", err)
 	}
 
 	previousDefault := IsUsingDefaultConfig()

@@ -1,0 +1,190 @@
+- generic [ref=e4]:
+  - complementary [ref=e5]:
+    - generic [ref=e6]:
+      - generic [ref=e7]:
+        - img "User avatar" [ref=e10]
+        - generic [ref=e12]:
+          - heading "Guest" [level=2] [ref=e14]
+          - generic [ref=e16]: Login required
+          - paragraph [ref=e17]: Log in to unlock proxy controls and account-linked usage.
+      - generic [ref=e18]: No local auth session available
+    - generic [ref=e19]:
+      - button "power_settings_new" [disabled] [ref=e22]:
+        - generic [ref=e23]: power_settings_new
+      - generic [ref=e24]:
+        - paragraph [ref=e25]: System Proxy Not Ready
+        - paragraph [ref=e26]: "Disabled: login required before proxy operations can start."
+    - generic [ref=e27]:
+      - generic [ref=e28]:
+        - paragraph [ref=e29]: Network Status
+        - generic [ref=e30]: verified
+      - generic [ref=e31]:
+        - generic [ref=e32]:
+          - generic [ref=e33]: "Mode:"
+          - generic [ref=e34]: HTTP
+        - generic [ref=e35]:
+          - generic [ref=e36]: "Protocol:"
+          - generic [ref=e37]: SOCKS5
+        - generic [ref=e38]:
+          - generic [ref=e39]: "Certificate:"
+          - generic [ref=e40]: Trusted
+      - generic [ref=e41]:
+        - button "Details" [ref=e42] [cursor=pointer]
+        - button "Re-install" [ref=e43] [cursor=pointer]
+    - generic [ref=e44]:
+      - paragraph [ref=e45]: Quick Tools
+      - button "bolt Quick Setup" [disabled] [ref=e47]:
+        - generic [ref=e48]: bolt
+        - text: Quick Setup
+      - button "chat_bubble Quick Chat" [disabled] [ref=e49]:
+        - generic [ref=e50]: chat_bubble
+        - text: Quick Chat
+      - button "settings More Settings" [ref=e51] [cursor=pointer]:
+        - generic [ref=e52]: settings
+        - text: More Settings
+    - generic [ref=e53]:
+      - generic [ref=e54]:
+        - generic [ref=e55]: Account Balance
+        - generic [ref=e56]: $42.50
+      - button "Top Up Funds" [ref=e57] [cursor=pointer]
+      - paragraph [ref=e58]: Auto-renew enabled
+  - main [ref=e59]:
+    - generic [ref=e60]:
+      - generic [ref=e61]:
+        - generic [ref=e63]: api
+        - heading "ALiang Gateway" [level=1] [ref=e64]
+      - generic [ref=e65]:
+        - generic [ref=e66]:
+          - button "settings" [ref=e67] [cursor=pointer]:
+            - generic [ref=e68]: settings
+          - button "help_outline" [ref=e69] [cursor=pointer]:
+            - generic [ref=e70]: help_outline
+        - button "Refresh Dashboard" [ref=e72] [cursor=pointer]
+    - generic [ref=e73]:
+      - generic [ref=e74]:
+        - generic [ref=e75]:
+          - generic [ref=e76]:
+            - heading "Traffic by Domain" [level=3] [ref=e77]
+            - button "more_horiz" [ref=e78] [cursor=pointer]:
+              - generic [ref=e79]: more_horiz
+          - generic [ref=e80]:
+            - generic [ref=e81]:
+              - img "Traffic distribution donut chart" [ref=e82]
+              - generic [ref=e89]:
+                - generic [ref=e90]: 100%
+                - generic [ref=e91]: Active
+            - generic [ref=e92]:
+              - generic [ref=e93]:
+                - generic [ref=e94]: Cursor
+                - generic [ref=e96]: 40%
+              - generic [ref=e97]:
+                - generic [ref=e98]: OpenAI
+                - generic [ref=e100]: 25%
+              - generic [ref=e101]:
+                - generic [ref=e102]: Claude
+                - generic [ref=e104]: 15%
+              - generic [ref=e105]:
+                - generic [ref=e106]: ChatGPT
+                - generic [ref=e108]: 10%
+              - generic [ref=e109]:
+                - generic [ref=e110]: Copilot
+                - generic [ref=e112]: 10%
+        - generic [ref=e113]:
+          - generic [ref=e114]:
+            - heading "Traffic Throughput (15s)" [level=3] [ref=e115]
+            - generic [ref=e116]:
+              - generic [ref=e117]: LIVE
+              - generic [ref=e118]: KB/s
+          - generic [ref=e119]:
+            - img "Traffic throughput line chart" [ref=e120]
+            - generic [ref=e123]:
+              - generic [ref=e124]: 15s ago
+              - generic [ref=e125]: 10s ago
+              - generic [ref=e126]: 5s ago
+              - generic [ref=e127]: Now
+      - generic [ref=e128]:
+        - generic [ref=e129]:
+          - generic [ref=e130]:
+            - heading "Recent API Requests" [level=3] [ref=e131]
+            - generic [ref=e132]: Last 50
+          - button "download Export Logs" [ref=e133] [cursor=pointer]:
+            - generic [ref=e134]: download
+            - text: Export Logs
+        - generic [ref=e136]:
+          - combobox [ref=e137]:
+            - option "过滤：全部" [selected]
+            - option "过滤：成功(2xx)"
+            - option "过滤：异常(非2xx)"
+          - textbox "按 path 搜索，例如 /v1/messages" [ref=e138]
+        - table [ref=e140]:
+          - rowgroup [ref=e141]:
+            - row "Method Status Domain Path 上传流量 下载流量 上传Token 下载Token 首次响应时长 全局响应时长 Timestamp" [ref=e142]:
+              - columnheader "Method" [ref=e143]
+              - columnheader "Status" [ref=e144]
+              - columnheader "Domain" [ref=e145]
+              - columnheader "Path" [ref=e146]
+              - columnheader "上传流量" [ref=e147]
+              - columnheader "下载流量" [ref=e148]
+              - columnheader "上传Token" [ref=e149]
+              - columnheader "下载Token" [ref=e150]
+              - columnheader "首次响应时长" [ref=e151]
+              - columnheader "全局响应时长" [ref=e152]
+              - columnheader "Timestamp" [ref=e153]
+          - rowgroup [ref=e154]:
+            - row "POST 200 OK api.openai.com /v1/chat/completions 16.44 KB 47.08 KB 1321 2640 186 ms 742 ms 14:20:45.002" [ref=e155]:
+              - cell "POST" [ref=e156]
+              - cell "200 OK" [ref=e157]:
+                - generic [ref=e158]: 200 OK
+              - cell "api.openai.com" [ref=e160]
+              - cell "/v1/chat/completions" [ref=e161]:
+                - code [ref=e162]: /v1/chat/completions
+              - cell "16.44 KB" [ref=e163]
+              - cell "47.08 KB" [ref=e164]
+              - cell "1321" [ref=e165]
+              - cell "2640" [ref=e166]
+              - cell "186 ms" [ref=e167]
+              - cell "742 ms" [ref=e168]
+              - cell "14:20:45.002" [ref=e169]
+            - row "GET 200 OK api.anthropic.com /v1/messages 5.12 KB 21.39 KB 804 1530 142 ms 605 ms 14:20:41.285" [ref=e170]:
+              - cell "GET" [ref=e171]
+              - cell "200 OK" [ref=e172]:
+                - generic [ref=e173]: 200 OK
+              - cell "api.anthropic.com" [ref=e175]
+              - cell "/v1/messages" [ref=e176]:
+                - code [ref=e177]: /v1/messages
+              - cell "5.12 KB" [ref=e178]
+              - cell "21.39 KB" [ref=e179]
+              - cell "804" [ref=e180]
+              - cell "1530" [ref=e181]
+              - cell "142 ms" [ref=e182]
+              - cell "605 ms" [ref=e183]
+              - cell "14:20:41.285" [ref=e184]
+            - row "POST 429 Limit api.cursor.sh /v1/streaming 11.99 KB 3.93 KB 1160 200 420 ms 980 ms 14:20:38.910" [ref=e185]:
+              - cell "POST" [ref=e186]
+              - cell "429 Limit" [ref=e187]:
+                - generic [ref=e188]: 429 Limit
+              - cell "api.cursor.sh" [ref=e190]
+              - cell "/v1/streaming" [ref=e191]:
+                - code [ref=e192]: /v1/streaming
+              - cell "11.99 KB" [ref=e193]
+              - cell "3.93 KB" [ref=e194]
+              - cell "1160" [ref=e195]
+              - cell "200" [ref=e196]
+              - cell "420 ms" [ref=e197]
+              - cell "980 ms" [ref=e198]
+              - cell "14:20:38.910" [ref=e199]
+            - row "CONNECT 503 Timeout tunnel.socks5.service /connect 820 B 260 B 0 0 1200 ms 3000 ms 14:20:25.111" [ref=e200]:
+              - cell "CONNECT" [ref=e201]
+              - cell "503 Timeout" [ref=e202]:
+                - generic [ref=e203]: 503 Timeout
+              - cell "tunnel.socks5.service" [ref=e205]
+              - cell "/connect" [ref=e206]:
+                - code [ref=e207]: /connect
+              - cell "820 B" [ref=e208]
+              - cell "260 B" [ref=e209]
+              - cell "0" [ref=e210]
+              - cell "0" [ref=e211]
+              - cell "1200 ms" [ref=e212]
+              - cell "3000 ms" [ref=e213]
+              - cell "14:20:25.111" [ref=e214]
+        - button "Load More Entries" [ref=e216] [cursor=pointer]
