@@ -122,14 +122,6 @@ func (ml *mainLogger) Error(v ...interface{}) {
 		sentry.CaptureMessage(fmt.Sprint(v...))
 		go sentry.Flush(2 * time.Second)
 	}
-
-	// Add to buffer
-	AppendToBuffer(&LogEntry{
-		Level:     ERROR,
-		Timestamp: time.Now(),
-		Message:   fmt.Sprint(v...),
-		Source:    "main",
-	})
 }
 
 func (ml *mainLogger) Trace(v ...interface{}) {
@@ -197,9 +189,17 @@ func (ml *mainLogger) logf(level LogLevelType, prefix string, v ...interface{}) 
 	ml.mu.RLock()
 	defer ml.mu.RUnlock()
 
+	message := fmt.Sprint(v...)
 	for _, logger := range ml.loggers {
-		logger.Output(3, fmt.Sprintf("[%s] %s\n", prefix, fmt.Sprint(v...)))
+		logger.Output(3, fmt.Sprintf("[%s] %s\n", prefix, message))
 	}
+
+	AppendToBuffer(&LogEntry{
+		Level:     level,
+		Timestamp: time.Now(),
+		Message:   message,
+		Source:    "main",
+	})
 }
 
 func (ml *mainLogger) generateErrorHash(v ...interface{}) string {
