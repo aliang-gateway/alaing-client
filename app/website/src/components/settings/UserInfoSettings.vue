@@ -523,12 +523,44 @@ function normalizeProgressItems(items) {
   }
 
   return items
-    .map((item, index) => normalizeProgressItem(item, index))
+    .flatMap((item, index) => normalizeProgressItem(item, index))
     .filter(Boolean);
 }
 
 function normalizeProgressItem(item, index) {
   const raw = item && typeof item === 'object' ? item : {};
+  const progress = asObject(raw.progress);
+  const subscription = asObject(raw.subscription);
+  const group = asObject(subscription.group);
+
+  const baseName = firstNestedString(raw, [
+    ['progress', 'group_name'],
+    ['subscription', 'group', 'name'],
+    ['subscription', 'group_name'],
+    ['group_name'],
+    ['name'],
+    ['title']
+  ]) || `Usage item ${index + 1}`;
+
+  const baseDescription = firstNestedString(raw, [
+    ['subscription', 'group', 'description'],
+    ['description'],
+    ['subscription', 'description']
+  ]);
+
+  const scopeItems = ['daily', 'weekly', 'monthly']
+    .map((scope) => normalizeScopedProgressItem(raw, progress, subscription, group, baseName, baseDescription, index, scope))
+    .filter(Boolean);
+
+  if (scopeItems.length > 0) {
+    return scopeItems;
+  }
+
+  const durationItem = normalizeDurationProgressItem(raw, progress, subscription, group, baseName, baseDescription, index);
+  if (durationItem) {
+    return [durationItem];
+  }
+
   const current = pickNumber(raw, ['current', 'used', 'value', 'consumed']);
   const total = pickNumber(raw, ['total', 'limit', 'max', 'quota']);
   const explicitPercent = pickOptionalNumber(raw, ['percent', 'progress', 'usage_percent']);
@@ -538,20 +570,100 @@ function normalizeProgressItem(item, index) {
       ? (current / total) * 100
       : 0;
 
-  return {
+  return [{
     key: progressItemIdentifier(raw, index),
-    title: pickString(raw, ['name', 'title', 'subscription_name', 'label', 'plan_name']) || `Usage item ${index + 1}`,
-    subtitle: pickString(raw, ['description', 'period', 'type', 'metric', 'unit']) || '',
+    title: baseName,
+    subtitle: baseDescription || 'Usage progress from your active package.',
     current,
     total,
     percent,
     unit: pickString(raw, ['unit', 'display_unit']) || '',
     raw
+  }];
+}
+
+function normalizeScopedProgressItem(raw, progress, subscription, group, baseName, baseDescription, index, scope) {
+  const scoped = asObject(progress?.[scope]);
+  const total = pickNumber(scoped, ['limit_usd', 'total', 'limit', 'max', 'quota']);
+  if (total <= 0) {
+    return null;
+  }
+
+  const current = pickNumber(scoped, ['used_usd', 'used', 'current', 'value', 'consumed']);
+  const explicitPercent = pickOptionalNumber(scoped, ['percentage', 'percent', 'progress', 'usage_percent']);
+  const percent = Number.isFinite(explicitPercent)
+    ? explicitPercent
+    : (current / total) * 100;
+
+  const expiresInDays = pickNumber(progress, ['expires_in_days']);
+  const windowDescription = firstNestedString(scoped, [['resets_at']])
+    ? `${capitalize(scope)} limit resets ${formatShortDate(scoped.resets_at)}`
+    : `${capitalize(scope)} package usage`;
+  const packageDescription = buildPackageDescription(group, progress, subscription);
+  const expiresDescription = expiresInDays > 0 ? `Expires in ${expiresInDays} day${expiresInDays === 1 ? '' : 's'}` : '';
+  const subtitle = [baseDescription || packageDescription, windowDescription, expiresDescription]
+    .filter(Boolean)
+    .join(' • ');
+
+  return {
+    key: `${progressItemIdentifier(raw, index)}-${scope}`,
+    title: `${baseName} · ${capitalize(scope)}`,
+    subtitle: subtitle || 'Usage progress from your active package.',
+    current,
+    total,
+    percent,
+    unit: 'USD',
+    raw
+  };
+}
+
+function normalizeDurationProgressItem(raw, progress, subscription, group, baseName, baseDescription, index) {
+  const startsAt = firstNestedString(raw, [
+    ['subscription', 'starts_at'],
+    ['starts_at']
+  ]);
+  const expiresAt = firstNestedString(raw, [
+    ['progress', 'expires_at'],
+    ['subscription', 'expires_at'],
+    ['expires_at']
+  ]);
+
+  const startTime = startsAt ? Date.parse(startsAt) : NaN;
+  const endTime = expiresAt ? Date.parse(expiresAt) : NaN;
+  if (!Number.isFinite(startTime) || !Number.isFinite(endTime) || endTime <= startTime) {
+    return null;
+  }
+
+  const totalDays = Math.max(1, Math.ceil((endTime - startTime) / 86400000));
+  const elapsedDays = Math.min(totalDays, Math.max(0, Math.floor((Date.now() - startTime) / 86400000)));
+  const percent = totalDays > 0 ? (elapsedDays / totalDays) * 100 : 0;
+  const expiresInDays = pickNumber(progress, ['expires_in_days']);
+  const packageDescription = buildPackageDescription(group, progress, subscription);
+  const expiryDescription = expiresInDays > 0
+    ? `Expires in ${expiresInDays} day${expiresInDays === 1 ? '' : 's'}`
+    : `Expires ${formatShortDate(expiresAt)}`;
+
+  return {
+    key: `${progressItemIdentifier(raw, index)}-duration`,
+    title: baseName,
+    subtitle: [baseDescription || packageDescription, expiryDescription].filter(Boolean).join(' • ') || 'Active package duration',
+    current: elapsedDays,
+    total: totalDays,
+    percent,
+    unit: 'days',
+    raw
   };
 }
 
 function progressItemIdentifier(item, index) {
-  return pickString(item, ['id', 'subscription_id', 'code', 'name']) || `progress-${index}`;
+  return firstNestedString(item, [
+    ['subscription', 'id'],
+    ['progress', 'id'],
+    ['id'],
+    ['subscription_id'],
+    ['code'],
+    ['name']
+  ]) || `progress-${index}`;
 }
 
 function progressItemKey(item, index) {
@@ -689,6 +801,62 @@ function pickString(source, keys) {
     }
   }
   return '';
+}
+
+function firstNestedString(source, paths) {
+  for (const path of paths) {
+    const value = getNestedValue(source, path);
+    if (typeof value === 'string' && value.trim()) {
+      return value.trim();
+    }
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      return String(value);
+    }
+  }
+  return '';
+}
+
+function getNestedValue(source, path) {
+  let current = source;
+  for (const key of path) {
+    if (!current || typeof current !== 'object') {
+      return undefined;
+    }
+    current = current[key];
+  }
+  return current;
+}
+
+function asObject(value) {
+  return value && typeof value === 'object' ? value : {};
+}
+
+function capitalize(value) {
+  if (!value) {
+    return '';
+  }
+  return `${value.charAt(0).toUpperCase()}${value.slice(1)}`;
+}
+
+function formatShortDate(value) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return '';
+  }
+  return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+}
+
+function buildPackageDescription(group, progress, subscription) {
+  const parts = [
+    firstNestedString({ group }, [['group', 'platform']]),
+    firstNestedString({ group }, [['group', 'subscription_type']]),
+    firstNestedString({ progress }, [['progress', 'status']]),
+    firstNestedString({ subscription }, [['subscription', 'status']])
+  ]
+    .filter(Boolean)
+    .map((part) => capitalize(part));
+
+  return parts.join(' • ');
 }
 
 watch(isAuthenticated, async (authenticated) => {
