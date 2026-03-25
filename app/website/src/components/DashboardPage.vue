@@ -161,15 +161,16 @@
       <div class="mt-auto p-6 border-t border-slate-100 dark:border-slate-800 bg-slate-50/30 dark:bg-slate-800/10">
         <div class="flex justify-between items-center mb-3">
           <span class="text-xs font-bold text-slate-500 uppercase tracking-wider">Account Balance</span>
-          <span class="text-lg font-bold text-slate-900 dark:text-white">$42.50</span>
+          <span class="text-lg font-bold text-slate-900 dark:text-white">{{ accountBalanceText }}</span>
         </div>
         <button
           type="button"
           class="w-full py-2 bg-slate-900 dark:bg-primary text-white text-xs font-bold rounded hover:opacity-90 transition-opacity"
+          @click="handleTopUp"
         >
           Top Up Funds
         </button>
-        <p class="text-[10px] text-slate-400 mt-2 text-center italic">Auto-renew enabled</p>
+        <p class="text-[10px] text-slate-400 mt-2 text-center italic">{{ accountBalanceHint }}</p>
       </div>
     </aside>
     <main class="flex-1 min-w-0 flex flex-col h-full bg-background-light dark:bg-background-dark overflow-hidden">
@@ -624,6 +625,7 @@ import { computed, ref, onMounted, onUnmounted, watch } from 'vue';
 import { useCertStatus } from '../composables/useCertStatus';
 import { useNavigation } from '../composables/useNavigation';
 import { useAuthStore } from '../stores/auth';
+import { getUserCenterProfile } from '../services/userCenterApi';
 
 const { certStatus, loading: certLoading, startPolling, stopPolling } = useCertStatus();
 const { currentPage, showSettings } = useNavigation();
@@ -648,6 +650,7 @@ const runSyncError = ref('');
 const runActionLoading = ref(false);
 const runActionMessage = ref('');
 const startupStatus = ref('UNKNOWN');
+const accountBalance = ref(null);
 let runStatusTimer = null;
 
 const accountSubtitle = computed(() => {
@@ -673,6 +676,44 @@ const userAvatarText = computed(() => {
 
   return 'GU';
 });
+
+const accountBalanceText = computed(() => {
+  const value = Number(accountBalance.value);
+  if (!Number.isFinite(value)) {
+    return isAuthenticated.value ? '--' : '$0.00';
+  }
+  return `$${value.toFixed(2)}`;
+});
+
+const accountBalanceHint = computed(() => {
+  if (!isAuthenticated.value) {
+    return 'Log in to sync your current balance.';
+  }
+  return accountBalance.value === null ? 'Syncing balance...' : 'Click to top up your account.';
+});
+
+async function syncAccountBalance() {
+  if (!isAuthenticated.value) {
+    accountBalance.value = null;
+    return;
+  }
+
+  try {
+    const envelope = await getUserCenterProfile();
+    if (envelope?.status === 'success') {
+      const nextBalance = Number(envelope?.data?.balance);
+      accountBalance.value = Number.isFinite(nextBalance) ? nextBalance : 0;
+      return;
+    }
+    accountBalance.value = null;
+  } catch {
+    accountBalance.value = null;
+  }
+}
+
+function handleTopUp() {
+  window.open('https://www.aliang.one', '_blank', 'noopener,noreferrer');
+}
 
 function openQuickSetup() {
   if (!isAuthenticated.value) {
@@ -955,6 +996,7 @@ onMounted(() => {
   startPolling();
   syncStartupStatus();
   syncRunStatus();
+  syncAccountBalance();
   runStatusTimer = window.setInterval(syncRunStatus, 10000);
 });
 
@@ -970,7 +1012,10 @@ watch(isAuthenticated, (authenticated) => {
   if (authenticated) {
     isLoginModalOpen.value = false;
     loginPassword.value = '';
+    syncAccountBalance();
+    return;
   }
+  accountBalance.value = null;
 });
 
 async function sendQuickChat() {

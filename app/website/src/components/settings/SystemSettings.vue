@@ -15,7 +15,7 @@
           <div class="flex rounded bg-slate-100 p-1 dark:bg-slate-800">
             <button
               type="button"
-              :disabled="loadingMode || savingMode || switchingMode"
+              :disabled="loadingMode || switchingMode"
               :class="[
                 'rounded px-3 py-1 text-[10px] font-bold transition',
                 selectedMode === 'tun'
@@ -28,7 +28,7 @@
             </button>
             <button
               type="button"
-              :disabled="loadingMode || savingMode || switchingMode"
+              :disabled="loadingMode || switchingMode"
               :class="[
                 'rounded px-3 py-1 text-[10px] font-bold transition',
                 selectedMode === 'http'
@@ -54,22 +54,14 @@
           <p v-if="modeError" class="text-[11px] text-red-500">{{ modeError }}</p>
           <p v-if="modeSuccess" class="text-[11px] text-emerald-600 dark:text-emerald-400">{{ modeSuccess }}</p>
 
-          <div class="grid grid-cols-1 gap-2 sm:grid-cols-3">
+          <div class="grid grid-cols-1 gap-2 sm:grid-cols-2">
             <button
               type="button"
               class="rounded bg-slate-900 px-3 py-2 text-[11px] font-bold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-primary"
-              :disabled="loadingMode || savingMode || switchingMode"
+              :disabled="loadingMode || switchingMode"
               @click="refreshModeState"
             >
               {{ loadingMode ? 'Refreshing...' : 'Refresh State' }}
-            </button>
-            <button
-              type="button"
-              class="rounded border border-slate-300 px-3 py-2 text-[11px] font-bold text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800"
-              :disabled="loadingMode || savingMode || switchingMode"
-              @click="saveMode"
-            >
-              {{ savingMode ? 'Saving...' : 'Save Mode' }}
             </button>
             <button
               type="button"
@@ -77,7 +69,7 @@
               :disabled="loadingMode || switchingMode"
               @click="switchMode"
             >
-              {{ switchingMode ? 'Switching...' : 'Switch Now' }}
+              {{ switchingMode ? 'Applying...' : 'Apply Current Mode' }}
             </button>
           </div>
         </div>
@@ -172,7 +164,6 @@ export default {
       modeError: '',
       modeSuccess: '',
       loadingMode: false,
-      savingMode: false,
       switchingMode: false
     };
   },
@@ -212,30 +203,6 @@ export default {
         this.loadingMode = false;
       }
     },
-    async saveMode() {
-      this.savingMode = true;
-      this.clearMessages();
-      try {
-        const routingCfg = await this.requestJSON('/api/config/routing');
-        const nextCfg = {
-          ...routingCfg,
-          ingress: {
-            ...(routingCfg?.ingress || {}),
-            mode: this.selectedMode
-          }
-        };
-        await this.requestJSON('/api/config/routing', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(nextCfg)
-        });
-        this.modeSuccess = `Mode config saved as ${this.selectedMode.toUpperCase()}.`;
-      } catch (err) {
-        this.modeError = err instanceof Error ? err.message : 'Failed to save run mode.';
-      } finally {
-        this.savingMode = false;
-      }
-    },
     async switchMode() {
       this.switchingMode = true;
       this.clearMessages();
@@ -249,7 +216,9 @@ export default {
         if (status === 'failed') {
           throw new Error(result?.msg || 'Mode switch failed');
         }
-        this.modeSuccess = `Switched to ${this.selectedMode.toUpperCase()} mode successfully.`;
+        this.modeSuccess = typeof result?.message === 'string' && result.message
+          ? result.message
+          : `Applied ${this.selectedMode.toUpperCase()} mode successfully.`;
         await this.refreshModeState();
       } catch (err) {
         this.modeError = err instanceof Error ? err.message : 'Failed to switch mode.';

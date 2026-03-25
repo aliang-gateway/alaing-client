@@ -214,6 +214,31 @@ func TestRunServiceCharacterization_SwitchModeGuards(t *testing.T) {
 			t.Fatalf("expected switch-to-tun while idle to keep service stopped")
 		}
 	})
+
+	t.Run("switch initializes routing snapshot when missing", func(t *testing.T) {
+		defer resetRunServiceHooksForTest()
+		config.ResetRoutingApplyStoreForTest()
+
+		runService := NewRunService()
+		runService.SetCurrentMode(string(models.ModeHTTP))
+		runService.SetRunning(false)
+
+		result := runService.SwitchMode(string(models.ModeTUN))
+
+		if status, ok := result["status"].(string); !ok || status != "switched" {
+			t.Fatalf("expected status=switched, got %#v", result["status"])
+		}
+		if got := runService.GetCurrentMode(); got != string(models.ModeTUN) {
+			t.Fatalf("current mode mismatch: got=%q want=%q", got, models.ModeTUN)
+		}
+		canonical := config.GetRoutingApplyStore().ActiveCanonicalSchema()
+		if canonical == nil {
+			t.Fatal("expected canonical routing schema to be initialized")
+		}
+		if canonical.Ingress.Mode != string(models.ModeTUN) {
+			t.Fatalf("expected canonical ingress.mode=tun, got %q", canonical.Ingress.Mode)
+		}
+	})
 }
 
 func TestRunServiceHotSwitchHTTPToTUN(t *testing.T) {

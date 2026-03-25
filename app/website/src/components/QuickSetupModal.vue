@@ -118,7 +118,14 @@
               </div>
             </div>
 
-            <div class="space-y-3 max-h-[300px] overflow-y-auto custom-scrollbar pr-1">
+            <div
+              :class="[
+                'space-y-3 custom-scrollbar pr-1',
+                editorExpanded
+                  ? 'overflow-visible'
+                  : 'max-h-[300px] overflow-y-auto',
+              ]"
+            >
               <div v-for="item in configs" :key="item.uuid" class="space-y-3">
                 <div
                   role="button"
@@ -129,8 +136,8 @@
                       ? 'border border-primary/20 bg-primary/5'
                       : 'border border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/20',
                   ]"
-                  @click="selectConfig(item)"
-                  @keydown.enter.prevent="selectConfig(item)"
+                  @click="toggleConfigEditor(item)"
+                  @keydown.enter.prevent="toggleConfigEditor(item)"
                 >
                   <div>
                     <p class="text-sm font-bold text-slate-800 dark:text-white">{{ item.name }}</p>
@@ -231,7 +238,14 @@
 
                     <div class="flex items-center justify-between mt-6">
                       <p class="text-xs text-slate-500">{{ statusMessage }}</p>
-                      <div class="flex justify-end gap-3">
+                    <div class="flex justify-end gap-3">
+                        <button
+                          type="button"
+                          class="px-4 py-2 text-sm font-bold text-slate-500 hover:text-slate-700 transition-colors"
+                          @click="collapseEditor"
+                        >
+                          取消编辑
+                        </button>
                         <button
                           type="button"
                           class="px-4 py-2 text-sm font-bold text-slate-600 hover:text-slate-800 transition-colors"
@@ -475,6 +489,20 @@ function selectConfig(item) {
   applyConfigToForm(item);
 }
 
+function collapseEditor() {
+  editorExpanded.value = false;
+  statusMessage.value = '编辑已收起。';
+}
+
+function toggleConfigEditor(item) {
+  const isSameItem = selectedConfig.value?.uuid === item?.uuid;
+  if (editorExpanded.value && isSameItem) {
+    collapseEditor();
+    return;
+  }
+  selectConfig(item);
+}
+
 function editConfigItem(item) {
   selectedConfig.value = item;
   applyConfigToForm(item);
@@ -645,6 +673,6 @@ watch(selectedSoftware, async () => {
 .slide-up-panel-leave-from {
   opacity: 1;
   transform: translateY(0);
-  max-height: 520px;
+  max-height: 1400px;
 }
 </style>

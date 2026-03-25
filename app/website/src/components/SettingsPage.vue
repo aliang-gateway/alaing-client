@@ -48,9 +48,10 @@
               </span>
             </div>
             <div
-              class="h-10 w-10 rounded border border-primary/20 bg-slate-100 bg-cover bg-center"
-              style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuBTPPt9zzYRYAr26_d0HjwFLfA_naITBgueuE6BCbNI5fKlasMcI9X_y2Dg2HWaF2ahcriYFLMXUEMfgpfeCrzOKQnFERDgabAlU8FNjAK6-W9gGCpNTHzbshzH7rPPAaQlOds8d9PI9iKDIXmUbAdZcjClJQmz6yJfHCl-N07NQowejz85L_OsBGeWZqlpt-AQhf9WqWw0ybuMkfCwDVVWZEQknrAH_-ODbr_ZDOC1aYz0fDcP0-sw3vHEawkqCTXHJHqCzhCx4Rc')"
-            ></div>
+              class="flex h-10 w-10 items-center justify-center rounded border border-primary/20 bg-primary/10 text-xs font-bold uppercase tracking-wide text-primary"
+            >
+              {{ userAvatarText }}
+            </div>
           </div>
         </div>
       </header>
@@ -343,6 +344,16 @@ export default {
         return 'Viewer';
       }
       return 'Center';
+    },
+    userAvatarText() {
+      const normalized = String(this.userDisplayName || '').trim();
+      if (!normalized) {
+        return 'US';
+      }
+      return Array.from(normalized)
+        .slice(0, 2)
+        .join('')
+        .toUpperCase();
     }
   },
   watch: {

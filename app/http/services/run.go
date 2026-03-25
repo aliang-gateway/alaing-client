@@ -7,6 +7,7 @@ import (
 	"sync"
 
 	"nursor.org/nursorgate/app/http/models"
+	model "nursor.org/nursorgate/common/model"
 	"nursor.org/nursorgate/common/logger"
 	httpServer "nursor.org/nursorgate/inbound/http"
 	tun "nursor.org/nursorgate/inbound/tun/engine"
@@ -408,9 +409,10 @@ func applyIngressModeToSnapshot(mode models.RunMode) error {
 	store := config.GetRoutingApplyStore()
 	canonical := store.ActiveCanonicalSchema()
 	if canonical == nil {
-		return fmt.Errorf("active routing snapshot is not initialized")
+		canonical = bootstrapCanonicalRoutingSchema(mode)
+	} else {
+		canonical.Ingress.Mode = string(mode)
 	}
-	canonical.Ingress.Mode = string(mode)
 
 	raw, err := json.Marshal(canonical)
 	if err != nil {
@@ -424,6 +426,49 @@ func applyIngressModeToSnapshot(mode models.RunMode) error {
 		return fmt.Errorf("apply ingress mode snapshot failed: %w", err)
 	}
 	return nil
+}
+
+func bootstrapCanonicalRoutingSchema(mode models.RunMode) *config.CanonicalRoutingSchema {
+	globalCfg := config.GetGlobalConfig()
+	upstreamType := "socks"
+	toSocksEnabled := false
+	if globalCfg != nil && globalCfg.Customer != nil && globalCfg.Customer.Proxy != nil {
+		proxyType := strings.ToLower(strings.TrimSpace(globalCfg.Customer.Proxy.Type))
+		if proxyType == "http" || proxyType == "socks5" {
+			toSocksEnabled = strings.TrimSpace(globalCfg.Customer.Proxy.Server) != ""
+			if proxyType == "http" {
+				upstreamType = "http"
+			}
+		}
+	}
+
+	canonical := &config.CanonicalRoutingSchema{
+		Version: config.CanonicalRoutingSchemaVersion,
+		Ingress: config.CanonicalIngressConfig{Mode: string(mode)},
+		Egress: config.CanonicalEgressConfig{
+			Direct:   config.CanonicalEgressBranch{Enabled: true},
+			ToAliang: config.CanonicalEgressBranch{Enabled: true},
+			ToSocks: config.CanonicalSocksEgressBranch{
+				Enabled:  toSocksEnabled,
+				Upstream: config.CanonicalSocksUpstream{Type: upstreamType},
+			},
+		},
+		Routing: config.CanonicalRoutingConfig{Rules: []config.CanonicalRoutingRule{}},
+	}
+
+	if globalCfg != nil {
+		if snapshot, err := routing.CompileRuntimeSnapshotFromRuntimeInputs(globalCfg, model.RulesSettings{
+			AliangEnabled: true,
+			SocksEnabled:  toSocksEnabled,
+		}); err == nil && snapshot != nil {
+			compiledMode := strings.ToLower(strings.TrimSpace(snapshot.IngressMode()))
+			if compiledMode == string(models.ModeHTTP) || compiledMode == string(models.ModeTUN) {
+				canonical.Ingress.Mode = string(mode)
+			}
+		}
+	}
+
+	return canonical
 }
 
 func defaultStartTUN() map[string]string {
