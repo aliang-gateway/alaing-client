@@ -188,12 +188,7 @@
         </div>
         <div class="flex items-center gap-4">
           <div class="flex items-center gap-1">
-            <button
-              type="button"
-              class="size-10 flex items-center justify-center rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 transition-colors"
-            >
-              <span class="material-symbols-outlined">settings</span>
-            </button>
+            
             <button
               type="button"
               class="size-10 flex items-center justify-center rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 transition-colors"
@@ -205,6 +200,7 @@
           <button
             type="button"
             class="px-4 py-1.5 bg-primary/10 text-primary text-xs font-bold rounded-lg hover:bg-primary/20 transition-colors"
+            @click="loadDashboardUsageData"
           >
             Refresh Dashboard
           </button>
@@ -216,107 +212,54 @@
             class="bg-white dark:bg-slate-900 p-6 rounded border border-slate-200 dark:border-slate-800 shadow-sm"
           >
             <div class="flex justify-between items-center mb-6">
-              <h3 class="font-bold text-slate-700 dark:text-slate-300">Traffic by Domain</h3>
+              <h3 class="font-bold text-slate-700 dark:text-slate-300">Model Usage Distribution</h3>
               <button type="button" class="text-slate-400 hover:text-primary">
                 <span class="material-symbols-outlined">more_horiz</span>
               </button>
             </div>
-            <div class="flex items-center gap-8">
+            <div v-if="dashboardError" class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/30 dark:text-red-300">
+              {{ dashboardError }}
+            </div>
+            <div v-else-if="dashboardLoading" class="rounded-lg border border-dashed border-slate-300 bg-slate-50 px-4 py-10 text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-400">
+              Loading model usage distribution...
+            </div>
+            <div v-else-if="!modelDistribution.length" class="rounded-lg border border-dashed border-slate-300 bg-slate-50 px-4 py-10 text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-400">
+              No model usage data is available yet.
+            </div>
+            <div v-else class="flex items-center gap-8">
               <div class="relative size-40 flex items-center justify-center">
                 <svg class="size-full transform -rotate-90" viewBox="0 0 36 36">
-                  <title>Traffic distribution donut chart</title>
+                  <title>Model usage distribution donut chart</title>
                   <circle cx="18" cy="18" fill="transparent" r="15.9" stroke="#e2e8f0" stroke-width="3"></circle>
                   <circle
+                    v-for="item in modelDistribution"
+                    :key="item.label"
                     cx="18"
                     cy="18"
                     fill="transparent"
                     r="15.9"
-                    stroke="#21c45d"
-                    stroke-dasharray="40 100"
-                    stroke-dashoffset="0"
-                    stroke-width="3"
-                  ></circle>
-                  <circle
-                    cx="18"
-                    cy="18"
-                    fill="transparent"
-                    r="15.9"
-                    stroke="#10b981"
-                    stroke-dasharray="25 100"
-                    stroke-dashoffset="-40"
-                    stroke-width="3"
-                  ></circle>
-                  <circle
-                    cx="18"
-                    cy="18"
-                    fill="transparent"
-                    r="15.9"
-                    stroke="#34d399"
-                    stroke-dasharray="15 100"
-                    stroke-dashoffset="-65"
-                    stroke-width="3"
-                  ></circle>
-                  <circle
-                    cx="18"
-                    cy="18"
-                    fill="transparent"
-                    r="15.9"
-                    stroke="#6ee7b7"
-                    stroke-dasharray="10 100"
-                    stroke-dashoffset="-80"
-                    stroke-width="3"
-                  ></circle>
-                  <circle
-                    cx="18"
-                    cy="18"
-                    fill="transparent"
-                    r="15.9"
-                    stroke="#a7f3d0"
-                    stroke-dasharray="10 100"
-                    stroke-dashoffset="-90"
+                    :stroke="item.color"
+                    :stroke-dasharray="item.dashArray"
+                    :stroke-dashoffset="item.dashOffset"
                     stroke-width="3"
                   ></circle>
                 </svg>
                 <div class="absolute inset-0 flex flex-col items-center justify-center">
-                  <span class="text-2xl font-bold">100%</span>
-                  <span class="text-[10px] text-slate-400 uppercase">Active</span>
+                  <span class="text-2xl font-bold">{{ formatCount(totalRequestCount) }}</span>
+                  <span class="text-[10px] text-slate-400 uppercase">Requests</span>
                 </div>
               </div>
               <div class="flex-1 space-y-2">
-                <div class="flex items-center justify-between text-xs">
+                <div
+                  v-for="item in modelDistribution"
+                  :key="`${item.label}-legend`"
+                  class="flex items-center justify-between text-xs"
+                >
                   <div class="flex items-center gap-2">
-                    <span class="size-2 bg-[#21c45d] rounded-full"></span>
-                    Cursor
+                    <span class="size-2 rounded-full" :style="{ backgroundColor: item.color }"></span>
+                    <span class="truncate">{{ item.label }}</span>
                   </div>
-                  <span class="font-bold">40%</span>
-                </div>
-                <div class="flex items-center justify-between text-xs">
-                  <div class="flex items-center gap-2">
-                    <span class="size-2 bg-[#10b981] rounded-full"></span>
-                    OpenAI
-                  </div>
-                  <span class="font-bold">25%</span>
-                </div>
-                <div class="flex items-center justify-between text-xs">
-                  <div class="flex items-center gap-2">
-                    <span class="size-2 bg-[#34d399] rounded-full"></span>
-                    Claude
-                  </div>
-                  <span class="font-bold">15%</span>
-                </div>
-                <div class="flex items-center justify-between text-xs">
-                  <div class="flex items-center gap-2">
-                    <span class="size-2 bg-[#6ee7b7] rounded-full"></span>
-                    ChatGPT
-                  </div>
-                  <span class="font-bold">10%</span>
-                </div>
-                <div class="flex items-center justify-between text-xs">
-                  <div class="flex items-center gap-2">
-                    <span class="size-2 bg-[#a7f3d0] rounded-full"></span>
-                    Copilot
-                  </div>
-                  <span class="font-bold">10%</span>
+                  <span class="font-bold">{{ item.percent.toFixed(0) }}%</span>
                 </div>
               </div>
             </div>
@@ -325,27 +268,33 @@
             class="bg-white dark:bg-slate-900 p-6 rounded border border-slate-200 dark:border-slate-800 shadow-sm"
           >
             <div class="flex justify-between items-center mb-6">
-              <h3 class="font-bold text-slate-700 dark:text-slate-300">Traffic Throughput (15s)</h3>
+              <h3 class="font-bold text-slate-700 dark:text-slate-300">Usage Trend</h3>
               <div class="flex gap-2">
                 <span class="px-2 py-0.5 bg-primary/10 text-primary text-[10px] font-bold rounded">LIVE</span>
                 <span
                   class="px-2 py-0.5 bg-slate-100 dark:bg-slate-800 text-slate-500 text-[10px] font-bold rounded"
                 >
-                  KB/s
+                  Requests
                 </span>
               </div>
             </div>
-            <div class="h-40 w-full relative">
+            <div v-if="dashboardLoading" class="rounded-lg border border-dashed border-slate-300 bg-slate-50 px-4 py-10 text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-400">
+              Loading usage trend...
+            </div>
+            <div v-else-if="!trendPoints.length" class="rounded-lg border border-dashed border-slate-300 bg-slate-50 px-4 py-10 text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-400">
+              No trend data is available yet.
+            </div>
+            <div v-else class="h-40 w-full relative">
               <svg class="w-full h-full" preserveAspectRatio="none" viewBox="0 0 100 40">
-                <title>Traffic throughput line chart</title>
+                <title>Usage trend line chart</title>
                 <path
-                  d="M0 35 Q 10 32, 20 30 T 40 25 T 60 35 T 80 15 T 100 20"
+                  :d="trendPath"
                   fill="none"
                   stroke="#21c45d"
                   stroke-width="1.5"
                 ></path>
                 <path
-                  d="M0 35 Q 10 32, 20 30 T 40 25 T 60 35 T 80 15 T 100 20 L 100 40 L 0 40 Z"
+                  :d="trendAreaPath"
                   fill="url(#grad1)"
                   stroke="none"
                 ></path>
@@ -384,10 +333,10 @@
                 ></line>
               </svg>
               <div class="absolute bottom-0 w-full flex justify-between text-[10px] text-slate-400 pt-2">
-                <span>15s ago</span>
-                <span>10s ago</span>
-                <span>5s ago</span>
-                <span>Now</span>
+                <span v-for="point in trendPoints" :key="point.label">{{ point.label }}</span>
+              </div>
+              <div class="absolute left-0 top-0 rounded bg-white/80 px-2 py-1 text-[10px] font-semibold text-slate-500 dark:bg-slate-900/80 dark:text-slate-300">
+                {{ trendSummaryText }}
               </div>
             </div>
           </div>
@@ -395,32 +344,62 @@
         <div class="bg-white dark:bg-slate-900 rounded border border-slate-200 dark:border-slate-800 shadow-sm">
           <div class="p-6 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center">
             <div class="flex items-center gap-3">
-              <h3 class="font-bold text-slate-700 dark:text-slate-300">Recent API Requests</h3>
+              <h3 class="font-bold text-slate-700 dark:text-slate-300">Recent Usage Records</h3>
               <span class="bg-slate-100 dark:bg-slate-800 text-slate-500 px-2 py-0.5 rounded text-xs font-medium">
-                Last 50
+                10 / page, max 20 pages
               </span>
             </div>
-            <button type="button" class="text-xs font-bold text-primary flex items-center gap-1 hover:underline">
-              <span class="material-symbols-outlined text-sm">download</span>
-              Export Logs
-            </button>
+            <div class="flex items-center gap-4">
+              <button
+                type="button"
+                class="text-xs font-bold text-slate-500 flex items-center gap-1 hover:text-slate-700 dark:text-slate-300 dark:hover:text-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
+                :disabled="dashboardLoading"
+                @click="refreshUsageRecords"
+              >
+                <span class="material-symbols-outlined text-sm">refresh</span>
+                Refresh
+              </button>
+              <button type="button" class="text-xs font-bold text-primary flex items-center gap-1 hover:underline" @click="exportUsageRecords">
+                <span class="material-symbols-outlined text-sm">download</span>
+                Export Data
+              </button>
+            </div>
           </div>
           <div class="px-6 py-3 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30">
             <div class="flex flex-wrap items-center gap-2">
               <select
                 v-model="requestFilter"
                 class="h-9 rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 text-xs text-slate-600 dark:text-slate-300"
+                @change="applyUsageFilters"
               >
                 <option value="all">过滤：全部</option>
-                <option value="success">过滤：成功(2xx)</option>
-                <option value="error">过滤：异常(非2xx)</option>
+                <option value="chat">过滤：Chat</option>
+                <option value="stream">过滤：流式</option>
+                <option value="image">过滤：Image</option>
               </select>
               <input
                 v-model="pathSearch"
                 type="text"
-                placeholder="按 path 搜索，例如 /v1/messages"
+                placeholder="按 endpoint / model / key 搜索"
                 class="h-9 min-w-[260px] flex-1 rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 text-xs text-slate-700 dark:text-slate-300 placeholder:text-slate-400"
+                @keydown.enter.prevent="applyUsageFilters"
               />
+              <button
+                type="button"
+                class="h-9 rounded bg-slate-900 px-3 text-xs font-semibold text-white transition hover:bg-slate-700 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-200"
+                :disabled="dashboardLoading"
+                @click="applyUsageFilters"
+              >
+                Apply Filters
+              </button>
+              <button
+                type="button"
+                class="h-9 rounded border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-600 transition hover:border-slate-300 hover:text-slate-800 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:border-slate-600 dark:hover:text-slate-100"
+                :disabled="dashboardLoading || (requestFilter === 'all' && !pathSearch.trim())"
+                @click="resetUsageFilters"
+              >
+                Reset
+              </button>
             </div>
           </div>
           <div class="overflow-x-auto">
@@ -429,57 +408,70 @@
                 class="bg-slate-50 dark:bg-slate-800/50 text-slate-400 text-[10px] font-bold uppercase tracking-wider"
               >
                 <tr>
-                  <th class="px-6 py-3">Method</th>
-                  <th class="px-6 py-3">Status</th>
-                  <th class="px-6 py-3">Domain</th>
-                  <th class="px-6 py-3">Path</th>
-                  <th class="px-6 py-3 text-right">上传流量</th>
-                  <th class="px-6 py-3 text-right">下载流量</th>
-                  <th class="px-6 py-3 text-right">上传Token</th>
-                  <th class="px-6 py-3 text-right">下载Token</th>
-                  <th class="px-6 py-3 text-right">首次响应时长</th>
-                  <th class="px-6 py-3 text-right">全局响应时长</th>
+                  <th class="px-6 py-3">Type</th>
+                  <th class="px-6 py-3">Model</th>
+                  <th class="px-6 py-3">Endpoint</th>
+                  <th class="px-6 py-3">API Key</th>
+                  <th class="px-6 py-3">Group</th>
+                  <th class="px-6 py-3 text-right">Input Tokens</th>
+                  <th class="px-6 py-3 text-right">Output Tokens</th>
+                  <th class="px-6 py-3 text-right">Total Tokens</th>
+                  <th class="px-6 py-3 text-right">Actual Cost</th>
+                  <th class="px-6 py-3 text-right">Duration</th>
                   <th class="px-6 py-3 text-right">Timestamp</th>
                 </tr>
               </thead>
               <tbody class="divide-y divide-slate-100 dark:divide-slate-800 text-sm">
                 <tr
                   v-for="item in filteredRequestRows"
-                  :key="`${item.timestamp}-${item.domain}-${item.path}`"
+                  :key="`${item.id}-${item.createdAt}-${item.endpoint}`"
                   class="hover:bg-slate-50 dark:hover:bg-slate-800/30"
                 >
-                  <td class="px-6 py-4 font-bold text-slate-700 dark:text-slate-300">{{ item.method }}</td>
-                  <td class="px-6 py-4">
-                    <span class="inline-flex items-center gap-1 font-medium" :class="item.statusClass">
-                      <span class="size-1.5 rounded-full" :class="item.statusDotClass"></span>
-                      {{ item.status }}
-                    </span>
-                  </td>
-                  <td class="px-6 py-4 text-slate-500">{{ item.domain }}</td>
-                  <td class="px-6 py-4 text-slate-500"><code>{{ item.path }}</code></td>
-                  <td class="px-6 py-4 text-right text-slate-500 tabular-nums">{{ formatBytes(item.uploadBytes) }}</td>
-                  <td class="px-6 py-4 text-right text-slate-500 tabular-nums">{{ formatBytes(item.downloadBytes) }}</td>
-                  <td class="px-6 py-4 text-right text-slate-500 tabular-nums">{{ item.uploadTokens }}</td>
-                  <td class="px-6 py-4 text-right text-slate-500 tabular-nums">{{ item.downloadTokens }}</td>
-                  <td class="px-6 py-4 text-right text-slate-500 tabular-nums">{{ formatDuration(item.firstResponseMs) }}</td>
-                  <td class="px-6 py-4 text-right text-slate-500 tabular-nums">{{ formatDuration(item.globalResponseMs) }}</td>
-                  <td class="px-6 py-4 text-right text-slate-400 tabular-nums">{{ item.timestamp }}</td>
+                  <td class="px-6 py-4 font-bold text-slate-700 dark:text-slate-300">{{ item.requestType }}</td>
+                  <td class="px-6 py-4 text-slate-500">{{ item.model }}</td>
+                  <td class="px-6 py-4 text-slate-500"><code>{{ item.endpoint }}</code></td>
+                  <td class="px-6 py-4 text-slate-500">{{ item.apiKeyName }}</td>
+                  <td class="px-6 py-4 text-slate-500">{{ item.groupName }}</td>
+                  <td class="px-6 py-4 text-right text-slate-500 tabular-nums">{{ formatCount(item.inputTokens) }}</td>
+                  <td class="px-6 py-4 text-right text-slate-500 tabular-nums">{{ formatCount(item.outputTokens) }}</td>
+                  <td class="px-6 py-4 text-right text-slate-500 tabular-nums">{{ formatCount(item.totalTokens) }}</td>
+                  <td class="px-6 py-4 text-right text-slate-500 tabular-nums">{{ formatCurrency(item.actualCost) }}</td>
+                  <td class="px-6 py-4 text-right text-slate-500 tabular-nums">{{ formatDuration(item.durationMs) }}</td>
+                  <td class="px-6 py-4 text-right text-slate-400 tabular-nums">{{ formatDateTime(item.createdAt) }}</td>
                 </tr>
                 <tr v-if="filteredRequestRows.length === 0">
-                  <td colspan="11" class="px-6 py-6 text-center text-xs text-slate-400">没有匹配的请求记录</td>
+                  <td colspan="11" class="px-6 py-6 text-center text-xs text-slate-400">没有匹配的使用记录</td>
                 </tr>
               </tbody>
             </table>
           </div>
           <div
-            class="p-4 bg-slate-50 dark:bg-slate-800/50 flex justify-center border-t border-slate-100 dark:border-slate-800"
+            class="p-4 bg-slate-50 dark:bg-slate-800/50 flex flex-col gap-3 border-t border-slate-100 dark:border-slate-800 sm:flex-row sm:items-center sm:justify-between"
           >
-            <button
-              type="button"
-              class="text-xs font-bold text-slate-500 hover:text-slate-700 uppercase tracking-widest"
-            >
-              Load More Entries
-            </button>
+            <p class="text-xs text-slate-500 dark:text-slate-400">
+              Showing {{ filteredRequestRows.length }} of {{ formatCount(usageTotal) }} records on page {{ usagePage }}.
+            </p>
+            <div class="flex items-center justify-end gap-2">
+              <button
+                type="button"
+                class="h-9 rounded border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-600 transition hover:border-slate-300 hover:text-slate-800 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:border-slate-600 dark:hover:text-slate-100"
+                :disabled="dashboardLoading || usagePage <= 1"
+                @click="changeUsagePage(usagePage - 1)"
+              >
+                Prev
+              </button>
+              <div class="min-w-[120px] text-center text-xs font-semibold text-slate-500 dark:text-slate-300">
+                {{ usagePage }} / {{ usageTotalPages }}
+              </div>
+              <button
+                type="button"
+                class="h-9 rounded border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-600 transition hover:border-slate-300 hover:text-slate-800 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:border-slate-600 dark:hover:text-slate-100"
+                :disabled="dashboardLoading || usagePage >= usageTotalPages"
+                @click="changeUsagePage(usagePage + 1)"
+              >
+                Next
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -626,6 +618,13 @@ import { useCertStatus } from '../composables/useCertStatus';
 import { useNavigation } from '../composables/useNavigation';
 import { useAuthStore } from '../stores/auth';
 import { getUserCenterProfile } from '../services/userCenterApi';
+import { extractUsagePagination, extractUsageRecords } from '../utils/dashboardData';
+import {
+  getDashboardModels,
+  getDashboardStats,
+  getDashboardTrend,
+  getDashboardUsageRecords
+} from '../services/dashboardApi';
 
 const { certStatus, loading: certLoading, startPolling, stopPolling } = useCertStatus();
 const { currentPage, showSettings } = useNavigation();
@@ -651,6 +650,18 @@ const runActionLoading = ref(false);
 const runActionMessage = ref('');
 const startupStatus = ref('UNKNOWN');
 const accountBalance = ref(null);
+const dashboardLoading = ref(false);
+const dashboardError = ref('');
+const dashboardStats = ref({});
+const dashboardModels = ref([]);
+const dashboardTrend = ref([]);
+const dashboardUsageRecords = ref([]);
+const usagePage = ref(1);
+const usagePageSize = ref(10);
+const usageTotal = ref(0);
+const usageTotalPages = ref(1);
+const usageMaxPages = 20;
+const appliedRequestFilter = ref('all');
 let runStatusTimer = null;
 
 const accountSubtitle = computed(() => {
@@ -692,6 +703,80 @@ const accountBalanceHint = computed(() => {
   return accountBalance.value === null ? 'Syncing balance...' : 'Click to top up your account.';
 });
 
+const totalRequestCount = computed(() => Number(dashboardStats.value?.total_requests || 0));
+
+const modelDistribution = computed(() => {
+  const items = Array.isArray(dashboardModels.value) ? dashboardModels.value : [];
+  const total = items.reduce((sum, item) => sum + Number(item?.requests || 0), 0);
+  if (total <= 0) {
+    return [];
+  }
+
+  const palette = ['#21c45d', '#10b981', '#34d399', '#6ee7b7', '#a7f3d0'];
+  const topItems = items
+    .slice()
+    .sort((left, right) => Number(right?.requests || 0) - Number(left?.requests || 0))
+    .slice(0, 5)
+    .map((item, index) => ({
+      label: item?.model || `Model ${index + 1}`,
+      requests: Number(item?.requests || 0),
+      percent: (Number(item?.requests || 0) / total) * 100,
+      color: palette[index] || palette[palette.length - 1]
+    }));
+
+  let cumulative = 0;
+  return topItems.map((item) => {
+    const segment = {
+      ...item,
+      dashArray: `${item.percent} 100`,
+      dashOffset: -cumulative
+    };
+    cumulative += item.percent;
+    return segment;
+  });
+});
+
+const trendPoints = computed(() => {
+  const items = Array.isArray(dashboardTrend.value) ? dashboardTrend.value : [];
+  if (!items.length) {
+    return [];
+  }
+  const maxRequests = Math.max(...items.map((item) => Number(item?.requests || 0)), 1);
+  const step = items.length > 1 ? 100 / (items.length - 1) : 100;
+  return items.map((item, index) => ({
+    x: Number((index * step).toFixed(2)),
+    y: Number((35 - ((Number(item?.requests || 0) / maxRequests) * 25)).toFixed(2)),
+    label: formatTrendLabel(item?.date),
+    requests: Number(item?.requests || 0),
+    actualCost: Number(item?.actual_cost || item?.cost || 0)
+  }));
+});
+
+const trendPath = computed(() => {
+  if (!trendPoints.value.length) {
+    return '';
+  }
+  return trendPoints.value
+    .map((point, index) => `${index === 0 ? 'M' : 'L'}${point.x} ${point.y}`)
+    .join(' ');
+});
+
+const trendAreaPath = computed(() => {
+  if (!trendPoints.value.length) {
+    return '';
+  }
+  const linePath = trendPath.value;
+  return `${linePath} L 100 40 L 0 40 Z`;
+});
+
+const trendSummaryText = computed(() => {
+  if (!trendPoints.value.length) {
+    return 'No recent request trend yet.';
+  }
+  const latestPoint = trendPoints.value[trendPoints.value.length - 1];
+  return `${latestPoint.requests} requests in latest bucket`;
+});
+
 async function syncAccountBalance() {
   if (!isAuthenticated.value) {
     accountBalance.value = null;
@@ -713,6 +798,163 @@ async function syncAccountBalance() {
 
 function handleTopUp() {
   window.open('https://www.aliang.one', '_blank', 'noopener,noreferrer');
+}
+
+async function loadDashboardUsageData() {
+  if (!isAuthenticated.value) {
+    dashboardStats.value = {};
+    dashboardModels.value = [];
+    dashboardTrend.value = [];
+    dashboardUsageRecords.value = [];
+    usagePage.value = 1;
+    usageTotal.value = 0;
+    usageTotalPages.value = 1;
+    dashboardError.value = '';
+    return;
+  }
+
+  dashboardLoading.value = true;
+  dashboardError.value = '';
+
+  try {
+    const [statsEnvelope, trendEnvelope, modelsEnvelope, usageEnvelope] = await Promise.all([
+      getDashboardStats(),
+      getDashboardTrend(),
+      getDashboardModels(),
+      getDashboardUsageRecords({
+        page: usagePage.value,
+        perPage: usagePageSize.value,
+        requestType: appliedRequestFilter.value
+      })
+    ]);
+
+    dashboardStats.value = asObject(statsEnvelope?.data);
+    dashboardTrend.value = Array.isArray(trendEnvelope?.data?.trend) ? trendEnvelope.data.trend : [];
+    dashboardModels.value = Array.isArray(modelsEnvelope?.data?.models) ? modelsEnvelope.data.models : [];
+    dashboardUsageRecords.value = extractUsageRecords(usageEnvelope?.data)
+      .slice(0, usagePageSize.value)
+      .map(normalizeUsageRecord);
+    const pagination = extractUsagePagination(usageEnvelope?.data, usagePage.value, usagePageSize.value);
+    usagePage.value = pagination.page;
+    usageTotal.value = pagination.total;
+    usageTotalPages.value = Math.min(Math.max(pagination.totalPages, 1), usageMaxPages);
+  } catch (error) {
+    dashboardError.value = error instanceof Error ? error.message : 'Failed to load dashboard usage data.';
+    dashboardStats.value = {};
+    dashboardModels.value = [];
+    dashboardTrend.value = [];
+    dashboardUsageRecords.value = [];
+    usageTotal.value = 0;
+    usageTotalPages.value = 1;
+  } finally {
+    dashboardLoading.value = false;
+  }
+}
+
+function refreshUsageRecords() {
+  loadDashboardUsageData();
+}
+
+function applyUsageFilters() {
+  usagePage.value = 1;
+  appliedRequestFilter.value = requestFilter.value;
+  loadDashboardUsageData();
+}
+
+function resetUsageFilters() {
+  requestFilter.value = 'all';
+  pathSearch.value = '';
+  appliedRequestFilter.value = 'all';
+  usagePage.value = 1;
+  loadDashboardUsageData();
+}
+
+function changeUsagePage(nextPage) {
+  const targetPage = Number(nextPage || 1);
+  if (!Number.isFinite(targetPage)) {
+    return;
+  }
+  const boundedPage = Math.min(Math.max(1, targetPage), Math.min(Math.max(usageTotalPages.value, 1), usageMaxPages));
+  if (boundedPage === usagePage.value) {
+    return;
+  }
+  usagePage.value = boundedPage;
+  loadDashboardUsageData();
+}
+
+function normalizeUsageRecord(item) {
+  const raw = item && typeof item === 'object' ? item : {};
+  return {
+    id: raw.id || '',
+    model: typeof raw.model === 'string' ? raw.model : '-',
+    endpoint: typeof raw.inbound_endpoint === 'string' ? raw.inbound_endpoint : '-',
+    apiKeyName: typeof raw?.api_key?.name === 'string' ? raw.api_key.name : '-',
+    groupName: typeof raw?.group?.name === 'string' ? raw.group.name : '-',
+    requestType: typeof raw.request_type === 'string' ? raw.request_type : '-',
+    stream: Boolean(raw.stream),
+    inputTokens: Number(raw.input_tokens || 0),
+    outputTokens: Number(raw.output_tokens || 0),
+    totalTokens: Number(raw.input_tokens || 0) + Number(raw.output_tokens || 0) + Number(raw.cache_creation_tokens || 0) + Number(raw.cache_read_tokens || 0),
+    actualCost: Number(raw.actual_cost || 0),
+    durationMs: Number(raw.duration_ms || 0),
+    firstTokenMs: Number(raw.first_token_ms || 0),
+    createdAt: typeof raw.created_at === 'string' ? raw.created_at : ''
+  };
+}
+
+function asObject(value) {
+  return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+}
+
+function formatTrendLabel(value) {
+  if (typeof value !== 'string' || !value) {
+    return '';
+  }
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+  return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+}
+
+function formatCount(value) {
+  const numeric = Number(value || 0);
+  if (!Number.isFinite(numeric)) {
+    return '0';
+  }
+  return numeric.toLocaleString();
+}
+
+function formatCurrency(value) {
+  const numeric = Number(value || 0);
+  if (!Number.isFinite(numeric)) {
+    return '$0.00';
+  }
+  return `$${numeric.toFixed(2)}`;
+}
+
+function formatDateTime(value) {
+  if (typeof value !== 'string' || !value) {
+    return '-';
+  }
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+  return date.toLocaleString();
+}
+
+function exportUsageRecords() {
+  const payload = JSON.stringify(dashboardUsageRecords.value, null, 2);
+  const blob = new Blob([payload], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = 'dashboard-usage-records.json';
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  URL.revokeObjectURL(url);
 }
 
 function openQuickSetup() {
@@ -997,6 +1239,7 @@ onMounted(() => {
   syncStartupStatus();
   syncRunStatus();
   syncAccountBalance();
+  loadDashboardUsageData();
   runStatusTimer = window.setInterval(syncRunStatus, 10000);
 });
 
@@ -1013,9 +1256,11 @@ watch(isAuthenticated, (authenticated) => {
     isLoginModalOpen.value = false;
     loginPassword.value = '';
     syncAccountBalance();
+    loadDashboardUsageData();
     return;
   }
   accountBalance.value = null;
+  loadDashboardUsageData();
 });
 
 async function sendQuickChat() {
@@ -1075,94 +1320,29 @@ async function sendQuickChat() {
   }
 }
 
-const requestRows = [
-  {
-    method: 'POST',
-    status: '200 OK',
-    domain: 'api.openai.com',
-    path: '/v1/chat/completions',
-    uploadBytes: 16832,
-    downloadBytes: 48210,
-    uploadTokens: 1321,
-    downloadTokens: 2640,
-    firstResponseMs: 186,
-    globalResponseMs: 742,
-    timestamp: '14:20:45.002',
-    statusClass: 'text-primary',
-    statusDotClass: 'bg-primary'
-  },
-  {
-    method: 'GET',
-    status: '200 OK',
-    domain: 'api.anthropic.com',
-    path: '/v1/messages',
-    uploadBytes: 5240,
-    downloadBytes: 21904,
-    uploadTokens: 804,
-    downloadTokens: 1530,
-    firstResponseMs: 142,
-    globalResponseMs: 605,
-    timestamp: '14:20:41.285',
-    statusClass: 'text-primary',
-    statusDotClass: 'bg-primary'
-  },
-  {
-    method: 'POST',
-    status: '429 Limit',
-    domain: 'api.cursor.sh',
-    path: '/v1/streaming',
-    uploadBytes: 12280,
-    downloadBytes: 4020,
-    uploadTokens: 1160,
-    downloadTokens: 200,
-    firstResponseMs: 420,
-    globalResponseMs: 980,
-    timestamp: '14:20:38.910',
-    statusClass: 'text-amber-500',
-    statusDotClass: 'bg-amber-500'
-  },
-  {
-    method: 'CONNECT',
-    status: '503 Timeout',
-    domain: 'tunnel.socks5.service',
-    path: '/connect',
-    uploadBytes: 820,
-    downloadBytes: 260,
-    uploadTokens: 0,
-    downloadTokens: 0,
-    firstResponseMs: 1200,
-    globalResponseMs: 3000,
-    timestamp: '14:20:25.111',
-    statusClass: 'text-rose-500',
-    statusDotClass: 'bg-rose-500'
-  }
-];
-
 const filteredRequestRows = computed(() => {
   const pathKeyword = pathSearch.value.trim().toLowerCase();
-  return requestRows.filter(item => {
-    const isSuccess = isSuccessStatus(item.status);
-    if (requestFilter.value === 'success' && !isSuccess) {
+  return dashboardUsageRecords.value.filter(item => {
+    if (appliedRequestFilter.value === 'chat' && item.requestType !== 'chat') {
       return false;
     }
-    if (requestFilter.value === 'error' && isSuccess) {
+    if (appliedRequestFilter.value === 'stream' && !item.stream) {
+      return false;
+    }
+    if (appliedRequestFilter.value === 'image' && item.requestType !== 'image') {
       return false;
     }
     if (!pathKeyword) {
       return true;
     }
-    return item.path.toLowerCase().includes(pathKeyword);
+    return [
+      item.endpoint,
+      item.model,
+      item.apiKeyName,
+      item.groupName
+    ].some((value) => String(value || '').toLowerCase().includes(pathKeyword));
   });
 });
-
-function isSuccessStatus(statusText) {
-  const match = String(statusText || '').match(/(\d{3})/);
-  if (!match) {
-    return false;
-  }
-  const code = Number(match[1]);
-  return code >= 200 && code < 300;
-}
 
 function formatBytes(bytes) {
   const value = Number(bytes || 0);

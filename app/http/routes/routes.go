@@ -31,6 +31,7 @@ type Handlers struct {
 	HTTPStats     *handlers.HTTPStatsHandler
 	Chat          *handlers.ChatHandler
 	UserCenter    *handlers.UserCenterHandler
+	Dashboard     *handlers.DashboardHandler
 
 	statsCollector     *statistic.StatsCollector
 	httpStatsCollector *statistic.HTTPStatsCollector
@@ -65,6 +66,7 @@ func NewHandlers() *Handlers {
 		HTTPStats:          handlers.NewHTTPStatsHandler(httpStatsCollector),
 		Chat:               handlers.NewChatHandler(),
 		UserCenter:         handlers.NewUserCenterHandler(),
+		Dashboard:          handlers.NewDashboardHandler(),
 		statsCollector:     statsCollector,
 		httpStatsCollector: httpStatsCollector,
 	}
@@ -179,6 +181,10 @@ func RegisterRoutes(h *Handlers, mux *http.ServeMux) {
 	register("/api/user-center/usage/summary", h.UserCenter.HandleGetUsageSummary, http.MethodGet)
 	register("/api/user-center/usage/progress", h.UserCenter.HandleGetUsageProgress, http.MethodGet)
 	register("/api/user-center/redeem", h.UserCenter.HandleRedeemCode, http.MethodPost)
+	register("/api/dashboard/stats", h.Dashboard.HandleGetStats, http.MethodGet)
+	register("/api/dashboard/trend", h.Dashboard.HandleGetTrend, http.MethodGet)
+	register("/api/dashboard/models", h.Dashboard.HandleGetModels, http.MethodGet)
+	register("/api/dashboard/usage", h.Dashboard.HandleGetUsageRecords, http.MethodGet)
 
 	registerDocsRoutes(mux, catalog)
 }
