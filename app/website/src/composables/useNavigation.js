@@ -3,17 +3,32 @@ import { ref } from 'vue';
 const currentPage = ref('dashboard');
 
 export function useNavigation() {
+  function showPage(page) {
+    currentPage.value = page;
+  }
+
   function showSettings() {
-    currentPage.value = 'settings';
+    showPage('settings');
+  }
+
+  function showUserCenter() {
+    showPage('user');
+  }
+
+  function showLogs() {
+    showPage('log');
   }
 
   function showDashboard() {
-    currentPage.value = 'dashboard';
+    showPage('dashboard');
   }
 
   return {
     currentPage,
+    showPage,
     showSettings,
+    showUserCenter,
+    showLogs,
     showDashboard
   };
 }

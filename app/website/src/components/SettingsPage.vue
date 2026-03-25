@@ -1,6 +1,6 @@
 <template>
   <div
-    v-if="currentPage === 'settings'"
+    v-if="isVisible"
     id="settings-page"
     class="page-container content-section active flex-1 min-w-0 h-full overflow-hidden bg-background-light dark:bg-background-dark"
   >
@@ -16,19 +16,27 @@
           <nav class="hidden items-center gap-8 md:flex">
             <a
               class="py-5 text-sm font-medium"
-              :class="activeTopTab === 'settings' ? 'border-b-2 border-primary text-primary' : 'text-slate-500 hover:text-slate-700 dark:text-slate-300 dark:hover:text-slate-100'"
+              :class="currentPage === 'settings' ? 'border-b-2 border-primary text-primary' : 'text-slate-500 hover:text-slate-700 dark:text-slate-300 dark:hover:text-slate-100'"
               href="javascript:void(0)"
-              @click="activeTopTab = 'settings'"
+              @click="showPage('settings')"
             >
               Settings
             </a>
             <a
               class="py-5 text-sm font-medium"
-              :class="activeTopTab === 'log' ? 'border-b-2 border-primary text-primary' : 'text-slate-500 hover:text-slate-700 dark:text-slate-300 dark:hover:text-slate-100'"
+              :class="currentPage === 'user' ? 'border-b-2 border-primary text-primary' : 'text-slate-500 hover:text-slate-700 dark:text-slate-300 dark:hover:text-slate-100'"
               href="javascript:void(0)"
-              @click="activeTopTab = 'log'"
+              @click="showPage('user')"
             >
-              log
+              User Center
+            </a>
+            <a
+              class="py-5 text-sm font-medium"
+              :class="currentPage === 'log' ? 'border-b-2 border-primary text-primary' : 'text-slate-500 hover:text-slate-700 dark:text-slate-300 dark:hover:text-slate-100'"
+              href="javascript:void(0)"
+              @click="showPage('log')"
+            >
+              Logs
             </a>
           </nav>
           <div class="flex items-center gap-4">
@@ -58,19 +66,49 @@
             >
               <span class="material-symbols-outlined">arrow_back</span>
             </button>
-            <h1 class="text-lg font-bold tracking-tight sm:text-xl">Configuration <span class="font-medium text-primary">Center</span></h1>
+            <h1 class="text-lg font-bold tracking-tight sm:text-xl">
+              {{ pageTitle }} <span class="font-medium text-primary">{{ pageAccent }}</span>
+            </h1>
           </div>
           <div class="rounded bg-primary/10 px-3 py-1 text-xs font-bold text-primary">LIVE</div>
         </div>
 
+        <div class="mb-6 grid grid-cols-3 gap-2 md:hidden">
+          <button
+            type="button"
+            class="rounded-lg border px-3 py-2 text-sm font-semibold transition"
+            :class="currentPage === 'settings' ? 'border-primary bg-primary text-white' : 'border-slate-200 bg-white text-slate-700 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100'"
+            @click="showPage('settings')"
+          >
+            Settings
+          </button>
+          <button
+            type="button"
+            class="rounded-lg border px-3 py-2 text-sm font-semibold transition"
+            :class="currentPage === 'user' ? 'border-primary bg-primary text-white' : 'border-slate-200 bg-white text-slate-700 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100'"
+            @click="showPage('user')"
+          >
+            User
+          </button>
+          <button
+            type="button"
+            class="rounded-lg border px-3 py-2 text-sm font-semibold transition"
+            :class="currentPage === 'log' ? 'border-primary bg-primary text-white' : 'border-slate-200 bg-white text-slate-700 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100'"
+            @click="showPage('log')"
+          >
+            Logs
+          </button>
+        </div>
+
         <div
+          v-if="currentPage !== 'user'"
           class="mb-6 rounded-xl border px-4 py-3 text-sm"
           :class="isAuthenticated ? 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300' : 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-300'"
         >
           {{ authNotice }}
         </div>
 
-        <div v-if="activeTopTab === 'settings'" class="grid grid-cols-1 gap-8 lg:grid-cols-12">
+        <div v-if="currentPage === 'settings'" class="grid grid-cols-1 gap-8 lg:grid-cols-12">
           <section class="flex flex-col gap-4 lg:col-span-8">
             <div
               v-if="!isAuthenticated"
@@ -96,10 +134,13 @@
           </section>
 
           <aside class="flex flex-col gap-6 lg:col-span-4">
-            <UserInfoSettings />
             <SystemSettings v-if="isAuthenticated" />
           </aside>
         </div>
+
+        <section v-else-if="currentPage === 'user'" class="flex flex-col gap-4">
+          <UserInfoSettings />
+        </section>
 
         <section v-else class="flex flex-col gap-4">
           <div
@@ -258,10 +299,11 @@ export default {
     SystemSettings
   },
   setup() {
-    const { currentPage, showDashboard } = useNavigation();
+    const { currentPage, showPage, showDashboard } = useNavigation();
     const { isAuthenticated, userDisplayName, planLabel, authNotice } = useAuthStore();
     return {
       currentPage,
+      showPage,
       goDashboard: showDashboard,
       isAuthenticated,
       userDisplayName,
@@ -271,7 +313,6 @@ export default {
   },
   data() {
     return {
-      activeTopTab: 'settings',
       presetProviders: [],
       customerConfig: createDefaultCustomerConfig(),
       customerConfigVersion: '',
@@ -281,13 +322,42 @@ export default {
       hasLoadedCustomerConfig: false
     };
   },
+  computed: {
+    isVisible() {
+      return ['settings', 'user', 'log'].includes(this.currentPage);
+    },
+    pageTitle() {
+      if (this.currentPage === 'user') {
+        return 'User';
+      }
+      if (this.currentPage === 'log') {
+        return 'Log';
+      }
+      return 'Configuration';
+    },
+    pageAccent() {
+      if (this.currentPage === 'user') {
+        return 'Center';
+      }
+      if (this.currentPage === 'log') {
+        return 'Viewer';
+      }
+      return 'Center';
+    }
+  },
   watch: {
-    activeTopTab(tab) {
-      if (tab === 'log') {
+    currentPage(page) {
+      if (page === 'log') {
         this.syncLegacyTab('logs');
         return;
       }
-      this.syncLegacyTab('rules');
+      if (page === 'user') {
+        this.syncLegacyTab('userinfo');
+        return;
+      }
+      if (page === 'settings') {
+        this.syncLegacyTab('rules');
+      }
     }
   },
   async mounted() {

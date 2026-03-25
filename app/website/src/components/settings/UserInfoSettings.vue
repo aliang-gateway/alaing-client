@@ -1,7 +1,7 @@
 <template>
   <div class="settings-pane" data-pane="userinfo">
-    <div class="rounded-xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-background-dark">
-      <div class="mb-4 flex items-start justify-between gap-3">
+    <div class="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-background-dark sm:p-4.5">
+      <div class="mb-3 flex items-start justify-between gap-3">
         <div>
           <h3 class="flex items-center gap-2 font-bold">
             <span class="material-symbols-outlined text-primary">person</span>
@@ -21,7 +21,7 @@
       </div>
 
       <div
-        class="mb-4 rounded-lg border px-3 py-2 text-xs"
+        class="mb-3 rounded-lg border px-3 py-2 text-[11px]"
         :class="isAuthenticated ? 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300' : 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-300'"
       >
         {{ authNotice }}
@@ -94,75 +94,75 @@
           {{ loadError }}
         </div>
 
-        <div class="grid gap-3 sm:grid-cols-2">
-          <article class="rounded-xl border border-slate-200 bg-slate-50/80 p-4 dark:border-slate-800 dark:bg-slate-900/50">
+        <div class="grid gap-2.5 sm:grid-cols-2">
+          <article class="rounded-xl border border-slate-200 bg-slate-50/80 p-3 dark:border-slate-800 dark:bg-slate-900/50">
             <div class="flex items-start justify-between gap-3">
               <div>
                 <p class="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Subscriptions</p>
-                <p class="mt-2 text-2xl font-bold text-slate-900 dark:text-white">{{ activeSubscriptionsText }}</p>
+                <p class="mt-1.5 text-xl font-bold text-slate-900 dark:text-white">{{ activeSubscriptionsText }}</p>
               </div>
-              <span class="material-symbols-outlined text-primary">stacked_bar_chart</span>
+              <span class="material-symbols-outlined text-[20px] text-primary">stacked_bar_chart</span>
             </div>
-            <p class="mt-2 text-xs text-slate-500 dark:text-slate-400">Active package count returned by the user-center summary API.</p>
+            <p class="mt-1.5 text-[11px] leading-5 text-slate-500 dark:text-slate-400">Active package count returned by the user-center summary API.</p>
           </article>
 
-          <article class="rounded-xl border border-slate-200 bg-slate-50/80 p-4 dark:border-slate-800 dark:bg-slate-900/50">
+          <article class="rounded-xl border border-slate-200 bg-slate-50/80 p-3 dark:border-slate-800 dark:bg-slate-900/50">
             <div class="flex items-start justify-between gap-3">
               <div>
                 <p class="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Usage cost</p>
-                <p id="userBalance" class="mt-2 text-2xl font-bold text-primary">{{ totalUsageText }}</p>
+                <p id="userBalance" class="mt-1.5 text-xl font-bold text-primary">{{ totalUsageText }}</p>
               </div>
-              <span class="material-symbols-outlined text-primary">payments</span>
+              <span class="material-symbols-outlined text-[20px] text-primary">payments</span>
             </div>
-            <p class="mt-2 text-xs text-slate-500 dark:text-slate-400">Aggregated spend from the backend usage summary.</p>
+            <p class="mt-1.5 text-[11px] leading-5 text-slate-500 dark:text-slate-400">Aggregated spend from the backend usage summary.</p>
           </article>
         </div>
 
-        <div class="mt-4 rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-background-dark">
+        <div class="mt-3 rounded-xl border border-slate-200 bg-white p-3.5 dark:border-slate-800 dark:bg-background-dark">
           <div class="flex items-center justify-between gap-3">
             <div>
               <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Account overview</p>
-              <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">Your authenticated profile snapshot from <span class="font-mono">/api/user-center/profile</span>.</p>
+              <p class="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">Your authenticated profile snapshot from <span class="font-mono">/api/user-center/profile</span>.</p>
             </div>
             <span class="rounded bg-primary/10 px-2 py-1 text-[11px] font-bold uppercase tracking-wide text-primary">{{ profileStatusText }}</span>
           </div>
 
-          <div class="mt-4 grid gap-3 sm:grid-cols-2">
+          <div class="mt-3 grid gap-2 sm:grid-cols-2">
             <div class="rounded-lg bg-slate-50 px-3 py-2 dark:bg-slate-900/50">
               <p class="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Email</p>
-              <p class="mt-1 text-sm font-medium text-slate-900 dark:text-white break-all">{{ profile.email || '-' }}</p>
+              <p class="mt-0.5 text-sm font-medium text-slate-900 dark:text-white break-all">{{ profile.email || '-' }}</p>
             </div>
             <div class="rounded-lg bg-slate-50 px-3 py-2 dark:bg-slate-900/50">
               <p class="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Role</p>
-              <p class="mt-1 text-sm font-medium text-slate-900 dark:text-white">{{ profile.role || '-' }}</p>
+              <p class="mt-0.5 text-sm font-medium text-slate-900 dark:text-white">{{ profile.role || '-' }}</p>
             </div>
             <div class="rounded-lg bg-slate-50 px-3 py-2 dark:bg-slate-900/50">
               <p class="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Concurrency</p>
-              <p class="mt-1 text-sm font-medium text-slate-900 dark:text-white">{{ concurrencyText }}</p>
+              <p class="mt-0.5 text-sm font-medium text-slate-900 dark:text-white">{{ concurrencyText }}</p>
             </div>
             <div class="rounded-lg bg-slate-50 px-3 py-2 dark:bg-slate-900/50">
               <p class="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Allowed groups</p>
-              <p class="mt-1 text-sm font-medium text-slate-900 dark:text-white">{{ allowedGroupsText }}</p>
+              <p class="mt-0.5 text-sm font-medium text-slate-900 dark:text-white">{{ allowedGroupsText }}</p>
             </div>
           </div>
         </div>
 
-        <div class="mt-4 rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-background-dark">
+        <div class="mt-3 rounded-xl border border-slate-200 bg-white p-3.5 dark:border-slate-800 dark:bg-background-dark">
           <div class="flex items-start gap-3">
-            <span class="material-symbols-outlined text-primary">badge</span>
+            <span class="material-symbols-outlined text-[20px] text-primary">badge</span>
             <div>
               <p class="text-sm font-semibold text-slate-900 dark:text-white">Update display username</p>
-              <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">Changes update both the profile panel and the shared settings header label.</p>
+              <p class="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">Changes update both the profile panel and the shared settings header label.</p>
             </div>
           </div>
 
-          <form class="mt-4 space-y-3" @submit.prevent="submitProfileUpdate">
+          <form class="mt-3 space-y-2.5" @submit.prevent="submitProfileUpdate">
             <div>
               <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">Username</label>
               <input
                 v-model.trim="usernameDraft"
                 type="text"
-                class="h-10 w-full rounded border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none transition focus:border-primary dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+                class="h-9 w-full rounded border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none transition focus:border-primary dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
                 placeholder="Enter a username"
                 :disabled="profileSaving"
               />
@@ -170,7 +170,7 @@
             <p v-if="profileFeedback.text" :class="feedbackClass(profileFeedback.kind)">{{ profileFeedback.text }}</p>
             <button
               type="submit"
-              class="inline-flex min-h-11 w-full items-center justify-center rounded bg-primary px-4 py-2 text-sm font-semibold text-white transition hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
+              class="inline-flex min-h-10 w-full items-center justify-center rounded bg-primary px-4 py-2 text-sm font-semibold text-white transition hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
               :disabled="profileSaving"
             >
               {{ profileSaving ? 'Saving profile...' : 'Save profile' }}
@@ -178,22 +178,22 @@
           </form>
         </div>
 
-        <div class="mt-4 rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-background-dark">
+        <div class="mt-3 rounded-xl border border-slate-200 bg-white p-3.5 dark:border-slate-800 dark:bg-background-dark">
           <div class="flex items-start gap-3">
-            <span class="material-symbols-outlined text-primary">redeem</span>
+            <span class="material-symbols-outlined text-[20px] text-primary">redeem</span>
             <div>
               <p class="text-sm font-semibold text-slate-900 dark:text-white">Redeem a package code</p>
-              <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">Submit a valid code to unlock new entitlements, then refresh usage automatically.</p>
+              <p class="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">Submit a valid code to unlock new entitlements, then refresh usage automatically.</p>
             </div>
           </div>
 
-          <form class="mt-4 space-y-3" @submit.prevent="submitRedeemCode">
+          <form class="mt-3 space-y-2.5" @submit.prevent="submitRedeemCode">
             <div>
               <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">Redeem code</label>
               <input
                 v-model.trim="redeemCode"
                 type="text"
-                class="h-10 w-full rounded border border-slate-200 bg-white px-3 text-sm uppercase text-slate-700 outline-none transition focus:border-primary dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+                class="h-9 w-full rounded border border-slate-200 bg-white px-3 text-sm uppercase text-slate-700 outline-none transition focus:border-primary dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
                 placeholder="Enter your code"
                 :disabled="redeemPending"
               />
@@ -201,7 +201,7 @@
             <p v-if="redeemFeedback.text" :class="feedbackClass(redeemFeedback.kind)">{{ redeemFeedback.text }}</p>
             <button
               type="submit"
-              class="inline-flex min-h-11 w-full items-center justify-center rounded border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:text-slate-100 dark:hover:bg-slate-800"
+              class="inline-flex min-h-10 w-full items-center justify-center rounded border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:text-slate-100 dark:hover:bg-slate-800"
               :disabled="redeemPending"
             >
               {{ redeemPending ? 'Redeeming...' : 'Redeem code' }}
@@ -209,38 +209,38 @@
           </form>
         </div>
 
-        <div class="mt-4 rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-background-dark">
-          <div class="mb-3 flex items-center justify-between gap-3">
+        <div class="mt-3 rounded-xl border border-slate-200 bg-white p-3.5 dark:border-slate-800 dark:bg-background-dark">
+          <div class="mb-2.5 flex items-center justify-between gap-3">
             <div>
               <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Package usage progress</p>
-              <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">Progress rows come from <span class="font-mono">/api/user-center/usage/progress</span>.</p>
+              <p class="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">Progress rows come from <span class="font-mono">/api/user-center/usage/progress</span>.</p>
             </div>
             <span class="rounded bg-slate-100 px-2 py-1 text-[11px] font-semibold text-slate-500 dark:bg-slate-800 dark:text-slate-300">{{ progressItems.length }} item(s)</span>
           </div>
 
-          <div v-if="isRefreshing && !hasLoaded" class="rounded-lg border border-dashed border-slate-300 bg-slate-50 px-4 py-6 text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-400">
+          <div v-if="isRefreshing && !hasLoaded" class="rounded-lg border border-dashed border-slate-300 bg-slate-50 px-4 py-5 text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-400">
             Loading user-center data…
           </div>
-          <div v-else-if="!progressItems.length" class="rounded-lg border border-dashed border-slate-300 bg-slate-50 px-4 py-6 text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-400">
+          <div v-else-if="!progressItems.length" class="rounded-lg border border-dashed border-slate-300 bg-slate-50 px-4 py-5 text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-400">
             No usage progress data is available for this account yet.
           </div>
-          <div v-else class="space-y-3">
+          <div v-else class="space-y-2.5">
             <article
               v-for="(item, index) in progressItems"
               :key="progressItemKey(item, index)"
-              class="rounded-lg border border-slate-200 bg-slate-50/80 p-3 dark:border-slate-800 dark:bg-slate-900/50"
+              class="rounded-lg border border-slate-200 bg-slate-50/80 p-2.5 dark:border-slate-800 dark:bg-slate-900/50"
             >
               <div class="flex items-start justify-between gap-3">
                 <div>
                   <p class="text-sm font-semibold text-slate-900 dark:text-white">{{ progressItemTitle(item, index) }}</p>
-                  <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">{{ progressItemSubtitle(item) }}</p>
+                  <p class="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">{{ progressItemSubtitle(item) }}</p>
                 </div>
                 <span class="text-xs font-semibold text-primary">{{ formatPercent(item.percent) }}</span>
               </div>
-              <div class="mt-3 h-2 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-800">
+              <div class="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-800">
                 <div class="h-full rounded-full bg-primary transition-all" :style="{ width: `${clampPercent(item.percent)}%` }"></div>
               </div>
-              <div class="mt-2 flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400">
+              <div class="mt-1.5 flex items-center justify-between text-[10px] text-slate-500 dark:text-slate-400">
                 <span>{{ progressItemCurrentLabel(item) }}</span>
                 <span>{{ progressItemTotalLabel(item) }}</span>
               </div>
@@ -248,7 +248,7 @@
           </div>
         </div>
 
-        <div class="mt-4">
+        <div class="mt-3">
           <button
             id="authLogoutBtn"
             type="button"
