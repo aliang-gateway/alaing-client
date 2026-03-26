@@ -1,15 +1,39 @@
 package services
 
 import (
+	"errors"
 	"fmt"
 	"testing"
 	"time"
 
 	"nursor.org/nursorgate/app/http/models"
+	"nursor.org/nursorgate/app/http/storage"
 	"nursor.org/nursorgate/processor/config"
 	"nursor.org/nursorgate/processor/routing"
 	"nursor.org/nursorgate/processor/runtime"
 )
+
+type fakeRunModeSnapshotStore struct {
+	saveErr        error
+	latest         *models.SoftwareEffectiveConfigSnapshot
+	savedSnapshots []models.SoftwareEffectiveConfigSnapshot
+}
+
+func (s *fakeRunModeSnapshotStore) SaveEffectiveConfigSnapshot(snapshot models.SoftwareEffectiveConfigSnapshot) error {
+	if s.saveErr != nil {
+		return s.saveErr
+	}
+	s.savedSnapshots = append(s.savedSnapshots, snapshot)
+	return nil
+}
+
+func (s *fakeRunModeSnapshotStore) GetLatestEffectiveConfigSnapshotBySoftwareAndName(software string, configName string) (*models.SoftwareEffectiveConfigSnapshot, error) {
+	if s.latest == nil {
+		return nil, errors.New("not found")
+	}
+	copyValue := *s.latest
+	return &copyValue, nil
+}
 
 func seedActiveIngressSnapshot(t *testing.T, mode string) {
 	t.Helper()
@@ -38,6 +62,7 @@ func resetRunServiceHooksForTest() {
 	httpStartRunner = func() {}
 	httpStopRunner = func() {}
 	tunStopRunner = func() {}
+	runModeStoreFactory = func() runModeSnapshotStore { return storage.NewSoftwareConfigStore() }
 }
 
 func waitForEventCount(events *[]string, expected int, timeout time.Duration) bool {
@@ -334,5 +359,51 @@ func TestRunServiceHotSwitchFailureRollback(t *testing.T) {
 	}
 	if events[0] != "http:stop" || events[1] != "tun:start" || events[2] != "http:start" {
 		t.Fatalf("rollback sequencing mismatch, events=%v", events)
+	}
+}
+
+func TestRunServiceSwitchModePersistsModeSnapshot(t *testing.T) {
+	defer resetRunServiceHooksForTest()
+	seedActiveIngressSnapshot(t, string(models.ModeHTTP))
+
+	store := &fakeRunModeSnapshotStore{}
+	runModeStoreFactory = func() runModeSnapshotStore { return store }
+
+	runService := NewRunService()
+	runService.SetCurrentMode(string(models.ModeHTTP))
+	runService.SetRunning(false)
+
+	result := runService.SwitchMode(string(models.ModeTUN))
+	if status, _ := result["status"].(string); status != "switched" {
+		t.Fatalf("expected switched status, got %#v", result)
+	}
+	if len(store.savedSnapshots) != 1 {
+		t.Fatalf("expected one persisted run mode snapshot, got %d", len(store.savedSnapshots))
+	}
+	if store.savedSnapshots[0].Software != runModeSnapshotSoftware || store.savedSnapshots[0].ConfigName != runModeSnapshotName {
+		t.Fatalf("unexpected persisted snapshot metadata: %+v", store.savedSnapshots[0])
+	}
+	if store.savedSnapshots[0].SnapshotJSON != `{"mode":"tun"}` {
+		t.Fatalf("unexpected persisted run mode payload: %s", store.savedSnapshots[0].SnapshotJSON)
+	}
+}
+
+func TestRunServiceNewRunServiceRestoresPersistedMode(t *testing.T) {
+	defer resetRunServiceHooksForTest()
+	config.ResetRoutingApplyStoreForTest()
+
+	store := &fakeRunModeSnapshotStore{
+		latest: &models.SoftwareEffectiveConfigSnapshot{
+			Software:     runModeSnapshotSoftware,
+			ConfigName:   runModeSnapshotName,
+			ConfigFormat: models.ConfigFormatJSON,
+			SnapshotJSON: `{"mode":"tun"}`,
+		},
+	}
+	runModeStoreFactory = func() runModeSnapshotStore { return store }
+
+	runService := NewRunService()
+	if got := runService.GetCurrentMode(); got != string(models.ModeTUN) {
+		t.Fatalf("restored current mode mismatch: got=%q want=%q", got, models.ModeTUN)
 	}
 }

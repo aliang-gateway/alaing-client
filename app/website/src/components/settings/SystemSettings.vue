@@ -22,7 +22,7 @@
                   ? 'bg-primary text-white shadow-sm'
                   : 'text-slate-500 hover:bg-slate-200 dark:text-slate-300 dark:hover:bg-slate-700/70'
               ]"
-              @click="selectedMode = 'tun'"
+              @click="selectMode('tun')"
             >
               TUN
             </button>
@@ -35,7 +35,7 @@
                   ? 'bg-primary text-white shadow-sm'
                   : 'text-slate-500 hover:bg-slate-200 dark:text-slate-300 dark:hover:bg-slate-700/70'
               ]"
-              @click="selectedMode = 'http'"
+              @click="selectMode('http')"
             >
               HTTP
             </button>
@@ -54,7 +54,7 @@
           <p v-if="modeError" class="text-[11px] text-red-500">{{ modeError }}</p>
           <p v-if="modeSuccess" class="text-[11px] text-emerald-600 dark:text-emerald-400">{{ modeSuccess }}</p>
 
-          <div class="grid grid-cols-1 gap-2 sm:grid-cols-2">
+          <div class="grid grid-cols-1 gap-2">
             <button
               type="button"
               class="rounded bg-slate-900 px-3 py-2 text-[11px] font-bold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-primary"
@@ -63,14 +63,56 @@
             >
               {{ loadingMode ? 'Refreshing...' : 'Refresh State' }}
             </button>
-            <button
-              type="button"
-              class="rounded bg-primary px-3 py-2 text-[11px] font-bold text-white transition hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
-              :disabled="loadingMode || switchingMode"
-              @click="switchMode"
-            >
-              {{ switchingMode ? 'Applying...' : 'Apply Current Mode' }}
-            </button>
+          </div>
+        </div>
+
+        <div
+          v-if="showTunSwitchConfirm"
+          class="fixed inset-0 z-[1000] flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm"
+          @click.self="cancelTunSwitchConfirm"
+        >
+          <div class="w-full max-w-md overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-900">
+            <div class="border-b border-slate-200 bg-slate-50/80 px-5 py-4 dark:border-slate-700 dark:bg-slate-800/60">
+              <div class="flex items-start justify-between gap-4">
+                <div>
+                  <p class="text-xs font-bold uppercase tracking-[0.2em] text-amber-500">Switch To TUN</p>
+                  <h3 class="mt-1 text-lg font-semibold text-slate-900 dark:text-slate-100">Continue switching from HTTP to TUN?</h3>
+                  <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                    We will return to the dashboard and show the live TUN startup progress dialog while the backend applies the switch.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  class="rounded-lg p-1.5 text-slate-500 transition hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+                  @click="cancelTunSwitchConfirm"
+                >
+                  <span class="material-symbols-outlined text-lg">close</span>
+                </button>
+              </div>
+            </div>
+
+            <div class="space-y-4 p-5">
+              <div class="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">
+                If the system blocks TUN permissions, the startup dialog will keep the error logs visible so the user can decide what to do next.
+              </div>
+
+              <div class="flex gap-3">
+                <button
+                  type="button"
+                  class="inline-flex h-11 flex-1 items-center justify-center rounded-lg border border-slate-200 px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:text-slate-100 dark:hover:bg-slate-800"
+                  @click="cancelTunSwitchConfirm"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  class="inline-flex h-11 flex-1 items-center justify-center rounded-lg bg-primary px-4 text-sm font-semibold text-white transition hover:bg-primary/90"
+                  @click="confirmTunSwitch"
+                >
+                  Continue
+                </button>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -153,8 +195,15 @@
 </template>
 
 <script>
+import { nextTick } from 'vue';
+import { useNavigation } from '../../composables/useNavigation';
+
 export default {
   name: 'SystemSettings',
+  setup() {
+    const { showDashboard } = useNavigation();
+    return { showDashboard };
+  },
   data() {
     return {
       selectedMode: 'tun',
@@ -164,7 +213,8 @@ export default {
       modeError: '',
       modeSuccess: '',
       loadingMode: false,
-      switchingMode: false
+      switchingMode: false,
+      showTunSwitchConfirm: false
     };
   },
   mounted() {
@@ -174,6 +224,36 @@ export default {
     clearMessages() {
       this.modeError = '';
       this.modeSuccess = '';
+    },
+    async selectMode(mode) {
+      const normalizedMode = this.normalizeMode(mode);
+      if (this.loadingMode || this.switchingMode || this.selectedMode === normalizedMode) {
+        return;
+      }
+      if (this.backendMode === 'http' && normalizedMode === 'tun') {
+        this.showTunSwitchConfirm = true;
+        return;
+      }
+      this.selectedMode = normalizedMode;
+      await this.switchMode();
+    },
+    cancelTunSwitchConfirm() {
+      this.showTunSwitchConfirm = false;
+    },
+    async confirmTunSwitch() {
+      this.showTunSwitchConfirm = false;
+      this.selectedMode = 'tun';
+      this.showDashboard();
+      await nextTick();
+      window.dispatchEvent(new CustomEvent('aliang:tun-progress-open', {
+        detail: {
+          title: 'Switching To TUN',
+          detail: 'Applying the new run mode and following live TUN startup logs from the dashboard.',
+          statusLabel: 'Switching from HTTP to TUN...',
+          statusHint: 'The backend is applying the new mode. If TUN startup fails, the error logs will stay visible here.'
+        }
+      }));
+      await this.switchMode({ reportTunProgress: true });
     },
     async requestJSON(url, options = {}) {
       const res = await fetch(url, options);
@@ -203,7 +283,7 @@ export default {
         this.loadingMode = false;
       }
     },
-    async switchMode() {
+    async switchMode(options = {}) {
       this.switchingMode = true;
       this.clearMessages();
       try {
@@ -220,8 +300,22 @@ export default {
           ? result.message
           : `Applied ${this.selectedMode.toUpperCase()} mode successfully.`;
         await this.refreshModeState();
+        if (options.reportTunProgress) {
+          window.dispatchEvent(new CustomEvent('aliang:tun-progress-success', {
+            detail: {
+              message: this.modeSuccess || 'Switched to TUN mode successfully.'
+            }
+          }));
+        }
       } catch (err) {
         this.modeError = err instanceof Error ? err.message : 'Failed to switch mode.';
+        if (options.reportTunProgress) {
+          window.dispatchEvent(new CustomEvent('aliang:tun-progress-error', {
+            detail: {
+              message: this.modeError
+            }
+          }));
+        }
       } finally {
         this.switchingMode = false;
       }

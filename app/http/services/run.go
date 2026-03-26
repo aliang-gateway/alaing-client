@@ -6,7 +6,10 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/google/uuid"
+
 	"nursor.org/nursorgate/app/http/models"
+	"nursor.org/nursorgate/app/http/storage"
 	"nursor.org/nursorgate/common/logger"
 	model "nursor.org/nursorgate/common/model"
 	httpServer "nursor.org/nursorgate/inbound/http"
@@ -24,23 +27,39 @@ var (
 	httpStartRunner           = httpServer.StartMitmHttp
 	httpStopRunner            = httpServer.StopHttpProxy
 	tunStopRunner             = tun.Stop
+	runModeStoreFactory       = func() runModeSnapshotStore { return storage.NewSoftwareConfigStore() }
 	sharedRunServiceMu        sync.Mutex
 	sharedRunService          *RunService
 )
+
+const (
+	runModeSnapshotSoftware = "runtime"
+	runModeSnapshotName     = "run-mode"
+	runModeSnapshotPath     = "runtime://run-mode"
+)
+
+type runModeSnapshotStore interface {
+	SaveEffectiveConfigSnapshot(snapshot models.SoftwareEffectiveConfigSnapshot) error
+	GetLatestEffectiveConfigSnapshotBySoftwareAndName(software string, configName string) (*models.SoftwareEffectiveConfigSnapshot, error)
+}
 
 // RunService handles run/mode operations
 type RunService struct {
 	modeChangeMutex sync.RWMutex
 	currentMode     models.RunMode
 	isRunning       bool // 统一使用 isRunning 字段
+	store           runModeSnapshotStore
 }
 
 // NewRunService creates a new run service instance
 func NewRunService() *RunService {
-	return &RunService{
+	service := &RunService{
 		currentMode: models.ModeHTTP,
 		isRunning:   false,
+		store:       runModeStoreFactory(),
 	}
+	service.restorePersistedMode()
+	return service
 }
 
 // GetSharedRunService returns the process-wide run service used by runtime integrations
@@ -293,6 +312,16 @@ func (rs *RunService) SwitchMode(targetMode string) map[string]interface{} {
 	}
 
 	rs.currentMode = targetModeEnum
+	if err := rs.persistModeLocked(targetModeEnum); err != nil {
+		rs.rollbackToPreviousModeLocked(previousMode, wasRunning)
+		return map[string]interface{}{
+			"error":          "switch_failed",
+			"status":         "failed",
+			"msg":            fmt.Sprintf("failed to persist ingress mode %s: %v", targetModeEnum, err),
+			"current_mode":   string(rs.resolveAuthoritativeModeLocked()),
+			"rollback_state": map[string]interface{}{"mode": string(previousMode), "running": rs.isRunning},
+		}
+	}
 
 	logger.Info("Switching to " + string(targetModeEnum) + " mode")
 
@@ -348,6 +377,55 @@ func (rs *RunService) SwitchMode(targetMode string) map[string]interface{} {
 	}
 
 	return response
+}
+
+func (rs *RunService) restorePersistedMode() {
+	if rs == nil || rs.store == nil {
+		return
+	}
+
+	snapshot, err := rs.store.GetLatestEffectiveConfigSnapshotBySoftwareAndName(runModeSnapshotSoftware, runModeSnapshotName)
+	if err != nil || snapshot == nil || strings.TrimSpace(snapshot.SnapshotJSON) == "" {
+		return
+	}
+
+	var payload struct {
+		Mode string `json:"mode"`
+	}
+	if err := json.Unmarshal([]byte(snapshot.SnapshotJSON), &payload); err != nil {
+		logger.Warn(fmt.Sprintf("Failed to decode persisted run mode snapshot: %v", err))
+		return
+	}
+
+	mode := models.RunMode(strings.ToLower(strings.TrimSpace(payload.Mode)))
+	if mode != models.ModeHTTP && mode != models.ModeTUN {
+		return
+	}
+
+	rs.currentMode = mode
+}
+
+func (rs *RunService) persistModeLocked(mode models.RunMode) error {
+	if rs == nil || rs.store == nil {
+		return nil
+	}
+
+	content, err := json.Marshal(map[string]string{
+		"mode": string(mode),
+	})
+	if err != nil {
+		return fmt.Errorf("marshal run mode snapshot: %w", err)
+	}
+
+	return rs.store.SaveEffectiveConfigSnapshot(models.SoftwareEffectiveConfigSnapshot{
+		Software:       runModeSnapshotSoftware,
+		ConfigUUID:     uuid.NewString(),
+		ConfigName:     runModeSnapshotName,
+		ConfigFilePath: runModeSnapshotPath,
+		ConfigVersion:  "",
+		ConfigFormat:   models.ConfigFormatJSON,
+		SnapshotJSON:   string(content),
+	})
 }
 
 // stopServiceSync synchronously stops a service

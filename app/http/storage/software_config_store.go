@@ -241,6 +241,21 @@ func (s *SoftwareConfigStore) GetLatestEffectiveConfigSnapshot() (*models.Softwa
 	return &snapshot, nil
 }
 
+func (s *SoftwareConfigStore) GetLatestEffectiveConfigSnapshotBySoftwareAndName(software string, configName string) (*models.SoftwareEffectiveConfigSnapshot, error) {
+	if err := s.ensureReady(); err != nil {
+		return nil, err
+	}
+
+	var snapshot models.SoftwareEffectiveConfigSnapshot
+	if err := s.db.
+		Where("software = ? AND config_name = ?", software, configName).
+		Order("created_at DESC, id DESC").
+		First(&snapshot).Error; err != nil {
+		return nil, err
+	}
+	return &snapshot, nil
+}
+
 func (s *SoftwareConfigStore) MergeByLatest(incoming []models.SoftwareConfig) (inserted int, updated int, keptLocalNewer int, err error) {
 	if err = s.ensureReady(); err != nil {
 		return 0, 0, 0, err

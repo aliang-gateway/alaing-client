@@ -609,6 +609,143 @@
         </div>
       </div>
     </div>
+
+    <div
+      v-if="tunStartModal.visible"
+      class="fixed inset-0 z-[1000] flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-sm"
+      @click.self="closeTunStartModal"
+    >
+      <div class="w-full max-w-3xl overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-900">
+        <div class="border-b border-slate-200 bg-slate-50/80 px-5 py-4 dark:border-slate-700 dark:bg-slate-800/60">
+          <div class="flex items-start justify-between gap-4">
+            <div>
+              <p class="text-xs font-bold uppercase tracking-[0.2em] text-primary">TUN Startup</p>
+              <h3 class="mt-1 text-lg font-semibold text-slate-900 dark:text-slate-100">{{ tunStartModal.title }}</h3>
+              <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">{{ tunStartModal.detail }}</p>
+            </div>
+            <button
+              type="button"
+              class="rounded-lg p-1.5 text-slate-500 transition hover:bg-slate-100 hover:text-slate-700 disabled:cursor-not-allowed disabled:opacity-60 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+              :disabled="tunStartModal.status === 'starting'"
+              @click="closeTunStartModal"
+            >
+              <span class="material-symbols-outlined text-lg">close</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="space-y-5 p-5">
+          <div class="rounded-2xl border px-4 py-4"
+            :class="tunStartModal.status === 'error'
+              ? 'border-red-200 bg-red-50 dark:border-red-500/30 dark:bg-red-500/10'
+              : tunStartModal.status === 'success'
+                ? 'border-emerald-200 bg-emerald-50 dark:border-emerald-500/30 dark:bg-emerald-500/10'
+                : 'border-primary/20 bg-primary/5 dark:border-primary/30 dark:bg-primary/10'"
+          >
+            <div class="flex items-center gap-3">
+              <span
+                v-if="tunStartModal.status === 'starting'"
+                class="inline-block size-5 border-2 border-primary/30 border-t-primary rounded-full animate-spin"
+              ></span>
+              <span
+                v-else
+                class="material-symbols-outlined text-lg"
+                :class="tunStartModal.status === 'error' ? 'text-red-500' : 'text-emerald-500'"
+              >
+                {{ tunStartModal.status === 'error' ? 'error' : 'check_circle' }}
+              </span>
+              <div class="flex-1">
+                <div class="text-sm font-semibold text-slate-800 dark:text-slate-100">{{ tunStartModal.statusLabel }}</div>
+                <div class="mt-1 text-xs text-slate-500 dark:text-slate-400">{{ tunStartModal.statusHint }}</div>
+              </div>
+            </div>
+
+            <div class="mt-4 h-2 overflow-hidden rounded-full bg-white/70 dark:bg-slate-900/70">
+              <div
+                class="h-full rounded-full transition-all duration-300"
+                :class="tunStartModal.status === 'error' ? 'bg-red-500' : 'bg-primary'"
+                :style="{ width: `${tunStartupProgressPercent}%` }"
+              ></div>
+            </div>
+          </div>
+
+          <div class="grid gap-3 md:grid-cols-3">
+            <div
+              v-for="step in tunStartupSteps"
+              :key="step.key"
+              class="rounded-xl border px-4 py-3"
+              :class="step.state === 'done'
+                ? 'border-emerald-200 bg-emerald-50 dark:border-emerald-500/30 dark:bg-emerald-500/10'
+                : step.state === 'active'
+                  ? 'border-primary/30 bg-primary/5 dark:border-primary/40 dark:bg-primary/10'
+                  : step.state === 'error'
+                    ? 'border-red-200 bg-red-50 dark:border-red-500/30 dark:bg-red-500/10'
+                    : 'border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-800/50'"
+            >
+              <div class="flex items-center gap-2">
+                <span
+                  class="material-symbols-outlined text-base"
+                  :class="step.state === 'done'
+                    ? 'text-emerald-500'
+                    : step.state === 'active'
+                      ? 'text-primary'
+                      : step.state === 'error'
+                        ? 'text-red-500'
+                        : 'text-slate-400'"
+                >{{ step.icon }}</span>
+                <p class="text-sm font-semibold text-slate-800 dark:text-slate-100">{{ step.label }}</p>
+              </div>
+              <p class="mt-2 text-xs leading-5 text-slate-500 dark:text-slate-400">{{ step.description }}</p>
+            </div>
+          </div>
+
+          <div v-if="tunStartModal.errorMessage" class="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-200">
+            {{ tunStartModal.errorMessage }}
+          </div>
+
+          <div class="overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-700">
+            <div class="flex items-center justify-between gap-3 border-b border-slate-200 bg-slate-50/80 px-4 py-3 dark:border-slate-700 dark:bg-slate-800/60">
+              <div>
+                <p class="text-sm font-semibold text-slate-900 dark:text-slate-100">Startup Logs</p>
+                <p class="text-xs text-slate-500 dark:text-slate-400">Showing log lines captured since this startup attempt began.</p>
+              </div>
+              <span class="rounded-full bg-slate-900 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-white dark:bg-slate-100 dark:text-slate-900">
+                {{ tunStartModal.logs.length }} lines
+              </span>
+            </div>
+            <div class="max-h-80 overflow-y-auto bg-slate-950 p-4 font-mono text-xs text-slate-200">
+              <div v-if="tunStartModal.logs.length === 0" class="rounded-lg border border-dashed border-slate-700 bg-slate-900/60 px-4 py-6 text-sm text-slate-500">
+                Waiting for startup logs...
+              </div>
+              <div v-else class="space-y-1 whitespace-pre-wrap break-all">
+                <div
+                  v-for="(entry, index) in tunStartModal.logs"
+                  :key="`${entry.timestamp}-${entry.source}-${index}`"
+                  class="rounded px-2 py-1.5"
+                  :class="logEntryRowClass(entry.level)"
+                >
+                  <span class="text-slate-500">[{{ entry.timestamp }}]</span>
+                  <span class="ml-2 font-semibold" :class="logEntryLevelClass(entry.level)">{{ entry.level }}</span>
+                  <span class="ml-2 text-slate-400">({{ entry.source }})</span>
+                  <span class="ml-2">{{ entry.message }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="flex justify-end gap-3">
+            <button
+              type="button"
+              class="inline-flex h-11 items-center justify-center rounded-lg border border-slate-200 px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:text-slate-100 dark:hover:bg-slate-800"
+              :disabled="tunStartModal.status === 'starting'"
+              @click="closeTunStartModal"
+            >
+              {{ tunStartModal.status === 'success' ? 'Close' : 'Done' }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -650,6 +787,7 @@ const runActionLoading = ref(false);
 const runActionMessage = ref('');
 const startupStatus = ref('UNKNOWN');
 const accountBalance = ref(null);
+const tunStartModal = ref(createTunStartModalState());
 const dashboardLoading = ref(false);
 const dashboardError = ref('');
 const dashboardStats = ref({});
@@ -663,6 +801,8 @@ const usageTotalPages = ref(1);
 const usageMaxPages = 20;
 const appliedRequestFilter = ref('all');
 let runStatusTimer = null;
+let tunStartLogTimer = null;
+let tunStartStatusTimer = null;
 
 const accountSubtitle = computed(() => {
   if (!isAuthenticated.value) {
@@ -1099,6 +1239,82 @@ const powerButtonDisabled = computed(() => {
   return !canStartProxy.value;
 });
 
+const tunStartupPhase = computed(() => {
+  if (!tunStartModal.value.visible) {
+    return 'idle';
+  }
+  const logs = tunStartModal.value.logs;
+  const loweredMessages = logs.map((entry) => String(entry.message || '').toLowerCase());
+  const hasFailure = loweredMessages.some((message) =>
+    message.includes('failed') ||
+    message.includes('error') ||
+    message.includes('operation not permitted')
+  );
+  if (hasFailure || tunStartModal.value.status === 'error') {
+    return 'error';
+  }
+  const hasRunning = loweredMessages.some((message) =>
+    message.includes('tun service is running') ||
+    message.includes('tun started') ||
+    message.includes('service started')
+  );
+  if (runIsRunning.value || tunStartModal.value.status === 'success' || hasRunning) {
+    return 'running';
+  }
+  const hasCreateTun = loweredMessages.some((message) =>
+    message.includes('starting tun service') ||
+    message.includes('create tun') ||
+    message.includes('tun 启动')
+  );
+  if (hasCreateTun) {
+    return 'creating_tun';
+  }
+  return 'requested';
+});
+
+const tunStartupProgressPercent = computed(() => {
+  switch (tunStartupPhase.value) {
+    case 'requested':
+      return 18;
+    case 'creating_tun':
+      return 56;
+    case 'running':
+      return 100;
+    case 'error':
+      return 100;
+    default:
+      return 8;
+  }
+});
+
+const tunStartupSteps = computed(() => {
+  const phase = tunStartupPhase.value;
+  const isError = tunStartModal.value.status === 'error';
+  return [
+    {
+      key: 'request',
+      icon: phase === 'requested' ? 'hourglass_top' : 'play_circle',
+      label: 'Start Requested',
+      description: 'The dashboard has sent a TUN startup request to the backend.',
+      state: isError || phase === 'running' || phase === 'creating_tun' ? 'done' : phase === 'requested' ? 'active' : 'pending'
+    },
+    {
+      key: 'create',
+      icon: isError && phase === 'error' ? 'error' : 'router',
+      label: 'Create TUN Device',
+      description: 'The backend is creating the TUN interface and asking the OS for network privileges.',
+      state: isError ? 'error' : phase === 'running' ? 'done' : phase === 'creating_tun' ? 'active' : 'pending'
+    },
+    {
+      key: 'ready',
+      icon: isError ? 'error' : 'verified',
+      label: 'Finalize Startup',
+      description: 'The proxy waits for the engine to come up and confirms the service is ready to route traffic.',
+      state: isError ? 'error' : phase === 'running' ? 'done' : 'pending'
+    }
+  ];
+});
+
 async function syncRunStatus() {
   try {
     const response = await fetch('/api/run/status');
@@ -1163,6 +1379,10 @@ async function toggleProxyPower() {
     if (runMode.value === 'unknown') {
       await syncRunStatus();
     }
+    const startingTun = !runIsRunning.value && runMode.value === 'tun';
+    if (startingTun) {
+      openTunStartModal();
+    }
     const endpoint = runIsRunning.value ? '/api/run/stop' : '/api/run/start';
     const actionText = runIsRunning.value ? 'stop' : 'start';
     const response = await fetch(endpoint, {
@@ -1185,8 +1405,15 @@ async function toggleProxyPower() {
     runActionMessage.value = runIsRunning.value ? 'Proxy stopped successfully.' : 'Proxy start request sent successfully.';
     await syncStartupStatus();
     await syncRunStatus();
+    if (startingTun) {
+      markTunStartModalSuccess(data?.message || data?.details || 'TUN service started successfully.');
+    }
   } catch (error) {
-    runSyncError.value = error instanceof Error ? error.message : 'Proxy action failed';
+    const message = error instanceof Error ? error.message : 'Proxy action failed';
+    runSyncError.value = message;
+    if (tunStartModal.value.visible) {
+      markTunStartModalError(message);
+    }
   } finally {
     runActionLoading.value = false;
     if (runActionMessage.value) {
@@ -1253,6 +1480,9 @@ onMounted(() => {
   syncAccountBalance();
   loadDashboardUsageData();
   runStatusTimer = window.setInterval(syncRunStatus, 10000);
+  window.addEventListener('aliang:tun-progress-open', handleExternalTunProgressOpen);
+  window.addEventListener('aliang:tun-progress-success', handleExternalTunProgressSuccess);
+  window.addEventListener('aliang:tun-progress-error', handleExternalTunProgressError);
 });
 
 onUnmounted(() => {
@@ -1261,6 +1491,10 @@ onUnmounted(() => {
     window.clearInterval(runStatusTimer);
     runStatusTimer = null;
   }
+  stopTunStartObservers();
+  window.removeEventListener('aliang:tun-progress-open', handleExternalTunProgressOpen);
+  window.removeEventListener('aliang:tun-progress-success', handleExternalTunProgressSuccess);
+  window.removeEventListener('aliang:tun-progress-error', handleExternalTunProgressError);
 });
 
 watch(isAuthenticated, (authenticated) => {
@@ -1330,6 +1564,211 @@ async function sendQuickChat() {
   } finally {
     isQuickChatSending.value = false;
   }
+}
+
+function createTunStartModalState() {
+  return {
+    visible: false,
+    status: 'idle',
+    title: 'Starting TUN Proxy',
+    detail: 'Preparing the TUN engine and waiting for backend startup logs.',
+    statusLabel: 'Waiting to start',
+    statusHint: 'Press Start to begin a TUN startup attempt.',
+    errorMessage: '',
+    logs: [],
+    startedAtMs: 0
+  };
+}
+
+function openTunStartModal(overrides = {}) {
+  tunStartModal.value = {
+    ...createTunStartModalState(),
+    ...overrides,
+    visible: true,
+    status: 'starting',
+    statusLabel: overrides.statusLabel || 'Starting TUN proxy...',
+    statusHint: overrides.statusHint || 'We are following backend startup progress and collecting fresh logs for this attempt.',
+    startedAtMs: Date.now()
+  };
+  loadTunStartLogs();
+  startTunStartObservers();
+}
+
+function closeTunStartModal() {
+  if (tunStartModal.value.status === 'starting') {
+    return;
+  }
+  stopTunStartObservers();
+  tunStartModal.value = createTunStartModalState();
+}
+
+function markTunStartModalSuccess(message) {
+  tunStartModal.value = {
+    ...tunStartModal.value,
+    status: 'success',
+    title: 'TUN Proxy Started',
+    detail: 'The TUN engine reported a successful startup.',
+    statusLabel: 'Startup complete',
+    statusHint: typeof message === 'string' && message.trim()
+      ? message
+      : 'The service is running and ready to proxy traffic.',
+    errorMessage: ''
+  };
+  stopTunStartObservers();
+}
+
+function markTunStartModalError(message) {
+  tunStartModal.value = {
+    ...tunStartModal.value,
+    status: 'error',
+    title: 'TUN Startup Failed',
+    detail: 'The backend could not finish creating the TUN engine.',
+    statusLabel: 'Startup failed',
+    statusHint: 'Review the log lines below for the exact failure point.',
+    errorMessage: typeof message === 'string' && message.trim() ? message : 'TUN startup failed.'
+  };
+  stopTunStartObservers();
+}
+
+function startTunStartObservers() {
+  stopTunStartObservers();
+  tunStartLogTimer = window.setInterval(loadTunStartLogs, 1200);
+  tunStartStatusTimer = window.setInterval(async () => {
+    await syncRunStatus();
+    if (tunStartModal.value.visible && tunStartModal.value.status === 'starting' && runIsRunning.value) {
+      markTunStartModalSuccess('The service switched to running state.');
+    }
+  }, 1500);
+}
+
+function stopTunStartObservers() {
+  if (tunStartLogTimer !== null) {
+    window.clearInterval(tunStartLogTimer);
+    tunStartLogTimer = null;
+  }
+  if (tunStartStatusTimer !== null) {
+    window.clearInterval(tunStartStatusTimer);
+    tunStartStatusTimer = null;
+  }
+}
+
+async function loadTunStartLogs() {
+  if (!tunStartModal.value.visible) {
+    return;
+  }
+
+  try {
+    const response = await fetch('/api/logs?limit=200');
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok || payload?.code !== 0) {
+      throw new Error(payload?.msg || payload?.message || `Request failed (${response.status})`);
+    }
+
+    const nextEntries = Array.isArray(payload?.data?.entries) ? payload.data.entries : [];
+    const normalizedEntries = nextEntries
+      .map(normalizeLogEntry)
+      .filter((entry) => isTunStartupLogEntry(entry, tunStartModal.value.startedAtMs))
+      .slice(-120);
+
+    tunStartModal.value = {
+      ...tunStartModal.value,
+      logs: normalizedEntries
+    };
+  } catch (error) {
+    if (tunStartModal.value.status === 'starting') {
+      tunStartModal.value = {
+        ...tunStartModal.value,
+        errorMessage: error instanceof Error ? error.message : 'Failed to load startup logs.'
+      };
+    }
+  }
+}
+
+function normalizeLogEntry(entry) {
+  const raw = entry && typeof entry === 'object' ? entry : {};
+  return {
+    level: typeof raw.level === 'string' ? raw.level.toUpperCase() : 'INFO',
+    timestamp: typeof raw.timestamp === 'string' ? raw.timestamp : '',
+    message: typeof raw.message === 'string' ? raw.message : '',
+    source: typeof raw.source === 'string' ? raw.source : 'main'
+  };
+}
+
+function isTunStartupLogEntry(entry, startedAtMs) {
+  const message = String(entry.message || '').toLowerCase();
+  const timestampMs = parseLogTimestamp(entry.timestamp);
+  if (Number.isFinite(startedAtMs) && Number.isFinite(timestampMs) && timestampMs + 1500 < startedAtMs) {
+    return false;
+  }
+  return message.includes('tun') ||
+    message.includes('engine') ||
+    message.includes('create tun') ||
+    message.includes('operation not permitted') ||
+    message.includes('启动') ||
+    message.includes('回滚');
+}
+
+function parseLogTimestamp(value) {
+  if (typeof value !== 'string' || !value) {
+    return Number.NaN;
+  }
+  const normalized = value.includes('T') ? value : value.replace(' ', 'T');
+  const date = new Date(normalized);
+  return Number.isNaN(date.getTime()) ? Number.NaN : date.getTime();
+}
+
+function logEntryLevelClass(level) {
+  switch (String(level || '').toUpperCase()) {
+    case 'ERROR':
+    case 'FATAL':
+    case 'PANIC':
+      return 'text-red-300';
+    case 'WARN':
+      return 'text-amber-300';
+    case 'DEBUG':
+      return 'text-sky-300';
+    case 'TRACE':
+      return 'text-violet-300';
+    default:
+      return 'text-emerald-300';
+  }
+}
+
+function logEntryRowClass(level) {
+  switch (String(level || '').toUpperCase()) {
+    case 'ERROR':
+    case 'FATAL':
+    case 'PANIC':
+      return 'bg-red-500/5';
+    case 'WARN':
+      return 'bg-amber-500/5';
+    case 'DEBUG':
+      return 'bg-sky-500/5';
+    case 'TRACE':
+      return 'bg-violet-500/5';
+    default:
+      return 'bg-emerald-500/5';
+  }
+}
+
+function handleExternalTunProgressOpen(event) {
+  const detail = event instanceof CustomEvent ? (event.detail || {}) : {};
+  openTunStartModal({
+    title: typeof detail.title === 'string' && detail.title ? detail.title : 'Starting TUN Proxy',
+    detail: typeof detail.detail === 'string' && detail.detail ? detail.detail : 'Preparing the TUN engine and waiting for backend startup logs.',
+    statusLabel: typeof detail.statusLabel === 'string' && detail.statusLabel ? detail.statusLabel : 'Starting TUN proxy...',
+    statusHint: typeof detail.statusHint === 'string' && detail.statusHint ? detail.statusHint : 'We are following backend startup progress and collecting fresh logs for this attempt.'
+  });
+}
+
+function handleExternalTunProgressSuccess(event) {
+  const detail = event instanceof CustomEvent ? (event.detail || {}) : {};
+  markTunStartModalSuccess(typeof detail.message === 'string' ? detail.message : '');
+}
+
+function handleExternalTunProgressError(event) {
+  const detail = event instanceof CustomEvent ? (event.detail || {}) : {};
+  markTunStartModalError(typeof detail.message === 'string' ? detail.message : 'TUN startup failed.');
 }
 
 const filteredRequestRows = computed(() => {
