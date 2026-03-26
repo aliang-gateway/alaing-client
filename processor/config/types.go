@@ -275,10 +275,21 @@ type AliangServerConfig struct {
 }
 
 type CustomerProxyConfig struct {
+	Enable   *bool  `json:"enable,omitempty"`
 	Type     string `json:"type"`
 	Server   string `json:"server,omitempty"`
 	Username string `json:"username,omitempty"`
 	Password string `json:"password,omitempty"`
+}
+
+func (c *CustomerProxyConfig) IsEnabled() bool {
+	if c == nil {
+		return false
+	}
+	if c.Enable == nil {
+		return true
+	}
+	return *c.Enable
 }
 
 type CustomerAIRuleSetting struct {
@@ -605,6 +616,9 @@ func (c *Config) EffectiveDefaultProxy() string {
 	if c == nil || c.Customer == nil || c.Customer.Proxy == nil {
 		return "direct"
 	}
+	if !c.Customer.Proxy.IsEnabled() {
+		return "direct"
+	}
 	switch strings.ToLower(strings.TrimSpace(c.Customer.Proxy.Type)) {
 	case "socks5":
 		return "socks"
@@ -615,6 +629,9 @@ func (c *Config) EffectiveDefaultProxy() string {
 
 func (c *Config) EffectiveSocksProxy() (*Socks5Config, error) {
 	if c == nil || c.Customer == nil || c.Customer.Proxy == nil {
+		return nil, nil
+	}
+	if !c.Customer.Proxy.IsEnabled() {
 		return nil, nil
 	}
 	if strings.ToLower(strings.TrimSpace(c.Customer.Proxy.Type)) != "socks5" {

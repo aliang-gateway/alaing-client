@@ -64,20 +64,22 @@ func TestCompileRuntimeSnapshotFromRuntimeInputs_NonAIRulesMatchProxyRules(t *te
 func TestCompileRuntimeSnapshotFromRuntimeInputs_ProxyTypeMapsToToSocksUpstreamType(t *testing.T) {
 	tests := []struct {
 		name          string
+		proxyEnabled  *bool
 		proxyType     string
 		wantUpstream  string
 		socksEnabled  bool
 		wantToSocksOn bool
 	}{
-		{name: "customer proxy http maps to http upstream", proxyType: "http", wantUpstream: "http", socksEnabled: true, wantToSocksOn: true},
-		{name: "customer proxy socks5 maps to socks upstream", proxyType: "socks5", wantUpstream: "socks", socksEnabled: true, wantToSocksOn: true},
+		{name: "customer proxy http maps to http upstream", proxyEnabled: nil, proxyType: "http", wantUpstream: "http", socksEnabled: true, wantToSocksOn: true},
+		{name: "customer proxy socks5 maps to socks upstream", proxyEnabled: nil, proxyType: "socks5", wantUpstream: "socks", socksEnabled: true, wantToSocksOn: true},
+		{name: "disabled customer proxy turns toSocks off", proxyEnabled: boolPtr(false), proxyType: "socks5", wantUpstream: "", socksEnabled: true, wantToSocksOn: false},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			canonical, err := compileCanonicalRoutingFromRuntimeInputs(&config.Config{
 				Customer: &config.CustomerConfig{
-					Proxy: &config.CustomerProxyConfig{Type: tt.proxyType},
+					Proxy: &config.CustomerProxyConfig{Enable: tt.proxyEnabled, Type: tt.proxyType},
 				},
 			}, model.RulesSettings{AliangEnabled: true, SocksEnabled: tt.socksEnabled})
 			if err != nil {
@@ -91,6 +93,30 @@ func TestCompileRuntimeSnapshotFromRuntimeInputs_ProxyTypeMapsToToSocksUpstreamT
 				t.Fatalf("toSocks.upstream.type = %q, want %q", canonical.Egress.ToSocks.Upstream.Type, tt.wantUpstream)
 			}
 		})
+	}
+}
+
+func TestCompileRuntimeSnapshotFromRuntimeInputs_DisabledProxyRulesFallbackToDirect(t *testing.T) {
+	canonical, err := compileCanonicalRoutingFromRuntimeInputs(&config.Config{
+		Customer: &config.CustomerConfig{
+			Proxy: &config.CustomerProxyConfig{Enable: boolPtr(false), Type: "socks5"},
+			ProxyRules: []string{
+				"domain,cursor.com,proxy",
+			},
+		},
+	}, model.RulesSettings{AliangEnabled: true, SocksEnabled: true})
+	if err != nil {
+		t.Fatalf("compileCanonicalRoutingFromRuntimeInputs() error = %v", err)
+	}
+
+	if canonical.Egress.ToSocks.Enabled {
+		t.Fatal("expected toSocks to be disabled when customer proxy is disabled")
+	}
+	if len(canonical.Routing.Rules) != 1 {
+		t.Fatalf("expected one routing rule, got %d", len(canonical.Routing.Rules))
+	}
+	if canonical.Routing.Rules[0].Target != "direct" {
+		t.Fatalf("proxy rule target = %q, want %q", canonical.Routing.Rules[0].Target, "direct")
 	}
 }
 

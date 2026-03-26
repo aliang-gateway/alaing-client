@@ -129,6 +129,7 @@
               :loading="isLoadingCustomerConfig"
               :saving="isSavingCustomerConfig"
               :error="customerConfigError"
+              :success-message="customerConfigSuccess"
               :version="customerConfigVersion"
               @save="saveCustomerConfig"
             />
@@ -197,6 +198,7 @@ import { useAuthStore } from '../stores/auth';
 function createDefaultCustomerConfig() {
   return {
     proxy: {
+      enable: true,
       type: 'socks5',
       server: ''
     },
@@ -232,6 +234,7 @@ function normalizeCustomerConfig(payload = {}) {
   const defaults = createDefaultCustomerConfig();
   return {
     proxy: {
+      enable: typeof payload?.proxy?.enable === 'boolean' ? payload.proxy.enable : defaults.proxy.enable,
       type: payload?.proxy?.type === 'http' ? 'http' : defaults.proxy.type,
       server: typeof payload?.proxy?.server === 'string' ? payload.proxy.server : defaults.proxy.server
     },
@@ -318,6 +321,7 @@ export default {
       customerConfig: createDefaultCustomerConfig(),
       customerConfigVersion: '',
       customerConfigError: '',
+      customerConfigSuccess: '',
       isLoadingCustomerConfig: false,
       isSavingCustomerConfig: false,
       hasLoadedCustomerConfig: false
@@ -410,6 +414,7 @@ export default {
     async loadCustomerConfig() {
       this.isLoadingCustomerConfig = true;
       this.customerConfigError = '';
+      this.customerConfigSuccess = '';
 
       try {
         const res = await fetch('/api/config/customer');
@@ -431,6 +436,7 @@ export default {
     async saveCustomerConfig(nextConfig) {
       this.isSavingCustomerConfig = true;
       this.customerConfigError = '';
+      this.customerConfigSuccess = '';
 
       const normalizedConfig = normalizeCustomerConfig(nextConfig);
       const patch = buildCustomerConfigPatch(normalizedConfig, this.customerConfig);
@@ -455,6 +461,7 @@ export default {
         this.customerConfig = normalizeCustomerConfig(data?.customer || normalizedConfig);
         this.customerConfigVersion = typeof data?.version === 'string' ? data.version : this.customerConfigVersion;
         this.customerConfigError = '';
+        this.customerConfigSuccess = 'Customer configuration saved successfully.';
       } catch (error) {
         this.customerConfigError = error instanceof Error ? error.message : 'Failed to save customer configuration.';
         throw error;

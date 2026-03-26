@@ -29,20 +29,41 @@
       </div>
 
       <form v-else class="space-y-6" @submit.prevent="handleSubmit">
-        <section class="rounded-xl border border-slate-200 bg-slate-50/80 p-4 dark:border-slate-800 dark:bg-slate-900/40">
-          <div class="mb-4 flex items-center gap-2">
-            <span class="material-symbols-outlined text-primary">vpn_key</span>
-            <div>
-              <h3 class="font-semibold text-slate-900 dark:text-white">Customer Proxy</h3>
-              <p class="text-xs text-slate-500">Only `customer.proxy` fields are editable here.</p>
+        <section
+          class="rounded-xl border p-4 transition-all"
+          :class="form.proxy.enable
+            ? 'border-slate-200 bg-slate-50/80 dark:border-slate-800 dark:bg-slate-900/40'
+            : 'border-slate-200 bg-slate-100/90 opacity-70 saturate-[0.8] dark:border-slate-800 dark:bg-slate-900/70'"
+        >
+          <div class="mb-4 flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+            <div class="flex items-center gap-2">
+              <span class="material-symbols-outlined text-primary">vpn_key</span>
+              <div>
+                <h3 class="font-semibold text-slate-900 dark:text-white">Customer Proxy</h3>
+                <p class="text-xs text-slate-500">Only `customer.proxy` fields are editable here.</p>
+              </div>
             </div>
+
+            <label
+              class="inline-flex cursor-pointer items-center justify-between gap-3 rounded-full border px-3 py-2 text-sm font-medium shadow-sm transition md:min-w-[210px]"
+              :class="form.proxy.enable
+                ? 'border-primary/20 bg-white text-slate-700 dark:border-primary/30 dark:bg-slate-900 dark:text-slate-200'
+                : 'border-slate-200 bg-white/70 text-slate-500 dark:border-slate-700 dark:bg-slate-900/80 dark:text-slate-300'"
+            >
+              <span>Enable customer proxy</span>
+              <span class="relative">
+                <input v-model="form.proxy.enable" class="peer sr-only" type="checkbox" />
+                <span class="relative block h-6 w-11 rounded-full bg-slate-300 transition-colors after:absolute after:left-0.5 after:top-0.5 after:h-5 after:w-5 after:rounded-full after:bg-white after:transition-transform after:content-[''] peer-checked:bg-primary peer-checked:after:translate-x-5 peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-primary dark:bg-slate-700"></span>
+              </span>
+            </label>
           </div>
 
-          <div class="grid gap-4 md:grid-cols-2">
+          <div class="grid gap-4 md:grid-cols-[180px_minmax(0,1fr)]">
             <label class="space-y-2">
               <span class="text-xs font-semibold uppercase tracking-wide text-slate-500">Proxy type</span>
               <select
                 v-model="form.proxy.type"
+                :disabled="!form.proxy.enable"
                 class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm transition focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
               >
                 <option value="socks5">SOCKS5</option>
@@ -54,6 +75,7 @@
               <span class="text-xs font-semibold uppercase tracking-wide text-slate-500">Server</span>
               <input
                 v-model.trim="form.proxy.server"
+                :disabled="!form.proxy.enable"
                 class="w-full rounded-lg border px-3 py-2 text-sm shadow-sm transition focus:outline-none focus:ring-2 dark:text-slate-100"
                 :class="serverFieldClass"
                 placeholder="127.0.0.1:1080"
@@ -146,6 +168,31 @@
         </div>
       </form>
     </div>
+
+    <div
+      v-if="_showSuccessDialog"
+      class="fixed inset-0 z-[1000] flex items-center justify-center bg-slate-950/45 p-4 backdrop-blur-sm"
+      @click.self="hideSuccessDialog"
+    >
+      <div class="w-full max-w-sm rounded-2xl border border-emerald-200 bg-white p-5 shadow-2xl dark:border-emerald-500/30 dark:bg-slate-900">
+        <div class="flex items-start gap-3">
+          <div class="flex h-11 w-11 items-center justify-center rounded-full bg-emerald-100 text-emerald-600 dark:bg-emerald-500/15 dark:text-emerald-300">
+            <span class="material-symbols-outlined">check_circle</span>
+          </div>
+          <div class="min-w-0 flex-1">
+            <h3 class="text-base font-semibold text-slate-900 dark:text-white">Configuration Saved</h3>
+            <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">{{ successMessage }}</p>
+          </div>
+          <button
+            type="button"
+            class="rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+            @click="hideSuccessDialog"
+          >
+            <span class="material-symbols-outlined text-lg">close</span>
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -153,6 +200,7 @@
 function defaultConfig() {
   return {
     proxy: {
+      enable: true,
       type: 'socks5',
       server: ''
     },
@@ -170,6 +218,13 @@ function normalizeStringList(items) {
 function sanitizeList(value) {
   return value
     .split(/[\n,;]+/)
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+}
+
+function sanitizeLines(value) {
+  return value
+    .split('\n')
     .map((entry) => entry.trim())
     .filter(Boolean);
 }
@@ -195,6 +250,7 @@ function normalizeConfig(config = {}) {
   const defaults = defaultConfig();
   return {
     proxy: {
+      enable: valueOrDefaultBoolean(config?.proxy?.enable, true),
       type: config?.proxy?.type === 'http' ? 'http' : defaults.proxy.type,
       server: typeof config?.proxy?.server === 'string' ? config.proxy.server : defaults.proxy.server
     },
@@ -234,6 +290,10 @@ function isValidServer(value) {
   return 'IP 地址不合法';
 }
 
+function valueOrDefaultBoolean(value, defaultValue) {
+  return typeof value === 'boolean' ? value : defaultValue;
+}
+
 export default {
   name: 'RulesSettings',
   props: {
@@ -257,6 +317,10 @@ export default {
       type: String,
       default: ''
     },
+    successMessage: {
+      type: String,
+      default: ''
+    },
     version: {
       type: String,
       default: ''
@@ -268,18 +332,24 @@ export default {
       isDev: import.meta.env.VITE_MODE === 'dev',
       form: normalizeConfig(this.config),
       _proxyRulesText: '',
-      _providerIncludeTexts: {}
+      _providerIncludeTexts: {},
+      _showSuccessDialog: false,
+      _successDialogTimer: null
     };
   },
   created() {
     this.ensureProviders();
     this.syncTextFromForm();
   },
+  beforeUnmount() {
+    this.clearSuccessDialogTimer();
+  },
   computed: {
     providerOrder() {
       return mergeProviderOrder(providerKeys(this.form.ai_rules), this.presetProviders);
     },
     serverError() {
+      if (!this.form.proxy.enable) return '';
       return isValidServer(this.form.proxy.server);
     },
     serverFieldClass() {
@@ -304,9 +374,34 @@ export default {
         this.ensureProviders();
         this.syncTextFromForm();
       }
+    },
+    successMessage(nextValue) {
+      if (typeof nextValue === 'string' && nextValue.trim()) {
+        this.showSuccessDialog();
+        return;
+      }
+      this.hideSuccessDialog();
     }
   },
   methods: {
+    clearSuccessDialogTimer() {
+      if (this._successDialogTimer !== null) {
+        window.clearTimeout(this._successDialogTimer);
+        this._successDialogTimer = null;
+      }
+    },
+    showSuccessDialog() {
+      this._showSuccessDialog = true;
+      this.clearSuccessDialogTimer();
+      this._successDialogTimer = window.setTimeout(() => {
+        this._showSuccessDialog = false;
+        this._successDialogTimer = null;
+      }, 1800);
+    },
+    hideSuccessDialog() {
+      this._showSuccessDialog = false;
+      this.clearSuccessDialogTimer();
+    },
     ensureProviders() {
       for (const p of this.presetProviders) {
         if (!(p.key in this.form.ai_rules)) {
@@ -326,7 +421,7 @@ export default {
     },
     async handleSubmit() {
       const normalized = normalizeConfig(this.form);
-      normalized.proxy_rules = sanitizeList(this._proxyRulesText);
+      normalized.proxy_rules = sanitizeLines(this._proxyRulesText);
       for (const [key, text] of Object.entries(this._providerIncludeTexts)) {
         if (normalized.ai_rules[key]) {
           normalized.ai_rules[key].include = sanitizeList(text);

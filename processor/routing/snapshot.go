@@ -314,7 +314,7 @@ func compileCanonicalRoutingFromRuntimeInputs(cfg *config.Config, switches model
 			Type:      string(model.RuleTypeDomain),
 			Condition: domain,
 			Enabled:   true,
-			Target:    string(SnapshotActionToSocks),
+			Target:    string(resolveProxyRuleTarget(canonical.Egress.ToSocks.Enabled)),
 		})
 	}
 	canonical.Routing.Rules = rules
@@ -363,13 +363,13 @@ func collectProxyRuleDomains(cfg *config.Config) []string {
 		return nil
 	}
 
-		rules := cfg.Customer.ProxyRules
-		if len(rules) == 0 {
-			return nil
-		}
+	rules := cfg.Customer.ProxyRules
+	if len(rules) == 0 {
+		return nil
+	}
 
-		domains := make([]string, 0, len(rules))
-		for _, rawRule := range rules {
+	domains := make([]string, 0, len(rules))
+	for _, rawRule := range rules {
 		domain, ok := parseProxyRuleDomain(rawRule)
 		if !ok {
 			continue
@@ -413,6 +413,9 @@ func parseProxyRuleDomain(rawRule string) (string, bool) {
 
 func resolveToSocksUpstreamType(cfg *config.Config) (string, bool) {
 	if cfg != nil && cfg.Customer != nil && cfg.Customer.Proxy != nil {
+		if !cfg.Customer.Proxy.IsEnabled() {
+			return "", false
+		}
 		proxyType := strings.ToLower(strings.TrimSpace(cfg.Customer.Proxy.Type))
 		switch proxyType {
 		case "http":
@@ -423,6 +426,13 @@ func resolveToSocksUpstreamType(cfg *config.Config) (string, bool) {
 	}
 
 	return "", false
+}
+
+func resolveProxyRuleTarget(toSocksEnabled bool) SnapshotAction {
+	if toSocksEnabled {
+		return SnapshotActionToSocks
+	}
+	return SnapshotActionDirect
 }
 
 func dedupeNormalizedDomains(in []string) []string {

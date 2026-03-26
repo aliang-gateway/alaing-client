@@ -139,7 +139,7 @@
             Quick Setup
           </button>
         </div>
-        <button
+        <!-- <button
           type="button"
           :disabled="!isAuthenticated"
           @click="openQuickChat"
@@ -148,7 +148,7 @@
         >
           <span class="material-symbols-outlined text-slate-400 text-lg">chat_bubble</span>
           Quick Chat
-        </button>
+        </button> -->
         <button
           type="button"
           class="w-full flex items-center gap-3 px-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded text-sm font-medium hover:border-primary transition-colors"
@@ -1148,6 +1148,26 @@ function closeQuickChat() {
   isQuickChatOpen.value = false;
 }
 
+function handleDashboardKeydown(event) {
+  if (!(event instanceof KeyboardEvent) || event.key !== 'Escape') {
+    return;
+  }
+
+  if (isLoginModalOpen.value && !loginPending.value) {
+    closeLoginModal();
+    return;
+  }
+
+  if (isQuickChatOpen.value) {
+    closeQuickChat();
+    return;
+  }
+
+  if (tunStartModal.value.visible && tunStartModal.value.status !== 'starting') {
+    closeTunStartModal();
+  }
+}
+
 function openCertModal() {
   emit('openCertModal');
 }
@@ -1480,6 +1500,7 @@ onMounted(() => {
   syncAccountBalance();
   loadDashboardUsageData();
   runStatusTimer = window.setInterval(syncRunStatus, 10000);
+  window.addEventListener('keydown', handleDashboardKeydown);
   window.addEventListener('aliang:tun-progress-open', handleExternalTunProgressOpen);
   window.addEventListener('aliang:tun-progress-success', handleExternalTunProgressSuccess);
   window.addEventListener('aliang:tun-progress-error', handleExternalTunProgressError);
@@ -1492,6 +1513,7 @@ onUnmounted(() => {
     runStatusTimer = null;
   }
   stopTunStartObservers();
+  window.removeEventListener('keydown', handleDashboardKeydown);
   window.removeEventListener('aliang:tun-progress-open', handleExternalTunProgressOpen);
   window.removeEventListener('aliang:tun-progress-success', handleExternalTunProgressSuccess);
   window.removeEventListener('aliang:tun-progress-error', handleExternalTunProgressError);
