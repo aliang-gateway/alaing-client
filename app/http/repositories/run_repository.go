@@ -12,7 +12,7 @@ type RunRepositoryImpl struct {
 // NewRunRepository creates a new run repository instance
 func NewRunRepository() *RunRepositoryImpl {
 	return &RunRepositoryImpl{
-		runService: services.NewRunService(),
+		runService: services.GetSharedRunService(),
 	}
 }
 

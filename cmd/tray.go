@@ -1,9 +1,12 @@
 package cmd
 
 import (
+	"fmt"
+
 	"github.com/spf13/cobra"
 	"nursor.org/nursorgate/app/tray"
 	"nursor.org/nursorgate/common/logger"
+	"nursor.org/nursorgate/processor/runtime"
 )
 
 var trayCmd = &cobra.Command{
@@ -45,6 +48,19 @@ func runTray(cmd *cobra.Command, args []string) error {
 	// --config > ./config.new.json > ~/.aliang/config.json > database snapshot > embedded default
 	if err := ApplyStartupConfig(configPath); err != nil {
 		return err
+	}
+
+	startupState := runtime.GetStartupState()
+	initialStatus := determineInitialStartupStatus(token)
+	startupState.SetStatus(initialStatus)
+	logger.Info(fmt.Sprintf("Initial tray startup status: %s", initialStatus))
+
+	if err := InitializeUser(token); err != nil {
+		return err
+	}
+
+	if err := InitializeGlobalRuleEngine(); err != nil {
+		logger.Error(fmt.Sprintf("Failed to initialize global rule engine for tray mode: %v", err))
 	}
 
 	// Start the tray application

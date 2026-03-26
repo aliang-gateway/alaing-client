@@ -39,10 +39,21 @@ type Handlers struct {
 
 // NewHandlers creates and initializes all handlers with their dependencies
 func NewHandlers() *Handlers {
+	return newHandlers(services.NewRunService())
+}
+
+// NewHandlersWithRunService creates handlers using a caller-provided run service.
+func NewHandlersWithRunService(runService *services.RunService) *Handlers {
+	if runService == nil {
+		runService = services.NewRunService()
+	}
+	return newHandlers(runService)
+}
+
+func newHandlers(runService *services.RunService) *Handlers {
 	logService := services.NewLogService()
 	logConfigService := services.NewLogConfigService()
 	tokenService := services.NewTokenService()
-	runService := services.NewRunService()
 	softwareCfgService := services.NewSoftwareConfigService()
 	certService := services.NewCertService()
 	proxyRepository := repositories.NewProxyRepository()

@@ -7,8 +7,8 @@ import (
 	"sync"
 
 	"nursor.org/nursorgate/app/http/models"
-	model "nursor.org/nursorgate/common/model"
 	"nursor.org/nursorgate/common/logger"
+	model "nursor.org/nursorgate/common/model"
 	httpServer "nursor.org/nursorgate/inbound/http"
 	tun "nursor.org/nursorgate/inbound/tun/engine"
 	runner2 "nursor.org/nursorgate/inbound/tun/runner"
@@ -24,6 +24,8 @@ var (
 	httpStartRunner           = httpServer.StartMitmHttp
 	httpStopRunner            = httpServer.StopHttpProxy
 	tunStopRunner             = tun.Stop
+	sharedRunServiceMu        sync.Mutex
+	sharedRunService          *RunService
 )
 
 // RunService handles run/mode operations
@@ -39,6 +41,24 @@ func NewRunService() *RunService {
 		currentMode: models.ModeHTTP,
 		isRunning:   false,
 	}
+}
+
+// GetSharedRunService returns the process-wide run service used by runtime integrations
+// such as the API server and the tray menu.
+func GetSharedRunService() *RunService {
+	sharedRunServiceMu.Lock()
+	defer sharedRunServiceMu.Unlock()
+	if sharedRunService == nil {
+		sharedRunService = NewRunService()
+	}
+	return sharedRunService
+}
+
+// ResetSharedRunServiceForTest resets the shared run service singleton.
+func ResetSharedRunServiceForTest() {
+	sharedRunServiceMu.Lock()
+	defer sharedRunServiceMu.Unlock()
+	sharedRunService = nil
 }
 
 // GetCurrentMode returns the current operating mode

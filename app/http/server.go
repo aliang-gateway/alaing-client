@@ -16,6 +16,7 @@ import (
 	"nursor.org/nursorgate/app"
 	"nursor.org/nursorgate/app/http/middleware"
 	"nursor.org/nursorgate/app/http/routes"
+	"nursor.org/nursorgate/app/http/services"
 	"nursor.org/nursorgate/common/logger"
 )
 
@@ -102,7 +103,7 @@ func StartHttpServer() {
 // registerAllRoutes 注册所有HTTP路由
 func registerAllRoutes() {
 	// Create all handlers with dependency injection
-	handlers := routes.NewHandlers()
+	handlers := routes.NewHandlersWithRunService(services.GetSharedRunService())
 
 	// Register all feature-grouped routes (using custom mux)
 	// registerRoutesWithMux(handlers)
@@ -192,45 +193,48 @@ func registerStaticFiles() {
 			return
 		}
 
-		// 处理根路径
-		if r.URL.Path == "/" {
-			setNoCacheHTMLHeaders(w)
-
-			path := "/index.html"
-			filePath := strings.TrimPrefix(path, "/")
-			file, err := websiteRoot.Open(filePath)
-			if err != nil {
-				http.NotFound(w, r)
-				return
-			}
-			defer file.Close()
-
-			info, err := file.Stat()
-			if err != nil {
-				http.NotFound(w, r)
-				return
-			}
-
-			w.Header().Set("Content-Type", "text/html; charset=utf-8")
-			if rs, ok := file.(io.ReadSeeker); ok {
-				http.ServeContent(w, r, filepath.Base(path), info.ModTime(), rs)
-			} else {
-				w.Header().Set("Content-Length", fmt.Sprintf("%d", info.Size()))
-				io.Copy(w, file)
-			}
+		// Security check: prevent directory traversal for static file lookup.
+		requestPath := strings.TrimPrefix(r.URL.Path, "/")
+		if strings.Contains(requestPath, "..") {
+			http.Error(w, "Invalid path", http.StatusBadRequest)
 			return
 		}
 
-		// 对于其他路径，如果是非 assets 路径，返回 index.html（SPA 路由支持）
-		indexFile, err := websiteRoot.Open("index.html")
-		if err == nil {
-			defer indexFile.Close()
-			setNoCacheHTMLHeaders(w)
-			w.Header().Set("Content-Type", "text/html; charset=utf-8")
-			io.Copy(w, indexFile)
-		} else {
-			http.NotFound(w, r)
+		// Prefer serving real files (e.g. /icon.svg, /favicon.ico) before SPA fallback.
+		if requestPath != "" {
+			file, err := websiteRoot.Open(requestPath)
+			if err == nil {
+				defer file.Close()
+				info, statErr := file.Stat()
+				if statErr == nil && !info.IsDir() {
+					if filepath.Ext(requestPath) == ".html" {
+						setNoCacheHTMLHeaders(w)
+					} else {
+						setAssetsCacheHeaders(w)
+					}
+					setContentType(w, requestPath)
+
+					if rs, ok := file.(io.ReadSeeker); ok {
+						http.ServeContent(w, r, filepath.Base(requestPath), info.ModTime(), rs)
+					} else {
+						w.Header().Set("Content-Length", fmt.Sprintf("%d", info.Size()))
+						io.Copy(w, file)
+					}
+					return
+				}
+			}
 		}
+
+		// SPA fallback to index.html.
+		indexFile, err := websiteRoot.Open("index.html")
+		if err != nil {
+			http.NotFound(w, r)
+			return
+		}
+		defer indexFile.Close()
+		setNoCacheHTMLHeaders(w)
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		io.Copy(w, indexFile)
 	})
 
 	logger.Info(fmt.Sprintf("Static file server registered using embedded website files (root=%s)", rootPath))
@@ -290,6 +294,7 @@ func StopHttpServer() error {
 
 	isRunning = false
 	server = nil
+	actualPort = ""
 	logger.Info("HTTP server stopped successfully")
 	return nil
 }
