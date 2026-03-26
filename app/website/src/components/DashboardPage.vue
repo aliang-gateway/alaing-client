@@ -1102,10 +1102,10 @@ const powerButtonDisabled = computed(() => {
 async function syncRunStatus() {
   try {
     const response = await fetch('/api/run/status');
+    const payload = await response.json().catch(() => ({}));
     if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`);
+      throw new Error(extractApiErrorMessage(payload, response.status, 'Failed to sync run status'));
     }
-    const payload = await response.json();
     if (payload?.code !== 0) {
       throw new Error(payload?.msg || 'Failed to sync run status');
     }
@@ -1124,10 +1124,10 @@ async function syncRunStatus() {
 async function syncStartupStatus() {
   try {
     const response = await fetch('/api/startup/status');
+    const payload = await response.json().catch(() => ({}));
     if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`);
+      throw new Error(extractApiErrorMessage(payload, response.status, 'Failed to sync startup status'));
     }
-    const payload = await response.json();
     if (payload?.code !== 0) {
       throw new Error(payload?.msg || 'Failed to sync startup status');
     }
@@ -1136,6 +1136,18 @@ async function syncStartupStatus() {
   } catch (error) {
     startupStatus.value = 'UNKNOWN';
   }
+}
+
+function extractApiErrorMessage(payload, status, fallback) {
+  return (
+    payload?.msg ||
+    payload?.message ||
+    payload?.data?.error_msg ||
+    payload?.data?.message ||
+    payload?.data?.details?.error ||
+    payload?.data?.details?.error_msg ||
+    `${fallback}: HTTP ${status}`
+  );
 }
 
 async function toggleProxyPower() {

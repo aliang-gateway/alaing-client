@@ -41,7 +41,7 @@
           <button
             type="button"
             class="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm border border-dashed border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-800"
-            @click="showAddSoftware = !showAddSoftware"
+            @click="toggleAddSoftwareForm"
           >
             <span class="material-symbols-outlined text-base">add</span>
             新增软件
@@ -49,6 +49,7 @@
 
           <div v-if="showAddSoftware" class="p-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 space-y-2">
             <input
+              ref="newSoftwareInput"
               v-model="newSoftwareName"
               class="w-full px-3 py-2 text-sm bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded"
               type="text"
@@ -104,14 +105,14 @@
                 <button
                   type="button"
                   class="px-3 py-1.5 text-xs font-bold border border-slate-200 dark:border-slate-700 rounded hover:bg-white dark:hover:bg-slate-800 transition-colors"
-                  @click="createNewConfig"
+                  @click="createNewConfig()"
                 >
                   新增配置项
                 </button>
                 <button
                   type="button"
                   class="px-3 py-1.5 text-xs font-bold border border-slate-200 dark:border-slate-700 rounded hover:bg-white dark:hover:bg-slate-800 transition-colors"
-                  @click="loadConfigs"
+                  @click="loadConfigs()"
                 >
                   Refresh
                 </button>
@@ -126,7 +127,12 @@
                   : 'max-h-[300px] overflow-y-auto',
               ]"
             >
-              <div v-for="item in configs" :key="item.uuid" class="space-y-3">
+              <div
+                v-for="item in configs"
+                :key="item.uuid"
+                :id="`quick-setup-config-${item.uuid}`"
+                class="space-y-3"
+              >
                 <div
                   role="button"
                   tabindex="0"
@@ -140,7 +146,15 @@
                   @keydown.enter.prevent="toggleConfigEditor(item)"
                 >
                   <div>
-                    <p class="text-sm font-bold text-slate-800 dark:text-white">{{ item.name }}</p>
+                    <div class="flex items-center gap-2">
+                      <p class="text-sm font-bold text-slate-800 dark:text-white">{{ item.name }}</p>
+                      <span
+                        v-if="String(item.uuid || '').startsWith('draft-')"
+                        class="px-2 py-0.5 text-[10px] font-bold rounded uppercase bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300"
+                      >
+                        Draft
+                      </span>
+                    </div>
                     <p class="text-xs text-slate-500 mt-1">Version: {{ item.version || 'v1' }}</p>
                     <p class="text-[11px] text-slate-400 mt-0.5 truncate max-w-[340px]" :title="item.file_path">{{ item.file_path }}</p>
                   </div>
@@ -157,6 +171,7 @@
                     </span>
                     <button
                       type="button"
+                      v-if="!String(item.uuid || '').startsWith('draft-')"
                       class="px-2 py-0.5 text-[10px] font-bold rounded uppercase bg-blue-100 text-blue-700 hover:bg-blue-200"
                       @click.stop="applyConfigItem(item)"
                     >
@@ -175,10 +190,19 @@
                 <transition name="slide-up-panel">
                   <section
                     v-if="editorExpanded && selectedConfig?.uuid === item.uuid"
+                    :id="`quick-setup-editor-${item.uuid}`"
                     class="border-t border-slate-100 dark:border-slate-800 pt-6 px-1"
                   >
                     <div class="flex items-center justify-between mb-6">
-                      <h4 class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Selected Config</h4>
+                      <div class="flex items-center gap-2">
+                        <h4 class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Selected Config</h4>
+                        <span
+                          v-if="isDraftSelected"
+                          class="px-2 py-0.5 text-[10px] font-bold rounded uppercase bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300"
+                        >
+                          Draft
+                        </span>
+                      </div>
                       <span class="text-[10px] text-slate-400">{{ selectedConfig?.uuid || 'N/A' }}</span>
                     </div>
 
@@ -238,7 +262,7 @@
 
                     <div class="flex items-center justify-between mt-6">
                       <p class="text-xs text-slate-500">{{ statusMessage }}</p>
-                    <div class="flex justify-end gap-3">
+                      <div class="flex justify-end gap-3">
                         <button
                           type="button"
                           class="px-4 py-2 text-sm font-bold text-slate-500 hover:text-slate-700 transition-colors"
@@ -304,7 +328,7 @@
 </template>
 
 <script setup>
-import { computed, reactive, ref, watch } from 'vue';
+import { computed, nextTick, reactive, ref, watch } from 'vue';
 import { Codemirror as CodeMirror } from 'vue-codemirror';
 import { json } from '@codemirror/lang-json';
 import { yaml } from '@codemirror/lang-yaml';
@@ -328,8 +352,10 @@ const statusMessage = ref('Select software and configuration item.');
 const applying = ref(false);
 const syncing = ref(false);
 const editorExpanded = ref(false);
+const dataLoaded = ref(false);
 const showAddSoftware = ref(false);
 const newSoftwareName = ref('');
+const newSoftwareInput = ref(null);
 const cloud = reactive({
   cloudUrl: '',
   authToken: '',
@@ -375,6 +401,25 @@ const hasValidContent = computed(() => {
   }
 });
 
+const isDraftSelected = computed(() => String(selectedConfig.value?.uuid || '').startsWith('draft-'));
+
+function buildDraftConfig(software) {
+  return {
+    uuid: `draft-${Date.now()}`,
+    software,
+    name: `${softwareLabel(software)} Config ${configs.value.filter((item) => !String(item?.uuid || '').startsWith('draft-')).length + 1}`,
+    file_path: defaultPathForSoftware(software),
+    version: 'v1',
+    format: 'json',
+    content: '{}',
+    in_use: false,
+  };
+}
+
+function removeDraftConfigs() {
+  configs.value = configs.value.filter((item) => !String(item?.uuid || '').startsWith('draft-'));
+}
+
 function prettyFormatContent(content, format) {
   const source = (content || '').trim();
   if (!source) {
@@ -409,11 +454,24 @@ async function apiCall(endpoint, options = {}) {
     },
     ...options,
   });
-  const payload = await response.json();
+  const payload = await response.json().catch(() => ({}));
   if (!response.ok || payload.code !== 0) {
     throw new Error(payload?.msg || 'Request failed');
   }
   return payload.data;
+}
+
+function normalizeSoftwareName(value) {
+  return value.trim().toLowerCase();
+}
+
+function mergeSoftwareOptions(names = []) {
+  const merged = new Set(softwares.value);
+  names
+    .map((name) => normalizeSoftwareName(String(name || '')))
+    .filter(Boolean)
+    .forEach((name) => merged.add(name));
+  softwares.value = Array.from(merged);
 }
 
 function applyConfigToForm(item) {
@@ -439,49 +497,125 @@ function resetFormForSoftware(software) {
   form.format = 'json';
 }
 
-function createNewConfig() {
-  selectedConfig.value = null;
-  form.uuid = '';
-  form.name = `${softwareLabel(selectedSoftware.value)} Config ${configs.value.length + 1}`;
-  form.filePath = defaultPathForSoftware(selectedSoftware.value);
-  form.version = 'v1';
-  form.content = '{}';
-  form.format = 'json';
-  editorExpanded.value = false;
-  statusMessage.value = '新配置项已创建，请点击“编辑”展开编辑窗口。';
+async function scrollToConfigEditor(uuid) {
+  if (!uuid) {
+    return;
+  }
+  await nextTick();
+  const target =
+    document.getElementById(`quick-setup-editor-${uuid}`) ||
+    document.getElementById(`quick-setup-config-${uuid}`);
+  target?.scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
 
-function addSoftware() {
-  const normalized = newSoftwareName.value.trim().toLowerCase();
+function createNewConfig() {
+  removeDraftConfigs();
+  const draft = buildDraftConfig(selectedSoftware.value);
+  configs.value = [draft, ...configs.value];
+  selectedConfig.value = draft;
+  applyConfigToForm(draft);
+  form.uuid = '';
+  editorExpanded.value = true;
+  dataLoaded.value = true;
+  statusMessage.value = '新配置项已创建，正在编辑草稿。';
+  void scrollToConfigEditor(draft.uuid);
+}
+
+function toggleAddSoftwareForm() {
+  showAddSoftware.value = !showAddSoftware.value;
+  if (showAddSoftware.value) {
+    statusMessage.value = '请输入软件名，保存后会写入本地数据库。';
+  }
+}
+
+async function addSoftware() {
+  const normalized = normalizeSoftwareName(newSoftwareName.value);
   if (!normalized) {
     statusMessage.value = '请输入软件名。';
     return;
   }
-  if (!softwares.value.includes(normalized)) {
-    softwares.value.push(normalized);
+
+  if (softwares.value.includes(normalized)) {
+    newSoftwareName.value = '';
+    showAddSoftware.value = false;
+    await selectSoftware(normalized);
+    if (!configs.value.length) {
+      createNewConfig();
+    }
+    statusMessage.value = `软件已存在：${softwareLabel(normalized)}`;
+    return;
   }
-  newSoftwareName.value = '';
-  showAddSoftware.value = false;
-  selectSoftware(normalized);
-  statusMessage.value = `已新增软件：${softwareLabel(normalized)}`;
+
+  try {
+    const data = await apiCall('/software-config/save', {
+      method: 'POST',
+      body: JSON.stringify({
+        software: normalized,
+        name: `${softwareLabel(normalized)} Default`,
+        file_path: defaultPathForSoftware(normalized),
+        version: 'v1',
+        format: 'json',
+        content: '{}',
+      }),
+    });
+    mergeSoftwareOptions([normalized, data?.software]);
+    newSoftwareName.value = '';
+    showAddSoftware.value = false;
+    await selectSoftware(normalized);
+    if (data?.uuid) {
+      const created = configs.value.find((item) => item.uuid === data.uuid);
+      if (created) {
+        editConfigItem(created);
+      }
+    }
+    statusMessage.value = `已新增软件并写入本地数据库：${softwareLabel(normalized)}`;
+  } catch (error) {
+    statusMessage.value = `新增软件失败: ${error.message}`;
+  }
 }
 
-async function loadConfigs() {
-  const data = await apiCall(`/software-config/list?software=${encodeURIComponent(selectedSoftware.value)}`, {
+async function loadSoftwareOptions() {
+  const data = await apiCall('/software-config/list', {
     method: 'GET',
   });
-  configs.value = data.items || [];
-  if (configs.value.length > 0) {
-    selectedConfig.value = configs.value[0];
-    applyConfigToForm(configs.value[0]);
-  } else {
+  const items = data.items || [];
+  mergeSoftwareOptions(items.map((item) => item.software));
+}
+
+async function loadConfigs(software = selectedSoftware.value) {
+  const targetSoftware = normalizeSoftwareName(software);
+  const previousSelectedUUID = selectedConfig.value?.uuid || '';
+  const data = await apiCall(`/software-config/list?software=${encodeURIComponent(targetSoftware)}`, {
+    method: 'GET',
+  });
+  const serverItems = data.items || [];
+  const localDrafts = configs.value.filter((item) => String(item?.uuid || '').startsWith('draft-'));
+  configs.value = [...localDrafts, ...serverItems];
+  if (serverItems.length > 0) {
+    const preferred = serverItems.find((item) => item.uuid === previousSelectedUUID) || serverItems[0];
+    selectedConfig.value = preferred;
+    applyConfigToForm(preferred);
+  } else if (!localDrafts.length) {
     selectedConfig.value = null;
-    resetFormForSoftware(selectedSoftware.value);
+    resetFormForSoftware(targetSoftware);
   }
 }
 
-function selectSoftware(software) {
-  selectedSoftware.value = software;
+async function selectSoftware(software) {
+  selectedSoftware.value = normalizeSoftwareName(software);
+  if (!props.open) {
+    return;
+  }
+  try {
+    removeDraftConfigs();
+    await loadConfigs(selectedSoftware.value);
+    editorExpanded.value = false;
+    statusMessage.value = 'Ready.';
+  } catch (error) {
+    statusMessage.value = `Load failed: ${error.message}`;
+    resetFormForSoftware(selectedSoftware.value);
+    editorExpanded.value = false;
+  }
 }
 
 function selectConfig(item) {
@@ -501,12 +635,16 @@ function toggleConfigEditor(item) {
     return;
   }
   selectConfig(item);
+  editorExpanded.value = true;
+  statusMessage.value = `正在编辑 ${item?.name || '配置项'}。`;
+  void scrollToConfigEditor(item?.uuid);
 }
 
 function editConfigItem(item) {
   selectedConfig.value = item;
   applyConfigToForm(item);
   editorExpanded.value = true;
+  void scrollToConfigEditor(item?.uuid);
 }
 
 async function saveConfig() {
@@ -534,8 +672,15 @@ async function saveConfig() {
       }),
     });
     form.uuid = data.uuid;
-    statusMessage.value = 'Config saved.';
+    removeDraftConfigs();
+    statusMessage.value = 'Config saved to local database.';
     await loadConfigs();
+    const saved = configs.value.find((item) => item.uuid === data.uuid);
+    if (saved) {
+      editConfigItem(saved);
+    } else {
+      editorExpanded.value = true;
+    }
   } catch (error) {
     statusMessage.value = `Save failed: ${error.message}`;
   }
@@ -628,32 +773,26 @@ watch(
       return;
     }
     try {
+      await loadSoftwareOptions();
       await loadConfigs();
-      editorExpanded.value = false;
+      dataLoaded.value = true;
       statusMessage.value = 'Ready.';
     } catch (error) {
       statusMessage.value = `Load failed: ${error.message}`;
       resetFormForSoftware(selectedSoftware.value);
-      editorExpanded.value = false;
     }
   },
   { immediate: true },
 );
 
-watch(selectedSoftware, async () => {
-  if (!props.open) {
+watch(showAddSoftware, async (value) => {
+  if (!value) {
     return;
   }
-  try {
-    await loadConfigs();
-    editorExpanded.value = false;
-    statusMessage.value = 'Ready.';
-  } catch (error) {
-    statusMessage.value = `Load failed: ${error.message}`;
-    resetFormForSoftware(selectedSoftware.value);
-    editorExpanded.value = false;
-  }
+  await nextTick();
+  newSoftwareInput.value?.focus?.();
 });
+
 </script>
 
 <style scoped>
