@@ -85,7 +85,7 @@ func (e *RuleEngine) EvaluateRoute(ctx *EvaluationContext) (*RuleResult, error) 
 		}, nil
 	}
 
-	// TODO(US2): Implement routing decision logic with priority: Aliang > SOCKS > GeoIP > Direct
+	// TODO(US2): Implement routing decision logic with priority: Aliang > SOCKS  > Direct
 
 	snapshot, err := e.compileRuntimeSnapshot()
 	if err != nil {

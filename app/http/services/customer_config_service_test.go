@@ -20,7 +20,7 @@ func TestMergeCustomerPayload_PreservesOmittedFields(t *testing.T) {
 			AIRules: map[string]*config.CustomerAIRuleSetting{
 				"openai": {
 					Enble:   customerBoolPtr(true),
-					Exclude: []string{"api.openai.com"},
+					Include: []string{"api.openai.com"},
 				},
 			},
 			ProxyRules: []string{"domain,example.com,proxy"},
@@ -58,8 +58,8 @@ func TestMergeCustomerPayload_PreservesOmittedFields(t *testing.T) {
 	if openai.Enble == nil || !*openai.Enble {
 		t.Fatalf("openai.enble should be preserved as true, got %+v", openai.Enble)
 	}
-	if len(openai.Exclude) != 1 || openai.Exclude[0] != "chatgpt.com" {
-		t.Fatalf("openai.exclude = %v, want [chatgpt.com]", openai.Exclude)
+	if len(openai.Include) != 1 || openai.Include[0] != "api.openai.com" {
+		t.Fatalf("openai.include = %v, want [api.openai.com]", openai.Include)
 	}
 
 	claude := nextCfg.Customer.AIRules["claude"]

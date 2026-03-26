@@ -279,7 +279,7 @@ func TestConfigHandler_CustomerConfigGetAndUpdate(t *testing.T) {
 			AIRules: map[string]*config.CustomerAIRuleSetting{
 				"openai": {
 					Enble:   boolPtr(true),
-					Exclude: []string{"api.openai.com"},
+					Include: []string{"api.openai.com"},
 				},
 			},
 		},

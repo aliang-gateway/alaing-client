@@ -350,7 +350,7 @@ func collectAIDomains(cfg *config.Config) []string {
 			if rule == nil || rule.Enble == nil || !*rule.Enble {
 				continue
 			}
-			domains = append(domains, rule.Exclude...)
+			domains = append(domains, rule.Include...)
 		}
 	}
 

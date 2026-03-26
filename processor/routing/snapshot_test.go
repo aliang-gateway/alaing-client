@@ -17,7 +17,7 @@ func TestCompileRuntimeSnapshotFromRuntimeInputs_AIRulesPrecedeProxyRules(t *tes
 			AIRules: map[string]*config.CustomerAIRuleSetting{
 				"openai": {
 					Enble:   boolPtr(true),
-					Exclude: []string{"api.openai.com"},
+					Include: []string{"api.openai.com"},
 				},
 			},
 			ProxyRules: []string{"domain,api.openai.com,proxy"},

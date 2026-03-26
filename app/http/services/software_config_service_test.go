@@ -32,7 +32,7 @@ func TestSoftwareConfigService_SaveActivateAndCloudSync(t *testing.T) {
 			AIRules: map[string]*config.CustomerAIRuleSetting{
 				"openai": {
 					Enble: boolPtr(true),
-					Exclude: []string{
+					Include: []string{
 						"api.openai.com",
 					},
 				},

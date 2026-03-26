@@ -70,7 +70,7 @@
             <span class="material-symbols-outlined text-primary">robot_2</span>
             <div>
               <h3 class="font-semibold text-slate-900 dark:text-white">AI Rules</h3>
-              <p class="text-xs text-slate-500">Choose which backend AI-rule providers are enabled and list excluded domains, one per line.</p>
+              <p class="text-xs text-slate-500">Choose which backend AI-rule providers are enabled and list included domains, separated by new lines, commas, or semicolons.</p>
             </div>
           </div>
 
@@ -97,12 +97,12 @@
               </div>
 
               <label v-if="isDev" class="space-y-2">
-                <span class="text-xs font-semibold uppercase tracking-wide text-slate-500">Exclude domains</span>
+                <span class="text-xs font-semibold uppercase tracking-wide text-slate-500">Include domains</span>
                 <textarea
-                  :value="_providerExcludeTexts[provider]"
+                  :value="_providerIncludeTexts[provider]"
                   class="min-h-28 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 font-mono text-sm text-slate-700 shadow-sm transition focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
-                  placeholder="example.com&#10;api.example.com"
-                  @input="_providerExcludeTexts[provider] = $event.target.value"
+                  placeholder="example.com&#10;api.example.com, chatgpt.com; anthropic.com"
+                  @input="_providerIncludeTexts[provider] = $event.target.value"
                 ></textarea>
               </label>
             </article>
@@ -167,9 +167,9 @@ function normalizeStringList(items) {
     : [];
 }
 
-function sanitizeLines(value) {
+function sanitizeList(value) {
   return value
-    .split('\n')
+    .split(/[\n,;]+/)
     .map((entry) => entry.trim())
     .filter(Boolean);
 }
@@ -182,7 +182,7 @@ function normalizeAiRules(aiRules = {}) {
   return Object.fromEntries(
     Object.entries(aiRules).map(([provider, value]) => [provider, {
       enble: Boolean(value?.enble ?? value?.enable),
-      exclude: normalizeStringList(value?.exclude)
+      include: normalizeStringList(value?.include ?? value?.exclude)
     }])
   );
 }
@@ -268,7 +268,7 @@ export default {
       isDev: import.meta.env.VITE_MODE === 'dev',
       form: normalizeConfig(this.config),
       _proxyRulesText: '',
-      _providerExcludeTexts: {}
+      _providerIncludeTexts: {}
     };
   },
   created() {
@@ -310,7 +310,7 @@ export default {
     ensureProviders() {
       for (const p of this.presetProviders) {
         if (!(p.key in this.form.ai_rules)) {
-          this.form.ai_rules[p.key] = { enble: false, exclude: [] };
+          this.form.ai_rules[p.key] = { enble: false, include: [] };
         }
       }
     },
@@ -321,17 +321,15 @@ export default {
     syncTextFromForm() {
       this._proxyRulesText = (this.form.proxy_rules || []).join('\n');
       for (const key of Object.keys(this.form.ai_rules)) {
-        if (!this._providerExcludeTexts[key]) {
-          this._providerExcludeTexts[key] = (this.form.ai_rules[key].exclude || []).join('\n');
-        }
+        this._providerIncludeTexts[key] = (this.form.ai_rules[key].include || []).join('\n');
       }
     },
     async handleSubmit() {
       const normalized = normalizeConfig(this.form);
-      normalized.proxy_rules = sanitizeLines(this._proxyRulesText);
-      for (const [key, text] of Object.entries(this._providerExcludeTexts)) {
+      normalized.proxy_rules = sanitizeList(this._proxyRulesText);
+      for (const [key, text] of Object.entries(this._providerIncludeTexts)) {
         if (normalized.ai_rules[key]) {
-          normalized.ai_rules[key].exclude = sanitizeLines(text);
+          normalized.ai_rules[key].include = sanitizeList(text);
         }
       }
       this.$emit('save', normalized);
