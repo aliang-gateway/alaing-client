@@ -5,20 +5,32 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
-	"math/rand"
 	"os"
-	"strings"
+	"path/filepath"
 
+	"nursor.org/nursorgate/app/http/storage"
 	"nursor.org/nursorgate/common/logger"
 	"nursor.org/nursorgate/outbound"
 	"nursor.org/nursorgate/processor/config"
-	"nursor.org/nursorgate/processor/proxyserver"
+	"nursor.org/nursorgate/processor/dns"
 )
 
 // Embed the default configuration
 //
-//go:embed config.default.json
+//go:embed config.json
 var defaultConfigData string
+
+const startupLocalConfigPath = "./config.new.json"
+
+type startupConfigSource string
+
+const (
+	startupConfigSourceExplicitPath startupConfigSource = "--config"
+	startupConfigSourceLocalFile    startupConfigSource = "./config.new.json"
+	startupConfigSourceUserHome     startupConfigSource = "~/.aliang/config.json"
+	startupConfigSourceDatabase     startupConfigSource = "database snapshot"
+	startupConfigSourceEmbedded     startupConfigSource = "embedded default"
+)
 
 // Re-export config types for backward compatibility
 type Config = config.Config
@@ -36,6 +48,110 @@ func IsUsingDefaultConfig() bool {
 // GetDefaultConfigBytes 返回嵌入的默认配置字节数据
 func GetDefaultConfigBytes() []byte {
 	return []byte(defaultConfigData)
+}
+
+func resolveStartupConfigSource(explicitConfigPath string) (startupConfigSource, string, error) {
+	if explicitConfigPath != "" {
+		return startupConfigSourceExplicitPath, explicitConfigPath, nil
+	}
+
+	if _, err := os.Stat(startupLocalConfigPath); err == nil {
+		return startupConfigSourceLocalFile, startupLocalConfigPath, nil
+	} else if !os.IsNotExist(err) {
+		return "", "", fmt.Errorf("failed to inspect %s: %w", startupLocalConfigPath, err)
+	}
+
+	// Check ~/.aliang/config.json
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return "", "", fmt.Errorf("failed to get user home directory: %w", err)
+	}
+	homeConfigPath := filepath.Join(homeDir, ".aliang", "config.json")
+	if _, err := os.Stat(homeConfigPath); err == nil {
+		return startupConfigSourceUserHome, homeConfigPath, nil
+	} else if !os.IsNotExist(err) {
+		return "", "", fmt.Errorf("failed to inspect %s: %w", homeConfigPath, err)
+	}
+
+	return startupConfigSourceEmbedded, "", nil
+}
+
+func ApplyStartupConfig(explicitConfigPath string) error {
+	source, selectedPath, err := resolveStartupConfigSource(explicitConfigPath)
+	if err != nil {
+		return err
+	}
+
+	switch source {
+	case startupConfigSourceExplicitPath:
+		logger.Info(fmt.Sprintf("Loading configuration from explicit --config path: %s", selectedPath))
+		if err := LoadAndApplyConfig(selectedPath); err != nil {
+			return fmt.Errorf("failed to load startup config from --config path %s: %w", selectedPath, err)
+		}
+		logger.Info(fmt.Sprintf("Startup configuration source: %s", source))
+		return nil
+	case startupConfigSourceLocalFile:
+		logger.Info(fmt.Sprintf("Loading configuration from current directory file: %s", selectedPath))
+		if err := LoadAndApplyConfig(selectedPath); err != nil {
+			return fmt.Errorf("failed to load startup config from %s (fail-fast, no fallback): %w", selectedPath, err)
+		}
+		logger.Info(fmt.Sprintf("Startup configuration source: %s", source))
+		return nil
+	case startupConfigSourceUserHome:
+		logger.Info(fmt.Sprintf("Loading configuration from user home: %s", selectedPath))
+		if err := LoadAndApplyConfig(selectedPath); err != nil {
+			return fmt.Errorf("failed to load startup config from %s (fail-fast, no fallback): %w", selectedPath, err)
+		}
+		logger.Info(fmt.Sprintf("Startup configuration source: %s", source))
+		return nil
+	default:
+		// No config file found — try to restore from database before falling back to embedded default
+		logger.Info("No config file found, attempting to restore configuration from database...")
+		if restored, err := tryRestoreConfigFromDatabase(); err != nil {
+			logger.Warn(fmt.Sprintf("Database config restore failed: %v", err))
+		} else if restored != nil {
+			logger.Info("Startup configuration source: database snapshot")
+			if err := ApplyConfig(restored); err != nil {
+				logger.Warn(fmt.Sprintf("Database config applied with warnings: %v", err))
+				// Don't fail — fall through to embedded default
+			} else {
+				setUseDefaultConfig(false)
+				return nil
+			}
+		}
+
+		logger.Info("No config file or database snapshot found, using embedded default configuration")
+		if err := ApplyDefaultConfig(); err != nil {
+			return fmt.Errorf("failed to apply startup config from embedded default: %w", err)
+		}
+		logger.Info(fmt.Sprintf("Startup configuration source: %s", source))
+		return nil
+	}
+}
+
+// tryRestoreConfigFromDatabase attempts to load the most recent effective config
+// snapshot from the software_configs database. Returns nil, nil if no snapshot exists.
+func tryRestoreConfigFromDatabase() (*Config, error) {
+	store := storage.NewSoftwareConfigStore()
+	if store == nil {
+		return nil, fmt.Errorf("config store is nil")
+	}
+
+	snapshot, err := store.GetLatestEffectiveConfigSnapshot()
+	if err != nil {
+		return nil, fmt.Errorf("failed to query latest snapshot: %w", err)
+	}
+	if snapshot == nil {
+		return nil, nil
+	}
+
+	var cfg config.Config
+	if err := json.Unmarshal([]byte(snapshot.SnapshotJSON), &cfg); err != nil {
+		return nil, fmt.Errorf("failed to parse snapshot json: %w", err)
+	}
+
+	logger.Info(fmt.Sprintf("Configuration restored from database snapshot (id=%d, created_at=%v)", snapshot.ID, snapshot.CreatedAt))
+	return &cfg, nil
 }
 
 // LoadConfig 从文件加载配置
@@ -67,10 +183,8 @@ func LoadConfigFromBytes(data []byte) (*Config, error) {
 //
 // Phases:
 // 1. Apply engine configuration (network stack, TUN device, etc.)
-// 2. Register built-in proxies (direct + nonelane) - always available
-// 3. Register door proxy collection if configured
-// 4. Register other custom user-defined proxies
-// 5. Set the active default proxy for routing
+// 2. Register built-in proxies (direct + aliang) - always available
+// 3. Set the active default proxy for routing
 func ApplyConfig(cfg *Config) error {
 	// Validate configuration
 	if err := cfg.Validate(); err != nil {
@@ -80,136 +194,64 @@ func ApplyConfig(cfg *Config) error {
 	// Store config globally for access by other modules
 	config.SetGlobalConfig(cfg)
 
-	// Phase 1: Register built-in proxies (direct + nonelane)
+	// Phase 1: Register built-in proxies (direct + aliang)
 	// These are mandatory and always available
 	if err := registerBuiltinProxies(cfg); err != nil {
 		return fmt.Errorf("phase 1 - builtin proxies registration failed: %w", err)
 	}
 	logger.Debug("Phase 1: Built-in proxies registered")
 
-	// Phase 2: Register door proxy collection if configured
-	if err := registerDoorProxy(cfg); err != nil {
-		return fmt.Errorf("phase 2 - door proxy registration failed: %w", err)
+	// Phase 2: Register optional SOCKS proxy (if configured)
+	if err := registerSocksProxy(cfg); err != nil {
+		return fmt.Errorf("phase 2 - socks proxy registration failed: %w", err)
 	}
-	logger.Debug("Phase 2: Door proxy collection registered")
+	logger.Debug("Phase 2: Optional SOCKS proxy registered")
 
-	// Phase 3: Initialize global DNS resolver
-	// Must be done after door and direct proxies are registered
-	registry := outbound.GetRegistry()
-	doorProxy, _ := registry.GetDoor()
-	directProxy, _ := registry.Get("direct")
-	if err := proxyserver.InitGlobalResolver(doorProxy, directProxy, cfg); err != nil {
-		logger.Warn(fmt.Sprintf("Phase 3 - Failed to initialize DNS resolver: %v", err))
-	} else {
-		logger.Debug("Phase 3: Global DNS resolver initialized")
-	}
-
-	// Phase 4: Set the active default proxy for routing decisions
+	// Phase 3: Set the active default proxy for routing decisions
 	// Determines which proxy is used when no specific routing rule applies
-	if err := setEffectiveDefaultProxy(cfg.CurrentProxy); err != nil {
-		return fmt.Errorf("phase 4 - failed to set default proxy: %w", err)
+	if err := setEffectiveDefaultProxy(cfg.EffectiveDefaultProxy()); err != nil {
+		return fmt.Errorf("phase 3 - failed to set default proxy: %w", err)
 	}
-	logger.Debug("Phase 4: Default proxy set for routing")
+	logger.Debug("Phase 3: Default proxy set for routing")
+
+	// Phase 4: Initialize global DNS resolver
+	// Must be done after proxies are registered
+	registry := outbound.GetRegistry()
+	primaryProxy, _ := registry.Get("socks")
+	directProxy, _ := registry.Get("direct")
+	if err := dns.InitGlobalResolver(primaryProxy, directProxy, cfg); err != nil {
+		logger.Warn(fmt.Sprintf("Phase 4 - Failed to initialize DNS resolver: %v", err))
+	} else {
+		logger.Debug("Phase 4: Global DNS resolver initialized")
+	}
 
 	logger.Info("Configuration applied successfully")
 	return nil
 }
 
 // setEffectiveDefaultProxy sets the active default proxy.
-// Supports "door:showname" format to select specific door member.
-// If currentProxy is empty or unavailable, falls back to first door member or "direct".
 func setEffectiveDefaultProxy(currentProxy string) error {
 	registry := outbound.GetRegistry()
 
-	// Check if it's a door member specification (format: "door:memberName")
-	if strings.HasPrefix(currentProxy, "door:") {
-		memberName := strings.TrimPrefix(currentProxy, "door:")
-		if err := registry.SetDoorMember(memberName); err != nil {
-			logger.Warn(fmt.Sprintf("Failed to set door member '%s': %v, using auto-select", memberName, err))
-			registry.EnableDoorAutoSelect()
-		} else {
-			logger.Info(fmt.Sprintf("Door member set to: %s", memberName))
-		}
-		// Don't set door as default in registry, door is accessed via GetDoor()
-		return nil
-	}
-
-	// Handle specific proxy names
-	switch currentProxy {
-	case "":
-		// When empty, select door member with lowest latency or random if no latency data
-		if bestMember := getBestOrRandomDoorMember(registry); bestMember != "" {
-			proxyName := "door:" + bestMember
-			logger.Debug(fmt.Sprintf("No default proxy specified, using best/random door member: %s", bestMember))
-			return setEffectiveDefaultProxy(proxyName) // Recursively handle door:member
-		}
+	if currentProxy == "" || currentProxy == "auto" {
 		currentProxy = "direct"
-		logger.Debug("No default proxy specified and no door members found, using 'direct'")
-
-	case "auto":
-		// When "auto", enable door auto-select
-		registry.EnableDoorAutoSelect()
-		logger.Debug("CurrentProxy is 'auto', enabling door auto-select")
-		logger.Info("Door auto-select enabled")
-		return nil
-
-	case "door":
-		// For "door" without member specification, enable auto-select
-		registry.EnableDoorAutoSelect()
-		logger.Info("Door auto-select enabled")
-		// Don't set door as default in registry
-		return nil
 	}
 
-	// Log the proxy selection
-	if currentProxy != "direct" {
-		logger.Info(fmt.Sprintf("Proxy selection: '%s' (routing will always use 'direct')", currentProxy))
-	} else {
-		logger.Info("Using direct proxy for routing")
+	if currentProxy != "direct" && currentProxy != "aliang" && currentProxy != "socks" {
+		logger.Warn(fmt.Sprintf("Unsupported currentProxy '%s', fallback to direct", currentProxy))
+		currentProxy = "direct"
 	}
+
+	if _, err := registry.Get(currentProxy); err != nil {
+		logger.Warn(fmt.Sprintf("Configured proxy '%s' not found: %v, fallback to direct", currentProxy, err))
+		currentProxy = "direct"
+	}
+
+	logger.Info(fmt.Sprintf("Using proxy: %s", currentProxy))
 	return nil
 }
 
-// getBestOrRandomDoorMember returns the door member with lowest latency,
-// or a random member if all latencies are 0 or unavailable
-func getBestOrRandomDoorMember(registry *outbound.Registry) string {
-	// Get the door group
-	doorGroup := registry.GetDoorGroup()
-	if doorGroup == nil {
-		return ""
-	}
-
-	// Get all members
-	members := doorGroup.ListMembers()
-	if len(members) == 0 {
-		return ""
-	}
-
-	// Check if any member has latency > 0
-	var bestMember *outbound.DoorProxyMemberInfo
-	hasLatencyData := false
-
-	for i := range members {
-		member := &members[i]
-		if member.Latency > 0 {
-			if !hasLatencyData || member.Latency < bestMember.Latency {
-				bestMember = member
-				hasLatencyData = true
-			}
-		}
-	}
-
-	// If we have latency data, return the best member
-	if hasLatencyData && bestMember != nil {
-		return bestMember.ShowName
-	}
-
-	// If no latency data, return a random member
-	randomIndex := rand.Intn(len(members))
-	return members[randomIndex].ShowName
-}
-
-// registerBuiltinProxies 注册内置代理（direct 和 nonelane）
+// registerBuiltinProxies 注册内置代理（direct 和 aliang）
 func registerBuiltinProxies(cfg *Config) error {
 	registry := outbound.GetRegistry()
 
@@ -218,24 +260,11 @@ func registerBuiltinProxies(cfg *Config) error {
 		return fmt.Errorf("failed to register direct proxy: %w", err)
 	}
 
-	// 2. 注册 nonelane 代理
-	coreServer := ""
-	// 首先尝试从 NonelaneCoreServer 字段读取
-	if cfg.BaseProxies != nil {
-		// 其次尝试从 BaseProxies["nonelane"].CoreServer 读取
-		if nonelaneConfig, exists := cfg.BaseProxies["nonelane"]; exists && nonelaneConfig != nil {
-			coreServer = nonelaneConfig.CoreServer
-		}
-	}
+	// 2. 注册 aliang 代理
+	coreServer := cfg.EffectiveAliangCoreServer()
 
-	// 如果配置中没有指定，使用默认值
-	if coreServer == "" {
-		coreServer = "ai-gateway.nursor.org:443"
-		logger.Debug("Using default Nonelane server address")
-	}
-
-	if err := registry.RegisterNonelane(coreServer); err != nil {
-		return fmt.Errorf("failed to register nonelane proxy: %w", err)
+	if err := registry.RegisterAliang(coreServer); err != nil {
+		return fmt.Errorf("failed to register aliang proxy: %w", err)
 	} else {
 		config.SetCursorAiGatewayHost(coreServer)
 	}
@@ -243,30 +272,35 @@ func registerBuiltinProxies(cfg *Config) error {
 	return nil
 }
 
-// registerDoorProxy 注册 door 代理集合
-func registerDoorProxy(cfg *config.Config) error {
-	doorConfig := cfg.DoorProxy
-	if doorConfig == nil {
-		logger.Debug("No door proxy configured")
+// registerSocksProxy registers optional SOCKS5 proxy
+func registerSocksProxy(cfg *config.Config) error {
+	socksCfg, err := cfg.EffectiveSocksProxy()
+	if err != nil {
+		return fmt.Errorf("invalid customer socks5 proxy config: %w", err)
+	}
+	if socksCfg == nil {
+		logger.Debug("No socks proxy configured")
 		return nil
 	}
 
-	// 验证 door 配置
-	if doorConfig.Type != "door" {
-		return fmt.Errorf("invalid door proxy config: type must be 'door', got '%s'", doorConfig.Type)
+	// Validate config (already validated in cfg.Validate, but keep safe)
+	if err := socksCfg.Validate(); err != nil {
+		return fmt.Errorf("invalid socks proxy config: %w", err)
 	}
 
-	if len(doorConfig.Members) == 0 {
-		return fmt.Errorf("door proxy must have at least one member")
+	addr := fmt.Sprintf("%s:%d", socksCfg.Server, socksCfg.ServerPort)
+	proxyInstance := outbound.GetRegistry()
+
+	socksProxy, err := outbound.CreateSocksProxy(addr, socksCfg.Username, socksCfg.Password)
+	if err != nil {
+		return fmt.Errorf("failed to create socks proxy: %w", err)
 	}
 
-	// 注册 door 代理集合
-	registry := outbound.GetRegistry()
-	if err := registry.RegisterDoorFromConfig(doorConfig); err != nil {
-		return fmt.Errorf("failed to register door proxy: %w", err)
+	if err := proxyInstance.Register("socks", socksProxy); err != nil {
+		return fmt.Errorf("failed to register socks proxy: %w", err)
 	}
 
-	logger.Info(fmt.Sprintf("Door proxy collection registered successfully with %d members", len(doorConfig.Members)))
+	logger.Info(fmt.Sprintf("SOCKS proxy registered at %s", addr))
 	return nil
 }
 

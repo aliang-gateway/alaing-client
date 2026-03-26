@@ -47,12 +47,12 @@ type LogConfig struct {
 }
 
 // DefaultLogConfig returns default configuration
-// Logs are stored in ~/.nonelane/logs/ (or NONELANE_CACHE_DIR if set)
+// Logs are stored in ~/.aliang/logs/ (or NURSOR_CACHE_DIR if set)
 func DefaultLogConfig() *LogConfig {
 	logDir, err := cache.GetCacheSubdir("logs")
 	if err != nil {
 		// Fallback to temp directory if cache system unavailable
-		logDir = filepath.Join(os.TempDir(), "nonelane", "logs")
+		logDir = filepath.Join(os.TempDir(), "aliang", "logs")
 	}
 
 	return &LogConfig{
@@ -60,7 +60,7 @@ func DefaultLogConfig() *LogConfig {
 		ErrorWindow:        1 * time.Hour,
 		MaxErrorCount:      4,
 		CleanupInterval:    2 * time.Hour,
-		FileLogPath:        filepath.Join(logDir, "nonelane_core.log"),
+		FileLogPath:        filepath.Join(logDir, "aliang_core.log"),
 		EnableFileRotation: true,
 		MaxLogSize:         100 * 1024 * 1024, // 100MB
 		MaxLogBackups:      5,
@@ -70,17 +70,17 @@ func DefaultLogConfig() *LogConfig {
 }
 
 // HTTPLogConfig returns HTTP logger configuration
-// Logs are stored in ~/.nonelane/logs/ (or NONELANE_CACHE_DIR if set)
+// Logs are stored in ~/.aliang/logs/ (or NURSOR_CACHE_DIR if set)
 func HTTPLogConfig() *LogConfig {
 	logDir, err := cache.GetCacheSubdir("logs")
 	if err != nil {
 		// Fallback to temp directory if cache system unavailable
-		logDir = filepath.Join(os.TempDir(), "nonelane", "logs")
+		logDir = filepath.Join(os.TempDir(), "aliang", "logs")
 	}
 
 	return &LogConfig{
 		Level:              TRACE,
-		FileLogPath:        filepath.Join(logDir, "nonelane_http.log"),
+		FileLogPath:        filepath.Join(logDir, "aliang_http.log"),
 		EnableFileRotation: true,
 		MaxLogSize:         50 * 1024 * 1024, // 50MB
 		MaxLogBackups:      3,

@@ -2,11 +2,13 @@ package services
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"nursor.org/nursorgate/app/http/models"
 	"nursor.org/nursorgate/common/logger"
 	auth "nursor.org/nursorgate/processor/auth"
+	"nursor.org/nursorgate/processor/runtime"
 )
 
 // AuthService 认证服务
@@ -17,43 +19,109 @@ func NewAuthService() *AuthService {
 	return &AuthService{}
 }
 
-// ActivateToken 激活Token
-func (s *AuthService) ActivateToken(token string) map[string]interface{} {
-	if token == "" {
+func mapUserInfo(userInfo *auth.UserInfo) models.UserInfoResponse {
+	return models.UserInfoResponse{
+		Username:     userInfo.Username,
+		Email:        userInfo.Email,
+		PlanName:     userInfo.PlanName,
+		PlanType:     userInfo.PlanType,
+		TrafficUsed:  userInfo.TrafficUsed,
+		TrafficTotal: userInfo.TrafficTotal,
+		AIAskUsed:    userInfo.AIAskUsed,
+		AIAskTotal:   userInfo.AIAskTotal,
+		StartTime:    userInfo.StartTime,
+		EndTime:      userInfo.EndTime,
+		UpdatedAt:    userInfo.UpdatedAt.Format(time.RFC3339),
+	}
+}
+
+func syncStartupStateForAuthenticatedUser(userInfo *auth.UserInfo) {
+	if userInfo == nil {
+		return
+	}
+	startupState := runtime.GetStartupState()
+	startupState.SetUserInfo(userInfo)
+	startupState.SetFetchSuccess(true)
+	startupState.SetStatus(runtime.READY)
+}
+
+func clearStartupStateAfterLogout() {
+	startupState := runtime.GetStartupState()
+	startupState.SetUserInfo(nil)
+	startupState.SetFetchSuccess(false)
+	startupState.SetStatus(runtime.UNCONFIGURED)
+}
+
+func (s *AuthService) Login(email, password, turnstileToken string) map[string]interface{} {
+	if strings.TrimSpace(email) == "" {
 		return map[string]interface{}{
 			"status": "failed",
-			"error":  "token_required",
-			"msg":    "Token cannot be empty",
+			"error":  "email_required",
+			"msg":    "Email cannot be empty",
+		}
+	}
+	if strings.TrimSpace(password) == "" {
+		return map[string]interface{}{
+			"status": "failed",
+			"error":  "password_required",
+			"msg":    "Password cannot be empty",
 		}
 	}
 
-	// 调用认证包的激活函数
-	userInfo, err := auth.ActivateToken(token)
+	userInfo, err := auth.LoginWithPassword(email, password, turnstileToken)
 	if err != nil {
-		logger.Error(fmt.Sprintf("Token activation failed: %v", err))
+		logger.Error(fmt.Sprintf("Login failed: %v", err))
 		return map[string]interface{}{
 			"status": "failed",
-			"error":  "activation_failed",
-			"msg":    fmt.Sprintf("Failed to activate token: %v", err),
+			"error":  "login_failed",
+			"msg":    fmt.Sprintf("Failed to login: %v", err),
 		}
 	}
 
-	// 返回用户信息
+	syncStartupStateForAuthenticatedUser(userInfo)
+
 	return map[string]interface{}{
 		"status": "success",
-		"msg":    "Token activated successfully",
-		"data": models.UserInfoResponse{
-			Username:     userInfo.Username,
-			PlanName:     userInfo.PlanName,
-			PlanType:     userInfo.PlanType,
-			TrafficUsed:  userInfo.TrafficUsed,
-			TrafficTotal: userInfo.TrafficTotal,
-			AIAskUsed:    userInfo.AIAskUsed,
-			AIAskTotal:   userInfo.AIAskTotal,
-			StartTime:    userInfo.StartTime,
-			EndTime:      userInfo.EndTime,
-			UpdatedAt:    userInfo.UpdatedAt.Format(time.RFC3339),
-		},
+		"msg":    "Login successful",
+		"data":   mapUserInfo(userInfo),
+	}
+}
+
+func (s *AuthService) RestoreSession() map[string]interface{} {
+	userInfo, err := auth.RestoreSession()
+	if err != nil {
+		return map[string]interface{}{
+			"status": "no_session",
+			"msg":    "No local auth session available",
+		}
+	}
+
+	syncStartupStateForAuthenticatedUser(userInfo)
+
+	return map[string]interface{}{
+		"status": "success",
+		"msg":    "Session restored successfully",
+		"data":   mapUserInfo(userInfo),
+	}
+}
+
+func (s *AuthService) RefreshSession(refreshToken string) map[string]interface{} {
+	userInfo, err := auth.RefreshSession(refreshToken)
+	if err != nil {
+		logger.Error(fmt.Sprintf("Session refresh failed: %v", err))
+		return map[string]interface{}{
+			"status": "failed",
+			"error":  "refresh_failed",
+			"msg":    fmt.Sprintf("Failed to refresh session: %v", err),
+		}
+	}
+
+	syncStartupStateForAuthenticatedUser(userInfo)
+
+	return map[string]interface{}{
+		"status": "success",
+		"msg":    "Session refreshed successfully",
+		"data":   mapUserInfo(userInfo),
 	}
 }
 
@@ -69,68 +137,25 @@ func (s *AuthService) GetUserInfo() map[string]interface{} {
 
 	return map[string]interface{}{
 		"status": "success",
-		"data": models.UserInfoResponse{
-			Username:     userInfo.Username,
-			PlanName:     userInfo.PlanName,
-			PlanType:     userInfo.PlanType,
-			TrafficUsed:  userInfo.TrafficUsed,
-			TrafficTotal: userInfo.TrafficTotal,
-			AIAskUsed:    userInfo.AIAskUsed,
-			AIAskTotal:   userInfo.AIAskTotal,
-			StartTime:    userInfo.StartTime,
-			EndTime:      userInfo.EndTime,
-			UpdatedAt:    userInfo.UpdatedAt.Format(time.RFC3339),
-		},
-	}
-}
-
-// GetRefreshStatus 获取刷新状态
-func (s *AuthService) GetRefreshStatus() map[string]interface{} {
-	refresher := auth.GetTokenRefresher()
-	if refresher == nil {
-		return map[string]interface{}{
-			"status":           "success",
-			"is_running":       false,
-			"refresh_interval": "1 minute",
-		}
-	}
-
-	resp := models.RefreshStatusResponse{
-		IsRunning:       refresher.IsRunning(),
-		RefreshInterval: "1 minute",
-	}
-
-	if refresher.IsRunning() {
-		// 添加最后更新时间
-		userInfo := auth.GetCurrentUserInfo()
-		if userInfo != nil {
-			resp.LastUpdateTime = userInfo.UpdatedAt.Format(time.RFC3339)
-		}
-
-		// 添加最后错误信息
-		if lastErr := refresher.GetLastError(); lastErr != nil {
-			resp.LastError = lastErr.Error()
-		}
-	}
-
-	return map[string]interface{}{
-		"status": "success",
-		"data":   resp,
+		"data":   mapUserInfo(userInfo),
 	}
 }
 
 // LogoutUser 登出用户
-func (s *AuthService) LogoutUser() map[string]interface{} {
-	// 停止定时刷新
+func (s *AuthService) LogoutUser(refreshToken string) map[string]interface{} {
+	err := auth.LogoutSession(refreshToken)
+	if err != nil {
+		logger.Warn(fmt.Sprintf("Remote logout failed, continue local cleanup: %v", err))
+	}
+
 	auth.StopTokenRefresh()
 
-	// 删除本地用户信息
 	if err := auth.DeleteUserInfo(); err != nil {
 		logger.Warn(fmt.Sprintf("Failed to delete user info: %v", err))
 	}
 
-	// 清空运行时状态
 	auth.SetInnerToken("")
+	clearStartupStateAfterLogout()
 
 	logger.Info("User logged out successfully")
 

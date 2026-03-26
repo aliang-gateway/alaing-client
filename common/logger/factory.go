@@ -278,12 +278,6 @@ func (hl *httpLogger) Error(v ...interface{}) {
 		return
 	}
 	hl.logf(ERROR, "ERROR", v...)
-	AppendToBuffer(&LogEntry{
-		Level:     ERROR,
-		Timestamp: time.Now(),
-		Message:   fmt.Sprint(v...),
-		Source:    "http",
-	})
 }
 
 func (hl *httpLogger) Trace(v ...interface{}) {
@@ -346,9 +340,17 @@ func (hl *httpLogger) logf(level LogLevelType, prefix string, v ...interface{}) 
 	hl.mu.RLock()
 	defer hl.mu.RUnlock()
 
+	message := fmt.Sprint(v...)
 	for _, logger := range hl.loggers {
-		logger.Output(3, fmt.Sprintf("[%s] %s\n", prefix, fmt.Sprint(v...)))
+		logger.Output(3, fmt.Sprintf("[%s] %s\n", prefix, message))
 	}
+
+	AppendToBuffer(&LogEntry{
+		Level:     level,
+		Timestamp: time.Now(),
+		Message:   message,
+		Source:    "http",
+	})
 }
 
 // singBoxAdapter implements the Logger interface as an adapter

@@ -36,7 +36,7 @@ func GetCertDir() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(homeDir, ".nonelane"), nil
+	return filepath.Join(homeDir, ".aliang"), nil
 }
 
 // LoadMitmCACertificate loads the MITM CA certificate from filesystem

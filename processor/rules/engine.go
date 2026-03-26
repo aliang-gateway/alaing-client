@@ -4,12 +4,14 @@ import (
 	"fmt"
 	"net"
 	"sync"
+	"time"
 
 	"nursor.org/nursorgate/common/logger"
-	"nursor.org/nursorgate/common/model"
 	M "nursor.org/nursorgate/inbound/tun/metadata"
 	"nursor.org/nursorgate/processor/cache"
+	"nursor.org/nursorgate/processor/config"
 	"nursor.org/nursorgate/processor/geoip"
+	"nursor.org/nursorgate/processor/routing"
 )
 
 // RuleEngine evaluates routing rules in priority order
@@ -17,7 +19,6 @@ type RuleEngine struct {
 	mu            sync.RWMutex
 	geoipService  *geoip.Service
 	ipDomainCache *cache.IPDomainCache
-	nacosRouter   *model.AllowProxyDomain
 	chinaDirect   bool // Whether Chinese IPs should route directly
 	enabled       bool // Whether rule engine is enabled
 }
@@ -50,33 +51,31 @@ func GetCache() *cache.IPDomainCache {
 
 // Initialize initializes the rule engine with configuration
 // TODO(US2): Full implementation will be completed in Phase 4 - User Story 2
-func (e *RuleEngine) Initialize(config *model.RoutingRulesConfig) error {
-	if config == nil {
-		logger.Info("Routing rules config is nil, rule engine disabled")
-		return nil
-	}
-
+func (e *RuleEngine) Initialize(cfg *config.Config) error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 
-	// Initialize GeoIP service reference (will be fully configured in US2)
+	_ = cfg
+
+	// Initialize GeoIP service reference (optional)
 	e.geoipService = geoip.GetService()
 
-	// Initialize Nacos router
-	e.nacosRouter = model.NewAllowProxyDomain()
+	// Initialize IP-domain cache with safe defaults
+	if e.ipDomainCache == nil {
+		e.ipDomainCache = cache.NewIPDomainCache(10000, 5*time.Minute)
+	}
 
 	e.enabled = true
-	logger.Info("Rule engine initialized successfully (stub - full implementation in US2)")
+	logger.Info("Rule engine initialized successfully")
 	return nil
 }
 
 // EvaluateRoute evaluates routing rules for a connection
 // Priority order:
-// 1. Bypass rules (user-defined direct routes)
-// 2. IP-Domain cache (previously evaluated routes)
-// 3. Nacos rules (Cursor MITM and Door acceleration domains)
-// 4. GeoIP rules (country-based routing)
-// 5. Default (requires SNI if port 443)
+// 1. IP-Domain cache (previously evaluated routes)
+// 2. SNI allowlist (MITM to Aliang)
+// 3. GeoIP rules (optional)
+// 4. Default (SOCKS if configured, otherwise direct)
 func (e *RuleEngine) EvaluateRoute(ctx *EvaluationContext) (*RuleResult, error) {
 	if !e.enabled {
 		return &RuleResult{
@@ -86,30 +85,35 @@ func (e *RuleEngine) EvaluateRoute(ctx *EvaluationContext) (*RuleResult, error) 
 		}, nil
 	}
 
-	// TODO(US2): Implement routing decision logic with priority: NoneLane > Door > GeoIP > Direct
+	// TODO(US2): Implement routing decision logic with priority: Aliang > SOCKS  > Direct
+
+	snapshot, err := e.compileRuntimeSnapshot()
+	if err != nil {
+		return nil, err
+	}
 
 	// Priority 2: Check cache (avoid repeated SNI extraction)
 	if result := e.checkCache(ctx); result != nil {
 		return result, nil
 	}
 
-	// Priority 3: Check Nacos rules if domain is known
+	// Priority 3: Check allowlist
 	if ctx.Domain != "" {
-		if result := e.checkNacosRules(ctx); result != nil {
-			// Cache the result for future lookups
+		if result := e.checkAllowlist(ctx); result != nil {
 			e.cacheResult(ctx, result)
 			return result, nil
 		}
 	}
 
-	// Priority 4: Check GeoIP (country-based routing)
+	// Priority 4: Check GeoIP (country-based routing, optional)
 	if result := e.checkGeoIP(ctx); result != nil {
 		e.cacheResult(ctx, result)
 		return result, nil
 	}
 
-	// Priority 5: Default routing decision
-	return e.defaultRoute(ctx), nil
+	result := e.evaluateWithSnapshot(snapshot, ctx)
+	e.cacheResult(ctx, result)
+	return result, nil
 }
 
 // checkBypassRules removed - will be reimplemented as part of routing decision engine in US2
@@ -155,32 +159,43 @@ func (e *RuleEngine) checkCache(ctx *EvaluationContext) *RuleResult {
 	return nil
 }
 
-// checkNacosRules checks Nacos domain acceleration rules
-func (e *RuleEngine) checkNacosRules(ctx *EvaluationContext) *RuleResult {
-	if e.nacosRouter == nil || ctx.Domain == "" {
+// checkAllowlist checks local SNI allowlist and default SOCKS fallback.
+func (e *RuleEngine) checkAllowlist(ctx *EvaluationContext) *RuleResult {
+	if ctx.Domain == "" {
 		return nil
 	}
 
-	e.mu.RLock()
-	defer e.mu.RUnlock()
+	snapshot, err := e.compileRuntimeSnapshot()
+	if err != nil {
+		return nil
+	}
 
-	// Check if domain should route to Cursor MITM (highest priority for Cursor AI)
-	if e.nacosRouter.IsAllowToCursor(ctx.Domain) {
-		return &RuleResult{
-			Route:       cache.RouteToCursor,
-			MatchedRule: "nacos_cursor",
-			RequiresSNI: false,
-			Reason:      fmt.Sprintf("Domain %s matched Cursor MITM rules", ctx.Domain),
+	for _, rule := range snapshot.Rules() {
+		if !rule.Enabled() {
+			continue
+		}
+		if rule.Type() != "domain" {
+			continue
+		}
+		if rule.Target() != routing.SnapshotActionToAliang {
+			continue
+		}
+		if MatchDomain(rule.Condition(), ctx.Domain) {
+			return &RuleResult{
+				Route:       cache.RouteToCursor,
+				MatchedRule: "snapshot_allowlist",
+				RequiresSNI: false,
+				Reason:      fmt.Sprintf("Domain %s matched snapshot allowlist", ctx.Domain),
+			}
 		}
 	}
 
-	// Check if domain should route to Door proxy
-	if e.nacosRouter.IsAllowToAnyDoor(ctx.Domain) {
+	if snapshot.BranchCapabilities().ToSocks() {
 		return &RuleResult{
-			Route:       cache.RouteToDoor,
-			MatchedRule: "nacos_door",
+			Route:       cache.RouteToSocks,
+			MatchedRule: "snapshot_default_socks",
 			RequiresSNI: false,
-			Reason:      fmt.Sprintf("Domain %s matched Door acceleration rules", ctx.Domain),
+			Reason:      "Default route to SOCKS proxy from snapshot",
 		}
 	}
 
@@ -213,7 +228,7 @@ func (e *RuleEngine) checkGeoIP(ctx *EvaluationContext) *RuleResult {
 			}
 		} else {
 			return &RuleResult{
-				Route:       cache.RouteToDoor,
+				Route:       cache.RouteToSocks,
 				MatchedRule: "geoip_china",
 				RequiresSNI: false,
 				Reason:      fmt.Sprintf("IP %s is in China (accelerated route)", ctx.DstIP),
@@ -221,9 +236,9 @@ func (e *RuleEngine) checkGeoIP(ctx *EvaluationContext) *RuleResult {
 		}
 	}
 
-	// Foreign IP - accelerate via Door proxy
+	// Foreign IP - accelerate via SOCKS proxy
 	return &RuleResult{
-		Route:       cache.RouteToDoor,
+		Route:       cache.RouteToSocks,
 		MatchedRule: "geoip_foreign",
 		RequiresSNI: false,
 		Reason:      fmt.Sprintf("IP %s is outside China (accelerated)", ctx.DstIP),
@@ -234,12 +249,68 @@ func (e *RuleEngine) checkGeoIP(ctx *EvaluationContext) *RuleResult {
 func (e *RuleEngine) defaultRoute(ctx *EvaluationContext) *RuleResult {
 	// For TLS traffic (port 443) without domain, we need SNI extraction
 	requiresSNI := ctx.DstPort == 443 && ctx.Domain == ""
+	defaultRoute := cache.RouteDirect
 
 	return &RuleResult{
-		Route:       cache.RouteDirect,
+		Route:       defaultRoute,
 		MatchedRule: "default",
 		RequiresSNI: requiresSNI,
-		Reason:      "No rules matched, using default direct route",
+		Reason:      "No rules matched, using default route",
+	}
+}
+
+func (e *RuleEngine) compileRuntimeSnapshot() (*routing.RuntimeSnapshot, error) {
+	switchStatus := routing.GetSwitchManager().GetStatus()
+	snapshot, err := routing.CompileRuntimeSnapshotFromRuntimeInputs(config.GetGlobalConfig(), switchStatus)
+	if err != nil {
+		return nil, fmt.Errorf("compile runtime snapshot failed: %w", err)
+	}
+	return snapshot, nil
+}
+
+func (e *RuleEngine) evaluateWithSnapshot(snapshot *routing.RuntimeSnapshot, ctx *EvaluationContext) *RuleResult {
+	routeCtx := &routing.MatchContext{
+		Domain: ctx.Domain,
+	}
+	if ctx.DstIP.IsValid() && !ctx.DstIP.IsUnspecified() {
+		routeCtx.IP = ctx.DstIP.String()
+	}
+
+	decision, err := routing.DecideRouteFromSnapshot(snapshot, routeCtx)
+	if err != nil {
+		return e.defaultRoute(ctx)
+	}
+
+	requiresSNI := ctx.DstPort == 443 && ctx.Domain == ""
+	switch decision {
+	case routing.RouteToAliang:
+		return &RuleResult{
+			Route:       cache.RouteToCursor,
+			MatchedRule: "snapshot",
+			RequiresSNI: requiresSNI,
+			Reason:      "snapshot decision: toAliang",
+		}
+	case routing.RouteToSocks:
+		return &RuleResult{
+			Route:       cache.RouteToSocks,
+			MatchedRule: "snapshot",
+			RequiresSNI: requiresSNI,
+			Reason:      "snapshot decision: toSocks",
+		}
+	case routing.RouteDeny:
+		return &RuleResult{
+			Route:       cache.RouteDeny,
+			MatchedRule: "snapshot_deny",
+			RequiresSNI: false,
+			Reason:      "snapshot decision: deny",
+		}
+	default:
+		return &RuleResult{
+			Route:       cache.RouteDirect,
+			MatchedRule: "snapshot",
+			RequiresSNI: requiresSNI,
+			Reason:      "snapshot decision: direct",
+		}
 	}
 }
 
@@ -322,8 +393,8 @@ func (e *RuleEngine) StoreBinding(metadata *M.Metadata) {
 	switch metadata.Route {
 	case "RouteToCursor":
 		route = cache.RouteToCursor
-	case "RouteToDoor":
-		route = cache.RouteToDoor
+	case "RouteToSocks":
+		route = cache.RouteToSocks
 	case "RouteDirect":
 		route = cache.RouteDirect
 	default:

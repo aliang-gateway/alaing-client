@@ -1,6 +1,7 @@
 package http
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"io/fs"
@@ -9,22 +10,43 @@ import (
 	"net/http"
 	"path/filepath"
 	"strings"
+	"sync"
+	"time"
 
 	"nursor.org/nursorgate/app"
 	"nursor.org/nursorgate/app/http/middleware"
 	"nursor.org/nursorgate/app/http/routes"
 	"nursor.org/nursorgate/app/http/services"
 	"nursor.org/nursorgate/common/logger"
-	"nursor.org/nursorgate/processor/latency"
 )
 
 var (
 	// mux is the custom request multiplexer for applying middleware
 	mux *http.ServeMux
+
+	// server is the HTTP server instance
+	server *http.Server
+
+	// serverMutex protects server state
+	serverMutex sync.Mutex
+
+	// isRunning indicates if server is currently running
+	isRunning bool
+
+	// actualPort stores the actual port the server is listening on
+	actualPort string
 )
 
 // StartHttpServer 启动HTTP服务器，注册所有路由
 func StartHttpServer() {
+	serverMutex.Lock()
+	defer serverMutex.Unlock()
+
+	if isRunning {
+		logger.Info("HTTP server is already running")
+		return
+	}
+
 	// 定义 HTTP 服务端口
 	port := "127.0.0.1:56431"
 
@@ -53,26 +75,35 @@ func StartHttpServer() {
 					log.Fatalf("HTTP server failed: unable to find available port: %v", err)
 				}
 				actualAddr := listener.Addr().(*net.TCPAddr)
+				actualPort = fmt.Sprintf("%d", actualAddr.Port)
 				logger.Info(fmt.Sprintf("HTTP server listening on alternative port: %s", actualAddr.String()))
 			} else {
 				log.Fatalf("HTTP server failed: %v", err)
 			}
+		} else {
+			// Store the actual port from the default port
+			_, portStr, _ := net.SplitHostPort(port)
+			actualPort = portStr
 		}
 
-		err = http.Serve(listener, wrappedMux)
-		if err != nil {
+		// Create HTTP server
+		server = &http.Server{
+			Handler: wrappedMux,
+		}
+
+		isRunning = true
+
+		err = server.Serve(listener)
+		if err != nil && err != http.ErrServerClosed {
 			log.Fatalf("HTTP server failed: %v", err)
 		}
 	}()
-
-	// 保持主线程运行
-	select {}
 }
 
 // registerAllRoutes 注册所有HTTP路由
 func registerAllRoutes() {
 	// Create all handlers with dependency injection
-	handlers := routes.NewHandlers()
+	handlers := routes.NewHandlersWithRunService(services.GetSharedRunService())
 
 	// Register all feature-grouped routes (using custom mux)
 	// registerRoutesWithMux(handlers)
@@ -83,19 +114,17 @@ func registerAllRoutes() {
 	// Previously this was duplicated in both HTTP mode and TUN mode
 	logger.Info("HTTP: Rule engine has been initialized globally (see cmd/start.go)")
 
-	// Initialize and start latency test manager
-	latencyService := services.NewLatencyService()
-	latencyManager := latency.NewLatencyTestManager(latencyService)
-	if err := latencyManager.Start(); err != nil {
-		logger.Error(fmt.Sprintf("Failed to start latency test manager: %v", err))
-	}
-
 	// Initialize and start stats collector
 	if handlers.TrafficStats != nil {
 		logger.Info("Starting traffic stats collector...")
 		// Note: statsCollector is created in routes.NewHandlers()
 		// We need to access it through a package-level function
 		routes.StartStatsCollector(handlers)
+	}
+
+	if handlers.HTTPStats != nil {
+		logger.Info("Starting HTTP stats collector...")
+		routes.StartHTTPStatsCollector(handlers)
 	}
 
 	// Register static file server for web dashboard
@@ -108,9 +137,7 @@ func registerAllRoutes() {
 
 // registerStaticFiles 注册静态文件服务（使用 embed 嵌入的文件）
 func registerStaticFiles() {
-	// 从嵌入的文件系统中获取 website 子目录
-	// WebsiteFS 已经包含了 website 目录的内容
-	websiteRoot, err := fs.Sub(app.WebsiteFS, "website")
+	websiteRoot, rootPath, err := resolveWebsiteRoot()
 	if err != nil {
 		logger.Warn(fmt.Sprintf("Failed to access embedded website files: %v", err))
 		return
@@ -118,6 +145,8 @@ func registerStaticFiles() {
 
 	// 注册 assets 路径处理器
 	mux.HandleFunc("/assets/", func(w http.ResponseWriter, r *http.Request) {
+		setAssetsCacheHeaders(w)
+
 		// 移除前导 /assets/
 		filePath := strings.TrimPrefix(r.URL.Path, "/assets/")
 
@@ -164,45 +193,124 @@ func registerStaticFiles() {
 			return
 		}
 
-		// 处理根路径
-		if r.URL.Path == "/" {
-			path := "/index.html"
-			filePath := strings.TrimPrefix(path, "/")
-			file, err := websiteRoot.Open(filePath)
-			if err != nil {
-				http.NotFound(w, r)
-				return
-			}
-			defer file.Close()
-
-			info, err := file.Stat()
-			if err != nil {
-				http.NotFound(w, r)
-				return
-			}
-
-			w.Header().Set("Content-Type", "text/html; charset=utf-8")
-			if rs, ok := file.(io.ReadSeeker); ok {
-				http.ServeContent(w, r, filepath.Base(path), info.ModTime(), rs)
-			} else {
-				w.Header().Set("Content-Length", fmt.Sprintf("%d", info.Size()))
-				io.Copy(w, file)
-			}
+		// Security check: prevent directory traversal for static file lookup.
+		requestPath := strings.TrimPrefix(r.URL.Path, "/")
+		if strings.Contains(requestPath, "..") {
+			http.Error(w, "Invalid path", http.StatusBadRequest)
 			return
 		}
 
-		// 对于其他路径，如果是非 assets 路径，返回 index.html（SPA 路由支持）
-		indexFile, err := websiteRoot.Open("index.html")
-		if err == nil {
-			defer indexFile.Close()
-			w.Header().Set("Content-Type", "text/html; charset=utf-8")
-			io.Copy(w, indexFile)
-		} else {
-			http.NotFound(w, r)
+		// Prefer serving real files (e.g. /icon.svg, /favicon.ico) before SPA fallback.
+		if requestPath != "" {
+			file, err := websiteRoot.Open(requestPath)
+			if err == nil {
+				defer file.Close()
+				info, statErr := file.Stat()
+				if statErr == nil && !info.IsDir() {
+					if filepath.Ext(requestPath) == ".html" {
+						setNoCacheHTMLHeaders(w)
+					} else {
+						setAssetsCacheHeaders(w)
+					}
+					setContentType(w, requestPath)
+
+					if rs, ok := file.(io.ReadSeeker); ok {
+						http.ServeContent(w, r, filepath.Base(requestPath), info.ModTime(), rs)
+					} else {
+						w.Header().Set("Content-Length", fmt.Sprintf("%d", info.Size()))
+						io.Copy(w, file)
+					}
+					return
+				}
+			}
 		}
+
+		// SPA fallback to index.html.
+		indexFile, err := websiteRoot.Open("index.html")
+		if err != nil {
+			http.NotFound(w, r)
+			return
+		}
+		defer indexFile.Close()
+		setNoCacheHTMLHeaders(w)
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		io.Copy(w, indexFile)
 	})
 
-	logger.Info("Static file server registered using embedded website files")
+	logger.Info(fmt.Sprintf("Static file server registered using embedded website files (root=%s)", rootPath))
+}
+
+func resolveWebsiteRoot() (fs.FS, string, error) {
+	preferredRoots := []string{
+		"website/dist",
+		"website",
+	}
+
+	for _, root := range preferredRoots {
+		sub, err := fs.Sub(app.WebsiteFS, root)
+		if err != nil {
+			continue
+		}
+		if _, openErr := sub.Open("index.html"); openErr == nil {
+			return sub, root, nil
+		}
+	}
+
+	return nil, "", fmt.Errorf("no valid embedded website root found (tried: %s)", strings.Join(preferredRoots, ", "))
+}
+
+func setNoCacheHTMLHeaders(w http.ResponseWriter) {
+	w.Header().Set("Cache-Control", "no-store, no-cache, must-revalidate")
+	w.Header().Set("Pragma", "no-cache")
+	w.Header().Set("Expires", "0")
+}
+
+func setAssetsCacheHeaders(w http.ResponseWriter) {
+	w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+}
+
+// setContentType 根据文件扩展名设置 Content-Type
+// StopHttpServer gracefully stops the HTTP server
+func StopHttpServer() error {
+	serverMutex.Lock()
+	defer serverMutex.Unlock()
+
+	if !isRunning || server == nil {
+		logger.Info("HTTP server is not running")
+		return nil
+	}
+
+	logger.Info("Stopping HTTP server...")
+
+	// Create shutdown context with timeout
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Gracefully shutdown
+	if err := server.Shutdown(ctx); err != nil {
+		logger.Error(fmt.Sprintf("HTTP server shutdown error: %v", err))
+		return err
+	}
+
+	isRunning = false
+	server = nil
+	actualPort = ""
+	logger.Info("HTTP server stopped successfully")
+	return nil
+}
+
+// IsServerRunning returns whether the HTTP server is currently running
+func IsServerRunning() bool {
+	serverMutex.Lock()
+	defer serverMutex.Unlock()
+	return isRunning
+}
+
+// GetActualPort returns the actual port the HTTP server is listening on
+func GetActualPort() string {
+	serverMutex.Lock()
+	defer serverMutex.Unlock()
+	return actualPort
 }
 
 // setContentType 根据文件扩展名设置 Content-Type

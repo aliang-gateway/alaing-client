@@ -10,10 +10,6 @@ import (
 )
 
 // StartupStatusMiddleware checks the system's startup status and gates API access accordingly
-// Different API endpoints are allowed based on current startup status:
-// - Configuration APIs (token activation, logout, etc.) are always allowed
-// - Proxy APIs are only allowed when status is READY
-// - Status query API is always allowed
 func StartupStatusMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		path := r.URL.Path
@@ -30,11 +26,11 @@ func StartupStatusMiddleware(next http.Handler) http.Handler {
 			return
 		}
 
-		// All other APIs require READY status
+		// All other APIs require a startup state that is ready for proxy operations
 		startupState := runtime.GetStartupState()
 		status := startupState.GetStatus()
 
-		if status != runtime.READY {
+		if !isProxyOperableStatus(status) {
 			// System not ready for proxy operations
 			if path == "/api/run/start" {
 				respondSystemNotReady(w, status)
@@ -51,13 +47,27 @@ func StartupStatusMiddleware(next http.Handler) http.Handler {
 func isConfigurationAPI(path string) bool {
 	// Configuration endpoints that should always be accessible
 	configEndpoints := []string{
-		"/api/auth/activate",       // Token activation
-		"/api/auth/userinfo",       // User info retrieval
-		"/api/auth/logout",         // Logout
-		"/api/auth/refresh-status", // Refresh status (diagnostic)
-		"/api/token/get",           // Get token
-		"/api/token/set",           // Set token
-		"/api/logs",                // Logs access (for diagnosis)
+		"/api/auth/login",
+		"/api/auth/session",
+		"/api/auth/refresh",
+		"/api/auth/me",
+		"/api/auth/logout",
+		"/api/user-center/profile",
+		"/api/user-center/usage/summary",
+		"/api/user-center/usage/progress",
+		"/api/user-center/redeem",
+		"/api/dashboard/stats",
+		"/api/dashboard/trend",
+		"/api/dashboard/models",
+		"/api/dashboard/usage",
+		"/api/token/get",
+		"/api/token/set",
+		"/api/software-config/save",
+		"/api/software-config/activate",
+		"/api/software-config/list",
+		"/api/software-config/cloud/push",
+		"/api/software-config/cloud/pull",
+		"/api/logs", // Logs access (for diagnosis)
 		"/api/run/status",
 	}
 
@@ -83,7 +93,8 @@ func respondSystemNotReady(w http.ResponseWriter, status runtime.StartupStatus) 
 	statusStr := string(status)
 	errorMsg := fmt.Sprintf("System not ready for proxy operations (status: %s)", statusStr)
 	suggestedActions := []string{
-		"POST /api/auth/activate - Activate with token",
+		"POST /api/auth/login - Login with user credentials",
+		"GET /api/auth/session - Restore local session",
 		"GET /api/run/status - Check system status",
 	}
 
@@ -91,4 +102,8 @@ func respondSystemNotReady(w http.ResponseWriter, status runtime.StartupStatus) 
 		"status":            statusStr,
 		"suggested_actions": suggestedActions,
 	})
+}
+
+func isProxyOperableStatus(status runtime.StartupStatus) bool {
+	return status == runtime.READY || status == runtime.CONFIGURED
 }

@@ -1,133 +1,76 @@
 {
-  "to_door": {
-    "set_type": "to_door",
+  "version": 1,
+  "ingress": {
+    "mode": "tun"
+  },
+  "egress": {
+    "direct": {
+      "enabled": true
+    },
+    "toSocks": {
+      "enabled": true,
+      "upstream": {
+        "type": "socks"
+      }
+    },
+    "toAliang": {
+      "enabled": true
+    }
+  },
+  "routing": {
     "rules": [
       {
         "id": "rule-001-google",
         "type": "domain",
         "condition": "*.google.com",
-        "enabled": true,
-        "created_at": "2025-12-18T10:00:00Z",
-        "updated_at": "2025-12-18T10:00:00Z",
-        "description": "Google 相关域名走 Door 代理"
+        "target": "toSocks",
+        "enabled": true
       },
       {
         "id": "rule-002-github",
         "type": "domain",
         "condition": "*.github.com",
-        "enabled": true,
-        "created_at": "2025-12-18T10:05:00Z",
-        "updated_at": "2025-12-18T10:05:00Z",
-        "description": "GitHub 域名走 Door 代理"
+        "target": "toSocks",
+        "enabled": true
       },
       {
         "id": "rule-003-facebook",
         "type": "domain",
         "condition": "*.facebook.com",
-        "enabled": true,
-        "created_at": "2025-12-18T10:10:00Z",
-        "updated_at": "2025-12-18T10:10:00Z",
-        "description": "Facebook 相关域名走 Door 代理"
+        "target": "toSocks",
+        "enabled": true
       },
       {
         "id": "rule-004-us-geoip",
         "type": "geoip",
         "condition": "US",
-        "enabled": true,
-        "created_at": "2025-12-18T10:15:00Z",
-        "updated_at": "2025-12-18T10:15:00Z",
-        "description": "美国 IP 走 Door 代理"
+        "target": "toSocks",
+        "enabled": true
       },
       {
         "id": "rule-005-eu-geoip",
         "type": "geoip",
         "condition": "GB",
-        "enabled": false,
-        "created_at": "2025-12-18T10:20:00Z",
-        "updated_at": "2025-12-18T10:20:00Z",
-        "description": "英国 IP 走 Door 代理 (当前禁用)"
-      }
-    ],
-    "count": 5,
-    "updated_at": "2025-12-18T10:20:00Z"
-  },
-  "black_list": {
-    "set_type": "black_list",
-    "rules": [
+        "target": "toSocks",
+        "enabled": false
+      },
       {
-        "id": "blacklist-001",
+        "id": "rule-006-private-ip",
         "type": "ip",
         "condition": "192.168.0.0/16",
-        "enabled": true,
-        "created_at": "2025-12-18T10:30:00Z",
-        "updated_at": "2025-12-18T10:30:00Z",
-        "description": "内网 IP 段 - 不能走 Door 代理"
+        "target": "direct",
+        "enabled": true
       },
       {
-        "id": "blacklist-002",
-        "type": "ip",
-        "condition": "10.0.0.0/8",
-        "enabled": true,
-        "created_at": "2025-12-18T10:35:00Z",
-        "updated_at": "2025-12-18T10:35:00Z",
-        "description": "内网 IP 段 - 不能走 Door 代理"
-      },
-      {
-        "id": "blacklist-003",
-        "type": "ip",
-        "condition": "172.16.0.0/12",
-        "enabled": true,
-        "created_at": "2025-12-18T10:40:00Z",
-        "updated_at": "2025-12-18T10:40:00Z",
-        "description": "内网 IP 段 - 不能走 Door 代理"
-      }
-    ],
-    "count": 3,
-    "updated_at": "2025-12-18T10:40:00Z"
-  },
-  "none_lane": {
-    "set_type": "none_lane",
-    "rules": [
-      {
-        "id": "nonelane-001-intranet",
+        "id": "rule-007-internal-domain",
         "type": "domain",
         "condition": "*.internal.company.com",
-        "enabled": true,
-        "created_at": "2025-12-18T10:50:00Z",
-        "updated_at": "2025-12-18T10:50:00Z",
-        "description": "内部企业域名走 NoneLane 代理"
-      },
-      {
-        "id": "nonelane-002-vpn",
-        "type": "domain",
-        "condition": "vpn.company.com",
-        "enabled": true,
-        "created_at": "2025-12-18T10:55:00Z",
-        "updated_at": "2025-12-18T10:55:00Z",
-        "description": "VPN 服务走 NoneLane 代理"
-      },
-      {
-        "id": "nonelane-003-api",
-        "type": "domain",
-        "condition": "api.internal.*.com",
-        "enabled": true,
-        "created_at": "2025-12-18T11:00:00Z",
-        "updated_at": "2025-12-18T11:00:00Z",
-        "description": "内部 API 走 NoneLane 代理"
+        "target": "toAliang",
+        "enabled": true
       }
-    ],
-    "count": 3,
-    "updated_at": "2025-12-18T11:00:00Z"
+    ]
   },
-  "settings": {
-    "none_lane_enabled": true,
-    "door_enabled": true,
-    "geoip_enabled": true,
-    "auto_update": true,
-    "updated_at": "2025-12-18T11:00:00Z",
-    "last_nacos_sync": "2025-12-18T11:00:00Z"
-  },
-  "version": 1,
-  "created_at": "2025-12-18T10:00:00Z",
-  "updated_at": "2025-12-18T11:00:00Z"
+  "migration": {
+    "note": "Legacy route aliases were removed. Please use canonical targets direct, toSocks, and toAliang only."
+  }
 }

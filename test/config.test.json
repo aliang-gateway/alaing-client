@@ -1,72 +1,17 @@
 {
   "api_server": "https://api.nonelane.com",
-  "nacos_server": "http://nacos-config.nursor.org",
-  "currentProxy": "door",
+  "currentProxy": "direct",
   "baseProxies": {
     "nonelane": {
       "type": "nonelane",
       "core_server": "test-ai-gateway.nursor.org:18889"
     }
   },
-  "doorProxy": {
-    "type": "door",
-    "members": [
-      {
-        "showname": "Japan Node 01",
-        "type": "vless",
-        "latency": 45,
-        "config": {
-          "server_host": "node2.nursor.org",
-          "server_port": 443,
-          "uuid": "74cddcdd-6d48-41cf-8e62-902e7c943fe7",
-          "flow": "xtls-rprx-vision",
-          "tls_enabled": false,
-          "reality_enabled": true,
-          "sni": "www.microsoft.com",
-          "public_key": "sAtJcW2xLIUWRE-_7KHGEAtvHx-P1sDbjrrgrt4_XCo",
-          "short_ids": [
-            "ef",
-            "b79e62",
-            "7d87a3",
-            "f4bfb2",
-            "ecdc"
-          ]
-        }
-      }
-    ]
+  "socksProxy": {
+    "server_host": "127.0.0.1",
+    "server_port": 1080
   },
-  "routingRules": {
-    "geoip": {
-      "enabled": true,
-      "databasePath": "~/.nonelane/GeoLite2-Country.mmdb",
-      "chinaDirect": true
-    },
-    "bypassRules": {
-      "enabled": true,
-      "domains": [
-        "*.apple.com",
-        "*.icloud.com",
-        "*.windowsupdate.com"
-      ],
-      "domainSuffixes": [
-        ".cn",
-        ".gov.cn",
-        ".edu.cn"
-      ],
-      "ipRanges": [
-        "192.168.0.0/16",
-        "10.0.0.0/8",
-        "172.16.0.0/12",
-        "127.0.0.0/8",
-        "169.254.0.0/16"
-      ]
-    },
-    "ipDomainCache": {
-      "enabled": true,
-      "maxEntries": 10000,
-      "ttl": "5m"
-    }
-  },
+  "sni_allowlist": [],
   "dnsPreResolution": {
     "enabled": true,
     "timeout": "10s",

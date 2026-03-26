@@ -1,6 +1,8 @@
 package config
 
 import (
+	"encoding/json"
+	"strings"
 	"testing"
 )
 
@@ -238,5 +240,252 @@ func TestShadowsocksConfigValidate(t *testing.T) {
 				t.Errorf("Validate() error message = %v, want %v", err.Error(), tt.errMsg)
 			}
 		})
+	}
+}
+
+// TestSocks5ConfigValidate tests Socks5Config.Validate()
+func TestSocks5ConfigValidate(t *testing.T) {
+	tests := []struct {
+		name    string
+		config  *Socks5Config
+		wantErr bool
+		errMsg  string
+	}{
+		{
+			name: "valid without auth",
+			config: &Socks5Config{
+				Server:     "127.0.0.1",
+				ServerPort: 1080,
+			},
+			wantErr: false,
+		},
+		{
+			name: "valid with auth",
+			config: &Socks5Config{
+				Server:     "127.0.0.1",
+				ServerPort: 1080,
+				Username:   "user",
+				Password:   "pass",
+			},
+			wantErr: false,
+		},
+		{
+			name: "missing server_host",
+			config: &Socks5Config{
+				ServerPort: 1080,
+			},
+			wantErr: true,
+			errMsg:  "server_host is required",
+		},
+		{
+			name: "missing server_port",
+			config: &Socks5Config{
+				Server: "127.0.0.1",
+			},
+			wantErr: true,
+			errMsg:  "server_port is required",
+		},
+		{
+			name: "username without password",
+			config: &Socks5Config{
+				Server:     "127.0.0.1",
+				ServerPort: 1080,
+				Username:   "user",
+			},
+			wantErr: true,
+			errMsg:  "username and password must be provided together",
+		},
+		{
+			name: "password without username",
+			config: &Socks5Config{
+				Server:     "127.0.0.1",
+				ServerPort: 1080,
+				Password:   "pass",
+			},
+			wantErr: true,
+			errMsg:  "username and password must be provided together",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.config.Validate()
+			if (err != nil) != tt.wantErr {
+				t.Errorf("Validate() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if err != nil && tt.errMsg != "" && err.Error() != tt.errMsg {
+				t.Errorf("Validate() error message = %v, want %v", err.Error(), tt.errMsg)
+			}
+		})
+	}
+}
+
+func TestConfigValidate_NewModelHelpers_ExposeRuntimeValues(t *testing.T) {
+	payload := []byte(`{
+		"core": {
+			"api_server": "https://api.example.com",
+			"aliangServer": {
+				"type": "aliang",
+				"core_server": "ai-gateway.nursor.org:443"
+			}
+		},
+		"customer": {
+			"proxy": {
+				"type": "socks5",
+				"server": "127.0.0.1:1080",
+				"username": "u",
+				"password": "p"
+			},
+			"ai_rules": {
+				"openai": {
+					"enble": true,
+					"exclude": ["api.openai.com", "cdn.openai.com"]
+				},
+				"claude": {
+					"enble": false,
+					"exclude": ["claude.ai"]
+				}
+			},
+			"proxy_rules": ["domains,cursor.com,proxy"]
+		}
+	}`)
+
+	var cfg Config
+	if err := json.Unmarshal(payload, &cfg); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("Validate() error = %v", err)
+	}
+
+	if cfg.EffectiveDefaultProxy() != "socks" {
+		t.Fatalf("EffectiveDefaultProxy() = %q, want socks", cfg.EffectiveDefaultProxy())
+	}
+	socksCfg, err := cfg.EffectiveSocksProxy()
+	if err != nil {
+		t.Fatalf("EffectiveSocksProxy() error = %v", err)
+	}
+	if socksCfg == nil {
+		t.Fatal("EffectiveSocksProxy() = nil, want derived socks config")
+	}
+	if socksCfg.Server != "127.0.0.1" || socksCfg.ServerPort != 1080 {
+		t.Fatalf("EffectiveSocksProxy() = %#v, want host 127.0.0.1 port 1080", socksCfg)
+	}
+	if got := cfg.EffectiveAliangCoreServer(); got != "ai-gateway.nursor.org:443" {
+		t.Fatalf("EffectiveAliangCoreServer() = %q", got)
+	}
+	if got := cfg.EffectiveAIAllowlist(); len(got) != 2 {
+		t.Fatalf("EffectiveAIAllowlist len = %d, want 2", len(got))
+	}
+
+	if len(cfg.Customer.ProxyRules) != 1 || cfg.Customer.ProxyRules[0] != "domains,cursor.com,proxy" {
+		t.Fatalf("ProxyRules = %v, want [domains,cursor.com,proxy]", cfg.Customer.ProxyRules)
+	}
+}
+
+func TestConfigValidate_CustomerProxyTypeAcceptsSocks5(t *testing.T) {
+	payload := []byte(`{
+		"core": {"api_server": "https://api.example.com"},
+		"customer": {
+			"proxy": {
+				"type": "socks5",
+				"server": "127.0.0.1:1080"
+			}
+		}
+	}`)
+
+	var cfg Config
+	if err := json.Unmarshal(payload, &cfg); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+	err := cfg.Validate()
+	if err != nil {
+		t.Fatalf("Validate() error = %v, want nil for socks5", err)
+	}
+}
+
+func TestConfigValidate_ForbidUnknownCustomerField(t *testing.T) {
+	payload := []byte(`{
+		"core": {"api_server": "https://api.example.com"},
+		"customer": {
+			"proxy": {
+				"type": "http",
+				"server": "127.0.0.1:1080"
+			},
+			"forbidden": true
+		}
+	}`)
+
+	var cfg Config
+	if err := json.Unmarshal(payload, &cfg); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+	err := cfg.Validate()
+	if err == nil {
+		t.Fatal("Validate() error = nil, want forbidden field error")
+	}
+	if !strings.Contains(err.Error(), "customer.forbidden is forbidden") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestConfigValidate_ForbidUnknownAIRulesField(t *testing.T) {
+	payload := []byte(`{
+		"core": {"api_server": "https://api.example.com"},
+		"customer": {
+			"proxy": {
+				"type": "http",
+				"server": "127.0.0.1:1080"
+			},
+			"ai_rules": {
+				"openai": {
+					"enble": true,
+					"exclude": ["api.openai.com"],
+					"mode": "all"
+				}
+			}
+		}
+	}`)
+
+	var cfg Config
+	if err := json.Unmarshal(payload, &cfg); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+	err := cfg.Validate()
+	if err == nil {
+		t.Fatal("Validate() error = nil, want forbidden ai_rules field error")
+	}
+	if !strings.Contains(err.Error(), "customer.ai_rules.openai.mode is forbidden") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestConfigValidate_AIRulesEnableRequired(t *testing.T) {
+	payload := []byte(`{
+		"core": {"api_server": "https://api.example.com"},
+		"customer": {
+			"proxy": {
+				"type": "http",
+				"server": "127.0.0.1:1080"
+			},
+			"ai_rules": {
+				"openai": {
+					"exclude": ["api.openai.com"]
+				}
+			}
+		}
+	}`)
+
+	var cfg Config
+	if err := json.Unmarshal(payload, &cfg); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+	err := cfg.Validate()
+	if err == nil {
+		t.Fatal("Validate() error = nil, want missing enable error")
+	}
+	if !strings.Contains(err.Error(), "customer.ai_rules.openai.enble is required") {
+		t.Fatalf("unexpected error: %v", err)
 	}
 }

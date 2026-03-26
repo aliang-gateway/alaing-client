@@ -11,14 +11,16 @@ import (
 type RouteDecision string
 
 const (
-	// RouteToCursor routes traffic through Cursor MITM proxy (Nonelane)
+	// RouteToCursor routes traffic through Cursor MITM proxy (Aliang)
 	RouteToCursor RouteDecision = "cursor"
 
-	// RouteToDoor routes traffic through Door proxy (VLESS/Shadowsocks nodes)
-	RouteToDoor RouteDecision = "door"
+	// RouteToSocks routes traffic through SOCKS proxy
+	RouteToSocks RouteDecision = "socks"
 
 	// RouteDirect routes traffic directly without proxy
 	RouteDirect RouteDecision = "direct"
+
+	RouteDeny RouteDecision = "deny"
 )
 
 // CacheEntry represents a cached routing decision for an IP-domain pair

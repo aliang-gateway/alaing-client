@@ -44,9 +44,6 @@ type ProxyRepository interface {
 	// SetDefaultProxy sets the default proxy
 	// SetDefaultProxy(name string) error
 
-	// SetDoorProxy sets the door proxy
-	// SetDoorProxy(name string) error
-
 	// SwitchProxy switches to a proxy
 	// SwitchProxy(name string) error
 }

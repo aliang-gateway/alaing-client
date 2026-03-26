@@ -59,7 +59,7 @@ func (ch *CertHandler) HandleGetStatus(w http.ResponseWriter, r *http.Request) {
 	common.Success(w, status)
 }
 
-// HandleExport exports a certificate to ~/.nonelane/
+// HandleExport exports a certificate to ~/.aliang/
 func (ch *CertHandler) HandleExport(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		common.ErrorBadRequest(w, "Method not allowed", nil)
@@ -271,7 +271,7 @@ func (ch *CertHandler) HandleGenerateCert(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	exportPath := filepath.Join(homeDir, ".nonelane", config.FileName+".pem")
+	exportPath := filepath.Join(homeDir, ".aliang", config.FileName+".pem")
 
 	// Generate certificate
 	if err := generator.GenerateCertificateFromConfig(config, exportPath); err != nil {

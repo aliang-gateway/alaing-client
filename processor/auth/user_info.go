@@ -1,11 +1,17 @@
 package user
 
 import (
+	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
+
+	"gorm.io/driver/sqlite"
+	"gorm.io/gorm"
 
 	"nursor.org/nursorgate/common/logger"
 )
@@ -14,7 +20,12 @@ import (
 type UserInfo struct {
 	AccessToken  string    `json:"access_token"`  // 加密存储
 	RefreshToken string    `json:"refresh_token"` // 加密存储
+	TokenType    string    `json:"token_type,omitempty"`
+	ExpiresIn    int       `json:"expires_in,omitempty"`
 	Username     string    `json:"username"`
+	Email        string    `json:"email,omitempty"`
+	Role         string    `json:"role,omitempty"`
+	UserID       int64     `json:"user_id,omitempty"`
 	PlanName     string    `json:"plan_name"`
 	TrafficUsed  int64     `json:"traffic_used"`
 	TrafficTotal int64     `json:"traffic_total"`
@@ -69,9 +80,23 @@ type RefreshResponse struct {
 }
 
 var (
-	userInfoMutex   sync.RWMutex
-	currentUserInfo *UserInfo
+	userInfoMutex     sync.RWMutex
+	currentUserInfo   *UserInfo
+	authSessionDBOnce sync.Once
+	authSessionDB     *gorm.DB
+	authSessionDBErr  error
 )
+
+const (
+	authSessionDBFile   = "auth_session.db"
+	authSessionRecordID = 1
+)
+
+type authSessionRecord struct {
+	ID        uint      `gorm:"primaryKey"`
+	Data      string    `gorm:"type:text;not null"`
+	UpdatedAt time.Time `gorm:"autoUpdateTime"`
+}
 
 // GetUserInfoPath 获取用户信息文件路径
 func GetUserInfoPath() (string, error) {
@@ -79,24 +104,17 @@ func GetUserInfoPath() (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("failed to get home directory: %w", err)
 	}
-	configDir := filepath.Join(homeDir, ".nonelane")
+	configDir := filepath.Join(homeDir, ".aliang")
 	logger.Debug(fmt.Sprintf("get user info path: %s", configDir))
 	return filepath.Join(configDir, "userinfo.json"), nil
 }
 
-// ensureConfigDir 确保配置目录存在
-func ensureConfigDir() error {
+func GetAuthSessionDBPath() (string, error) {
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
-		return fmt.Errorf("failed to get home directory: %w", err)
+		return "", fmt.Errorf("failed to get home directory: %w", err)
 	}
-
-	configDir := filepath.Join(homeDir, ".nonelane")
-	if err := os.MkdirAll(configDir, 0700); err != nil {
-		return fmt.Errorf("failed to create config directory: %w", err)
-	}
-
-	return nil
+	return filepath.Join(homeDir, ".aliang", authSessionDBFile), nil
 }
 
 // SaveUserInfo 保存用户信息到本地（整文件加密）
@@ -105,72 +123,53 @@ func SaveUserInfo(info *UserInfo) error {
 		return fmt.Errorf("user info cannot be nil")
 	}
 
-	// 确保配置目录存在
-	if err := ensureConfigDir(); err != nil {
-		return err
-	}
-
-	// 更新时间戳
 	info.UpdatedAt = time.Now()
 
-	// 使用整文件加密（新格式）
-	encryptedData, err := EncryptUserInfoFile(info)
-	if err != nil {
-		return fmt.Errorf("failed to encrypt user info file: %w", err)
+	if err := saveUserInfoToSQLite(info); err != nil {
+		return fmt.Errorf("failed to persist user info to sqlite: %w", err)
 	}
 
-	// 获取文件路径
-	filePath, err := GetUserInfoPath()
-	if err != nil {
-		return err
-	}
+	logger.Debug("User info saved successfully (sqlite)")
 
-	// 写入文件（权限0600只有所有者可读写）
-	if err := os.WriteFile(filePath, encryptedData, 0600); err != nil {
-		return fmt.Errorf("failed to write user info file: %w", err)
-	}
-
-	logger.Debug("User info saved successfully (whole-file encryption)")
-
-	// 更新内存中的用户信息
 	userInfoMutex.Lock()
-	currentUserInfo = info
+	copyInfo := *info
+	currentUserInfo = &copyInfo
 	userInfoMutex.Unlock()
 
 	return nil
 }
 
-// LoadUserInfo 从本地加载用户信息（自动解密，支持新旧格式迁移）
 func LoadUserInfo() (*UserInfo, error) {
-	filePath, err := GetUserInfoPath()
-	if err != nil {
-		return nil, err
-	}
-
-	// 检查文件是否存在
-	if _, err := os.Stat(filePath); os.IsNotExist(err) {
-		return nil, fmt.Errorf("user info file does not exist: %s", filePath)
-	}
-
-	// 读取文件
-	data, err := os.ReadFile(filePath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read user info file: %w", err)
-	}
-
-	// 尝试新格式（整文件加密）
-	decryptedInfo, err := DecryptUserInfoFile(data)
+	sqliteInfo, err := loadUserInfoFromSQLite()
 	if err == nil {
-		logger.Debug("User info loaded successfully (whole-file encryption format)")
-
-		// 更新内存中的用户信息
 		userInfoMutex.Lock()
-		currentUserInfo = decryptedInfo
+		copyInfo := *sqliteInfo
+		currentUserInfo = &copyInfo
 		userInfoMutex.Unlock()
-
-		return decryptedInfo, nil
+		return sqliteInfo, nil
 	}
-	return nil, fmt.Errorf("failed to load user info: %w", err)
+
+	if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, fmt.Errorf("failed to load user info from sqlite: %w", err)
+	}
+
+	legacyInfo, legacyErr := loadLegacyUserInfoFromFile()
+	if legacyErr != nil {
+		return nil, fmt.Errorf("no persisted user info found: %w", legacyErr)
+	}
+
+	if saveErr := saveUserInfoToSQLite(legacyInfo); saveErr != nil {
+		return nil, fmt.Errorf("failed to migrate legacy user info to sqlite: %w", saveErr)
+	}
+
+	logger.Info("Migrated legacy user info file into sqlite auth session store")
+
+	userInfoMutex.Lock()
+	copyInfo := *legacyInfo
+	currentUserInfo = &copyInfo
+	userInfoMutex.Unlock()
+
+	return legacyInfo, nil
 }
 
 // UpdateUserInfo 更新用户信息并保存
@@ -180,22 +179,173 @@ func UpdateUserInfo(info *UserInfo) error {
 
 // DeleteUserInfo 删除本地用户信息
 func DeleteUserInfo() error {
-	filePath, err := GetUserInfoPath()
-	if err != nil {
+	if err := deleteUserInfoFromSQLite(); err != nil {
 		return err
 	}
 
-	// 删除文件
-	if err := os.Remove(filePath); err != nil && !os.IsNotExist(err) {
-		return fmt.Errorf("failed to delete user info file: %w", err)
+	filePath, err := GetUserInfoPath()
+	if err == nil {
+		if err := os.Remove(filePath); err != nil && !os.IsNotExist(err) {
+			logger.Warn(fmt.Sprintf("Failed to delete legacy user info file: %v", err))
+		}
 	}
 
-	// 清空内存中的用户信息
 	userInfoMutex.Lock()
 	currentUserInfo = nil
 	userInfoMutex.Unlock()
 
 	return nil
+}
+
+func HasPersistedUserInfo() (bool, error) {
+	dbPath, err := GetAuthSessionDBPath()
+	if err != nil {
+		return false, err
+	}
+
+	if _, err := os.Stat(dbPath); os.IsNotExist(err) {
+		filePath, pathErr := GetUserInfoPath()
+		if pathErr != nil {
+			return false, nil
+		}
+		if _, statErr := os.Stat(filePath); statErr == nil {
+			return true, nil
+		}
+		return false, nil
+	}
+
+	db, err := gorm.Open(sqlite.Open(dbPath), &gorm.Config{})
+	if err != nil {
+		return false, err
+	}
+
+	var count int64
+	if err := db.Model(&authSessionRecord{}).Where("id = ?", authSessionRecordID).Count(&count).Error; err != nil {
+		if strings.Contains(strings.ToLower(err.Error()), "no such table") {
+			return false, nil
+		}
+		return false, err
+	}
+
+	if count > 0 {
+		return true, nil
+	}
+
+	filePath, pathErr := GetUserInfoPath()
+	if pathErr != nil {
+		return false, nil
+	}
+
+	if _, err := os.Stat(filePath); err == nil {
+		return true, nil
+	}
+
+	return false, nil
+}
+
+func getAuthSessionDB() (*gorm.DB, error) {
+	authSessionDBOnce.Do(func() {
+		dbPath, err := GetAuthSessionDBPath()
+		if err != nil {
+			authSessionDBErr = err
+			return
+		}
+
+		if err := os.MkdirAll(filepath.Dir(dbPath), 0o700); err != nil {
+			authSessionDBErr = fmt.Errorf("failed to create auth session db directory: %w", err)
+			return
+		}
+
+		db, err := gorm.Open(sqlite.Open(dbPath), &gorm.Config{})
+		if err != nil {
+			authSessionDBErr = fmt.Errorf("failed to open sqlite database: %w", err)
+			return
+		}
+
+		if err := db.AutoMigrate(&authSessionRecord{}); err != nil {
+			authSessionDBErr = fmt.Errorf("failed to migrate auth session table: %w", err)
+			return
+		}
+
+		authSessionDB = db
+	})
+
+	return authSessionDB, authSessionDBErr
+}
+
+func saveUserInfoToSQLite(info *UserInfo) error {
+	db, err := getAuthSessionDB()
+	if err != nil {
+		return err
+	}
+
+	data, err := json.Marshal(info)
+	if err != nil {
+		return fmt.Errorf("failed to marshal user info: %w", err)
+	}
+
+	record := authSessionRecord{
+		ID:        authSessionRecordID,
+		Data:      string(data),
+		UpdatedAt: info.UpdatedAt,
+	}
+
+	return db.Save(&record).Error
+}
+
+func loadUserInfoFromSQLite() (*UserInfo, error) {
+	db, err := getAuthSessionDB()
+	if err != nil {
+		return nil, err
+	}
+
+	var record authSessionRecord
+	if err := db.First(&record, "id = ?", authSessionRecordID).Error; err != nil {
+		return nil, err
+	}
+
+	info := &UserInfo{}
+	if err := json.Unmarshal([]byte(record.Data), info); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal user info: %w", err)
+	}
+
+	return info, nil
+}
+
+func deleteUserInfoFromSQLite() error {
+	db, err := getAuthSessionDB()
+	if err != nil {
+		return err
+	}
+
+	if err := db.Delete(&authSessionRecord{}, "id = ?", authSessionRecordID).Error; err != nil {
+		return fmt.Errorf("failed to delete user info from sqlite: %w", err)
+	}
+
+	return nil
+}
+
+func loadLegacyUserInfoFromFile() (*UserInfo, error) {
+	filePath, err := GetUserInfoPath()
+	if err != nil {
+		return nil, err
+	}
+
+	if _, err := os.Stat(filePath); err != nil {
+		return nil, err
+	}
+
+	data, err := os.ReadFile(filePath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read legacy user info file: %w", err)
+	}
+
+	decryptedInfo, err := DecryptUserInfoFile(data)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decrypt legacy user info file: %w", err)
+	}
+
+	return decryptedInfo, nil
 }
 
 // GetCurrentUserInfo 获取当前加载的用户信息（内存）
@@ -215,4 +365,14 @@ func SetCurrentUserInfo(info *UserInfo) {
 	userInfoMutex.Lock()
 	defer userInfoMutex.Unlock()
 	currentUserInfo = info
+}
+
+func ResetAuthPersistenceForTest() {
+	userInfoMutex.Lock()
+	currentUserInfo = nil
+	userInfoMutex.Unlock()
+
+	authSessionDB = nil
+	authSessionDBErr = nil
+	authSessionDBOnce = sync.Once{}
 }

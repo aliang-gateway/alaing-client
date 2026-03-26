@@ -6,7 +6,7 @@ import (
 	"strings"
 )
 
-const Name = "NonelaneCore"
+const Name = "AliangCore"
 
 var (
 	// Version can be set at link time by executing

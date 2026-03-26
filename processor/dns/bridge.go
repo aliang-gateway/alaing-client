@@ -85,24 +85,11 @@ type (
 	}
 )
 
-// GetGlobalResolver 获取全局DNS解析器实例
-// 这个函数用于在TUN模块中获取已配置的DNS解析器
-var globalResolver DNSResolverInterface
-
-// SetGlobalResolver 设置全局DNS解析器
-func SetGlobalResolver(resolver DNSResolverInterface) {
-	globalResolver = resolver
-}
-
-// GetGlobalResolver 获取全局DNS解析器
-func GetGlobalResolver() DNSResolverInterface {
-	return globalResolver
-}
-
 // ResolveMetadataForProxy 为代理连接解析元数据中的域名
 // 这是一个便捷函数，用于在代理连接前快速解析域名
 func ResolveMetadataForProxy(ctx context.Context, metadata *M.Metadata) (*M.Metadata, error) {
-	if globalResolver == nil {
+	resolver := GetGlobalResolver()
+	if resolver == nil {
 		return metadata, nil // 没有配置全局解析器，直接返回
 	}
 
@@ -117,7 +104,7 @@ func ResolveMetadataForProxy(ctx context.Context, metadata *M.Metadata) (*M.Meta
 	}
 
 	// 执行DNS解析
-	result, err := globalResolver.ResolveIP(ctx, metadata.HostName)
+	result, err := resolver.ResolveIP(ctx, metadata.HostName)
 	if err != nil || !result.Success {
 		return metadata, err // 解析失败，返回原始元数据
 	}

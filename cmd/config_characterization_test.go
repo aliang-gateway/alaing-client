@@ -2,17 +2,24 @@ package cmd
 
 import (
 	"os"
+	"path/filepath"
 	"testing"
 
+	"nursor.org/nursorgate/app/http/storage"
+	"nursor.org/nursorgate/common/cache"
 	processorconfig "nursor.org/nursorgate/processor/config"
 )
 
 func resetConfigPipelineStateForTest(t *testing.T) {
 	t.Helper()
 	processorconfig.ResetGlobalConfigForTest()
+	cache.ResetCacheDirForTest()
+	storage.ResetSoftwareConfigDBForTest()
 	setUseDefaultConfig(false)
 	t.Cleanup(func() {
 		processorconfig.ResetGlobalConfigForTest()
+		cache.ResetCacheDirForTest()
+		storage.ResetSoftwareConfigDBForTest()
 		setUseDefaultConfig(false)
 	})
 }
@@ -56,7 +63,7 @@ func TestApplyDefaultConfig_SetsUsingDefaultConfigTrue(t *testing.T) {
 func TestLoadConfigFromBytes_WithInvalidJSON_ReturnsError(t *testing.T) {
 	resetConfigPipelineStateForTest(t)
 
-	invalidJSON := []byte(`{"api_server":`)
+	invalidJSON := []byte(`{"core":{"api_server":`)
 
 	cfg, err := LoadConfigFromBytes(invalidJSON)
 	if err == nil {
@@ -71,11 +78,10 @@ func TestLoadConfigFromBytes_WithValidJSON_ReturnsConfig(t *testing.T) {
 	resetConfigPipelineStateForTest(t)
 
 	validJSON := []byte(`{
-		"api_server": "https://api.example.com",
-		"currentProxy": "direct",
-		"baseProxies": {
-			"nonelane": {
-				"type": "nonelane",
+		"core": {
+			"api_server": "https://api.example.com",
+			"aliangServer": {
+				"type": "aliang",
 				"core_server": "gateway.example.com:443"
 			}
 		}
@@ -88,21 +94,166 @@ func TestLoadConfigFromBytes_WithValidJSON_ReturnsConfig(t *testing.T) {
 	if cfg == nil {
 		t.Fatalf("expected parsed config, got nil")
 	}
-	if cfg.APIServer != "https://api.example.com" {
-		t.Fatalf("expected APIServer to be parsed, got: %q", cfg.APIServer)
+	if cfg.APIBaseURL() != "https://api.example.com" {
+		t.Fatalf("expected APIBaseURL to be parsed, got: %q", cfg.APIBaseURL())
 	}
-	if cfg.CurrentProxy != "direct" {
-		t.Fatalf("expected CurrentProxy to be parsed, got: %q", cfg.CurrentProxy)
+	if cfg.Core == nil || cfg.Core.AliangServer == nil {
+		t.Fatalf("expected core.aliangServer to be present")
 	}
-	if cfg.BaseProxies == nil {
-		t.Fatalf("expected BaseProxies to be parsed, got nil")
-	}
-	nonelaneCfg, ok := cfg.BaseProxies["nonelane"]
-	if !ok || nonelaneCfg == nil {
-		t.Fatalf("expected nonelane base proxy to be present")
-	}
-	if nonelaneCfg.CoreServer != "gateway.example.com:443" {
-		t.Fatalf("expected nonelane core_server to be parsed, got: %q", nonelaneCfg.CoreServer)
+	if cfg.Core.AliangServer.CoreServer != "gateway.example.com:443" {
+		t.Fatalf("expected aliangServer core_server to be parsed, got: %q", cfg.Core.AliangServer.CoreServer)
 	}
 
+}
+
+func writeStartupTestConfigFile(t *testing.T, dir string, fileName string, content string) string {
+	t.Helper()
+	path := filepath.Join(dir, fileName)
+	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+		t.Fatalf("failed to write test config file %s: %v", path, err)
+	}
+	return path
+}
+
+func TestApplyStartupConfig_UsesExplicitConfigPathOverLocalConfigNewJSON(t *testing.T) {
+	resetConfigPipelineStateForTest(t)
+
+	originalWd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("failed to get working directory: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = os.Chdir(originalWd)
+	})
+
+	tempDir := t.TempDir()
+	if err := os.Chdir(tempDir); err != nil {
+		t.Fatalf("failed to change working directory: %v", err)
+	}
+
+	writeStartupTestConfigFile(t, tempDir, "config.new.json", `{"api_server":`)
+	explicitPath := writeStartupTestConfigFile(t, tempDir, "explicit.json", `{
+		"core": {
+			"api_server": "https://api.explicit.example.com",
+			"aliangServer": {
+				"type": "aliang",
+				"core_server": "explicit-gateway.example.com:443"
+			}
+		}
+	}`)
+
+	if err := ApplyStartupConfig(explicitPath); err != nil {
+		t.Fatalf("expected explicit --config path to be used even when config.new.json exists, got: %v", err)
+	}
+
+	globalCfg := processorconfig.GetGlobalConfig()
+	if globalCfg == nil {
+		t.Fatalf("expected global config to be set")
+	}
+	if globalCfg.APIBaseURL() != "https://api.explicit.example.com" {
+		t.Fatalf("expected explicit config APIBaseURL, got %q", globalCfg.APIBaseURL())
+	}
+	if IsUsingDefaultConfig() {
+		t.Fatalf("expected custom config flag for explicit path")
+	}
+}
+
+func TestApplyStartupConfig_UsesConfigNewJSONWhenNoExplicitPath(t *testing.T) {
+	resetConfigPipelineStateForTest(t)
+
+	originalWd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("failed to get working directory: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = os.Chdir(originalWd)
+	})
+
+	tempDir := t.TempDir()
+	if err := os.Chdir(tempDir); err != nil {
+		t.Fatalf("failed to change working directory: %v", err)
+	}
+	t.Setenv("HOME", tempDir)
+
+	writeStartupTestConfigFile(t, tempDir, "config.new.json", `{
+		"core": {
+			"api_server": "https://api.local-config-new.example.com",
+			"aliangServer": {
+				"type": "aliang",
+				"core_server": "local-gateway.example.com:443"
+			}
+		}
+	}`)
+
+	if err := ApplyStartupConfig(""); err != nil {
+		t.Fatalf("expected config.new.json to be used when no explicit path, got: %v", err)
+	}
+
+	globalCfg := processorconfig.GetGlobalConfig()
+	if globalCfg == nil {
+		t.Fatalf("expected global config to be set")
+	}
+	if globalCfg.APIBaseURL() != "https://api.local-config-new.example.com" {
+		t.Fatalf("expected config.new.json APIBaseURL, got %q", globalCfg.APIBaseURL())
+	}
+	if IsUsingDefaultConfig() {
+		t.Fatalf("expected custom config flag when loading config.new.json")
+	}
+}
+
+func TestApplyStartupConfig_UsesEmbeddedDefaultWhenNoExplicitAndNoConfigNewJSON(t *testing.T) {
+	resetConfigPipelineStateForTest(t)
+
+	originalWd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("failed to get working directory: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = os.Chdir(originalWd)
+	})
+
+	tempDir := t.TempDir()
+	if err := os.Chdir(tempDir); err != nil {
+		t.Fatalf("failed to change working directory: %v", err)
+	}
+	t.Setenv("HOME", tempDir)
+
+	if err := ApplyStartupConfig(""); err != nil {
+		t.Fatalf("expected embedded default config to be used, got: %v", err)
+	}
+
+	globalCfg := processorconfig.GetGlobalConfig()
+	if globalCfg == nil {
+		t.Fatalf("expected global config to be set")
+	}
+	if !IsUsingDefaultConfig() {
+		t.Fatalf("expected embedded default to mark using-default flag true")
+	}
+}
+
+func TestApplyStartupConfig_FailsFastWhenConfigNewJSONExistsButInvalid(t *testing.T) {
+	resetConfigPipelineStateForTest(t)
+
+	originalWd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("failed to get working directory: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = os.Chdir(originalWd)
+	})
+
+	tempDir := t.TempDir()
+	if err := os.Chdir(tempDir); err != nil {
+		t.Fatalf("failed to change working directory: %v", err)
+	}
+
+	writeStartupTestConfigFile(t, tempDir, "config.new.json", `{"api_server":`)
+
+	err = ApplyStartupConfig("")
+	if err == nil {
+		t.Fatalf("expected fail-fast error when config.new.json exists but is invalid")
+	}
+	if processorconfig.GetGlobalConfig() != nil {
+		t.Fatalf("expected global config to remain unset on fail-fast invalid config.new.json")
+	}
 }

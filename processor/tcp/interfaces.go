@@ -3,15 +3,16 @@ package tcp
 import (
 	"context"
 	"net"
+	"time"
 
 	M "nursor.org/nursorgate/inbound/tun/metadata"
 )
 
 // TCPConnHandler orchestrates the entire TCP connection lifecycle.
 // It handles protocol detection, routing decisions, and data relay
-// for connections from both TUN and HTTP proxyserver modules.
+// for connections from both TUN and HTTP proxy modules.
 type TCPConnHandler interface {
-	// Handle processes a single TCP connection from any proxyserver source.
+	// Handle processes a single TCP connection from any proxy source.
 	// It is responsible for:
 	// - Protocol detection (TLS on port 443, direct for others)
 	// - SNI extraction and certificate interception (for HTTPS)
@@ -30,13 +31,23 @@ type RelayManager interface {
 	// Relay establishes bidirectional data flow between originConn and remoteConn.
 	// It:
 	// - Copies data concurrently in both directions using io.CopyBuffer
-	// - Uses buffer pooling for efficiency (from proxyserver/tun/buffer)
+	// - Uses buffer pooling for efficiency (from tun/buffer)
 	// - Integrates with processor/statistic for connection tracking
 	// - Performs TCP half-close handling (CloseRead/CloseWrite)
 	// - Sets appropriate timeouts and cleanup handlers
 	//
 	// The function blocks until both directions complete or context is cancelled.
-	Relay(ctx context.Context, originConn, remoteConn net.Conn, metadata *M.Metadata) error
+	Relay(ctx context.Context, originConn, remoteConn net.Conn, metadata *M.Metadata) (*RelayStats, error)
+}
+
+type RelayStats struct {
+	StartedAt          time.Time
+	FirstResponseAt    time.Time
+	CompletedAt        time.Time
+	ClientToServerByte int64
+	ServerToClientByte int64
+	RequestPayload     []byte
+	ResponsePayload    []byte
 }
 
 // ProtocolDetector determines how to handle a connection based on destination port.
@@ -69,21 +80,14 @@ type TLSHandler interface {
 	// 4. Return the established TLS connection
 	PerformMITM(ctx context.Context, originConn net.Conn, serverName string) (net.Conn, error)
 
-	// DetermineRoute checks if domain should be routed to cursor proxy, door proxy, or direct.
-	// Uses domain allowlist/blocklist from model.AllowProxyDomain.
+	// DetermineRoute checks if domain should be routed to aliang (MITM), socks, or direct.
+	// Uses SNI allowlist from config.
 	// This is the legacy method without rule engine context.
 	DetermineRoute(serverName string) ProxyRoute
 
-	// DetermineRouteWithContext uses the rule engine to make intelligent routing decisions.
-	// This method leverages:
-	// 1. Bypass rules (user-configured direct routes)
-	// 2. IP-Domain cache (avoid repeated SNI extraction)
-	// 3. Nacos rules (Cursor MITM and Door acceleration)
-	// 4. GeoIP routing (country-based decisions)
+	// DetermineRouteWithContext makes routing decisions with metadata context.
+	// It can leverage cached SNI bindings and the SNI allowlist.
 	//
-	// Returns:
-	// - proxyRoute: The routing decision (RouteToCursor, RouteToDoor, RouteDirect)
-	// - requiresSNI: Whether SNI extraction is needed for final decision
 	DetermineRouteWithContext(metadata *M.Metadata) (ProxyRoute, bool)
 }
 
@@ -125,8 +129,8 @@ type ConnectionProvider interface {
 	// GetDefaultDialer returns the default dialer for direct connections
 	GetDefaultDialer() ProxyDialer
 
-	// GetDoorProxy returns the door proxy (gateway proxy) for routing
-	GetDoorProxy() (ProxyDialer, error)
+	// GetSocksProxy returns the SOCKS proxy for routing
+	GetSocksProxy() (ProxyDialer, error)
 
 	// IsDoHProvider checks if the domain is a DNS-over-HTTPS provider
 	IsDoHProvider(domain string) bool
@@ -134,8 +138,8 @@ type ConnectionProvider interface {
 	// IsAllowedToCursor checks if domain should be routed to cursor proxy
 	IsAllowedToCursor(domain string) bool
 
-	// IsAllowedToAnyDoor checks if domain should be routed to door proxy
-	IsAllowedToAnyDoor(domain string) bool
+	// IsAllowedToAnySocks checks if domain should be routed to SOCKS proxy
+	IsAllowedToAnySocks(domain string) bool
 }
 
 // Protocol represents the detected connection protocol
@@ -151,8 +155,8 @@ const (
 type ProxyRoute int
 
 const (
-	RouteToCursor ProxyRoute = iota
-	RouteToDoor
+	RouteToALiang ProxyRoute = iota
+	RouteToLocalProxy
 	RouteDirect
 )
 

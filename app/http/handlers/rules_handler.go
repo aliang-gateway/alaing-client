@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"nursor.org/nursorgate/app/http/common"
+	"nursor.org/nursorgate/processor/config"
 	"nursor.org/nursorgate/processor/geoip"
 	"nursor.org/nursorgate/processor/routing"
 	"nursor.org/nursorgate/processor/rules"
@@ -113,16 +114,13 @@ func (rh *RulesHandler) HandleClearCache(w http.ResponseWriter, r *http.Request)
 func (rh *RulesHandler) HandleGetRuleEngineStatus(w http.ResponseWriter, r *http.Request) {
 	engine := rules.GetEngine()
 	geoipService := geoip.GetService()
-	switchMgr := routing.GetSwitchManager()
-
-	// Get global switch status
-	switchStatus := switchMgr.GetStatus()
+	switchStatus := activeSwitchStatus()
 
 	status := map[string]interface{}{
 		"engineEnabled":    engine != nil && engine.IsEnabled(),
 		"geoipEnabled":     geoipService != nil && geoipService.IsEnabled(),
-		"noneLaneEnabled":  switchStatus.NoneLaneEnabled,
-		"doorEnabled":      switchStatus.DoorEnabled,
+		"aliangEnabled":    switchStatus.AliangEnabled,
+		"socksEnabled":     switchStatus.SocksEnabled,
 		"geoipRuleEnabled": switchStatus.GeoIPEnabled,
 	}
 
@@ -171,21 +169,18 @@ func (rh *RulesHandler) HandleDisableRuleEngine(w http.ResponseWriter, r *http.R
 // T040: HandleGetGlobalSwitchStatus handles GET /api/rules/switches/status
 // Returns the status of global routing switches
 func (rh *RulesHandler) HandleGetGlobalSwitchStatus(w http.ResponseWriter, r *http.Request) {
-	switchMgr := routing.GetSwitchManager()
-	status := switchMgr.GetStatus()
+	status := activeSwitchStatus()
 
 	common.Success(w, map[string]interface{}{
-		"noneLaneEnabled": status.NoneLaneEnabled,
-		"doorEnabled":     status.DoorEnabled,
-		"geoipEnabled":    status.GeoIPEnabled,
+		"aliangEnabled": status.AliangEnabled,
+		"socksEnabled":  status.SocksEnabled,
+		"geoipEnabled":  status.GeoIPEnabled,
 	})
 }
 
 // T041: HandleSetGlobalSwitch handles POST /api/rules/switches/{switch_name}
-// Controls individual global switches (nonelane, door, geoip)
+// Controls individual global switches (aliang, socks, geoip)
 func (rh *RulesHandler) HandleSetGlobalSwitch(w http.ResponseWriter, r *http.Request) {
-	switchMgr := routing.GetSwitchManager()
-
 	// Parse request body
 	var req struct {
 		Enabled bool `json:"enabled"`
@@ -204,7 +199,7 @@ func (rh *RulesHandler) HandleSetGlobalSwitch(w http.ResponseWriter, r *http.Req
 	if switchName == "" {
 		// Try to get it from path
 		pathParts := r.URL.Path
-		// Simple parsing: /api/rules/switches/nonelane -> nonelane
+		// Simple parsing: /api/rules/switches/aliang -> aliang
 		if len(pathParts) > 0 {
 			parts := strings.Split(pathParts, "/")
 			if len(parts) > 0 {
@@ -214,32 +209,13 @@ func (rh *RulesHandler) HandleSetGlobalSwitch(w http.ResponseWriter, r *http.Req
 	}
 
 	switch switchName {
-	case "nonelane":
-		switchMgr.SetNoneLaneEnabled(req.Enabled)
-		common.Success(w, map[string]interface{}{
-			"switch":  "nonelane",
+	case "aliang", "socks", "geoip":
+		common.ErrorBadRequest(w, "Legacy mutable switch write path is removed; update canonical routing config via /api/config/routing", map[string]interface{}{
+			"switch":  switchName,
 			"enabled": req.Enabled,
-			"status":  "success",
 		})
-
-	case "door":
-		switchMgr.SetDoorEnabled(req.Enabled)
-		common.Success(w, map[string]interface{}{
-			"switch":  "door",
-			"enabled": req.Enabled,
-			"status":  "success",
-		})
-
-	case "geoip":
-		switchMgr.SetGeoIPEnabled(req.Enabled)
-		common.Success(w, map[string]interface{}{
-			"switch":  "geoip",
-			"enabled": req.Enabled,
-			"status":  "success",
-		})
-
 	default:
-		common.ErrorBadRequest(w, "Invalid switch name. Must be one of: nonelane, door, geoip", map[string]interface{}{
+		common.ErrorBadRequest(w, "Invalid switch name. Must be one of: aliang, socks, geoip", map[string]interface{}{
 			"provided": switchName,
 		})
 	}
@@ -248,13 +224,11 @@ func (rh *RulesHandler) HandleSetGlobalSwitch(w http.ResponseWriter, r *http.Req
 // T042: HandleBulkSwitchControl handles POST /api/rules/switches/bulk
 // Controls multiple switches at once
 func (rh *RulesHandler) HandleBulkSwitchControl(w http.ResponseWriter, r *http.Request) {
-	switchMgr := routing.GetSwitchManager()
-
 	// Parse request body
 	var req struct {
-		NoneLaneEnabled *bool `json:"nonelane_enabled"`
-		DoorEnabled     *bool `json:"door_enabled"`
-		GeoIPEnabled    *bool `json:"geoip_enabled"`
+		AliangEnabled *bool `json:"aliang_enabled"`
+		SocksEnabled  *bool `json:"socks_enabled"`
+		GeoIPEnabled  *bool `json:"geoip_enabled"`
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -264,25 +238,42 @@ func (rh *RulesHandler) HandleBulkSwitchControl(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	// Apply changes
-	if req.NoneLaneEnabled != nil {
-		switchMgr.SetNoneLaneEnabled(*req.NoneLaneEnabled)
-	}
-	if req.DoorEnabled != nil {
-		switchMgr.SetDoorEnabled(*req.DoorEnabled)
-	}
-	if req.GeoIPEnabled != nil {
-		switchMgr.SetGeoIPEnabled(*req.GeoIPEnabled)
+	status := activeSwitchStatus()
+	common.ErrorBadRequest(w, "Legacy mutable switch bulk write path is removed; update canonical routing config via /api/config/routing", map[string]interface{}{
+		"status":        "rejected",
+		"aliangEnabled": status.AliangEnabled,
+		"socksEnabled":  status.SocksEnabled,
+		"geoipEnabled":  status.GeoIPEnabled,
+	})
+}
+
+func activeSwitchStatus() struct {
+	AliangEnabled bool
+	SocksEnabled  bool
+	GeoIPEnabled  bool
+} {
+	canonical := config.GetRoutingApplyStore().ActiveCanonicalSchema()
+	if canonical == nil {
+		return struct {
+			AliangEnabled bool
+			SocksEnabled  bool
+			GeoIPEnabled  bool
+		}{
+			AliangEnabled: true,
+			SocksEnabled:  true,
+			GeoIPEnabled:  false,
+		}
 	}
 
-	// Return updated status
-	status := switchMgr.GetStatus()
-	common.Success(w, map[string]interface{}{
-		"status":          "success",
-		"noneLaneEnabled": status.NoneLaneEnabled,
-		"doorEnabled":     status.DoorEnabled,
-		"geoipEnabled":    status.GeoIPEnabled,
-	})
+	return struct {
+		AliangEnabled bool
+		SocksEnabled  bool
+		GeoIPEnabled  bool
+	}{
+		AliangEnabled: canonical.Egress.ToAliang.Enabled,
+		SocksEnabled:  canonical.Egress.ToSocks.Enabled,
+		GeoIPEnabled:  false,
+	}
 }
 
 // T067: HandleGeoIPLookupAdvanced handles POST /api/rules/geoip/lookup

@@ -45,12 +45,12 @@ func GetService() *Service {
 
 // LoadDatabase loads the MaxMind GeoLite2 database from the specified path
 // If the database file doesn't exist, it will automatically download from DefaultGeoIPDownloadURL
-// Supports ~ expansion (e.g., ~/.nonelane/GeoLite2-Country.mmdb)
+// Supports ~ expansion (e.g., ~/.aliang/GeoLite2-Country.mmdb)
 func (s *Service) LoadDatabase(path string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	// 展开 ~ 路径（例如 ~/.nonelane/GeoLite2-Country.mmdb）
+	// 展开 ~ 路径（例如 ~/.aliang/GeoLite2-Country.mmdb）
 	expandedPath, err := cache.ExpandHomePath(path)
 	if err != nil {
 		return fmt.Errorf("failed to expand path %s: %w", path, err)
@@ -190,10 +190,11 @@ func (s *Service) Close() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	s.enabled = false
+
 	if s.reader != nil {
 		err := s.reader.Close()
 		s.reader = nil
-		s.enabled = false
 		return err
 	}
 	return nil

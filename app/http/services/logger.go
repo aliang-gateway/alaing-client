@@ -1,10 +1,17 @@
 package services
 
 import (
+	"bufio"
 	"errors"
+	"fmt"
+	"os"
+	"path/filepath"
+	"sort"
 	"strings"
+	"time"
 
 	"nursor.org/nursorgate/app/http/models"
+	"nursor.org/nursorgate/common/cache"
 	"nursor.org/nursorgate/common/logger"
 )
 
@@ -50,6 +57,10 @@ func (ls *LogService) GetLogs(params models.LogsQueryParams) []models.LogEntryRe
 			Source:    entry.Source,
 			TraceID:   entry.TraceID,
 		})
+	}
+
+	if len(responses) == 0 {
+		return ls.readLogsFromFiles(params, level)
 	}
 
 	return responses
@@ -149,4 +160,119 @@ func maskSensitiveData(data string) string {
 		return "***"
 	}
 	return data[:8] + "***"
+}
+
+func (ls *LogService) readLogsFromFiles(params models.LogsQueryParams, level logger.LogLevelType) []models.LogEntryResponse {
+	logDir, err := cache.GetCacheSubdir("logs")
+	if err != nil {
+		return []models.LogEntryResponse{}
+	}
+
+	candidates := []struct {
+		source string
+		path   string
+	}{
+		{source: "main", path: filepath.Join(logDir, "aliang_core.log")},
+		{source: "http", path: filepath.Join(logDir, "aliang_http.log")},
+	}
+
+	var responses []models.LogEntryResponse
+	for _, candidate := range candidates {
+		if params.Source != "" && params.Source != candidate.source {
+			continue
+		}
+		responses = append(responses, readRecentLogFileEntries(candidate.path, candidate.source, params.Limit, level)...)
+	}
+
+	sort.Slice(responses, func(i, j int) bool {
+		return responses[i].Timestamp < responses[j].Timestamp
+	})
+
+	limit := params.Limit
+	if limit <= 0 {
+		limit = 100
+	}
+	if len(responses) > limit {
+		responses = responses[len(responses)-limit:]
+	}
+
+	return responses
+}
+
+func readRecentLogFileEntries(path, source string, limit int, level logger.LogLevelType) []models.LogEntryResponse {
+	file, err := os.Open(path)
+	if err != nil {
+		return []models.LogEntryResponse{}
+	}
+	defer file.Close()
+
+	if limit <= 0 {
+		limit = 100
+	}
+
+	scanner := bufio.NewScanner(file)
+	lines := make([]string, 0, limit)
+	for scanner.Scan() {
+		line := scanner.Text()
+		if strings.TrimSpace(line) == "" {
+			continue
+		}
+		if len(lines) == limit {
+			copy(lines, lines[1:])
+			lines[len(lines)-1] = line
+		} else {
+			lines = append(lines, line)
+		}
+	}
+
+	var responses []models.LogEntryResponse
+	for _, line := range lines {
+		entry, ok := parseLogLine(line, source)
+		if !ok {
+			continue
+		}
+		if level != 0 {
+			parsedLevel, err := StringToLogLevelType(strings.ToUpper(entry.Level))
+			if err != nil || parsedLevel != level {
+				continue
+			}
+		}
+		responses = append(responses, entry)
+	}
+
+	return responses
+}
+
+func parseLogLine(line, source string) (models.LogEntryResponse, bool) {
+	parts := strings.SplitN(line, " ", 3)
+	if len(parts) < 3 {
+		return models.LogEntryResponse{}, false
+	}
+
+	timeParts := strings.SplitN(parts[2], ": ", 2)
+	if len(timeParts) < 2 {
+		return models.LogEntryResponse{}, false
+	}
+
+	timestampRaw := fmt.Sprintf("%s %s", parts[0], parts[1])
+	parsedTime, err := time.Parse("2006/01/02 15:04:05", timestampRaw)
+	if err != nil {
+		return models.LogEntryResponse{}, false
+	}
+
+	message := timeParts[1]
+	level := "INFO"
+	if start := strings.Index(message, "["); start >= 0 {
+		if end := strings.Index(message[start:], "]"); end > 0 {
+			level = strings.ToUpper(message[start+1 : start+end])
+			message = strings.TrimSpace(message[start+end+1:])
+		}
+	}
+
+	return models.LogEntryResponse{
+		Level:     level,
+		Timestamp: parsedTime.Format("2006-01-02 15:04:05.000"),
+		Message:   message,
+		Source:    source,
+	}, true
 }

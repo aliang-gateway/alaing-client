@@ -10,7 +10,7 @@ import (
 
 const (
 	// DefaultCacheDirName is the default name for the cache directory
-	DefaultCacheDirName = ".nonelane"
+	DefaultCacheDirName = ".aliang"
 
 	// CacheDirEnvVar is the environment variable name for custom cache directory
 	CacheDirEnvVar = "NURSOR_CACHE_DIR"
@@ -28,10 +28,16 @@ var (
 	cacheDirOnce sync.Once
 )
 
+// ResetCacheDirForTest clears the package cache-dir singleton so tests can isolate HOME/env changes.
+func ResetCacheDirForTest() {
+	cacheDir = ""
+	cacheDirOnce = sync.Once{}
+}
+
 // GetCacheDir returns the cache directory path.
 // It resolves paths in the following order:
 // 1. NURSOR_CACHE_DIR environment variable (if set)
-// 2. ~/.nonelane (default)
+// 2. ~/.aliang (default)
 //
 // The directory is created with 0777 permissions if it doesn't exist.
 // This ensures all users can read, write, and execute in the directory.
@@ -60,7 +66,7 @@ func resolveCacheDir() (string, error) {
 		return expandedDir, nil
 	}
 
-	// Use default ~/.nonelane
+	// Use default ~/.aliang
 	homeDir, err := getHomeDir()
 	if err != nil {
 		return "", fmt.Errorf("failed to get home directory: %w", err)
@@ -193,7 +199,7 @@ func expandHome(path string) (string, error) {
 		return home, nil
 	}
 
-	// Handle paths like ~/.nonelane or ~/some/path
+	// Handle paths like ~/.aliang or ~/some/path
 	return filepath.Join(home, path[1:]), nil
 }
 
@@ -202,7 +208,7 @@ func expandHome(path string) (string, error) {
 //
 // Examples:
 //   - "~" -> "/Users/username"
-//   - "~/.nonelane" -> "/Users/username/.nonelane"
+//   - "~/.aliang" -> "/Users/username/.aliang"
 //   - "~/data/file.db" -> "/Users/username/data/file.db"
 //   - "/absolute/path" -> "/absolute/path" (no change)
 func ExpandHomePath(path string) (string, error) {

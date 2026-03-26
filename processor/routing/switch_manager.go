@@ -9,12 +9,12 @@ import (
 
 // SwitchManager manages the global routing switches
 type SwitchManager struct {
-	mu              sync.RWMutex
-	noneLaneEnabled bool
-	doorEnabled     bool
-	geoIPEnabled    bool
-	lastUpdatedAt   int64
-	enabledAt       map[string]int64 // Track when each switch was last changed
+	mu            sync.RWMutex
+	aliangEnabled bool
+	socksEnabled  bool
+	geoIPEnabled  bool
+	lastUpdatedAt int64
+	enabledAt     map[string]int64 // Track when each switch was last changed
 }
 
 var (
@@ -26,10 +26,10 @@ var (
 func GetSwitchManager() *SwitchManager {
 	switchOnce.Do(func() {
 		defaultSwitchManager = &SwitchManager{
-			noneLaneEnabled: true,
-			doorEnabled:     true,
-			geoIPEnabled:    false,
-			enabledAt:       make(map[string]int64),
+			aliangEnabled: true,
+			socksEnabled:  true,
+			geoIPEnabled:  false,
+			enabledAt:     make(map[string]int64),
 		}
 	})
 	return defaultSwitchManager
@@ -47,22 +47,22 @@ func (sm *SwitchManager) UpdateSwitches(config *model.RoutingRulesConfig) {
 
 	settings := config.Settings
 
-	if sm.noneLaneEnabled != settings.NoneLaneEnabled {
-		if settings.NoneLaneEnabled {
-			logger.Info("Global switch: NoneLane ENABLED")
+	if sm.aliangEnabled != settings.AliangEnabled {
+		if settings.AliangEnabled {
+			logger.Info("Global switch: Aliang ENABLED")
 		} else {
-			logger.Info("Global switch: NoneLane DISABLED")
+			logger.Info("Global switch: Aliang DISABLED")
 		}
-		sm.noneLaneEnabled = settings.NoneLaneEnabled
+		sm.aliangEnabled = settings.AliangEnabled
 	}
 
-	if sm.doorEnabled != settings.DoorEnabled {
-		if settings.DoorEnabled {
-			logger.Info("Global switch: Door ENABLED")
+	if sm.socksEnabled != settings.SocksEnabled {
+		if settings.SocksEnabled {
+			logger.Info("Global switch: SOCKS ENABLED")
 		} else {
-			logger.Info("Global switch: Door DISABLED")
+			logger.Info("Global switch: SOCKS DISABLED")
 		}
-		sm.doorEnabled = settings.DoorEnabled
+		sm.socksEnabled = settings.SocksEnabled
 	}
 
 	if sm.geoIPEnabled != settings.GeoIPEnabled {
@@ -75,18 +75,18 @@ func (sm *SwitchManager) UpdateSwitches(config *model.RoutingRulesConfig) {
 	}
 }
 
-// IsNoneLaneEnabled returns the NoneLane switch status
-func (sm *SwitchManager) IsNoneLaneEnabled() bool {
+// IsAliangEnabled returns the Aliang switch status
+func (sm *SwitchManager) IsAliangEnabled() bool {
 	sm.mu.RLock()
 	defer sm.mu.RUnlock()
-	return sm.noneLaneEnabled
+	return sm.aliangEnabled
 }
 
-// IsDoorEnabled returns the Door switch status
-func (sm *SwitchManager) IsDoorEnabled() bool {
+// IsSocksEnabled returns the SOCKS switch status
+func (sm *SwitchManager) IsSocksEnabled() bool {
 	sm.mu.RLock()
 	defer sm.mu.RUnlock()
-	return sm.doorEnabled
+	return sm.socksEnabled
 }
 
 // IsGeoIPEnabled returns the GeoIP switch status
@@ -96,32 +96,32 @@ func (sm *SwitchManager) IsGeoIPEnabled() bool {
 	return sm.geoIPEnabled
 }
 
-// SetNoneLaneEnabled sets the NoneLane switch
-func (sm *SwitchManager) SetNoneLaneEnabled(enabled bool) {
+// SetAliangEnabled sets the Aliang switch
+func (sm *SwitchManager) SetAliangEnabled(enabled bool) {
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
 
-	if sm.noneLaneEnabled != enabled {
-		sm.noneLaneEnabled = enabled
+	if sm.aliangEnabled != enabled {
+		sm.aliangEnabled = enabled
 		if enabled {
-			logger.Info("Global switch: NoneLane ENABLED (manual)")
+			logger.Info("Global switch: Aliang ENABLED (manual)")
 		} else {
-			logger.Info("Global switch: NoneLane DISABLED (manual)")
+			logger.Info("Global switch: Aliang DISABLED (manual)")
 		}
 	}
 }
 
-// SetDoorEnabled sets the Door switch
-func (sm *SwitchManager) SetDoorEnabled(enabled bool) {
+// SetSocksEnabled sets the SOCKS switch
+func (sm *SwitchManager) SetSocksEnabled(enabled bool) {
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
 
-	if sm.doorEnabled != enabled {
-		sm.doorEnabled = enabled
+	if sm.socksEnabled != enabled {
+		sm.socksEnabled = enabled
 		if enabled {
-			logger.Info("Global switch: Door ENABLED (manual)")
+			logger.Info("Global switch: SOCKS ENABLED (manual)")
 		} else {
-			logger.Info("Global switch: Door DISABLED (manual)")
+			logger.Info("Global switch: SOCKS DISABLED (manual)")
 		}
 	}
 }
@@ -147,9 +147,9 @@ func (sm *SwitchManager) GetStatus() model.RulesSettings {
 	defer sm.mu.RUnlock()
 
 	return model.RulesSettings{
-		NoneLaneEnabled: sm.noneLaneEnabled,
-		DoorEnabled:     sm.doorEnabled,
-		GeoIPEnabled:    sm.geoIPEnabled,
+		AliangEnabled: sm.aliangEnabled,
+		SocksEnabled:  sm.socksEnabled,
+		GeoIPEnabled:  sm.geoIPEnabled,
 	}
 }
 
@@ -158,8 +158,8 @@ func (sm *SwitchManager) DisableAll() {
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
 
-	sm.noneLaneEnabled = false
-	sm.doorEnabled = false
+	sm.aliangEnabled = false
+	sm.socksEnabled = false
 	sm.geoIPEnabled = false
 	logger.Info("Global switches: ALL DISABLED")
 }
@@ -169,8 +169,8 @@ func (sm *SwitchManager) EnableAll() {
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
 
-	sm.noneLaneEnabled = true
-	sm.doorEnabled = true
+	sm.aliangEnabled = true
+	sm.socksEnabled = true
 	sm.geoIPEnabled = true
 	logger.Info("Global switches: ALL ENABLED")
 }
@@ -180,8 +180,8 @@ func (sm *SwitchManager) ResetToDefaults() {
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
 
-	sm.noneLaneEnabled = true
-	sm.doorEnabled = true
+	sm.aliangEnabled = true
+	sm.socksEnabled = true
 	sm.geoIPEnabled = false
-	logger.Info("Global switches: RESET to defaults (NoneLane=ON, Door=ON, GeoIP=OFF)")
+	logger.Info("Global switches: RESET to defaults (Aliang=ON, SOCKS=ON, GeoIP=OFF)")
 }

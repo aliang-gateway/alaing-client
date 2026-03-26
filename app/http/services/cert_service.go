@@ -116,7 +116,7 @@ func (cs *CertService) GetCertStatus(certType string) (CertStatusResult, error) 
 	return result, nil
 }
 
-// ExportCert exports a certificate to ~/.nonelane/ directory
+// ExportCert exports a certificate to ~/.aliang/ directory
 // If the certificate doesn't exist, it will be generated
 func (cs *CertService) ExportCert(certType string) (string, error) {
 	homeDir, err := os.UserHomeDir()
@@ -124,7 +124,7 @@ func (cs *CertService) ExportCert(certType string) (string, error) {
 		return "", fmt.Errorf("failed to get user home directory: %w", err)
 	}
 
-	certDir := filepath.Join(homeDir, ".nonelane")
+	certDir := filepath.Join(homeDir, ".aliang")
 	if err := os.MkdirAll(certDir, 0700); err != nil {
 		return "", fmt.Errorf("failed to create certificate directory: %w", err)
 	}
@@ -258,7 +258,7 @@ func (cs *CertService) getMitmCACert() ([]byte, error) {
 		return nil, fmt.Errorf("failed to get user home directory: %w", err)
 	}
 
-	certPath := filepath.Join(homeDir, ".nonelane", "mitm-ca.pem")
+	certPath := filepath.Join(homeDir, ".aliang", "mitm-ca.pem")
 
 	// Check if file exists
 	if _, err := os.Stat(certPath); os.IsNotExist(err) {
@@ -280,7 +280,7 @@ func (cs *CertService) getRootCACert() ([]byte, error) {
 		return nil, fmt.Errorf("failed to get user home directory: %w", err)
 	}
 
-	certPath := filepath.Join(homeDir, ".nonelane", "root-ca.pem")
+	certPath := filepath.Join(homeDir, ".aliang", "root-ca.pem")
 
 	// Check if file exists
 	if _, err := os.Stat(certPath); os.IsNotExist(err) {
@@ -298,11 +298,12 @@ func (cs *CertService) getMTLSCert() ([]byte, error) {
 		return nil, fmt.Errorf("failed to get user home directory: %w", err)
 	}
 
-	certPath := filepath.Join(homeDir, ".nonelane", "mtls-client.pem")
+	certPath := filepath.Join(homeDir, ".aliang", "mtls-client.pem")
 
-	// Check if file exists, if not it will be created by ExportCert when needed
 	if _, err := os.Stat(certPath); os.IsNotExist(err) {
-		return nil, fmt.Errorf("mTLS certificate not found at %s - please call export first", certPath)
+		if _, exportErr := cs.ExportCert("mtls-cert"); exportErr != nil {
+			return nil, fmt.Errorf("mTLS certificate not found at %s and auto-export failed: %w", certPath, exportErr)
+		}
 	}
 
 	return os.ReadFile(certPath)
@@ -311,7 +312,7 @@ func (cs *CertService) getMTLSCert() ([]byte, error) {
 // getExportPath returns the export path for a certificate type
 func (cs *CertService) getExportPath(certType string) string {
 	homeDir, _ := os.UserHomeDir()
-	certDir := filepath.Join(homeDir, ".nonelane")
+	certDir := filepath.Join(homeDir, ".aliang")
 
 	switch certType {
 	case "mitm-ca":

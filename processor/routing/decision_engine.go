@@ -12,9 +12,10 @@ import (
 type RouteDecision string
 
 const (
-	RouteToNoneLane RouteDecision = "nonelane"
-	RouteToDoor     RouteDecision = "door"
-	RouteDirect     RouteDecision = "direct"
+	RouteToAliang RouteDecision = "aliang"
+	RouteToSocks  RouteDecision = "socks"
+	RouteDirect   RouteDecision = "direct"
+	RouteDeny     RouteDecision = "deny"
 )
 
 // T029: Matching context for route decision
@@ -27,8 +28,8 @@ type MatchContext struct {
 
 // T032-T033: DecideRoute determines which proxy to use based on rules and priority
 // Priority order:
-// 1. NoneLane rules (highest) - if enabled
-// 2. Door rules (to_door) - if enabled
+// 1. Aliang rules (highest) - if enabled
+// 2. SOCKS rules (to_socks) - if enabled
 // 3. GeoIP rules - if enabled
 // 4. Direct (lowest) - default fallback
 func DecideRoute(config *model.RoutingRulesConfig, ctx *MatchContext) (RouteDecision, error) {
@@ -42,38 +43,103 @@ func DecideRoute(config *model.RoutingRulesConfig, ctx *MatchContext) (RouteDeci
 		return RouteDirect, nil
 	}
 
-	settings := config.Settings
+	snapshot, err := CompileRuntimeSnapshotFromLegacyConfig(config)
+	if err != nil {
+		return RouteDirect, fmt.Errorf("compile runtime snapshot failed: %w", err)
+	}
 
-	// T033: Check global switches and apply priority-based routing
+	return DecideRouteFromSnapshot(snapshot, ctx)
+}
 
-	// Priority 1: NoneLane rules (highest priority)
-	if settings.NoneLaneEnabled {
-		if decision := checkRuleSet(&config.NoneLane, ctx, RouteToNoneLane); decision != nil {
-			logger.Debug(fmt.Sprintf("NoneLane rule matched for domain %s", ctx.Domain))
-			return *decision, nil
+func DecideRouteFromSnapshot(snapshot *RuntimeSnapshot, ctx *MatchContext) (RouteDecision, error) {
+	if snapshot == nil {
+		logger.Warn("RuntimeSnapshot is nil, using default Direct routing")
+		return RouteDirect, nil
+	}
+
+	if ctx == nil {
+		logger.Warn("MatchContext is nil, using default Direct routing")
+		return RouteDirect, nil
+	}
+
+	action := snapshot.DefaultAction()
+	capabilities := snapshot.BranchCapabilities()
+	for _, rule := range snapshot.Rules() {
+		if !rule.Enabled() {
+			continue
+		}
+		if checkRuleBySnapshot(rule, ctx) {
+			if isSnapshotActionAvailable(rule.Target(), capabilities) {
+				action = rule.Target()
+				break
+			}
+			if snapshot.StrictUnavailableBranchDeny() {
+				action = snapshot.ExplicitDenyAction()
+				break
+			}
 		}
 	}
 
-	// Priority 2: Door rules (to_door)
-	if settings.DoorEnabled {
-		if decision := checkRuleSet(&config.ToDoor, ctx, RouteToDoor); decision != nil {
-			logger.Debug(fmt.Sprintf("Door rule matched for domain %s", ctx.Domain))
-			return *decision, nil
+	return resolveSnapshotAction(snapshot, action), nil
+
+}
+
+func resolveSnapshotAction(snapshot *RuntimeSnapshot, action SnapshotAction) RouteDecision {
+	capabilities := snapshot.BranchCapabilities()
+	resolved := action
+
+	switch action {
+	case SnapshotActionToAliang:
+		if !capabilities.ToAliang() {
+			if snapshot.StrictUnavailableBranchDeny() {
+				resolved = snapshot.ExplicitDenyAction()
+			} else {
+				resolved = SnapshotActionDirect
+			}
+		}
+	case SnapshotActionToSocks:
+		if !capabilities.ToSocks() {
+			if snapshot.StrictUnavailableBranchDeny() {
+				resolved = snapshot.ExplicitDenyAction()
+			} else {
+				resolved = SnapshotActionDirect
+			}
+		}
+	case SnapshotActionDirect:
+		if !capabilities.Direct() {
+			if snapshot.StrictUnavailableBranchDeny() {
+				resolved = snapshot.ExplicitDenyAction()
+			} else {
+				resolved = SnapshotActionDirect
+			}
 		}
 	}
 
-	// Priority 3: GeoIP rules
-	if settings.GeoIPEnabled {
-		// GeoIP rules route to Door if matched
-		if decision := checkRuleSet(&config.ToDoor, ctx, RouteToDoor); decision != nil {
-			logger.Debug(fmt.Sprintf("GeoIP rule matched for IP %s", ctx.IP))
-			return *decision, nil
-		}
+	switch resolved {
+	case SnapshotActionToAliang:
+		return RouteToAliang
+	case SnapshotActionToSocks:
+		return RouteToSocks
+	case SnapshotActionDeny:
+		return RouteDeny
+	default:
+		return RouteDirect
 	}
+}
 
-	// Priority 4: Direct (default)
-	logger.Debug("No rules matched, using Direct routing")
-	return RouteDirect, nil
+func isSnapshotActionAvailable(action SnapshotAction, capabilities SnapshotBranchCapabilities) bool {
+	switch action {
+	case SnapshotActionToAliang:
+		return capabilities.ToAliang()
+	case SnapshotActionToSocks:
+		return capabilities.ToSocks()
+	case SnapshotActionDirect:
+		return capabilities.Direct()
+	case SnapshotActionDeny:
+		return true
+	default:
+		return false
+	}
 }
 
 // checkRuleSet checks if any rule in the rule set matches the context
@@ -96,6 +162,20 @@ func checkRuleSet(ruleSet *model.RoutingRuleSet, ctx *MatchContext, routeDecisio
 	}
 
 	return nil
+}
+
+func checkRuleBySnapshot(rule SnapshotRule, ctx *MatchContext) bool {
+	switch rule.Type() {
+	case string(model.RuleTypeDomain):
+		return matchDomain(rule.Condition(), ctx.Domain)
+	case string(model.RuleTypeIP):
+		return matchIP(rule.Condition(), ctx.IP)
+	case string(model.RuleTypeGeoIP):
+		return matchGeoIP(rule.Condition(), ctx.IP)
+	default:
+		logger.Warn(fmt.Sprintf("Unknown rule type: %s", rule.Type()))
+		return false
+	}
 }
 
 // checkRule determines if a single rule matches the context

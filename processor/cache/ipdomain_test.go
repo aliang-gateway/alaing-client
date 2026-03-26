@@ -23,7 +23,7 @@ func TestIPDomainCache_SetAndGet(t *testing.T) {
 	entry := &CacheEntry{
 		Domain: "google.com",
 		IP:     ip,
-		Route:  RouteToDoor,
+		Route:  RouteToSocks,
 	}
 
 	// Set entry
@@ -34,7 +34,7 @@ func TestIPDomainCache_SetAndGet(t *testing.T) {
 	retrieved, found := cache.Get("google.com")
 	assert.True(t, found)
 	assert.Equal(t, "google.com", retrieved.Domain)
-	assert.Equal(t, RouteToDoor, retrieved.Route)
+	assert.Equal(t, RouteToSocks, retrieved.Route)
 	assert.Equal(t, ip, retrieved.IP)
 }
 
@@ -116,7 +116,7 @@ func TestIPDomainCache_LRU_Eviction(t *testing.T) {
 	entry := &CacheEntry{
 		Domain: "new.com",
 		IP:     ip,
-		Route:  RouteToDoor,
+		Route:  RouteToSocks,
 	}
 	cache.Set("new.com", entry)
 
@@ -152,7 +152,7 @@ func TestIPDomainCache_LRU_MoveToFront(t *testing.T) {
 	ip := netip.MustParseAddr("8.8.8.8")
 	entry := &CacheEntry{
 		IP:    ip,
-		Route: RouteToDoor,
+		Route: RouteToSocks,
 	}
 	cache.Set("d", entry)
 
@@ -258,7 +258,7 @@ func TestIPDomainCache_Update(t *testing.T) {
 	entry2 := &CacheEntry{
 		Domain: "test.com",
 		IP:     ip2,
-		Route:  RouteToDoor,
+		Route:  RouteToSocks,
 	}
 
 	cache.Set("test.com", entry2)
@@ -269,7 +269,7 @@ func TestIPDomainCache_Update(t *testing.T) {
 	// Retrieved entry should have updated values
 	retrieved, found := cache.Get("test.com")
 	assert.True(t, found)
-	assert.Equal(t, RouteToDoor, retrieved.Route)
+	assert.Equal(t, RouteToSocks, retrieved.Route)
 	assert.Equal(t, ip2, retrieved.IP)
 }
 

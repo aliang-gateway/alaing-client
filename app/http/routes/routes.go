@@ -7,162 +7,197 @@ import (
 	"nursor.org/nursorgate/app/http/handlers"
 	"nursor.org/nursorgate/app/http/repositories"
 	"nursor.org/nursorgate/app/http/services"
-	"nursor.org/nursorgate/common/config"
 	"nursor.org/nursorgate/common/logger"
-	processorconfig "nursor.org/nursorgate/processor/config"
-	"nursor.org/nursorgate/processor/stats"
+	"nursor.org/nursorgate/processor/statistic"
 )
+
+var isDev = true
 
 // Handlers holds all HTTP handler instances
 type Handlers struct {
 	Logger        *handlers.LogHandler
-	Proxy         *handlers.ProxyHandler
 	ProxyRegistry *handlers.ProxyRegistryHandler
+	SoftwareCfg   *handlers.SoftwareConfigHandler
 	Token         *handlers.TokenHandler
 	Run           *handlers.RunHandler
 	LogStream     *handlers.LogStreamHandler
-	Door          *handlers.DoorHandler
 	Rules         *handlers.RulesHandler
 	DNSCache      *handlers.DNSCacheHandler
 	Cert          *handlers.CertHandler
 	Auth          *handlers.AuthHandler
 	Startup       *handlers.StartupHandler
-	Latency       *handlers.LatencyHandler
 	Config        *handlers.ConfigHandler
 	TrafficStats  *handlers.TrafficStatsHandler
+	HTTPStats     *handlers.HTTPStatsHandler
+	Chat          *handlers.ChatHandler
+	UserCenter    *handlers.UserCenterHandler
+	Dashboard     *handlers.DashboardHandler
 
-	// Keep reference to stats collector for lifecycle management
-	statsCollector *stats.StatsCollector
+	statsCollector     *statistic.StatsCollector
+	httpStatsCollector *statistic.HTTPStatsCollector
 }
 
 // NewHandlers creates and initializes all handlers with their dependencies
 func NewHandlers() *Handlers {
-	// Initialize services
+	return newHandlers(services.NewRunService())
+}
+
+// NewHandlersWithRunService creates handlers using a caller-provided run service.
+func NewHandlersWithRunService(runService *services.RunService) *Handlers {
+	if runService == nil {
+		runService = services.NewRunService()
+	}
+	return newHandlers(runService)
+}
+
+func newHandlers(runService *services.RunService) *Handlers {
 	logService := services.NewLogService()
 	logConfigService := services.NewLogConfigService()
 	tokenService := services.NewTokenService()
-	runService := services.NewRunService()
+	softwareCfgService := services.NewSoftwareConfigService()
 	certService := services.NewCertService()
-	latencyService := services.NewLatencyService()
-
-	// Initialize repositories
 	proxyRepository := repositories.NewProxyRepository()
+	statsCollector := statistic.NewStatsCollector()
+	httpStatsCollector := statistic.GetDefaultHTTPStatsCollector()
 
-	// Initialize Nacos client for config handler
-	nacosServer := "http://nacos-config.nursor.org"
-	if cfg := processorconfig.GetGlobalConfig(); cfg != nil && cfg.NacosServer != "" {
-		nacosServer = cfg.NacosServer
-	}
-	nacosConfig, _ := config.NewNacosClient(nacosServer, "5afe4eb9-d3ee-4b37-a072-7ea04421467a", 80)
-	var nacosClient interface{}
-	if nacosConfig != nil {
-		nacosClient = nacosConfig.GetConfigClient()
-	}
-
-	// Initialize stats collector
-	statsCollector := stats.NewStatsCollector()
-
-	// Create handlers with dependency injection
 	return &Handlers{
-		Logger:         handlers.NewLogHandler(logService, logConfigService),
-		Proxy:          handlers.NewProxyHandler(),
-		ProxyRegistry:  handlers.NewProxyRegistryHandler(proxyRepository),
-		Token:          handlers.NewTokenHandler(tokenService),
-		Run:            handlers.NewRunHandler(runService),
-		LogStream:      handlers.NewLogStreamHandler(),
-		Door:           handlers.NewDoorHandler(),
-		Rules:          handlers.NewRulesHandler(),
-		DNSCache:       handlers.NewDNSCacheHandler(),
-		Cert:           handlers.NewCertHandler(certService),
-		Auth:           handlers.NewAuthHandler(),
-		Startup:        handlers.NewStartupHandler(),
-		Latency:        handlers.NewLatencyHandler(latencyService),
-		Config:         handlers.NewConfigHandler(nacosClient),
-		TrafficStats:   handlers.NewTrafficStatsHandler(statsCollector),
-		statsCollector: statsCollector,
+		Logger:             handlers.NewLogHandler(logService, logConfigService),
+		ProxyRegistry:      handlers.NewProxyRegistryHandler(proxyRepository),
+		SoftwareCfg:        handlers.NewSoftwareConfigHandler(softwareCfgService),
+		Token:              handlers.NewTokenHandler(tokenService),
+		Run:                handlers.NewRunHandler(runService),
+		LogStream:          handlers.NewLogStreamHandler(),
+		Rules:              handlers.NewRulesHandler(),
+		DNSCache:           handlers.NewDNSCacheHandler(),
+		Cert:               handlers.NewCertHandler(certService),
+		Auth:               handlers.NewAuthHandler(),
+		Startup:            handlers.NewStartupHandler(),
+		Config:             handlers.NewConfigHandler(),
+		TrafficStats:       handlers.NewTrafficStatsHandler(statsCollector),
+		HTTPStats:          handlers.NewHTTPStatsHandler(httpStatsCollector),
+		Chat:               handlers.NewChatHandler(),
+		UserCenter:         handlers.NewUserCenterHandler(),
+		Dashboard:          handlers.NewDashboardHandler(),
+		statsCollector:     statsCollector,
+		httpStatsCollector: httpStatsCollector,
 	}
 }
 
 // RegisterRoutes registers all feature-grouped HTTP routes
 func RegisterRoutes(h *Handlers, mux *http.ServeMux) {
-	// Logger routes (/api/logs/*)
-	mux.HandleFunc("/api/logs", h.Logger.HandleGetLogs)
-	mux.HandleFunc("/api/logs/clear", h.Logger.HandleClearLogs)
-	mux.HandleFunc("/api/logs/level", h.Logger.HandleSetLogLevel)
-	mux.HandleFunc("/api/logs/config", h.Logger.HandleLogConfig)
-	mux.HandleFunc("/api/logs/stream", h.LogStream.HandleLogStream)
+	catalog := newRouteCatalog()
+	register := func(path string, handler http.HandlerFunc, methods ...string) {
+		mux.HandleFunc(path, handler)
+		catalog.add(path, methods...)
+	}
 
-	// Proxy routes (/api/proxy/*)
-	mux.HandleFunc("/api/proxy/current/get", h.Proxy.HandleGetCurrentProxy)
-	mux.HandleFunc("/api/proxy/current/set", h.Proxy.HandleSetCurrentProxy)
+	// Logger routes (/api/logs/*)
+	register("/api/logs", h.Logger.HandleGetLogs, http.MethodGet)
+	register("/api/logs/clear", h.Logger.HandleClearLogs, http.MethodPost)
+	register("/api/logs/level", h.Logger.HandleSetLogLevel, http.MethodPost)
+	register("/api/logs/config", h.Logger.HandleLogConfig, http.MethodGet, http.MethodPost)
+	register("/api/logs/stream", h.LogStream.HandleLogStream, http.MethodGet)
 
 	// Proxy registry routes (/api/proxy/registry/*)
-	mux.HandleFunc("/api/proxy/list", h.ProxyRegistry.HandleProxyRegistryList)
-	mux.HandleFunc("/api/proxy/get", h.ProxyRegistry.HandleProxyRegistryGet)
+	register("/api/proxy/list", h.ProxyRegistry.HandleProxyRegistryList, http.MethodGet)
+	register("/api/proxy/get", h.ProxyRegistry.HandleProxyRegistryGet, http.MethodGet)
 
-	// Door proxy routes (/api/proxy/door/*)
-	mux.HandleFunc("/api/proxy/door/members", h.Door.HandleDoorMemberList)
-	mux.HandleFunc("/api/proxy/door/auto", h.Door.HandleDoorAutoSelect)
-	mux.HandleFunc("/api/proxy/door/test-latency", h.Latency.HandleTestAllMembers)
+	register("/api/software-config/save", h.SoftwareCfg.HandleSave, http.MethodPost)
+	register("/api/software-config/activate", h.SoftwareCfg.HandleActivate, http.MethodPost)
+	register("/api/software-config/delete", h.SoftwareCfg.HandleDelete, http.MethodPost)
+	register("/api/software-config/list", h.SoftwareCfg.HandleList, http.MethodGet)
+	register("/api/software-config/select", h.SoftwareCfg.HandleSelect, http.MethodPost)
+	register("/api/software-config/compare", h.SoftwareCfg.HandleCompareWithCloud, http.MethodPost)
+	register("/api/software-config/log", h.SoftwareCfg.HandleLogOperation, http.MethodPost)
+	register("/api/software-config/cloud/push", h.SoftwareCfg.HandlePushToCloud, http.MethodPost)
+	register("/api/software-config/cloud/push-selected", h.SoftwareCfg.HandlePushSelectedToCloud, http.MethodPost)
+	register("/api/software-config/cloud/pull", h.SoftwareCfg.HandlePullFromCloud, http.MethodPost)
 
 	// Token routes (/api/token/*)
-	mux.HandleFunc("/api/token/get", h.Token.HandleTokenGet)
-	mux.HandleFunc("/api/token/set", h.Token.HandleTokenSet)
+	register("/api/token/get", h.Token.HandleTokenGet, http.MethodGet)
+	register("/api/token/set", h.Token.HandleTokenSet, http.MethodPost)
 
 	// Authentication routes (/api/auth/*)
-	mux.HandleFunc("/api/auth/activate", h.Auth.HandleActivateToken)
-	mux.HandleFunc("/api/auth/userinfo", h.Auth.HandleGetUserInfo)
-	mux.HandleFunc("/api/auth/refresh-status", h.Auth.HandleGetRefreshStatus)
-	mux.HandleFunc("/api/auth/logout", h.Auth.HandleLogout)
+	register("/api/auth/login", h.Auth.HandleLogin, http.MethodPost)
+	register("/api/auth/session", h.Auth.HandleRestoreSession, http.MethodGet)
+	register("/api/auth/refresh", h.Auth.HandleRefreshSession, http.MethodPost)
+	register("/api/auth/me", h.Auth.HandleMe, http.MethodGet)
+	register("/api/auth/logout", h.Auth.HandleLogout, http.MethodPost)
 
 	// Run mode routes (/api/run/*)
-	mux.HandleFunc("/api/run/start", h.Run.HandleRunStart)
-	mux.HandleFunc("/api/run/stop", h.Run.HandleRunStop)
-	mux.HandleFunc("/api/run/status", h.Run.HandleRunStatus)
-	mux.HandleFunc("/api/run/swift", h.Run.HandleRunSwift)
+	register("/api/run/start", h.Run.HandleRunStart, http.MethodPost)
+	register("/api/run/stop", h.Run.HandleRunStop, http.MethodPost)
+	register("/api/run/status", h.Run.HandleRunStatus, http.MethodGet)
+	register("/api/run/swift", h.Run.HandleRunSwift, http.MethodPost)
 
 	// Routing Rules API (/api/rules/*)
-	mux.HandleFunc("/api/rules/geoip/status", h.Rules.HandleGetGeoIPStatus)
-	mux.HandleFunc("/api/rules/geoip/lookup", h.Rules.HandleGeoIPLookup)
-	mux.HandleFunc("/api/rules/cache/stats", h.Rules.HandleGetCacheStats)
-	mux.HandleFunc("/api/rules/cache/clear", h.Rules.HandleClearCache)
-	mux.HandleFunc("/api/rules/engine/status", h.Rules.HandleGetRuleEngineStatus)
-	mux.HandleFunc("/api/rules/engine/enable", h.Rules.HandleEnableRuleEngine)
-	mux.HandleFunc("/api/rules/engine/disable", h.Rules.HandleDisableRuleEngine)
+	register("/api/rules/geoip/status", h.Rules.HandleGetGeoIPStatus, http.MethodGet)
+	register("/api/rules/geoip/lookup", h.Rules.HandleGeoIPLookup, http.MethodPost)
+	register("/api/rules/cache/stats", h.Rules.HandleGetCacheStats, http.MethodGet)
+	register("/api/rules/cache/clear", h.Rules.HandleClearCache, http.MethodPost)
+	register("/api/rules/engine/status", h.Rules.HandleGetRuleEngineStatus, http.MethodGet)
+	register("/api/rules/engine/enable", h.Rules.HandleEnableRuleEngine, http.MethodPost)
+	register("/api/rules/engine/disable", h.Rules.HandleDisableRuleEngine, http.MethodPost)
 
 	// Certificate Management API (/api/cert/*)
-	mux.HandleFunc("/api/cert/status", h.Cert.HandleGetStatus)
-	mux.HandleFunc("/api/cert/export", h.Cert.HandleExport)
-	mux.HandleFunc("/api/cert/download", h.Cert.HandleDownload)
-	mux.HandleFunc("/api/cert/install", h.Cert.HandleInstall)
-	mux.HandleFunc("/api/cert/remove", h.Cert.HandleRemove)
-	mux.HandleFunc("/api/cert/generate", h.Cert.HandleGenerateCert)
-	mux.HandleFunc("/api/cert/info", h.Cert.HandleGetInfo)
+	register("/api/cert/status", h.Cert.HandleGetStatus, http.MethodGet, http.MethodPost)
+	register("/api/cert/export", h.Cert.HandleExport, http.MethodPost)
+	register("/api/cert/download", h.Cert.HandleDownload, http.MethodGet)
+	register("/api/cert/install", h.Cert.HandleInstall, http.MethodPost)
+	register("/api/cert/remove", h.Cert.HandleRemove, http.MethodPost)
+	register("/api/cert/generate", h.Cert.HandleGenerateCert, http.MethodPost)
+	register("/api/cert/info", h.Cert.HandleGetInfo, http.MethodGet)
 
 	// DNS Cache API (/api/dns/*)
 	// 注意：更具体的路由必须放在更通用的路由之前，避免路径冲突
-	mux.HandleFunc("/api/dns/cache/query", h.DNSCache.QueryDomain)
-	mux.HandleFunc("/api/dns/cache/reverse", h.DNSCache.ReverseQuery)
-	mux.HandleFunc("/api/dns/cache/clear", h.DNSCache.ClearAll)
-	mux.HandleFunc("/api/dns/cache/delete/{domain}", h.DNSCache.DeleteEntry)
-	mux.HandleFunc("/api/dns/cache", h.DNSCache.GetCacheEntries)
-	mux.HandleFunc("/api/dns/stats", h.DNSCache.GetStatistics)
-	mux.HandleFunc("/api/dns/hotspots", h.DNSCache.GetHotspots)
+	register("/api/dns/cache/query", h.DNSCache.QueryDomain, http.MethodGet)
+	register("/api/dns/cache/reverse", h.DNSCache.ReverseQuery, http.MethodGet)
+	register("/api/dns/cache/clear", h.DNSCache.ClearAll, http.MethodDelete)
+	register("/api/dns/cache/delete/{domain}", h.DNSCache.DeleteEntry, http.MethodDelete)
+	register("/api/dns/cache", h.DNSCache.GetCacheEntries, http.MethodGet)
+	register("/api/dns/stats", h.DNSCache.GetStatistics, http.MethodGet)
+	register("/api/dns/hotspots", h.DNSCache.GetHotspots, http.MethodGet)
 
 	// Startup Status API (/api/startup/*)
-	mux.HandleFunc("/api/startup/status", h.Startup.HandleStartupStatus)
-	mux.HandleFunc("/api/startup/detail", h.Startup.HandleStartupDetail)
+	register("/api/startup/status", h.Startup.HandleStartupStatus, http.MethodGet)
+	register("/api/startup/detail", h.Startup.HandleStartupDetail, http.MethodGet)
 
-	// Routing Config API (/api/config/routing)
-	mux.HandleFunc("/api/config/routing", h.Config.HandleRoutingConfig)
-	mux.HandleFunc("/api/config/routing/rules/", h.Config.HandleToggleRuleStatus)
-	mux.HandleFunc("/api/config/routing/auto-update", h.Config.HandleAutoUpdateStatus)
+	// Routing Config compatibility API (/api/config/routing/*)
+	register("/api/config/routing", h.Config.HandleRoutingConfig, http.MethodGet, http.MethodPost)
+	register("/api/config/routing/rules/", h.Config.HandleToggleRuleStatus, http.MethodPut)
+	register("/api/config/routing/auto-update", h.Config.HandleAutoUpdateStatus, http.MethodGet, http.MethodPut)
+	register("/api/config/customer", h.Config.HandleCustomerConfig, http.MethodGet, http.MethodPost, http.MethodPut)
+	register("/api/config/customer/providers", h.Config.HandlePresetAIRuleProviders, http.MethodGet)
+	if isDev {
+		register("/api/config/core", h.Config.HandleCoreConfig, http.MethodGet, http.MethodPost, http.MethodPut)
+	}
 
 	// Traffic Statistics API (/api/stats/traffic/*)
-	mux.HandleFunc("/api/stats/traffic/", h.TrafficStats.HandleGetStats)
-	mux.HandleFunc("/api/stats/traffic/current", h.TrafficStats.HandleGetCurrentStats)
-	mux.HandleFunc("/api/stats/traffic/cache/info", h.TrafficStats.HandleGetCacheInfo)
-	mux.HandleFunc("/api/stats/traffic/cache/clear", h.TrafficStats.HandleClearCache)
+	register("/api/stats/traffic/", h.TrafficStats.HandleGetStats, http.MethodGet)
+	register("/api/stats/traffic/current", h.TrafficStats.HandleGetCurrentStats, http.MethodGet)
+	register("/api/stats/traffic/cache/info", h.TrafficStats.HandleGetCacheInfo, http.MethodGet)
+	register("/api/stats/traffic/cache/clear", h.TrafficStats.HandleClearCache, http.MethodPost)
+
+	// HTTP Statistics API (/api/stats/http/*)
+	register("/api/stats/http/requests", h.HTTPStats.HandleGetRequests, http.MethodGet)
+	register("/api/stats/http/domains", h.HTTPStats.HandleGetDomainStats, http.MethodGet)
+	register("/api/stats/http/chart", h.HTTPStats.HandleGetChartData, http.MethodGet)
+	register("/api/stats/http/info", h.HTTPStats.HandleGetStats, http.MethodGet)
+	register("/api/stats/http/clear", h.HTTPStats.HandleClear, http.MethodPost, http.MethodDelete)
+	register("/api/stats/http/preset-domains", h.HTTPStats.HandleGetPresetDomains, http.MethodGet)
+
+	register("/api/chat/completions", h.Chat.HandleCompletions, http.MethodPost)
+
+	register("/api/user-center/profile", h.UserCenter.HandleProfile, http.MethodGet, http.MethodPut)
+	register("/api/user-center/usage/summary", h.UserCenter.HandleGetUsageSummary, http.MethodGet)
+	register("/api/user-center/usage/progress", h.UserCenter.HandleGetUsageProgress, http.MethodGet)
+	register("/api/user-center/redeem", h.UserCenter.HandleRedeemCode, http.MethodPost)
+	register("/api/dashboard/stats", h.Dashboard.HandleGetStats, http.MethodGet)
+	register("/api/dashboard/trend", h.Dashboard.HandleGetTrend, http.MethodGet)
+	register("/api/dashboard/models", h.Dashboard.HandleGetModels, http.MethodGet)
+	register("/api/dashboard/usage", h.Dashboard.HandleGetUsageRecords, http.MethodGet)
+
+	registerDocsRoutes(mux, catalog)
 }
 
 // StartStatsCollector starts the traffic statistics collector background task
@@ -185,5 +220,28 @@ func StopStatsCollector(h *Handlers) {
 	if h.statsCollector != nil {
 		h.statsCollector.Stop()
 		logger.Info("Traffic stats collector stopped")
+	}
+}
+
+// StartHTTPStatsCollector starts the HTTP statistics collector background task
+func StartHTTPStatsCollector(h *Handlers) error {
+	if h.httpStatsCollector == nil {
+		return fmt.Errorf("http stats collector not initialized")
+	}
+
+	if err := h.httpStatsCollector.Start(); err != nil {
+		logger.Error(fmt.Sprintf("Failed to start http stats collector: %v", err))
+		return err
+	}
+
+	logger.Info("HTTP stats collector started successfully")
+	return nil
+}
+
+// StopHTTPStatsCollector stops the HTTP statistics collector
+func StopHTTPStatsCollector(h *Handlers) {
+	if h.httpStatsCollector != nil {
+		h.httpStatsCollector.Stop()
+		logger.Info("HTTP stats collector stopped")
 	}
 }

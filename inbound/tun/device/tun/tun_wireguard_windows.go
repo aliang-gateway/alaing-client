@@ -32,7 +32,7 @@ func createTUN(name string, mtu int) (tun.Device, error) {
 
 		// 如果不是最后一次尝试，等待后重试
 		if i < maxRetries-1 {
-			logger.Info("等待 %v 后重试...", retryDelay)
+			logger.Info(fmt.Sprintf("等待 %v 后重试...", retryDelay))
 			time.Sleep(retryDelay)
 			// 每次重试增加等待时间
 			retryDelay *= 2

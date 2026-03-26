@@ -1,3 +1,5 @@
+//go:build swift
+
 package main
 
 // /*
