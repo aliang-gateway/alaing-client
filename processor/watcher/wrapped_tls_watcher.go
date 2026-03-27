@@ -42,12 +42,12 @@ type WatcherWrapConn struct {
 	encoderToserverMap sync.Map
 }
 
-func NewWatcherWrapConn(conn1 *tls.Conn) *WatcherWrapConn {
+func NewWatcherWrapConn(conn *tls.Conn) *WatcherWrapConn {
 	newBuffer := bytes.NewBuffer([]byte{})
 	encoder := hpack.NewEncoder(newBuffer)
 
 	return &WatcherWrapConn{
-		Conn:             conn1,
+		Conn:             conn,
 		streams:          map[uint32]*http2Stream{},
 		http2Settings:    map[uint16]uint32{},
 		hpackDecoderReq:  hpack.NewDecoder(65536, nil),
