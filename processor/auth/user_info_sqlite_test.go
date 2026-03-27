@@ -172,8 +172,8 @@ func TestUserInfoMigratesFromLegacyAuthSessionDBIntoUnifiedGateData(t *testing.T
 	if err != nil {
 		t.Fatalf("failed to get unified auth db path: %v", err)
 	}
-	if filepath.Base(unifiedPath) != "gate.data" {
-		t.Fatalf("expected unified auth db path to use gate.data, got %s", unifiedPath)
+	if filepath.Base(unifiedPath) != "aliang.db" {
+		t.Fatalf("expected unified auth db path to use aliang.db, got %s", unifiedPath)
 	}
 
 	loaded, err := LoadUserInfo()
@@ -197,22 +197,22 @@ func TestUserInfoMigratesFromLegacyGateDataTable(t *testing.T) {
 
 	gateDataPath, err := GetAuthSessionDBPath()
 	if err != nil {
-		t.Fatalf("failed to get gate.data path: %v", err)
+		t.Fatalf("failed to get aliang.db path: %v", err)
 	}
 	if err := os.MkdirAll(filepath.Dir(gateDataPath), 0o700); err != nil {
-		t.Fatalf("failed to create gate.data dir: %v", err)
+		t.Fatalf("failed to create aliang.db dir: %v", err)
 	}
 
 	db, err := gorm.Open(sqlite.Open(gateDataPath), &gorm.Config{})
 	if err != nil {
-		t.Fatalf("failed to open gate.data: %v", err)
+		t.Fatalf("failed to open aliang.db: %v", err)
 	}
 	if err := db.Exec(`CREATE TABLE user_info (
 			id INTEGER PRIMARY KEY CHECK (id = 1),
 			encrypted_payload TEXT NOT NULL,
 			updated_at INTEGER NOT NULL
 		)`).Error; err != nil {
-		t.Fatalf("failed to create legacy gate.data table: %v", err)
+		t.Fatalf("failed to create legacy aliang.db table: %v", err)
 	}
 
 	legacy := &legacyStoredUserInfo{
@@ -227,7 +227,7 @@ func TestUserInfoMigratesFromLegacyGateDataTable(t *testing.T) {
 	}
 	encrypted, err := EncryptUserInfoFile(legacy)
 	if err != nil {
-		t.Fatalf("failed to encrypt legacy gate.data payload: %v", err)
+		t.Fatalf("failed to encrypt legacy aliang.db payload: %v", err)
 	}
 	if err := db.Exec(
 		"INSERT INTO user_info (id, encrypted_payload, updated_at) VALUES (?, ?, ?)",
@@ -235,19 +235,19 @@ func TestUserInfoMigratesFromLegacyGateDataTable(t *testing.T) {
 		string(encrypted),
 		time.Now().Unix(),
 	).Error; err != nil {
-		t.Fatalf("failed to insert legacy gate.data row: %v", err)
+		t.Fatalf("failed to insert legacy aliang.db row: %v", err)
 	}
 
 	ResetAuthPersistenceForTest()
 
 	loaded, err := LoadUserInfo()
 	if err != nil {
-		t.Fatalf("failed to load migrated gate.data user info: %v", err)
+		t.Fatalf("failed to load migrated aliang.db user info: %v", err)
 	}
 	if loaded.AccessToken != legacy.AccessToken || loaded.RefreshToken != legacy.RefreshToken {
-		t.Fatalf("migrated gate.data tokens mismatch: got %#v want %#v", loaded, legacy)
+		t.Fatalf("migrated aliang.db tokens mismatch: got %#v want %#v", loaded, legacy)
 	}
 	if loaded.ID != legacy.UserID || loaded.Email != legacy.Email || loaded.Username != legacy.Username {
-		t.Fatalf("migrated gate.data profile mismatch: got %#v want %#v", loaded, legacy)
+		t.Fatalf("migrated aliang.db profile mismatch: got %#v want %#v", loaded, legacy)
 	}
 }

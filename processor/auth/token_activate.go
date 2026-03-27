@@ -34,7 +34,6 @@ func ActivateToken(token string) (*UserInfo, error) {
 
 	localUserInfo, err := LoadUserInfo()
 	if err == nil {
-		SetInnerToken(sessionUserTag(localUserInfo))
 		startTokenRefresh()
 
 		return localUserInfo, nil
@@ -129,7 +128,6 @@ func LoginWithPassword(email, password, turnstileToken string) (*UserInfo, error
 		logger.Warn(fmt.Sprintf("Failed to save user info locally: %v", err))
 	}
 
-	SetInnerToken(sessionUserTag(userInfo))
 	startTokenRefresh()
 	config.SetUsingDefaultConfig(false)
 	config.SetHasLocalUserInfo(true)
@@ -149,7 +147,6 @@ func RestoreSession() (*UserInfo, error) {
 	}
 
 	if strings.TrimSpace(localUserInfo.AccessToken) == "" {
-		SetInnerToken(sessionUserTag(localUserInfo))
 		startTokenRefresh()
 		config.SetHasLocalUserInfo(true)
 		return localUserInfo, nil
@@ -158,7 +155,6 @@ func RestoreSession() (*UserInfo, error) {
 	profile, profileErr := GetUserProfileWithToken(localUserInfo.AccessToken)
 	if profileErr != nil {
 		logger.Warn(fmt.Sprintf("Session restore profile sync skipped: refresh failed (%v), profile fetch failed (%v)", refreshErr, profileErr))
-		SetInnerToken(sessionUserTag(localUserInfo))
 		startTokenRefresh()
 		config.SetHasLocalUserInfo(true)
 		return localUserInfo, nil
@@ -175,7 +171,6 @@ func RestoreSession() (*UserInfo, error) {
 		logger.Warn(fmt.Sprintf("Failed to save restored session profile: %v", err))
 	}
 
-	SetInnerToken(sessionUserTag(latestProfile))
 	startTokenRefresh()
 	config.SetHasLocalUserInfo(true)
 
@@ -263,7 +258,6 @@ func RefreshSession(refreshToken string) (*UserInfo, error) {
 		return nil, fmt.Errorf("failed to save refreshed user info: %w", err)
 	}
 
-	SetInnerToken(sessionUserTag(userInfo))
 	startTokenRefresh()
 	config.SetHasLocalUserInfo(true)
 
@@ -360,22 +354,6 @@ func applyUserProfileToUserInfo(info *UserInfo, profile *UserProfile) {
 	if info.Status == "" {
 		info.Status = "active"
 	}
-}
-
-func sessionUserTag(info *UserInfo) string {
-	if info == nil {
-		return ""
-	}
-	if email := strings.TrimSpace(info.Email); email != "" {
-		return email
-	}
-	if username := strings.TrimSpace(info.Username); username != "" {
-		return username
-	}
-	if info.ID != 0 {
-		return fmt.Sprintf("user:%d", info.ID)
-	}
-	return ""
 }
 
 // maskToken 掩盖Token用于日志显示（只显示前后几个字符）

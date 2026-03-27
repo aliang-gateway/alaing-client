@@ -269,8 +269,8 @@ func TestSoftwareConfigStore_MigratesLegacyDatabaseIntoUnifiedGateData(t *testin
 	if err != nil {
 		t.Fatalf("failed to get unified data db path: %v", err)
 	}
-	if filepath.Base(unifiedPath) != "gate.data" {
-		t.Fatalf("expected unified db path to use gate.data, got %s", unifiedPath)
+	if filepath.Base(unifiedPath) != "aliang.db" {
+		t.Fatalf("expected unified db path to use aliang.db, got %s", unifiedPath)
 	}
 
 	configs, err := store.List()

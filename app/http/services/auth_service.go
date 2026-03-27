@@ -154,7 +154,6 @@ func (s *AuthService) LogoutUser(refreshToken string) map[string]interface{} {
 		logger.Warn(fmt.Sprintf("Failed to delete user info: %v", err))
 	}
 
-	auth.SetInnerToken("")
 	clearStartupStateAfterLogout()
 
 	logger.Info("User logged out successfully")

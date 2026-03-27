@@ -135,12 +135,10 @@ func (tr *TokenRefresher) refreshUserInfo() error {
 		return fmt.Errorf("no user info to refresh")
 	}
 
-	newInfo, err := RefreshSession(currentInfo.RefreshToken)
+	_, err := RefreshSession(currentInfo.RefreshToken)
 	if err != nil {
 		return fmt.Errorf("failed to refresh session: %w", err)
 	}
-
-	SetInnerToken(sessionUserTag(newInfo))
 
 	return nil
 }

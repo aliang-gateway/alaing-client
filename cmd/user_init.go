@@ -3,7 +3,6 @@ package cmd
 import (
 	"errors"
 	"fmt"
-	"strings"
 
 	"nursor.org/nursorgate/common/logger"
 	auth "nursor.org/nursorgate/processor/auth"
@@ -69,18 +68,12 @@ func InitializeUser(token string) error {
 // loadLocalUserInfo 加载本地用户信息
 // 返回error仅指加载失败，不指fetch失败（fetch失败允许系统继续启动）
 func loadLocalUserInfo() error {
-	userInfo, err := auth.LoadUserInfo()
+	_, err := auth.LoadUserInfo()
 	if err != nil {
 		return err
 	}
 
 	// 更新运行时状态
-	tag := strings.TrimSpace(userInfo.Email)
-	if tag == "" {
-		tag = strings.TrimSpace(userInfo.Username)
-	}
-	auth.SetInnerToken(tag)
-
 	// 获取启动状态以跟踪fetch结果
 	startupState := runtime.GetStartupState()
 

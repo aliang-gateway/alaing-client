@@ -6,22 +6,9 @@ import (
 )
 
 var (
-	mu          sync.RWMutex
+	mu          sync.Mutex
 	accessToken []string
-	innerToken  string
 )
-
-func SetInnerToken(token string) {
-	mu.Lock()
-	defer mu.Unlock()
-	innerToken = token
-}
-
-func GetInnerToken() string {
-	mu.RLock()
-	defer mu.RUnlock()
-	return innerToken
-}
 
 func GetCurrentAuthorizationHeader() string {
 	current := GetCurrentUserInfo()

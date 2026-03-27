@@ -114,15 +114,8 @@ type legacyStoredUserInfo struct {
 	Email        string    `json:"email,omitempty"`
 	Role         string    `json:"role,omitempty"`
 	UserID       int64     `json:"user_id,omitempty"`
-	PlanName     string    `json:"plan_name"`
-	TrafficUsed  int64     `json:"traffic_used"`
-	TrafficTotal int64     `json:"traffic_total"`
-	AIAskUsed    int       `json:"ai_ask_used"`
-	AIAskTotal   int       `json:"ai_ask_total"`
 	StartTime    string    `json:"start_time"`
-	EndTime      string    `json:"end_time"`
 	PlanType     string    `json:"plan_type"`
-	InnerToken   string    `json:"inner_token"`
 	UpdatedAt    time.Time `json:"updated_at"`
 }
 
@@ -440,7 +433,7 @@ func deleteUserInfoFromSQLite() error {
 			return fmt.Errorf("failed to delete auth profile record: %w", err)
 		}
 		if err := tx.Exec("DELETE FROM user_info WHERE id = ?", 1).Error; err != nil && !isMissingSQLiteTableError(err) {
-			return fmt.Errorf("failed to delete legacy gate.data user_info row: %w", err)
+			return fmt.Errorf("failed to delete legacy unified-db user_info row: %w", err)
 		}
 		return nil
 	})
@@ -484,7 +477,7 @@ func loadLegacyUserInfoFromGateData(db *gorm.DB) (*UserInfo, error) {
 
 	decryptedInfo, err := DecryptUserInfoFile([]byte(record.EncryptedPayload))
 	if err != nil {
-		return nil, fmt.Errorf("failed to decrypt legacy gate.data payload: %w", err)
+		return nil, fmt.Errorf("failed to decrypt legacy unified-db payload: %w", err)
 	}
 
 	return mapLegacyUserInfo(decryptedInfo), nil
