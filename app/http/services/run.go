@@ -372,7 +372,7 @@ func (rs *RunService) SwitchMode(targetMode string) map[string]interface{} {
 		}
 
 		response["message"] = "Switched to TUN mode. Use start to activate the TUN service"
-		response["usage"] = "POST /api/run/start with InnerToken"
+		response["usage"] = "POST /api/run/start after restoring an authenticated session"
 		response["next_step"] = "Call start to initialize and start the TUN interface"
 	}
 

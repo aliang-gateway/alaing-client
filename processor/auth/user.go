@@ -1,25 +1,32 @@
 package user
 
 import (
+	"strings"
 	"sync"
 )
 
 var (
-	mu          sync.RWMutex
+	mu          sync.Mutex
 	accessToken []string
-	innerToken  string
 )
 
-func SetInnerToken(token string) {
-	mu.Lock()
-	defer mu.Unlock()
-	innerToken = token
-}
+func GetCurrentAuthorizationHeader() string {
+	current := GetCurrentUserInfo()
+	if current == nil {
+		return ""
+	}
 
-func GetInnerToken() string {
-	mu.RLock()
-	defer mu.RUnlock()
-	return innerToken
+	accessToken := strings.TrimSpace(current.AccessToken)
+	if accessToken == "" {
+		return ""
+	}
+
+	tokenType := strings.TrimSpace(current.TokenType)
+	if tokenType == "" {
+		tokenType = "Bearer"
+	}
+
+	return tokenType + " " + accessToken
 }
 
 // SetAccessToken 设置accessToken，如果变更则触发POST（线程安全 + 单请求）

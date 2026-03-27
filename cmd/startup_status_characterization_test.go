@@ -55,7 +55,8 @@ func TestDetermineInitialStartupStatus_WhenNoTokenWithLocalUserAndDefaultConfig_
 		AccessToken:  "access-token",
 		RefreshToken: "refresh-token",
 		Username:     "tester",
-		InnerToken:   "inner-token",
+		Email:        "tester@example.com",
+		Status:       "active",
 		UpdatedAt:    time.Now(),
 	}); err != nil {
 		t.Fatalf("failed to save sqlite user info: %v", err)
@@ -80,7 +81,8 @@ func TestDetermineInitialStartupStatus_WhenNoTokenWithLocalUserAndCustomConfig_R
 		AccessToken:  "access-token",
 		RefreshToken: "refresh-token",
 		Username:     "tester",
-		InnerToken:   "inner-token",
+		Email:        "tester@example.com",
+		Status:       "active",
 		UpdatedAt:    time.Now(),
 	}); err != nil {
 		t.Fatalf("failed to save sqlite user info: %v", err)

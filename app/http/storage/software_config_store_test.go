@@ -201,3 +201,26 @@ func TestSoftwareConfigStore_ActivateAndMergeByLatest(t *testing.T) {
 		t.Fatalf("expected latest snapshot core section, got %v", latestPayload)
 	}
 }
+
+func TestSoftwareConfigStore_GetLatestEffectiveConfigSnapshot_EmptyStoreReturnsNil(t *testing.T) {
+	store, err := NewSoftwareConfigStoreWithDBPath(t.TempDir() + "/configs.db")
+	if err != nil {
+		t.Fatalf("create store failed: %v", err)
+	}
+
+	latest, err := store.GetLatestEffectiveConfigSnapshot()
+	if err != nil {
+		t.Fatalf("expected nil error for empty latest snapshot lookup, got %v", err)
+	}
+	if latest != nil {
+		t.Fatalf("expected nil snapshot for empty store, got %+v", latest)
+	}
+
+	byName, err := store.GetLatestEffectiveConfigSnapshotBySoftwareAndName("runtime", "run-mode")
+	if err != nil {
+		t.Fatalf("expected nil error for empty named snapshot lookup, got %v", err)
+	}
+	if byName != nil {
+		t.Fatalf("expected nil named snapshot for empty store, got %+v", byName)
+	}
+}

@@ -20,6 +20,7 @@ import (
 	"nursor.org/nursorgate/processor/config"
 	"nursor.org/nursorgate/processor/rules"
 	"nursor.org/nursorgate/processor/statistic"
+	watcher "nursor.org/nursorgate/processor/watcher"
 )
 
 var reverseLookupAddr = func(ctx context.Context, addr string) ([]string, error) {
@@ -232,7 +233,13 @@ func (h *TCPConnectionHandler) handleNonTLS(
 		route, _ := h.tlsHandler.DetermineRouteWithContext(metadata)
 		logger.Debug(fmt.Sprintf("HTTP: Route decision for host=%s ip=%s: %v", metadata.HostName, metadata.DstIP, route))
 		remote, dialErr := h.dialByRoute(ctx, metadata, route)
-		return remote, newOriginConn, dialErr
+		if dialErr != nil {
+			return nil, newOriginConn, dialErr
+		}
+		if route == RouteToALiang {
+			return remote, h.wrapAliangHTTPConn(newOriginConn), nil
+		}
+		return remote, newOriginConn, nil
 	}
 
 	h.enrichMetadataFromReverseLookup(ctx, metadata)
@@ -344,67 +351,13 @@ func (h *TCPConnectionHandler) handleTLS(
 	}
 	logger.Debug(fmt.Sprintf("TLS: Route decision for %s (%s via %s): %v", metadata.HostName, metadata.DstIP, routeSource, route))
 
-	// STEP 4: Route based on final decision
-	switch route {
-	case RouteToALiang:
-		// Store route decision in metadata for caching
-		metadata.Route = "RouteToCursor"
-
-		aliangProxy, err := h.getAliangProxyForExecution()
-		if err != nil {
-			return nil, nil, err
-		}
-
-		// MITM proxy route (Cursor/Aliang)
-		// Extract SNI for MITM if we have it
-		mitmedSNI := sni
-		if cacheHit && sni == "" {
-			// If we got domain from cache but not SNI, use cached domain as SNI
-			mitmedSNI = metadata.HostName
-		}
-
-		mitmed, err := h.tlsHandler.PerformMITM(ctx, originConn, mitmedSNI)
-		if err != nil {
-			return nil, nil, err
-		}
-
-		// Connect through Aliang proxy
-		remote, err := aliangProxy.DialContext(ctx, metadata)
-		if err != nil {
-			return nil, nil, err
-		}
-
-		return remote, mitmed, nil
-
-	case RouteToLocalProxy:
-		// Store route decision in metadata for caching
-		metadata.Route = "RouteToSocks"
-
-		socksProxy, upstreamType, err := h.getToSocksProxyForExecution()
-		if err != nil {
-			return nil, nil, err
-		}
-		logger.Debug(fmt.Sprintf("toSocks execution using upstream type: %s", upstreamType))
-
-		remote, err := socksProxy.DialContext(ctx, metadata)
-		if err != nil {
-			return nil, nil, err
-		}
-
-		return remote, wrapped, nil
-
-	default:
-		// Store route decision in metadata for caching
-		metadata.Route = "RouteDirect"
-
-		// RouteDirect: Direct connection without proxy
-		remote, err := h.dialDirect(ctx, metadata)
-		if err != nil {
-			return nil, nil, err
-		}
-
-		return remote, wrapped, nil
+	mitmedSNI := sni
+	if cacheHit && sni == "" {
+		// If we got domain from cache but not SNI, use cached domain as SNI
+		mitmedSNI = metadata.HostName
 	}
+
+	return h.resolveTLSRoute(ctx, originConn, metadata, route, wrapped, mitmedSNI)
 }
 
 // dialDirect dials a direct connection to the target using tun dialer
@@ -434,6 +387,42 @@ func (h *TCPConnectionHandler) dialByRoute(ctx context.Context, metadata *M.Meta
 		metadata.Route = "RouteDirect"
 		return h.dialDirect(ctx, metadata)
 	}
+}
+
+func (h *TCPConnectionHandler) resolveTLSRoute(
+	ctx context.Context,
+	originConn net.Conn,
+	metadata *M.Metadata,
+	route ProxyRoute,
+	wrapped net.Conn,
+	mitmedSNI string,
+) (net.Conn, net.Conn, error) {
+	if route == RouteToALiang {
+		mitmed, err := h.tlsHandler.PerformMITM(ctx, originConn, mitmedSNI)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		remote, err := h.dialByRoute(ctx, metadata, route)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		return remote, h.wrapAliangHTTPConn(mitmed), nil
+	}
+
+	remote, err := h.dialByRoute(ctx, metadata, route)
+	if err != nil {
+		return nil, nil, err
+	}
+	return remote, wrapped, nil
+}
+
+func (h *TCPConnectionHandler) wrapAliangHTTPConn(conn net.Conn) net.Conn {
+	if conn == nil {
+		return nil
+	}
+	return watcher.NewWatcherWrapConn(conn)
 }
 
 func (h *TCPConnectionHandler) dialViaSocksOrDirect(ctx context.Context, metadata *M.Metadata) (net.Conn, error) {

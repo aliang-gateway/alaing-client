@@ -72,12 +72,7 @@ func resolveAccessToken() (string, error) {
 	return token, nil
 }
 
-func callUserCenterAPI(method, endpoint string, body any) ([]byte, error) {
-	accessToken, err := resolveAccessToken()
-	if err != nil {
-		return nil, err
-	}
-
+func callAuthenticatedAPI(method, endpoint, accessToken string, body any) ([]byte, error) {
 	var reqBody io.Reader
 	if body != nil {
 		jsonData, marshalErr := json.Marshal(body)
@@ -113,9 +108,17 @@ func callUserCenterAPI(method, endpoint string, body any) ([]byte, error) {
 	return responseBody, nil
 }
 
-func GetUserProfile() (*UserProfile, error) {
-	if _, err := resolveAccessToken(); err != nil {
+func callUserCenterAPI(method, endpoint string, body any) ([]byte, error) {
+	accessToken, err := resolveAccessToken()
+	if err != nil {
 		return nil, err
+	}
+	return callAuthenticatedAPI(method, endpoint, accessToken, body)
+}
+
+func GetUserProfileWithToken(accessToken string) (*UserProfile, error) {
+	if strings.TrimSpace(accessToken) == "" {
+		return nil, fmt.Errorf("missing access token")
 	}
 
 	urlBuilder, err := config.NewURLBuilder()
@@ -127,7 +130,7 @@ func GetUserProfile() (*UserProfile, error) {
 		return nil, err
 	}
 
-	body, err := callUserCenterAPI(http.MethodGet, profileURL, nil)
+	body, err := callAuthenticatedAPI(http.MethodGet, profileURL, accessToken, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -138,6 +141,14 @@ func GetUserProfile() (*UserProfile, error) {
 	}
 
 	return &envelope.Data, nil
+}
+
+func GetUserProfile() (*UserProfile, error) {
+	accessToken, err := resolveAccessToken()
+	if err != nil {
+		return nil, err
+	}
+	return GetUserProfileWithToken(accessToken)
 }
 
 func UpdateUserProfile(username string) (*UserProfile, error) {
@@ -171,12 +182,9 @@ func UpdateUserProfile(username string) (*UserProfile, error) {
 
 	current := GetCurrentUserInfo()
 	if current != nil {
-		current.Username = strings.TrimSpace(envelope.Data.Username)
-		if current.Username == "" {
+		applyUserProfileToUserInfo(current, &envelope.Data)
+		if strings.TrimSpace(current.Username) == "" {
 			current.Username = trimmed
-		}
-		if envelope.Data.Email != "" {
-			current.Email = strings.TrimSpace(envelope.Data.Email)
 		}
 		current.UpdatedAt = time.Now()
 		if err := SaveUserInfo(current); err != nil {

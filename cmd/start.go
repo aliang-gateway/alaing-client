@@ -10,6 +10,7 @@ import (
 
 	"github.com/spf13/cobra"
 	httpServer "nursor.org/nursorgate/app/http"
+	"nursor.org/nursorgate/app/http/storage"
 	"nursor.org/nursorgate/common/cache"
 	"nursor.org/nursorgate/common/logger"
 	auth "nursor.org/nursorgate/processor/auth"
@@ -77,6 +78,13 @@ func runStart(cmd *cobra.Command, args []string) error {
 
 	// Get the global startup state
 	startupState := runtime.GetStartupState()
+
+	if err := auth.InitializeAuthPersistence(); err != nil {
+		return fmt.Errorf("failed to initialize auth persistence: %w", err)
+	}
+	if err := storage.InitializeSoftwareConfigStore(); err != nil {
+		return fmt.Errorf("failed to initialize software config persistence: %w", err)
+	}
 
 	if err := ApplyStartupConfig(configPath); err != nil {
 		return fmt.Errorf("failed to initialize startup configuration: %w", err)

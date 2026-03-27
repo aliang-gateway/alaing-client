@@ -1,0 +1,219 @@
+name: Tag Build Release
+
+on:
+  push:
+    tags:
+      - '*'
+
+permissions:
+  contents: write
+
+env:
+  BINARY_NAME: aliang
+
+jobs:
+  guard:
+    name: Verify tag commit is on master
+    runs-on: ubuntu-latest
+    outputs:
+      on_master: ${{ steps.check.outputs.on_master }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check whether tag points to master
+        id: check
+        shell: bash
+        run: |
+          git fetch origin master --depth=1
+          TAG_COMMIT="$(git rev-list -n 1 "${GITHUB_REF_NAME}")"
+          if git merge-base --is-ancestor "$TAG_COMMIT" origin/master; then
+            echo "on_master=true" >> "$GITHUB_OUTPUT"
+            echo "Tag ${GITHUB_REF_NAME} points to ${TAG_COMMIT} on master."
+          else
+            echo "on_master=false" >> "$GITHUB_OUTPUT"
+            echo "Tag ${GITHUB_REF_NAME} is not on master. Release build will be skipped."
+          fi
+
+  frontend:
+    name: Build frontend dist
+    needs: guard
+    if: needs.guard.outputs.on_master == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: app/website/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: app/website
+        run: npm ci
+
+      - name: Build frontend
+        working-directory: app/website
+        run: npm run build
+
+      - name: Archive frontend dist
+        shell: bash
+        run: |
+          tar -C app/website -czf website-dist.tar.gz dist
+
+      - name: Upload frontend dist artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: website-dist
+          path: website-dist.tar.gz
+          if-no-files-found: error
+
+  build:
+    name: Build ${{ matrix.asset_name }}
+    needs:
+      - guard
+      - frontend
+    if: needs.guard.outputs.on_master == 'true'
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            goos: linux
+            goarch: amd64
+            cgo_enabled: '1'
+            asset_name: aliang-linux-amd64
+            binary_ext: ''
+            archive_ext: tar.gz
+          - runner: ubuntu-24.04-arm
+            goos: linux
+            goarch: arm64
+            cgo_enabled: '1'
+            asset_name: aliang-linux-arm64
+            binary_ext: ''
+            archive_ext: tar.gz
+          - runner: windows-2022
+            goos: windows
+            goarch: amd64
+            cgo_enabled: '1'
+            asset_name: aliang-windows-amd64
+            binary_ext: .exe
+            archive_ext: zip
+          - runner: macos-13
+            goos: darwin
+            goarch: amd64
+            cgo_enabled: '1'
+            asset_name: aliang-darwin-amd64
+            binary_ext: ''
+            archive_ext: tar.gz
+          - runner: macos-14
+            goos: darwin
+            goarch: arm64
+            cgo_enabled: '1'
+            asset_name: aliang-darwin-arm64
+            binary_ext: ''
+            archive_ext: tar.gz
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download frontend dist artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: website-dist
+          path: .
+
+      - name: Restore frontend dist into repository
+        shell: bash
+        run: |
+          rm -rf app/website/dist
+          tar -C app/website -xzf website-dist.tar.gz
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+
+      - name: Install Linux build dependencies
+        if: matrix.goos == 'linux'
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential pkg-config libgtk-3-dev libayatana-appindicator3-dev
+
+      - name: Prepare Go modules for CI
+        shell: bash
+        run: |
+          if grep -q 'replace github.com/elazarl/goproxy v1.7.2 => ../goproxy' go.mod && [ ! -d ../goproxy ]; then
+            go mod edit -dropreplace=github.com/elazarl/goproxy
+          fi
+          go mod download
+
+      - name: Build Go binary
+        shell: bash
+        env:
+          CGO_ENABLED: ${{ matrix.cgo_enabled }}
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+        run: |
+          mkdir -p dist release
+          VERSION="${GITHUB_REF_NAME}"
+          COMMIT="$(git rev-parse --short HEAD)"
+          go build \
+            -trimpath \
+            -ldflags="-s -w -X nursor.org/nursorgate/common/version.Version=${VERSION} -X nursor.org/nursorgate/common/version.GitCommit=${COMMIT}" \
+            -o "dist/${BINARY_NAME}${{ matrix.binary_ext }}" \
+            ./cmd/aliang
+
+      - name: Package Unix release archive
+        if: matrix.goos != 'windows'
+        shell: bash
+        run: |
+          tar -C dist -czf "release/${{ matrix.asset_name }}.${{ matrix.archive_ext }}" "${BINARY_NAME}${{ matrix.binary_ext }}"
+
+      - name: Package Windows release archive
+        if: matrix.goos == 'windows'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path release | Out-Null
+          Compress-Archive -Path "dist/${env:BINARY_NAME}${{ matrix.binary_ext }}" -DestinationPath "release/${{ matrix.asset_name }}.${{ matrix.archive_ext }}" -Force
+
+      - name: Upload packaged artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.asset_name }}
+          path: release/${{ matrix.asset_name }}.${{ matrix.archive_ext }}
+          if-no-files-found: error
+
+  release:
+    name: Publish release assets
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download packaged artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: aliang-*
+          path: release-assets
+          merge-multiple: true
+
+      - name: Generate checksums
+        shell: bash
+        run: |
+          cd release-assets
+          sha256sum * > SHA256SUMS
+
+      - name: Publish GitHub release assets
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          generate_release_notes: true
+          files: |
+            release-assets/*

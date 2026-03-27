@@ -49,20 +49,25 @@ func TestHTTPProxyWithConfig(t *testing.T) {
 	logger.Info(strings.Repeat("-", 70))
 	logger.Info("Checking local user info...")
 	logger.Info(strings.Repeat("-", 70))
-	userInfoPath, err := authuser.GetUserInfoPath()
+	userInfoPath, err := authuser.GetAuthSessionDBPath()
 	if err != nil {
-		logger.Warn(fmt.Sprintf("Failed to get user info path: %v", err))
+		logger.Warn(fmt.Sprintf("Failed to get user info db path: %v", err))
 	} else {
-		logger.Debug(fmt.Sprintf("User info path: %s", userInfoPath))
+		logger.Debug(fmt.Sprintf("User info db path: %s", userInfoPath))
 	}
 
-	// Check if user info file exists
-	if _, err := os.Stat(userInfoPath); os.IsNotExist(err) {
-		logger.Warn(fmt.Sprintf("No local user info found at: %s", userInfoPath))
+	hasPersisted, checkErr := authuser.HasPersistedUserInfo()
+	if checkErr != nil {
+		logger.Warn(fmt.Sprintf("Failed to inspect local user info: %v", checkErr))
+		hasPersisted = false
+	}
+
+	if !hasPersisted {
+		logger.Warn(fmt.Sprintf("No local user info found in: %s", userInfoPath))
 		logger.Info("You can activate a token later via HTTP API or use --token flag")
 	} else {
 		runtime.GetStartupState().SetStatus(runtime.READY)
-		logger.Info(fmt.Sprintf("Found local user info file: %s", userInfoPath))
+		logger.Info(fmt.Sprintf("Found local user info in: %s", userInfoPath))
 		userInfo, loadErr := authuser.LoadUserInfo()
 		if loadErr != nil {
 			logger.Error(fmt.Sprintf("Failed to load user info: %v", loadErr))
@@ -72,22 +77,12 @@ func TestHTTPProxyWithConfig(t *testing.T) {
 			logger.Info("")
 			logger.Info("User Details:")
 			logger.Info(fmt.Sprintf("  Username:     %s", userInfo.Username))
-			logger.Info(fmt.Sprintf("  Plan Name:     %s", userInfo.PlanName))
-			logger.Info(fmt.Sprintf("  Plan Type:     %s", userInfo.PlanType))
-			logger.Info(fmt.Sprintf("  Valid Period:  %s to %s", userInfo.StartTime, userInfo.EndTime))
-
-			// Calculate traffic usage
-			trafficUsedGB := float64(userInfo.TrafficUsed) / (1024 * 1024 * 1024)
-			trafficTotalGB := float64(userInfo.TrafficTotal) / (1024 * 1024 * 1024)
-			var trafficPercent int
-			if userInfo.TrafficTotal > 0 {
-				trafficPercent = int(float64(userInfo.TrafficUsed) / float64(userInfo.TrafficTotal) * 100)
-			}
-			logger.Info(fmt.Sprintf("  Traffic Usage: %.2fGB / %.2fGB (%d%%)",
-				trafficUsedGB, trafficTotalGB, trafficPercent))
-
-			// AI Ask usage
-			logger.Info(fmt.Sprintf("  AI Questions: %d / %d", userInfo.AIAskUsed, userInfo.AIAskTotal))
+			logger.Info(fmt.Sprintf("  Email:        %s", userInfo.Email))
+			logger.Info(fmt.Sprintf("  Role:         %s", userInfo.Role))
+			logger.Info(fmt.Sprintf("  Status:       %s", userInfo.Status))
+			logger.Info(fmt.Sprintf("  Balance:      %.2f", userInfo.Balance))
+			logger.Info(fmt.Sprintf("  Concurrency:  %d", userInfo.Concurrency))
+			logger.Info(fmt.Sprintf("  Created At:   %s", userInfo.CreatedAt))
 
 			// Token info
 			if userInfo.AccessToken != "" {
@@ -165,19 +160,24 @@ func TestHTTPProxyDefault(t *testing.T) {
 	logger.Info(strings.Repeat("-", 70))
 	logger.Info("Checking local user info...")
 	logger.Info(strings.Repeat("-", 70))
-	userInfoPath, err := authuser.GetUserInfoPath()
+	userInfoPath, err := authuser.GetAuthSessionDBPath()
 	if err != nil {
-		logger.Warn(fmt.Sprintf("Failed to get user info path: %v", err))
+		logger.Warn(fmt.Sprintf("Failed to get user info db path: %v", err))
 	} else {
-		logger.Debug(fmt.Sprintf("User info path: %s", userInfoPath))
+		logger.Debug(fmt.Sprintf("User info db path: %s", userInfoPath))
 	}
 
-	// Check if user info file exists
-	if _, err := os.Stat(userInfoPath); os.IsNotExist(err) {
-		logger.Warn(fmt.Sprintf("No local user info found at: %s", userInfoPath))
+	hasPersisted, checkErr := authuser.HasPersistedUserInfo()
+	if checkErr != nil {
+		logger.Warn(fmt.Sprintf("Failed to inspect local user info: %v", checkErr))
+		hasPersisted = false
+	}
+
+	if !hasPersisted {
+		logger.Warn(fmt.Sprintf("No local user info found in: %s", userInfoPath))
 		logger.Info("You can activate a token later via HTTP API or use --token flag")
 	} else {
-		logger.Info(fmt.Sprintf("Found local user info file: %s", userInfoPath))
+		logger.Info(fmt.Sprintf("Found local user info in: %s", userInfoPath))
 		userInfo, loadErr := authuser.LoadUserInfo()
 		if loadErr != nil {
 			logger.Error(fmt.Sprintf("Failed to load user info: %v", loadErr))
@@ -187,22 +187,12 @@ func TestHTTPProxyDefault(t *testing.T) {
 			logger.Info("")
 			logger.Info("User Details:")
 			logger.Info(fmt.Sprintf("  Username:     %s", userInfo.Username))
-			logger.Info(fmt.Sprintf("  Plan Name:     %s", userInfo.PlanName))
-			logger.Info(fmt.Sprintf("  Plan Type:     %s", userInfo.PlanType))
-			logger.Info(fmt.Sprintf("  Valid Period:  %s to %s", userInfo.StartTime, userInfo.EndTime))
-
-			// Calculate traffic usage
-			trafficUsedGB := float64(userInfo.TrafficUsed) / (1024 * 1024 * 1024)
-			trafficTotalGB := float64(userInfo.TrafficTotal) / (1024 * 1024 * 1024)
-			var trafficPercent int
-			if userInfo.TrafficTotal > 0 {
-				trafficPercent = int(float64(userInfo.TrafficUsed) / float64(userInfo.TrafficTotal) * 100)
-			}
-			logger.Info(fmt.Sprintf("  Traffic Usage: %.2fGB / %.2fGB (%d%%)",
-				trafficUsedGB, trafficTotalGB, trafficPercent))
-
-			// AI Ask usage
-			logger.Info(fmt.Sprintf("  AI Questions: %d / %d", userInfo.AIAskUsed, userInfo.AIAskTotal))
+			logger.Info(fmt.Sprintf("  Email:        %s", userInfo.Email))
+			logger.Info(fmt.Sprintf("  Role:         %s", userInfo.Role))
+			logger.Info(fmt.Sprintf("  Status:       %s", userInfo.Status))
+			logger.Info(fmt.Sprintf("  Balance:      %.2f", userInfo.Balance))
+			logger.Info(fmt.Sprintf("  Concurrency:  %d", userInfo.Concurrency))
+			logger.Info(fmt.Sprintf("  Created At:   %s", userInfo.CreatedAt))
 
 			// Token info
 			if userInfo.AccessToken != "" {

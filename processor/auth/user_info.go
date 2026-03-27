@@ -2,81 +2,36 @@ package user
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 	"sync"
 	"time"
 
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 
+	"nursor.org/nursorgate/common/cache"
 	"nursor.org/nursorgate/common/logger"
 )
 
-// UserInfo 用户信息结构（本地存储格式）
+// UserInfo is the locally persisted Sub2API session snapshot.
 type UserInfo struct {
-	AccessToken  string    `json:"access_token"`  // 加密存储
-	RefreshToken string    `json:"refresh_token"` // 加密存储
-	TokenType    string    `json:"token_type,omitempty"`
-	ExpiresIn    int       `json:"expires_in,omitempty"`
-	Username     string    `json:"username"`
-	Email        string    `json:"email,omitempty"`
-	Role         string    `json:"role,omitempty"`
-	UserID       int64     `json:"user_id,omitempty"`
-	PlanName     string    `json:"plan_name"`
-	TrafficUsed  int64     `json:"traffic_used"`
-	TrafficTotal int64     `json:"traffic_total"`
-	AIAskUsed    int       `json:"ai_ask_used"`
-	AIAskTotal   int       `json:"ai_ask_total"`
-	StartTime    string    `json:"start_time"`
-	EndTime      string    `json:"end_time"`
-	PlanType     string    `json:"plan_type"`
-	InnerToken   string    `json:"inner_token"` // 加密存储
-	UpdatedAt    time.Time `json:"updated_at"`  // 最后更新时间
-}
-
-// ActivateResponse 激活API响应结构
-type ActivateResponse struct {
-	Code int    `json:"code"`
-	Msg  string `json:"msg"`
-	Data struct {
-		AccessToken  string `json:"access_token"`
-		RefreshToken string `json:"refresh_token"`
-		User         struct {
-			PlanName     string `json:"plan_name"`
-			TrafficUsed  int64  `json:"traffic_used"`
-			TrafficTotal int64  `json:"traffic_total"`
-			AIAskUsed    int    `json:"ai_ask_used"`
-			AIAskTotal   int    `json:"ai_ask_total"`
-			StartTime    string `json:"start_time"`
-			EndTime      string `json:"end_time"`
-			PlanType     string `json:"plan_type"`
-			InnerToken   string `json:"inner_token"`
-			Username     string `json:"username"`
-		} `json:"user"`
-	} `json:"data"`
-}
-
-// RefreshResponse 刷新API响应结构
-// refresh API 返回的 data 直接包含用户信息，不包含 access_token 和 refresh_token
-type RefreshResponse struct {
-	Code int    `json:"code"`
-	Msg  string `json:"msg"`
-	Data struct {
-		PlanName     string `json:"plan_name"`
-		TrafficUsed  int64  `json:"traffic_used"`
-		TrafficTotal int64  `json:"traffic_total"`
-		AIAskUsed    int    `json:"ai_ask_used"`
-		AIAskTotal   int    `json:"ai_ask_total"`
-		StartTime    string `json:"start_time"`
-		EndTime      string `json:"end_time"`
-		PlanType     string `json:"plan_type"`
-		InnerToken   string `json:"inner_token"`
-		Username     string `json:"username"`
-	} `json:"data"`
+	AccessToken    string    `json:"access_token"`
+	RefreshToken   string    `json:"refresh_token"`
+	TokenType      string    `json:"token_type,omitempty"`
+	ExpiresIn      int       `json:"expires_in,omitempty"`
+	ID             int64     `json:"id,omitempty"`
+	Email          string    `json:"email,omitempty"`
+	Username       string    `json:"username,omitempty"`
+	Role           string    `json:"role,omitempty"`
+	Balance        float64   `json:"balance,omitempty"`
+	Concurrency    int       `json:"concurrency,omitempty"`
+	Status         string    `json:"status,omitempty"`
+	AllowedGroups  []int64   `json:"allowed_groups,omitempty"`
+	CreatedAt      string    `json:"created_at,omitempty"`
+	ProfileUpdated string    `json:"profile_updated_at,omitempty"`
+	UpdatedAt      time.Time `json:"updated_at"`
 }
 
 var (
@@ -88,36 +43,54 @@ var (
 )
 
 const (
-	authSessionDBFile   = "auth_session.db"
-	authSessionRecordID = 1
+	authTokenRecordID   = 1
+	authProfileRecordID = 1
 )
 
-type authSessionRecord struct {
-	ID        uint      `gorm:"primaryKey"`
-	Data      string    `gorm:"type:text;not null"`
-	UpdatedAt time.Time `gorm:"autoUpdateTime"`
+type authTokenRecord struct {
+	ID           uint      `gorm:"primaryKey"`
+	AccessToken  string    `gorm:"type:text;not null"`
+	RefreshToken string    `gorm:"type:text"`
+	TokenType    string    `gorm:"type:varchar(32)"`
+	ExpiresIn    int       `gorm:"not null;default:0"`
+	UpdatedAt    time.Time `gorm:"autoUpdateTime"`
 }
 
-// GetUserInfoPath 获取用户信息文件路径
-func GetUserInfoPath() (string, error) {
-	homeDir, err := os.UserHomeDir()
-	if err != nil {
-		return "", fmt.Errorf("failed to get home directory: %w", err)
-	}
-	configDir := filepath.Join(homeDir, ".aliang")
-	logger.Debug(fmt.Sprintf("get user info path: %s", configDir))
-	return filepath.Join(configDir, "userinfo.json"), nil
+func (authTokenRecord) TableName() string {
+	return "sub2api_auth_tokens"
 }
 
+type authProfileRecord struct {
+	ID                uint      `gorm:"primaryKey"`
+	UserID            int64     `gorm:"not null;default:0;index"`
+	Email             string    `gorm:"type:varchar(255);index"`
+	Username          string    `gorm:"type:varchar(255)"`
+	Role              string    `gorm:"type:varchar(64)"`
+	Balance           float64   `gorm:"not null;default:0"`
+	Concurrency       int       `gorm:"not null;default:0"`
+	Status            string    `gorm:"type:varchar(64);index"`
+	AllowedGroupsJSON string    `gorm:"column:allowed_groups_json;type:text"`
+	RemoteCreatedAt   string    `gorm:"column:remote_created_at;type:varchar(64)"`
+	RemoteUpdatedAt   string    `gorm:"column:remote_updated_at;type:varchar(64)"`
+	UpdatedAt         time.Time `gorm:"autoUpdateTime"`
+}
+
+func (authProfileRecord) TableName() string {
+	return "sub2api_user_profiles"
+}
+
+// GetAuthSessionDBPath returns the canonical shared SQLite data file path.
 func GetAuthSessionDBPath() (string, error) {
-	homeDir, err := os.UserHomeDir()
-	if err != nil {
-		return "", fmt.Errorf("failed to get home directory: %w", err)
-	}
-	return filepath.Join(homeDir, ".aliang", authSessionDBFile), nil
+	return cache.GetUnifiedDataDBPath()
 }
 
-// SaveUserInfo 保存用户信息到本地（整文件加密）
+// InitializeAuthPersistence ensures the shared auth tables exist.
+func InitializeAuthPersistence() error {
+	_, err := getAuthSessionDB()
+	return err
+}
+
+// SaveUserInfo persists the current Sub2API session snapshot.
 func SaveUserInfo(info *UserInfo) error {
 	if info == nil {
 		return fmt.Errorf("user info cannot be nil")
@@ -129,65 +102,43 @@ func SaveUserInfo(info *UserInfo) error {
 		return fmt.Errorf("failed to persist user info to sqlite: %w", err)
 	}
 
-	logger.Debug("User info saved successfully (sqlite)")
-
 	userInfoMutex.Lock()
 	copyInfo := *info
 	currentUserInfo = &copyInfo
 	userInfoMutex.Unlock()
 
+	logger.Debug("User info saved successfully (sqlite)")
 	return nil
 }
 
+// LoadUserInfo loads the current Sub2API session snapshot from aliang.db.
 func LoadUserInfo() (*UserInfo, error) {
-	sqliteInfo, err := loadUserInfoFromSQLite()
-	if err == nil {
-		userInfoMutex.Lock()
-		copyInfo := *sqliteInfo
-		currentUserInfo = &copyInfo
-		userInfoMutex.Unlock()
-		return sqliteInfo, nil
+	if err := InitializeAuthPersistence(); err != nil {
+		return nil, err
 	}
 
-	if !errors.Is(err, gorm.ErrRecordNotFound) {
+	sqliteInfo, err := loadUserInfoFromSQLite()
+	if err != nil {
 		return nil, fmt.Errorf("failed to load user info from sqlite: %w", err)
 	}
 
-	legacyInfo, legacyErr := loadLegacyUserInfoFromFile()
-	if legacyErr != nil {
-		return nil, fmt.Errorf("no persisted user info found: %w", legacyErr)
-	}
-
-	if saveErr := saveUserInfoToSQLite(legacyInfo); saveErr != nil {
-		return nil, fmt.Errorf("failed to migrate legacy user info to sqlite: %w", saveErr)
-	}
-
-	logger.Info("Migrated legacy user info file into sqlite auth session store")
-
 	userInfoMutex.Lock()
-	copyInfo := *legacyInfo
+	copyInfo := *sqliteInfo
 	currentUserInfo = &copyInfo
 	userInfoMutex.Unlock()
 
-	return legacyInfo, nil
+	return sqliteInfo, nil
 }
 
-// UpdateUserInfo 更新用户信息并保存
+// UpdateUserInfo updates the local user snapshot.
 func UpdateUserInfo(info *UserInfo) error {
 	return SaveUserInfo(info)
 }
 
-// DeleteUserInfo 删除本地用户信息
+// DeleteUserInfo deletes all persisted auth session data from aliang.db.
 func DeleteUserInfo() error {
 	if err := deleteUserInfoFromSQLite(); err != nil {
 		return err
-	}
-
-	filePath, err := GetUserInfoPath()
-	if err == nil {
-		if err := os.Remove(filePath); err != nil && !os.IsNotExist(err) {
-			logger.Warn(fmt.Sprintf("Failed to delete legacy user info file: %v", err))
-		}
 	}
 
 	userInfoMutex.Lock()
@@ -197,50 +148,19 @@ func DeleteUserInfo() error {
 	return nil
 }
 
+// HasPersistedUserInfo reports whether a local auth session exists in aliang.db.
 func HasPersistedUserInfo() (bool, error) {
-	dbPath, err := GetAuthSessionDBPath()
-	if err != nil {
-		return false, err
-	}
-
-	if _, err := os.Stat(dbPath); os.IsNotExist(err) {
-		filePath, pathErr := GetUserInfoPath()
-		if pathErr != nil {
-			return false, nil
-		}
-		if _, statErr := os.Stat(filePath); statErr == nil {
-			return true, nil
-		}
-		return false, nil
-	}
-
-	db, err := gorm.Open(sqlite.Open(dbPath), &gorm.Config{})
+	db, err := getAuthSessionDB()
 	if err != nil {
 		return false, err
 	}
 
 	var count int64
-	if err := db.Model(&authSessionRecord{}).Where("id = ?", authSessionRecordID).Count(&count).Error; err != nil {
-		if strings.Contains(strings.ToLower(err.Error()), "no such table") {
-			return false, nil
-		}
+	if err := db.Model(&authTokenRecord{}).Where("id = ?", authTokenRecordID).Count(&count).Error; err != nil {
 		return false, err
 	}
 
-	if count > 0 {
-		return true, nil
-	}
-
-	filePath, pathErr := GetUserInfoPath()
-	if pathErr != nil {
-		return false, nil
-	}
-
-	if _, err := os.Stat(filePath); err == nil {
-		return true, nil
-	}
-
-	return false, nil
+	return count > 0, nil
 }
 
 func getAuthSessionDB() (*gorm.DB, error) {
@@ -262,8 +182,8 @@ func getAuthSessionDB() (*gorm.DB, error) {
 			return
 		}
 
-		if err := db.AutoMigrate(&authSessionRecord{}); err != nil {
-			authSessionDBErr = fmt.Errorf("failed to migrate auth session table: %w", err)
+		if err := db.AutoMigrate(&authTokenRecord{}, &authProfileRecord{}); err != nil {
+			authSessionDBErr = fmt.Errorf("failed to migrate auth session tables: %w", err)
 			return
 		}
 
@@ -278,19 +198,48 @@ func saveUserInfoToSQLite(info *UserInfo) error {
 	if err != nil {
 		return err
 	}
+	return saveUserInfoWithDB(db, info)
+}
 
-	data, err := json.Marshal(info)
+func saveUserInfoWithDB(db *gorm.DB, info *UserInfo) error {
+	allowedGroupsJSON, err := json.Marshal(info.AllowedGroups)
 	if err != nil {
-		return fmt.Errorf("failed to marshal user info: %w", err)
+		return fmt.Errorf("failed to marshal allowed groups: %w", err)
 	}
 
-	record := authSessionRecord{
-		ID:        authSessionRecordID,
-		Data:      string(data),
-		UpdatedAt: info.UpdatedAt,
+	token := authTokenRecord{
+		ID:           authTokenRecordID,
+		AccessToken:  info.AccessToken,
+		RefreshToken: info.RefreshToken,
+		TokenType:    info.TokenType,
+		ExpiresIn:    info.ExpiresIn,
+		UpdatedAt:    info.UpdatedAt,
 	}
 
-	return db.Save(&record).Error
+	profile := authProfileRecord{
+		ID:                authProfileRecordID,
+		UserID:            info.ID,
+		Email:             info.Email,
+		Username:          info.Username,
+		Role:              info.Role,
+		Balance:           info.Balance,
+		Concurrency:       info.Concurrency,
+		Status:            info.Status,
+		AllowedGroupsJSON: string(allowedGroupsJSON),
+		RemoteCreatedAt:   info.CreatedAt,
+		RemoteUpdatedAt:   info.ProfileUpdated,
+		UpdatedAt:         info.UpdatedAt,
+	}
+
+	return db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Save(&token).Error; err != nil {
+			return err
+		}
+		if err := tx.Save(&profile).Error; err != nil {
+			return err
+		}
+		return nil
+	})
 }
 
 func loadUserInfoFromSQLite() (*UserInfo, error) {
@@ -299,14 +248,43 @@ func loadUserInfoFromSQLite() (*UserInfo, error) {
 		return nil, err
 	}
 
-	var record authSessionRecord
-	if err := db.First(&record, "id = ?", authSessionRecordID).Error; err != nil {
+	var token authTokenRecord
+	if err := db.First(&token, "id = ?", authTokenRecordID).Error; err != nil {
 		return nil, err
 	}
 
-	info := &UserInfo{}
-	if err := json.Unmarshal([]byte(record.Data), info); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal user info: %w", err)
+	var profile authProfileRecord
+	if err := db.First(&profile, "id = ?", authProfileRecordID).Error; err != nil && err != gorm.ErrRecordNotFound {
+		return nil, err
+	}
+
+	var allowedGroups []int64
+	if profile.AllowedGroupsJSON != "" {
+		if err := json.Unmarshal([]byte(profile.AllowedGroupsJSON), &allowedGroups); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal allowed groups: %w", err)
+		}
+	}
+
+	info := &UserInfo{
+		AccessToken:    token.AccessToken,
+		RefreshToken:   token.RefreshToken,
+		TokenType:      token.TokenType,
+		ExpiresIn:      token.ExpiresIn,
+		ID:             profile.UserID,
+		Email:          profile.Email,
+		Username:       profile.Username,
+		Role:           profile.Role,
+		Balance:        profile.Balance,
+		Concurrency:    profile.Concurrency,
+		Status:         profile.Status,
+		AllowedGroups:  allowedGroups,
+		CreatedAt:      profile.RemoteCreatedAt,
+		ProfileUpdated: profile.RemoteUpdatedAt,
+		UpdatedAt:      token.UpdatedAt,
+	}
+
+	if info.UpdatedAt.IsZero() {
+		info.UpdatedAt = profile.UpdatedAt
 	}
 
 	return info, nil
@@ -318,55 +296,36 @@ func deleteUserInfoFromSQLite() error {
 		return err
 	}
 
-	if err := db.Delete(&authSessionRecord{}, "id = ?", authSessionRecordID).Error; err != nil {
-		return fmt.Errorf("failed to delete user info from sqlite: %w", err)
-	}
-
-	return nil
+	return db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Delete(&authTokenRecord{}, "id = ?", authTokenRecordID).Error; err != nil {
+			return fmt.Errorf("failed to delete auth token record: %w", err)
+		}
+		if err := tx.Delete(&authProfileRecord{}, "id = ?", authProfileRecordID).Error; err != nil {
+			return fmt.Errorf("failed to delete auth profile record: %w", err)
+		}
+		return nil
+	})
 }
 
-func loadLegacyUserInfoFromFile() (*UserInfo, error) {
-	filePath, err := GetUserInfoPath()
-	if err != nil {
-		return nil, err
-	}
-
-	if _, err := os.Stat(filePath); err != nil {
-		return nil, err
-	}
-
-	data, err := os.ReadFile(filePath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read legacy user info file: %w", err)
-	}
-
-	decryptedInfo, err := DecryptUserInfoFile(data)
-	if err != nil {
-		return nil, fmt.Errorf("failed to decrypt legacy user info file: %w", err)
-	}
-
-	return decryptedInfo, nil
-}
-
-// GetCurrentUserInfo 获取当前加载的用户信息（内存）
+// GetCurrentUserInfo returns a copy of the currently loaded user info.
 func GetCurrentUserInfo() *UserInfo {
 	userInfoMutex.RLock()
 	defer userInfoMutex.RUnlock()
 	if currentUserInfo == nil {
 		return nil
 	}
-	// 返回副本以避免并发修改
 	info := *currentUserInfo
 	return &info
 }
 
-// SetCurrentUserInfo 设置当前用户信息（内存）
+// SetCurrentUserInfo sets the in-memory user session.
 func SetCurrentUserInfo(info *UserInfo) {
 	userInfoMutex.Lock()
 	defer userInfoMutex.Unlock()
 	currentUserInfo = info
 }
 
+// ResetAuthPersistenceForTest resets auth persistence singletons for isolated tests.
 func ResetAuthPersistenceForTest() {
 	userInfoMutex.Lock()
 	currentUserInfo = nil
@@ -375,4 +334,5 @@ func ResetAuthPersistenceForTest() {
 	authSessionDB = nil
 	authSessionDBErr = nil
 	authSessionDBOnce = sync.Once{}
+	cache.ResetCacheDirForTest()
 }

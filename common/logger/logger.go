@@ -333,8 +333,8 @@ func Error(v ...interface{}) {
 	GetMainLogger().Error(v...)
 }
 
-func SetUserInfo(innerToken string) {
+func SetUserInfo(userIdentity string) {
 	sentry.ConfigureScope(func(scope *sentry.Scope) {
-		scope.SetTag("inner_token", innerToken)
+		scope.SetTag("session_user", userIdentity)
 	})
 }

@@ -21,17 +21,17 @@ func NewAuthService() *AuthService {
 
 func mapUserInfo(userInfo *auth.UserInfo) models.UserInfoResponse {
 	return models.UserInfoResponse{
-		Username:     userInfo.Username,
-		Email:        userInfo.Email,
-		PlanName:     userInfo.PlanName,
-		PlanType:     userInfo.PlanType,
-		TrafficUsed:  userInfo.TrafficUsed,
-		TrafficTotal: userInfo.TrafficTotal,
-		AIAskUsed:    userInfo.AIAskUsed,
-		AIAskTotal:   userInfo.AIAskTotal,
-		StartTime:    userInfo.StartTime,
-		EndTime:      userInfo.EndTime,
-		UpdatedAt:    userInfo.UpdatedAt.Format(time.RFC3339),
+		ID:             userInfo.ID,
+		Username:       userInfo.Username,
+		Email:          userInfo.Email,
+		Role:           userInfo.Role,
+		Status:         userInfo.Status,
+		Balance:        userInfo.Balance,
+		Concurrency:    userInfo.Concurrency,
+		AllowedGroups:  append([]int64(nil), userInfo.AllowedGroups...),
+		CreatedAt:      userInfo.CreatedAt,
+		ProfileUpdated: userInfo.ProfileUpdated,
+		UpdatedAt:      userInfo.UpdatedAt.Format(time.RFC3339),
 	}
 }
 
@@ -154,7 +154,6 @@ func (s *AuthService) LogoutUser(refreshToken string) map[string]interface{} {
 		logger.Warn(fmt.Sprintf("Failed to delete user info: %v", err))
 	}
 
-	auth.SetInnerToken("")
 	clearStartupStateAfterLogout()
 
 	logger.Info("User logged out successfully")

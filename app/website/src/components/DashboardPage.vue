@@ -753,6 +753,7 @@
 import { computed, ref, onMounted, onUnmounted, watch } from 'vue';
 import { useCertStatus } from '../composables/useCertStatus';
 import { useNavigation } from '../composables/useNavigation';
+import { useRunStatus } from '../composables/useRunStatus';
 import { useAuthStore } from '../stores/auth';
 import { getUserCenterProfile } from '../services/userCenterApi';
 import { extractUsagePagination, extractUsageRecords } from '../utils/dashboardData';
@@ -763,9 +764,22 @@ import {
   getDashboardUsageRecords
 } from '../services/dashboardApi';
 
-const { certStatus, loading: certLoading, startPolling, stopPolling } = useCertStatus();
+const { certStatus, loading: certLoading, startPolling: startCertPolling, stopPolling: stopCertPolling } = useCertStatus();
 const { currentPage, showSettings } = useNavigation();
 const { isAuthenticated, user, userDisplayName, planLabel, authNotice, loginPending, loginError, loginWithPassword } = useAuthStore();
+const {
+  runMode,
+  runIsRunning,
+  runStatus,
+  runDescription,
+  runSyncError,
+  startupStatus,
+  refreshRunState,
+  syncRunStatus,
+  syncStartupStatus,
+  startPolling: startRunStatusPolling,
+  stopPolling: stopRunStatusPolling
+} = useRunStatus();
 
 const emit = defineEmits(['openQuickSetup', 'openCertModal', 'startCertReinstall']);
 
@@ -778,14 +792,8 @@ const isQuickChatOpen = ref(false);
 const quickChatInput = ref('');
 const isQuickChatSending = ref(false);
 const quickChatMessages = ref([]);
-const runMode = ref('unknown');
-const runIsRunning = ref(false);
-const runStatus = ref('');
-const runDescription = ref('');
-const runSyncError = ref('');
 const runActionLoading = ref(false);
 const runActionMessage = ref('');
-const startupStatus = ref('UNKNOWN');
 const accountBalance = ref(null);
 const tunStartModal = ref(createTunStartModalState());
 const dashboardLoading = ref(false);
@@ -800,7 +808,6 @@ const usageTotal = ref(0);
 const usageTotalPages = ref(1);
 const usageMaxPages = 20;
 const appliedRequestFilter = ref('all');
-let runStatusTimer = null;
 let tunStartLogTimer = null;
 let tunStartStatusTimer = null;
 
@@ -808,8 +815,11 @@ const accountSubtitle = computed(() => {
   if (!isAuthenticated.value) {
     return 'Log in to unlock proxy controls and account-linked usage.';
   }
-  if (user.value?.endTime) {
-    return `Valid until ${user.value.endTime}`;
+  if (user.value?.status) {
+    return `Account status: ${user.value.status}`;
+  }
+  if (user.value?.createdAt) {
+    return `Member since ${user.value.createdAt}`;
   }
   return 'Authenticated session active';
 });
@@ -1335,57 +1345,6 @@ const tunStartupSteps = computed(() => {
   ];
 });
 
-async function syncRunStatus() {
-  try {
-    const response = await fetch('/api/run/status');
-    const payload = await response.json().catch(() => ({}));
-    if (!response.ok) {
-      throw new Error(extractApiErrorMessage(payload, response.status, 'Failed to sync run status'));
-    }
-    if (payload?.code !== 0) {
-      throw new Error(payload?.msg || 'Failed to sync run status');
-    }
-    const data = payload?.data || {};
-    const normalizedMode = String(data?.current_mode || '').toLowerCase();
-    runMode.value = normalizedMode === 'http' ? 'http' : normalizedMode === 'tun' ? 'tun' : 'unknown';
-    runIsRunning.value = Boolean(data?.is_running);
-    runStatus.value = typeof data?.status === 'string' ? data.status : '';
-    runDescription.value = typeof data?.description === 'string' ? data.description : '';
-    runSyncError.value = '';
-  } catch (error) {
-    runSyncError.value = error instanceof Error ? error.message : 'Unknown error';
-  }
-}
-
-async function syncStartupStatus() {
-  try {
-    const response = await fetch('/api/startup/status');
-    const payload = await response.json().catch(() => ({}));
-    if (!response.ok) {
-      throw new Error(extractApiErrorMessage(payload, response.status, 'Failed to sync startup status'));
-    }
-    if (payload?.code !== 0) {
-      throw new Error(payload?.msg || 'Failed to sync startup status');
-    }
-    const data = payload?.data || {};
-    startupStatus.value = typeof data?.status === 'string' ? data.status : 'UNKNOWN';
-  } catch (error) {
-    startupStatus.value = 'UNKNOWN';
-  }
-}
-
-function extractApiErrorMessage(payload, status, fallback) {
-  return (
-    payload?.msg ||
-    payload?.message ||
-    payload?.data?.error_msg ||
-    payload?.data?.message ||
-    payload?.data?.details?.error ||
-    payload?.data?.details?.error_msg ||
-    `${fallback}: HTTP ${status}`
-  );
-}
-
 async function toggleProxyPower() {
   if (runActionLoading.value) return;
   runActionLoading.value = true;
@@ -1494,12 +1453,10 @@ const certBadgeClass = computed(() => {
 });
 
 onMounted(() => {
-  startPolling();
-  syncStartupStatus();
-  syncRunStatus();
+  startCertPolling();
+  startRunStatusPolling();
   syncAccountBalance();
   loadDashboardUsageData();
-  runStatusTimer = window.setInterval(syncRunStatus, 10000);
   window.addEventListener('keydown', handleDashboardKeydown);
   window.addEventListener('aliang:tun-progress-open', handleExternalTunProgressOpen);
   window.addEventListener('aliang:tun-progress-success', handleExternalTunProgressSuccess);
@@ -1507,11 +1464,8 @@ onMounted(() => {
 });
 
 onUnmounted(() => {
-  stopPolling();
-  if (runStatusTimer !== null) {
-    window.clearInterval(runStatusTimer);
-    runStatusTimer = null;
-  }
+  stopCertPolling();
+  stopRunStatusPolling();
   stopTunStartObservers();
   window.removeEventListener('keydown', handleDashboardKeydown);
   window.removeEventListener('aliang:tun-progress-open', handleExternalTunProgressOpen);
@@ -1519,16 +1473,22 @@ onUnmounted(() => {
   window.removeEventListener('aliang:tun-progress-error', handleExternalTunProgressError);
 });
 
-watch(isAuthenticated, (authenticated) => {
+watch(isAuthenticated, async (authenticated) => {
   if (authenticated) {
     isLoginModalOpen.value = false;
     loginPassword.value = '';
-    syncAccountBalance();
-    loadDashboardUsageData();
+    await Promise.allSettled([
+      syncAccountBalance(),
+      loadDashboardUsageData(),
+      refreshRunState()
+    ]);
     return;
   }
   accountBalance.value = null;
-  loadDashboardUsageData();
+  await Promise.allSettled([
+    loadDashboardUsageData(),
+    refreshRunState()
+  ]);
 });
 
 async function sendQuickChat() {
@@ -1656,9 +1616,13 @@ function startTunStartObservers() {
   stopTunStartObservers();
   tunStartLogTimer = window.setInterval(loadTunStartLogs, 1200);
   tunStartStatusTimer = window.setInterval(async () => {
-    await syncRunStatus();
-    if (tunStartModal.value.visible && tunStartModal.value.status === 'starting' && runIsRunning.value) {
-      markTunStartModalSuccess('The service switched to running state.');
+    try {
+      await syncRunStatus();
+      if (tunStartModal.value.visible && tunStartModal.value.status === 'starting' && runIsRunning.value) {
+        markTunStartModalSuccess('The service switched to running state.');
+      }
+    } catch {
+      // Keep polling logs so the modal can still show backend progress or failure details.
     }
   }, 1500);
 }

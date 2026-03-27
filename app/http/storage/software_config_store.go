@@ -38,7 +38,7 @@ func NewSoftwareConfigStoreWithDBPath(dbPath string) (*SoftwareConfigStore, erro
 
 func getSoftwareConfigDB() (*gorm.DB, error) {
 	softwareConfigDBOnce.Do(func() {
-		dbPath, err := cache.GetCacheFile("software_configs.db")
+		dbPath, err := cache.GetUnifiedDataDBPath()
 		if err != nil {
 			softwareConfigDBErr = err
 			return
@@ -48,11 +48,18 @@ func getSoftwareConfigDB() (*gorm.DB, error) {
 	return softwareConfigDB, softwareConfigDBErr
 }
 
+// InitializeSoftwareConfigStore ensures the shared software-config tables are ready.
+func InitializeSoftwareConfigStore() error {
+	_, err := getSoftwareConfigDB()
+	return err
+}
+
 // ResetSoftwareConfigDBForTest clears the package singleton so tests can isolate db path resolution.
 func ResetSoftwareConfigDBForTest() {
 	softwareConfigDB = nil
 	softwareConfigDBErr = nil
 	softwareConfigDBOnce = sync.Once{}
+	cache.ResetCacheDirForTest()
 }
 
 func openSoftwareConfigDB(dbPath string) (*gorm.DB, error) {
@@ -235,8 +242,12 @@ func (s *SoftwareConfigStore) GetLatestEffectiveConfigSnapshot() (*models.Softwa
 	}
 
 	var snapshot models.SoftwareEffectiveConfigSnapshot
-	if err := s.db.Order("created_at DESC, id DESC").First(&snapshot).Error; err != nil {
-		return nil, err
+	result := s.db.Order("created_at DESC, id DESC").Limit(1).Find(&snapshot)
+	if result.Error != nil {
+		return nil, result.Error
+	}
+	if result.RowsAffected == 0 {
+		return nil, nil
 	}
 	return &snapshot, nil
 }
@@ -247,11 +258,16 @@ func (s *SoftwareConfigStore) GetLatestEffectiveConfigSnapshotBySoftwareAndName(
 	}
 
 	var snapshot models.SoftwareEffectiveConfigSnapshot
-	if err := s.db.
+	result := s.db.
 		Where("software = ? AND config_name = ?", software, configName).
 		Order("created_at DESC, id DESC").
-		First(&snapshot).Error; err != nil {
-		return nil, err
+		Limit(1).
+		Find(&snapshot)
+	if result.Error != nil {
+		return nil, result.Error
+	}
+	if result.RowsAffected == 0 {
+		return nil, nil
 	}
 	return &snapshot, nil
 }

@@ -24,7 +24,7 @@ func InitializeUser(token string) error {
 
 		if err == nil {
 			// 激活成功（可能是远程激活或本地回退）
-			logger.Info(fmt.Sprintf("User activated successfully: %s (Plan: %s)", userInfo.Username, userInfo.PlanName))
+			logger.Info(fmt.Sprintf("User activated successfully: %s (status: %s)", userInfo.Username, userInfo.Status))
 			// 标记为有本地用户信息（激活成功后会自动保存到本地）
 			config.SetHasLocalUserInfo(true)
 			startupState.SetUserInfo(userInfo)
@@ -48,7 +48,7 @@ func InitializeUser(token string) error {
 		if err := loadLocalUserInfo(); err == nil {
 			userInfo := auth.GetCurrentUserInfo()
 			if userInfo != nil {
-				logger.Info(fmt.Sprintf("Local user info loaded successfully: %s (Plan: %s)", userInfo.Username, userInfo.PlanName))
+				logger.Info(fmt.Sprintf("Local user info loaded successfully: %s (status: %s)", userInfo.Username, userInfo.Status))
 				// 标记为有本地用户信息
 				config.SetHasLocalUserInfo(true)
 				startupState.SetUserInfo(userInfo)
@@ -68,14 +68,12 @@ func InitializeUser(token string) error {
 // loadLocalUserInfo 加载本地用户信息
 // 返回error仅指加载失败，不指fetch失败（fetch失败允许系统继续启动）
 func loadLocalUserInfo() error {
-	userInfo, err := auth.LoadUserInfo()
+	_, err := auth.LoadUserInfo()
 	if err != nil {
 		return err
 	}
 
 	// 更新运行时状态
-	auth.SetInnerToken(userInfo.InnerToken)
-
 	// 获取启动状态以跟踪fetch结果
 	startupState := runtime.GetStartupState()
 

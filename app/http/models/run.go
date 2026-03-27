@@ -1,20 +1,11 @@
 package models
 
-// RunStartRequest is the request body for starting service
-type RunStartRequest struct {
-	InnerToken string `json:"inner_token"`
-}
+// RunStartRequest is the request body for starting service.
+type RunStartRequest struct{}
 
 // RunStopRequest is the request body for stopping service
 type RunStopRequest struct {
 	// No fields needed for stop
-}
-
-type RunUserInfoRequest struct {
-	UserUUID   string `json:"user_uuid,omitempty"`
-	InnerToken string `json:"inner_token,omitempty"`
-	Username   string `json:"username,omitempty"`
-	Password   string `json:"password,omitempty"`
 }
 
 // RunStatusResponse is the response body for getting run status

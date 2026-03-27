@@ -30,9 +30,9 @@ func TestStartupState_GetUserInfo_ReturnsCopy(t *testing.T) {
 	state := GetStartupState()
 
 	original := &authuser.UserInfo{
-		Username:  "alice",
-		PlanName:  "pro",
-		AIAskUsed: 3,
+		Username:    "alice",
+		Status:      "active",
+		Concurrency: 3,
 	}
 	state.SetUserInfo(original)
 
@@ -42,8 +42,8 @@ func TestStartupState_GetUserInfo_ReturnsCopy(t *testing.T) {
 	}
 
 	copyInfo.Username = "mutated"
-	copyInfo.PlanName = "changed"
-	copyInfo.AIAskUsed = 999
+	copyInfo.Status = "changed"
+	copyInfo.Concurrency = 999
 
 	gotAgain := state.GetUserInfo()
 	if gotAgain == nil {
@@ -53,11 +53,11 @@ func TestStartupState_GetUserInfo_ReturnsCopy(t *testing.T) {
 	if gotAgain.Username != "alice" {
 		t.Fatalf("username mutated in state: got %q, want %q", gotAgain.Username, "alice")
 	}
-	if gotAgain.PlanName != "pro" {
-		t.Fatalf("plan mutated in state: got %q, want %q", gotAgain.PlanName, "pro")
+	if gotAgain.Status != "active" {
+		t.Fatalf("status mutated in state: got %q, want %q", gotAgain.Status, "active")
 	}
-	if gotAgain.AIAskUsed != 3 {
-		t.Fatalf("AIAskUsed mutated in state: got %d, want %d", gotAgain.AIAskUsed, 3)
+	if gotAgain.Concurrency != 3 {
+		t.Fatalf("concurrency mutated in state: got %d, want %d", gotAgain.Concurrency, 3)
 	}
 }
 
