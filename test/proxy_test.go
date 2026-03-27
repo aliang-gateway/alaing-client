@@ -72,22 +72,12 @@ func TestHTTPProxyWithConfig(t *testing.T) {
 			logger.Info("")
 			logger.Info("User Details:")
 			logger.Info(fmt.Sprintf("  Username:     %s", userInfo.Username))
-			logger.Info(fmt.Sprintf("  Plan Name:     %s", userInfo.PlanName))
-			logger.Info(fmt.Sprintf("  Plan Type:     %s", userInfo.PlanType))
-			logger.Info(fmt.Sprintf("  Valid Period:  %s to %s", userInfo.StartTime, userInfo.EndTime))
-
-			// Calculate traffic usage
-			trafficUsedGB := float64(userInfo.TrafficUsed) / (1024 * 1024 * 1024)
-			trafficTotalGB := float64(userInfo.TrafficTotal) / (1024 * 1024 * 1024)
-			var trafficPercent int
-			if userInfo.TrafficTotal > 0 {
-				trafficPercent = int(float64(userInfo.TrafficUsed) / float64(userInfo.TrafficTotal) * 100)
-			}
-			logger.Info(fmt.Sprintf("  Traffic Usage: %.2fGB / %.2fGB (%d%%)",
-				trafficUsedGB, trafficTotalGB, trafficPercent))
-
-			// AI Ask usage
-			logger.Info(fmt.Sprintf("  AI Questions: %d / %d", userInfo.AIAskUsed, userInfo.AIAskTotal))
+			logger.Info(fmt.Sprintf("  Email:        %s", userInfo.Email))
+			logger.Info(fmt.Sprintf("  Role:         %s", userInfo.Role))
+			logger.Info(fmt.Sprintf("  Status:       %s", userInfo.Status))
+			logger.Info(fmt.Sprintf("  Balance:      %.2f", userInfo.Balance))
+			logger.Info(fmt.Sprintf("  Concurrency:  %d", userInfo.Concurrency))
+			logger.Info(fmt.Sprintf("  Created At:   %s", userInfo.CreatedAt))
 
 			// Token info
 			if userInfo.AccessToken != "" {
@@ -187,22 +177,12 @@ func TestHTTPProxyDefault(t *testing.T) {
 			logger.Info("")
 			logger.Info("User Details:")
 			logger.Info(fmt.Sprintf("  Username:     %s", userInfo.Username))
-			logger.Info(fmt.Sprintf("  Plan Name:     %s", userInfo.PlanName))
-			logger.Info(fmt.Sprintf("  Plan Type:     %s", userInfo.PlanType))
-			logger.Info(fmt.Sprintf("  Valid Period:  %s to %s", userInfo.StartTime, userInfo.EndTime))
-
-			// Calculate traffic usage
-			trafficUsedGB := float64(userInfo.TrafficUsed) / (1024 * 1024 * 1024)
-			trafficTotalGB := float64(userInfo.TrafficTotal) / (1024 * 1024 * 1024)
-			var trafficPercent int
-			if userInfo.TrafficTotal > 0 {
-				trafficPercent = int(float64(userInfo.TrafficUsed) / float64(userInfo.TrafficTotal) * 100)
-			}
-			logger.Info(fmt.Sprintf("  Traffic Usage: %.2fGB / %.2fGB (%d%%)",
-				trafficUsedGB, trafficTotalGB, trafficPercent))
-
-			// AI Ask usage
-			logger.Info(fmt.Sprintf("  AI Questions: %d / %d", userInfo.AIAskUsed, userInfo.AIAskTotal))
+			logger.Info(fmt.Sprintf("  Email:        %s", userInfo.Email))
+			logger.Info(fmt.Sprintf("  Role:         %s", userInfo.Role))
+			logger.Info(fmt.Sprintf("  Status:       %s", userInfo.Status))
+			logger.Info(fmt.Sprintf("  Balance:      %.2f", userInfo.Balance))
+			logger.Info(fmt.Sprintf("  Concurrency:  %d", userInfo.Concurrency))
+			logger.Info(fmt.Sprintf("  Created At:   %s", userInfo.CreatedAt))
 
 			// Token info
 			if userInfo.AccessToken != "" {

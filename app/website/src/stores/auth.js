@@ -20,16 +20,18 @@ function normalizeUser(user) {
   }
 
   return {
+    id: Number(user.id || 0),
     username: typeof user.username === 'string' ? user.username : '',
     email: typeof user.email === 'string' ? user.email : '',
-    planName: typeof user.plan_name === 'string' ? user.plan_name : '',
-    planType: typeof user.plan_type === 'string' ? user.plan_type : '',
-    trafficUsed: Number(user.traffic_used || 0),
-    trafficTotal: Number(user.traffic_total || 0),
-    aiAskUsed: Number(user.ai_ask_used || 0),
-    aiAskTotal: Number(user.ai_ask_total || 0),
-    startTime: typeof user.start_time === 'string' ? user.start_time : '',
-    endTime: typeof user.end_time === 'string' ? user.end_time : '',
+    role: typeof user.role === 'string' ? user.role : '',
+    status: typeof user.status === 'string' ? user.status : '',
+    balance: Number(user.balance || 0),
+    concurrency: Number(user.concurrency || 0),
+    allowedGroups: Array.isArray(user.allowed_groups)
+      ? user.allowed_groups.map((value) => Number(value)).filter((value) => Number.isFinite(value))
+      : [],
+    createdAt: typeof user.created_at === 'string' ? user.created_at : '',
+    profileUpdatedAt: typeof user.profile_updated_at === 'string' ? user.profile_updated_at : '',
     updatedAt: typeof user.updated_at === 'string' ? user.updated_at : ''
   };
 }
@@ -150,8 +152,11 @@ export function useAuthStore() {
   });
 
   const planLabel = computed(() => {
-    if (state.user?.planName) {
-      return state.user.planName;
+    if (state.user?.status) {
+      return state.user.status;
+    }
+    if (state.user?.email) {
+      return state.user.email;
     }
     return 'Login required';
   });

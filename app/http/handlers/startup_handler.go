@@ -39,13 +39,14 @@ func (h *StartupHandler) HandleStartupStatus(w http.ResponseWriter, r *http.Requ
 	// Add user info if available
 	if userInfo != nil {
 		response["user"] = map[string]interface{}{
-			"username":      userInfo.Username,
-			"plan_name":     userInfo.PlanName,
-			"plan_type":     userInfo.PlanType,
-			"traffic_used":  userInfo.TrafficUsed,
-			"traffic_total": userInfo.TrafficTotal,
-			"start_time":    userInfo.StartTime,
-			"end_time":      userInfo.EndTime,
+			"id":              userInfo.ID,
+			"username":        userInfo.Username,
+			"email":           userInfo.Email,
+			"status":          userInfo.Status,
+			"balance":         userInfo.Balance,
+			"concurrency":     userInfo.Concurrency,
+			"created_at":      userInfo.CreatedAt,
+			"profile_updated": userInfo.ProfileUpdated,
 		}
 	}
 
@@ -101,13 +102,16 @@ func (h *StartupHandler) HandleStartupDetail(w http.ResponseWriter, r *http.Requ
 	// Add user details if available
 	if userInfo != nil {
 		response["user"].(map[string]interface{})["details"] = map[string]interface{}{
-			"username":      userInfo.Username,
-			"plan_name":     userInfo.PlanName,
-			"plan_type":     userInfo.PlanType,
-			"traffic_used":  userInfo.TrafficUsed,
-			"traffic_total": userInfo.TrafficTotal,
-			"start_time":    userInfo.StartTime,
-			"end_time":      userInfo.EndTime,
+			"id":              userInfo.ID,
+			"username":        userInfo.Username,
+			"email":           userInfo.Email,
+			"role":            userInfo.Role,
+			"status":          userInfo.Status,
+			"balance":         userInfo.Balance,
+			"concurrency":     userInfo.Concurrency,
+			"allowed_groups":  userInfo.AllowedGroups,
+			"created_at":      userInfo.CreatedAt,
+			"profile_updated": userInfo.ProfileUpdated,
 		}
 	}
 

@@ -140,7 +140,7 @@ func (tr *TokenRefresher) refreshUserInfo() error {
 		return fmt.Errorf("failed to refresh session: %w", err)
 	}
 
-	SetInnerToken(newInfo.InnerToken)
+	SetInnerToken(sessionUserTag(newInfo))
 
 	return nil
 }

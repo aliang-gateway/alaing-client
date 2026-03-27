@@ -808,8 +808,11 @@ const accountSubtitle = computed(() => {
   if (!isAuthenticated.value) {
     return 'Log in to unlock proxy controls and account-linked usage.';
   }
-  if (user.value?.endTime) {
-    return `Valid until ${user.value.endTime}`;
+  if (user.value?.status) {
+    return `Account status: ${user.value.status}`;
+  }
+  if (user.value?.createdAt) {
+    return `Member since ${user.value.createdAt}`;
   }
   return 'Authenticated session active';
 });

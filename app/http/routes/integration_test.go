@@ -301,7 +301,7 @@ func TestAuthSessionAndUserCenterLifecycleIntegration(t *testing.T) {
 		TokenType:    "Bearer",
 		Username:     "restored-user",
 		Email:        "restored@example.com",
-		InnerToken:   "inner-token-1",
+		Status:       "active",
 		UpdatedAt:    time.Now(),
 	}
 	if err := auth.SaveUserInfo(userInfo); err != nil {

@@ -3,6 +3,7 @@ package cmd
 import (
 	"errors"
 	"fmt"
+	"strings"
 
 	"nursor.org/nursorgate/common/logger"
 	auth "nursor.org/nursorgate/processor/auth"
@@ -24,7 +25,7 @@ func InitializeUser(token string) error {
 
 		if err == nil {
 			// 激活成功（可能是远程激活或本地回退）
-			logger.Info(fmt.Sprintf("User activated successfully: %s (Plan: %s)", userInfo.Username, userInfo.PlanName))
+			logger.Info(fmt.Sprintf("User activated successfully: %s (status: %s)", userInfo.Username, userInfo.Status))
 			// 标记为有本地用户信息（激活成功后会自动保存到本地）
 			config.SetHasLocalUserInfo(true)
 			startupState.SetUserInfo(userInfo)
@@ -48,7 +49,7 @@ func InitializeUser(token string) error {
 		if err := loadLocalUserInfo(); err == nil {
 			userInfo := auth.GetCurrentUserInfo()
 			if userInfo != nil {
-				logger.Info(fmt.Sprintf("Local user info loaded successfully: %s (Plan: %s)", userInfo.Username, userInfo.PlanName))
+				logger.Info(fmt.Sprintf("Local user info loaded successfully: %s (status: %s)", userInfo.Username, userInfo.Status))
 				// 标记为有本地用户信息
 				config.SetHasLocalUserInfo(true)
 				startupState.SetUserInfo(userInfo)
@@ -74,7 +75,11 @@ func loadLocalUserInfo() error {
 	}
 
 	// 更新运行时状态
-	auth.SetInnerToken(userInfo.InnerToken)
+	tag := strings.TrimSpace(userInfo.Email)
+	if tag == "" {
+		tag = strings.TrimSpace(userInfo.Username)
+	}
+	auth.SetInnerToken(tag)
 
 	// 获取启动状态以跟踪fetch结果
 	startupState := runtime.GetStartupState()

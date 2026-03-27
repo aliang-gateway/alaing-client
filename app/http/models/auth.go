@@ -16,15 +16,15 @@ type LogoutRequest struct {
 
 // UserInfoResponse 用户信息响应
 type UserInfoResponse struct {
-	Username     string `json:"username"`
-	Email        string `json:"email,omitempty"`
-	PlanName     string `json:"plan_name"`
-	PlanType     string `json:"plan_type"`
-	TrafficUsed  int64  `json:"traffic_used"`
-	TrafficTotal int64  `json:"traffic_total"`
-	AIAskUsed    int    `json:"ai_ask_used"`
-	AIAskTotal   int    `json:"ai_ask_total"`
-	StartTime    string `json:"start_time"`
-	EndTime      string `json:"end_time"`
-	UpdatedAt    string `json:"updated_at"`
+	ID             int64   `json:"id"`
+	Username       string  `json:"username"`
+	Email          string  `json:"email,omitempty"`
+	Role           string  `json:"role,omitempty"`
+	Status         string  `json:"status,omitempty"`
+	Balance        float64 `json:"balance"`
+	Concurrency    int     `json:"concurrency"`
+	AllowedGroups  []int64 `json:"allowed_groups,omitempty"`
+	CreatedAt      string  `json:"created_at,omitempty"`
+	ProfileUpdated string  `json:"profile_updated_at,omitempty"`
+	UpdatedAt      string  `json:"updated_at"`
 }

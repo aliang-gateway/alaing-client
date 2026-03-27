@@ -2,10 +2,12 @@ package storage
 
 import (
 	"encoding/json"
+	"path/filepath"
 	"testing"
 	"time"
 
 	"nursor.org/nursorgate/app/http/models"
+	"nursor.org/nursorgate/common/cache"
 )
 
 func TestSoftwareConfigStore_ActivateAndMergeByLatest(t *testing.T) {
@@ -199,5 +201,91 @@ func TestSoftwareConfigStore_ActivateAndMergeByLatest(t *testing.T) {
 	}
 	if _, ok := latestPayload["core"]; !ok {
 		t.Fatalf("expected latest snapshot core section, got %v", latestPayload)
+	}
+}
+
+func TestSoftwareConfigStore_MigratesLegacyDatabaseIntoUnifiedGateData(t *testing.T) {
+	baseDir := t.TempDir()
+	t.Setenv("HOME", filepath.Join(baseDir, "home"))
+	t.Setenv("NURSOR_CACHE_DIR", filepath.Join(baseDir, "cache"))
+	ResetSoftwareConfigDBForTest()
+	t.Cleanup(ResetSoftwareConfigDBForTest)
+
+	legacyPath, err := cache.GetCacheFile(legacySoftwareConfigDBFile)
+	if err != nil {
+		t.Fatalf("failed to get legacy software config path: %v", err)
+	}
+
+	legacyStore, err := NewSoftwareConfigStoreWithDBPath(legacyPath)
+	if err != nil {
+		t.Fatalf("failed to create legacy software config store: %v", err)
+	}
+
+	cfg := models.SoftwareConfig{
+		UUID:      "legacy-cfg-1",
+		Software:  "opencode",
+		Name:      "legacy-config",
+		FilePath:  "/tmp/legacy.json",
+		Version:   "v1",
+		InUse:     true,
+		Selected:  true,
+		Format:    models.ConfigFormatJSON,
+		Content:   `{"legacy":true}`,
+		CreatedAt: time.Now().Add(-1 * time.Hour),
+		UpdatedAt: time.Now().Add(-30 * time.Minute),
+	}
+	if err := legacyStore.Upsert(cfg); err != nil {
+		t.Fatalf("failed to upsert legacy config: %v", err)
+	}
+	if err := legacyStore.SaveOperationLog(models.SoftwareConfigOperationLog{
+		Action:     "save",
+		Software:   "opencode",
+		ConfigUUID: cfg.UUID,
+		ConfigName: cfg.Name,
+		Detail:     "legacy save",
+	}); err != nil {
+		t.Fatalf("failed to save legacy operation log: %v", err)
+	}
+	if err := legacyStore.SaveEffectiveConfigSnapshot(models.SoftwareEffectiveConfigSnapshot{
+		Software:       "opencode",
+		ConfigUUID:     cfg.UUID,
+		ConfigName:     cfg.Name,
+		ConfigFilePath: cfg.FilePath,
+		ConfigVersion:  cfg.Version,
+		ConfigFormat:   cfg.Format,
+		SnapshotJSON:   `{"legacy":true}`,
+	}); err != nil {
+		t.Fatalf("failed to save legacy snapshot: %v", err)
+	}
+
+	ResetSoftwareConfigDBForTest()
+
+	store := NewSoftwareConfigStore()
+	if err := store.ensureReady(); err != nil {
+		t.Fatalf("failed to initialize unified software config store: %v", err)
+	}
+
+	unifiedPath, err := cache.GetUnifiedDataDBPath()
+	if err != nil {
+		t.Fatalf("failed to get unified data db path: %v", err)
+	}
+	if filepath.Base(unifiedPath) != "gate.data" {
+		t.Fatalf("expected unified db path to use gate.data, got %s", unifiedPath)
+	}
+
+	configs, err := store.List()
+	if err != nil {
+		t.Fatalf("failed to list migrated configs: %v", err)
+	}
+	if len(configs) != 1 || configs[0].UUID != cfg.UUID {
+		t.Fatalf("expected migrated legacy config, got %+v", configs)
+	}
+
+	snapshot, err := store.GetLatestEffectiveConfigSnapshot()
+	if err != nil {
+		t.Fatalf("failed to read migrated snapshot: %v", err)
+	}
+	if snapshot.ConfigUUID != cfg.UUID {
+		t.Fatalf("expected migrated snapshot for %s, got %+v", cfg.UUID, snapshot)
 	}
 }
