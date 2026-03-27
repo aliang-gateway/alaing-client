@@ -90,6 +90,7 @@ jobs:
             goos: linux
             goarch: amd64
             cgo_enabled: '1'
+            extra_ldflags: ''
             asset_name: aliang-linux-amd64
             binary_ext: ''
             archive_ext: tar.gz
@@ -97,6 +98,7 @@ jobs:
             goos: linux
             goarch: arm64
             cgo_enabled: '1'
+            extra_ldflags: ''
             asset_name: aliang-linux-arm64
             binary_ext: ''
             archive_ext: tar.gz
@@ -104,6 +106,7 @@ jobs:
             goos: windows
             goarch: amd64
             cgo_enabled: '1'
+            extra_ldflags: '-H=windowsgui'
             asset_name: aliang-windows-amd64
             binary_ext: .exe
             archive_ext: zip
@@ -111,6 +114,7 @@ jobs:
             goos: darwin
             goarch: amd64
             cgo_enabled: '1'
+            extra_ldflags: ''
             asset_name: aliang-darwin-amd64
             binary_ext: ''
             archive_ext: tar.gz
@@ -118,6 +122,7 @@ jobs:
             goos: darwin
             goarch: arm64
             cgo_enabled: '1'
+            extra_ldflags: ''
             asset_name: aliang-darwin-arm64
             binary_ext: ''
             archive_ext: tar.gz
@@ -170,7 +175,7 @@ jobs:
           COMMIT="$(git rev-parse --short HEAD)"
           go build \
             -trimpath \
-            -ldflags="-s -w -X nursor.org/nursorgate/common/version.Version=${VERSION} -X nursor.org/nursorgate/common/version.GitCommit=${COMMIT}" \
+            -ldflags="-s -w ${{ matrix.extra_ldflags }} -X nursor.org/nursorgate/common/version.Version=${VERSION} -X nursor.org/nursorgate/common/version.GitCommit=${COMMIT}" \
             -o "dist/${BINARY_NAME}${{ matrix.binary_ext }}" \
             ./cmd/aliang
 

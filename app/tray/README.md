@@ -37,27 +37,35 @@ This module provides a cross-platform system tray for Nonelane.
 
 ## Icon Setup
 
-The tray icon is loaded from `icon.png` in this directory. To customize:
+The tray icon is embedded at build time from platform-specific files in this directory:
 
-1. Create a PNG image (recommended: 64x64 or 128x128 pixels)
-2. Name it `icon.png`
-3. Place it in `app/tray/` directory
-4. Rebuild the application
+- `icon-active.png` / `icon-inactive.png` for Linux and macOS
+- `icon-active.ico` / `icon-inactive.ico` for Windows
+
+To customize:
+
+1. Prepare active and inactive variants of the icon
+2. Replace the matching files for your target platform
+3. Rebuild the application
 
 ### Platform-Specific Icon Guidelines
 
-- **Windows**: ICO format preferred, PNG works
-- **macOS**: PNG with transparency
-- **Linux**: PNG with transparency
+- **Windows**: Use ICO files for tray icons
+- **macOS**: Use PNG with transparency
+- **Linux**: Use PNG with transparency
 
 ## Architecture
 
 ```
 app/tray/
-├── tray.go       # Main tray application logic
-├── icon.go       # Icon embedding and management
-├── icon.png      # Icon file (embedded at build time)
-└── README.md     # This file
+├── tray.go             # Main tray application logic
+├── icon_nonwindows.go  # PNG embedding for Linux/macOS
+├── icon_windows.go     # ICO embedding for Windows
+├── icon-active.png     # Active tray icon for Linux/macOS
+├── icon-inactive.png   # Inactive tray icon for Linux/macOS
+├── icon-active.ico     # Active tray icon for Windows
+├── icon-inactive.ico   # Inactive tray icon for Windows
+└── README.md           # This file
 ```
 
 ## How It Works
