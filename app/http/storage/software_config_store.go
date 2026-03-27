@@ -3,9 +3,6 @@ package storage
 import (
 	"errors"
 	"fmt"
-	"os"
-	"path/filepath"
-	"strings"
 	"sync"
 
 	"gorm.io/driver/sqlite"
@@ -20,8 +17,6 @@ var (
 	softwareConfigDB     *gorm.DB
 	softwareConfigDBErr  error
 )
-
-const legacySoftwareConfigDBFile = "software_configs.db"
 
 type SoftwareConfigStore struct {
 	db      *gorm.DB
@@ -48,7 +43,7 @@ func getSoftwareConfigDB() (*gorm.DB, error) {
 			softwareConfigDBErr = err
 			return
 		}
-		softwareConfigDB, softwareConfigDBErr = openUnifiedSoftwareConfigDB(dbPath)
+		softwareConfigDB, softwareConfigDBErr = openSoftwareConfigDB(dbPath)
 	})
 	return softwareConfigDB, softwareConfigDBErr
 }
@@ -91,110 +86,6 @@ func openSoftwareConfigDB(dbPath string) (*gorm.DB, error) {
 	}
 
 	return db, nil
-}
-
-func openUnifiedSoftwareConfigDB(dbPath string) (*gorm.DB, error) {
-	db, err := openSoftwareConfigDB(dbPath)
-	if err != nil {
-		return nil, err
-	}
-	if err := migrateLegacySoftwareConfigDB(db, dbPath); err != nil {
-		return nil, err
-	}
-	return db, nil
-}
-
-func migrateLegacySoftwareConfigDB(db *gorm.DB, sharedDBPath string) error {
-	legacyPath, err := cache.GetCacheFile(legacySoftwareConfigDBFile)
-	if err != nil {
-		return err
-	}
-
-	sharedAbs, err := cache.ExpandHomePath(sharedDBPath)
-	if err != nil {
-		return fmt.Errorf("failed to resolve shared db path: %w", err)
-	}
-	legacyAbs, err := cache.ExpandHomePath(legacyPath)
-	if err != nil {
-		return fmt.Errorf("failed to resolve legacy db path: %w", err)
-	}
-	if filepath.Clean(sharedAbs) == filepath.Clean(legacyAbs) {
-		return nil
-	}
-	if _, err := os.Stat(legacyAbs); err != nil {
-		if os.IsNotExist(err) {
-			return nil
-		}
-		return fmt.Errorf("failed to inspect legacy software config db: %w", err)
-	}
-
-	var configCount int64
-	var logCount int64
-	var snapshotCount int64
-	if err := db.Model(&models.SoftwareConfig{}).Count(&configCount).Error; err != nil {
-		return err
-	}
-	if err := db.Model(&models.SoftwareConfigOperationLog{}).Count(&logCount).Error; err != nil {
-		return err
-	}
-	if err := db.Model(&models.SoftwareEffectiveConfigSnapshot{}).Count(&snapshotCount).Error; err != nil {
-		return err
-	}
-	if configCount > 0 || logCount > 0 || snapshotCount > 0 {
-		return nil
-	}
-
-	legacyDB, err := gorm.Open(sqlite.Open(legacyAbs), &gorm.Config{})
-	if err != nil {
-		return fmt.Errorf("failed to open legacy software config db: %w", err)
-	}
-
-	var configs []models.SoftwareConfig
-	if err := legacyDB.Order("updated_at ASC").Find(&configs).Error; err != nil {
-		if !isMissingSQLiteTableError(err) {
-			return fmt.Errorf("failed to read legacy software configs: %w", err)
-		}
-	}
-
-	var logs []models.SoftwareConfigOperationLog
-	if err := legacyDB.Order("id ASC").Find(&logs).Error; err != nil {
-		if !isMissingSQLiteTableError(err) {
-			return fmt.Errorf("failed to read legacy software config logs: %w", err)
-		}
-	}
-
-	var snapshots []models.SoftwareEffectiveConfigSnapshot
-	if err := legacyDB.Order("id ASC").Find(&snapshots).Error; err != nil {
-		if !isMissingSQLiteTableError(err) {
-			return fmt.Errorf("failed to read legacy software config snapshots: %w", err)
-		}
-	}
-
-	return db.Transaction(func(tx *gorm.DB) error {
-		for _, cfg := range configs {
-			if err := tx.Save(&cfg).Error; err != nil {
-				return err
-			}
-		}
-		for _, log := range logs {
-			if err := tx.Create(&log).Error; err != nil {
-				return err
-			}
-		}
-		for _, snapshot := range snapshots {
-			if err := tx.Create(&snapshot).Error; err != nil {
-				return err
-			}
-		}
-		return nil
-	})
-}
-
-func isMissingSQLiteTableError(err error) bool {
-	if err == nil {
-		return false
-	}
-	return strings.Contains(strings.ToLower(err.Error()), "no such table")
 }
 
 func (s *SoftwareConfigStore) ensureReady() error {
@@ -351,8 +242,12 @@ func (s *SoftwareConfigStore) GetLatestEffectiveConfigSnapshot() (*models.Softwa
 	}
 
 	var snapshot models.SoftwareEffectiveConfigSnapshot
-	if err := s.db.Order("created_at DESC, id DESC").First(&snapshot).Error; err != nil {
-		return nil, err
+	result := s.db.Order("created_at DESC, id DESC").Limit(1).Find(&snapshot)
+	if result.Error != nil {
+		return nil, result.Error
+	}
+	if result.RowsAffected == 0 {
+		return nil, nil
 	}
 	return &snapshot, nil
 }
@@ -363,11 +258,16 @@ func (s *SoftwareConfigStore) GetLatestEffectiveConfigSnapshotBySoftwareAndName(
 	}
 
 	var snapshot models.SoftwareEffectiveConfigSnapshot
-	if err := s.db.
+	result := s.db.
 		Where("software = ? AND config_name = ?", software, configName).
 		Order("created_at DESC, id DESC").
-		First(&snapshot).Error; err != nil {
-		return nil, err
+		Limit(1).
+		Find(&snapshot)
+	if result.Error != nil {
+		return nil, result.Error
+	}
+	if result.RowsAffected == 0 {
+		return nil, nil
 	}
 	return &snapshot, nil
 }
