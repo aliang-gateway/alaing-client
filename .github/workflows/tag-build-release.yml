@@ -107,14 +107,14 @@ jobs:
             asset_name: aliang-windows-amd64
             binary_ext: .exe
             archive_ext: zip
-          - runner: macos-13
+          - runner: macos-15-intel
             goos: darwin
             goarch: amd64
             cgo_enabled: '1'
             asset_name: aliang-darwin-amd64
             binary_ext: ''
             archive_ext: tar.gz
-          - runner: macos-14
+          - runner: macos-15
             goos: darwin
             goarch: arm64
             cgo_enabled: '1'
