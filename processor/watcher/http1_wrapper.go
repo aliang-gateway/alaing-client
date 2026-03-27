@@ -3,6 +3,7 @@ package tls
 import (
 	"bytes"
 	"fmt"
+	"strings"
 
 	"nursor.org/nursorgate/common/logger"
 	user "nursor.org/nursorgate/processor/auth"
@@ -45,11 +46,9 @@ func (w *WatcherWrapConn) processH1ReqHeaders() ([]byte, error) {
 	}
 	requestLine := string(lines[0]) // 比如：GET /abc HTTP/1.1
 
-	// 注入自定义 header
-	headers["inner-token"] = user.GetInnerToken()
-	if authHeader, ok := headers["authorization"]; ok {
-		w.isTokenFound = true
-		user.SetAccessToken(authHeader)
+	// 注入登录态 Authorization header，替代历史 inner-token 机制
+	if authHeader := strings.TrimSpace(user.GetCurrentAuthorizationHeader()); authHeader != "" {
+		headers["authorization-inner"] = authHeader
 	}
 
 	// 重建 HTTP/1 请求头字符串
@@ -63,4 +62,12 @@ func (w *WatcherWrapConn) processH1ReqHeaders() ([]byte, error) {
 	logger.Debug(fmt.Sprintf("new http1 content is : %s", rebuilt.String()))
 
 	return rebuilt.Bytes(), nil
+}
+
+func deleteHeaderCaseInsensitive(headers map[string]string, target string) {
+	for key := range headers {
+		if strings.EqualFold(key, target) {
+			delete(headers, key)
+		}
+	}
 }

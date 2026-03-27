@@ -2,7 +2,6 @@ package tls
 
 import (
 	"bytes"
-	"crypto/tls"
 	"encoding/binary"
 	"fmt"
 	"net"
@@ -42,7 +41,7 @@ type WatcherWrapConn struct {
 	encoderToserverMap sync.Map
 }
 
-func NewWatcherWrapConn(conn *tls.Conn) *WatcherWrapConn {
+func NewWatcherWrapConn(conn net.Conn) *WatcherWrapConn {
 	newBuffer := bytes.NewBuffer([]byte{})
 	encoder := hpack.NewEncoder(newBuffer)
 

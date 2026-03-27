@@ -20,6 +20,7 @@ import (
 	"nursor.org/nursorgate/processor/config"
 	"nursor.org/nursorgate/processor/rules"
 	"nursor.org/nursorgate/processor/statistic"
+	watcher "nursor.org/nursorgate/processor/watcher"
 )
 
 var reverseLookupAddr = func(ctx context.Context, addr string) ([]string, error) {
@@ -232,7 +233,13 @@ func (h *TCPConnectionHandler) handleNonTLS(
 		route, _ := h.tlsHandler.DetermineRouteWithContext(metadata)
 		logger.Debug(fmt.Sprintf("HTTP: Route decision for host=%s ip=%s: %v", metadata.HostName, metadata.DstIP, route))
 		remote, dialErr := h.dialByRoute(ctx, metadata, route)
-		return remote, newOriginConn, dialErr
+		if dialErr != nil {
+			return nil, newOriginConn, dialErr
+		}
+		if route == RouteToALiang {
+			return remote, h.wrapAliangHTTPConn(newOriginConn), nil
+		}
+		return remote, newOriginConn, nil
 	}
 
 	h.enrichMetadataFromReverseLookup(ctx, metadata)
@@ -401,7 +408,7 @@ func (h *TCPConnectionHandler) resolveTLSRoute(
 			return nil, nil, err
 		}
 
-		return remote, mitmed, nil
+		return remote, h.wrapAliangHTTPConn(mitmed), nil
 	}
 
 	remote, err := h.dialByRoute(ctx, metadata, route)
@@ -409,6 +416,13 @@ func (h *TCPConnectionHandler) resolveTLSRoute(
 		return nil, nil, err
 	}
 	return remote, wrapped, nil
+}
+
+func (h *TCPConnectionHandler) wrapAliangHTTPConn(conn net.Conn) net.Conn {
+	if conn == nil {
+		return nil
+	}
+	return watcher.NewWatcherWrapConn(conn)
 }
 
 func (h *TCPConnectionHandler) dialViaSocksOrDirect(ctx context.Context, metadata *M.Metadata) (net.Conn, error) {

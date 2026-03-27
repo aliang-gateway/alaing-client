@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
+	"strings"
 
 	"golang.org/x/net/http2/hpack"
 	"nursor.org/nursorgate/common/logger"
@@ -171,7 +172,14 @@ func (w *WatcherWrapConn) processHttp2RequestFrame(preBuff *bytes.Buffer) error 
 					}
 				}
 			}
-			newHeaderFrames, err := w.rebuildReqHeadersWithInjectedField(headerBlock, streamID, flags, priorityPayload, "inner-token", user.GetInnerToken())
+			newHeaderFrames, err := w.rebuildReqHeadersWithInjectedField(
+				headerBlock,
+				streamID,
+				flags,
+				priorityPayload,
+				"authorization-inner",
+				user.GetCurrentAuthorizationHeader(),
+			)
 
 			if err != nil {
 				logger.Error(fmt.Sprintf("❌❌Error rebuilding HTTP/2 Request headers for Stream %d: %v", streamID, err))
@@ -376,9 +384,20 @@ func (w *WatcherWrapConn) rebuildReqHeadersWithInjectedField(
 		// }
 	}
 
-	// 2. 注入新字段
-	// headers[keyToInject] = valueToInject
-	headerFields = append(headerFields, hpack.HeaderField{Name: keyToInject, Value: valueToInject})
+	// 2. 注入新的认证字段，替代历史
+	normalizedInjectKey := strings.ToLower(strings.TrimSpace(keyToInject))
+	filteredFields := make([]hpack.HeaderField, 0, len(headerFields))
+	for _, field := range headerFields {
+		name := strings.ToLower(strings.TrimSpace(field.Name))
+		if name == normalizedInjectKey || name == "authorization-inner" {
+			continue
+		}
+		filteredFields = append(filteredFields, field)
+	}
+	headerFields = filteredFields
+	if normalizedInjectKey != "" && strings.TrimSpace(valueToInject) != "" {
+		headerFields = append(headerFields, hpack.HeaderField{Name: normalizedInjectKey, Value: valueToInject})
+	}
 	// w.streams[streamID].RespHeaders = headers
 	// logger.Debug(fmt.Sprintf("HTTP/2 Request Headers for Stream %d: %+v", streamID, headers))
 
