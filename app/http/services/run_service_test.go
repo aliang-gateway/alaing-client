@@ -19,6 +19,26 @@ type fakeRunModeSnapshotStore struct {
 	savedSnapshots []models.SoftwareEffectiveConfigSnapshot
 }
 
+type fakeWintunDependencyController struct {
+	status WintunDependencyStatus
+}
+
+func (f *fakeWintunDependencyController) Status() WintunDependencyStatus {
+	return f.status
+}
+
+func (f *fakeWintunDependencyController) Refresh() WintunDependencyStatus {
+	return f.status
+}
+
+func (f *fakeWintunDependencyController) StartInstall() WintunDependencyStatus {
+	if !f.status.Available {
+		f.status.Installing = true
+		f.status.State = "queued"
+	}
+	return f.status
+}
+
 func (s *fakeRunModeSnapshotStore) SaveEffectiveConfigSnapshot(snapshot models.SoftwareEffectiveConfigSnapshot) error {
 	if s.saveErr != nil {
 		return s.saveErr
@@ -63,6 +83,7 @@ func resetRunServiceHooksForTest() {
 	httpStopRunner = func() {}
 	tunStopRunner = func() {}
 	runModeStoreFactory = func() runModeSnapshotStore { return storage.NewSoftwareConfigStore() }
+	setSharedWintunDependencyControllerForTest(nil)
 }
 
 func waitForEventCount(events *[]string, expected int, timeout time.Duration) bool {
@@ -240,6 +261,33 @@ func TestRunServiceCharacterization_SwitchModeGuards(t *testing.T) {
 		}
 	})
 
+	t.Run("switch to tun is blocked while wintun is missing", func(t *testing.T) {
+		defer resetRunServiceHooksForTest()
+		seedActiveIngressSnapshot(t, string(models.ModeHTTP))
+		setSharedWintunDependencyControllerForTest(&fakeWintunDependencyController{
+			status: WintunDependencyStatus{
+				Supported:  true,
+				Required:   true,
+				Available:  false,
+				Installing: false,
+				State:      "missing",
+				Message:    "Wintun dependency is missing.",
+			},
+		})
+
+		runService := NewRunService()
+		runService.SetCurrentMode(string(models.ModeHTTP))
+		runService.SetRunning(false)
+
+		result := runService.SwitchMode(string(models.ModeTUN))
+		if status, ok := result["status"].(string); !ok || status != "failed" {
+			t.Fatalf("expected status=failed, got %#v", result["status"])
+		}
+		if errCode, ok := result["error"].(string); !ok || errCode != "wintun_required" {
+			t.Fatalf("expected error=wintun_required, got %#v", result["error"])
+		}
+	})
+
 	t.Run("switch initializes routing snapshot when missing", func(t *testing.T) {
 		defer resetRunServiceHooksForTest()
 		config.ResetRoutingApplyStoreForTest()
@@ -385,6 +433,35 @@ func TestRunServiceSwitchModePersistsModeSnapshot(t *testing.T) {
 	}
 	if store.savedSnapshots[0].SnapshotJSON != `{"mode":"tun"}` {
 		t.Fatalf("unexpected persisted run mode payload: %s", store.savedSnapshots[0].SnapshotJSON)
+	}
+}
+
+func TestRunServiceStartServiceBlocksMissingWintun(t *testing.T) {
+	defer resetRunServiceHooksForTest()
+	seedActiveIngressSnapshot(t, string(models.ModeTUN))
+	runtime.ResetGlobalStartupStateForTest()
+	runtime.GetStartupState().SetStatus(runtime.READY)
+	setSharedWintunDependencyControllerForTest(&fakeWintunDependencyController{
+		status: WintunDependencyStatus{
+			Supported:  true,
+			Required:   true,
+			Available:  false,
+			Installing: true,
+			State:      "installing",
+			Message:    "Installing Wintun dependency.",
+		},
+	})
+
+	runService := NewRunService()
+	runService.SetCurrentMode(string(models.ModeTUN))
+	runService.SetRunning(false)
+
+	result := runService.StartService()
+	if status, ok := result["status"].(string); !ok || status != "failed" {
+		t.Fatalf("expected status=failed, got %#v", result["status"])
+	}
+	if errCode, ok := result["error"].(string); !ok || errCode != "wintun_installing" {
+		t.Fatalf("expected error=wintun_installing, got %#v", result["error"])
 	}
 }
 

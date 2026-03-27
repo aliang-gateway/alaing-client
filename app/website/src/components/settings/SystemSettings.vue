@@ -15,7 +15,7 @@
           <div class="flex rounded bg-slate-100 p-1 dark:bg-slate-800">
             <button
               type="button"
-              :disabled="loadingMode || switchingMode"
+              :disabled="loadingMode || switchingMode || wintunDependency.installing"
               :class="[
                 'rounded px-3 py-1 text-[10px] font-bold transition',
                 selectedMode === 'tun'
@@ -28,7 +28,7 @@
             </button>
             <button
               type="button"
-              :disabled="loadingMode || switchingMode"
+              :disabled="loadingMode || switchingMode || wintunDependency.installing"
               :class="[
                 'rounded px-3 py-1 text-[10px] font-bold transition',
                 selectedMode === 'http'
@@ -51,6 +51,18 @@
             </span>
           </div>
           <p v-if="modeStatus" class="text-[11px] text-slate-500 dark:text-slate-400">{{ modeStatus }}</p>
+          <div
+            v-if="wintunDependency.required && !wintunDependency.available && !wintunDependency.installing"
+            class="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200"
+          >
+            {{ wintunDependency.message || 'Wintun dependency is missing. We will install it automatically before switching to TUN mode.' }}
+          </div>
+          <div
+            v-if="wintunDependency.installing"
+            class="rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-[11px] text-sky-700 dark:border-sky-500/30 dark:bg-sky-500/10 dark:text-sky-200"
+          >
+            {{ wintunDependency.message || 'Installing Wintun dependency in the background...' }}
+          </div>
           <p v-if="modeError" class="text-[11px] text-red-500">{{ modeError }}</p>
           <p v-if="modeSuccess" class="text-[11px] text-emerald-600 dark:text-emerald-400">{{ modeSuccess }}</p>
 
@@ -207,6 +219,7 @@ export default {
       runMode,
       runIsRunning,
       runStatus,
+      runWintunDependency,
       runSyncError,
       refreshRunState,
       startPolling,
@@ -218,6 +231,7 @@ export default {
       sharedRunMode: runMode,
       sharedRunIsRunning: runIsRunning,
       sharedRunStatus: runStatus,
+      sharedRunWintunDependency: runWintunDependency,
       sharedRunSyncError: runSyncError,
       refreshSharedRunState: refreshRunState,
       startRunStatePolling: startPolling,
@@ -231,7 +245,10 @@ export default {
       modeSuccess: '',
       loadingMode: false,
       switchingMode: false,
-      showTunSwitchConfirm: false
+      showTunSwitchConfirm: false,
+      pendingTunSwitchAfterInstall: false,
+      wintunInstallPollTimer: null,
+      wintunInstallPollInFlight: false
     };
   },
   computed: {
@@ -255,18 +272,39 @@ export default {
         return `Sync failed: ${this.sharedRunSyncError}`;
       }
       return typeof this.sharedRunStatus === 'string' ? this.sharedRunStatus : '';
+    },
+    wintunDependency() {
+      const dependency = this.sharedRunWintunDependency;
+      if (dependency && typeof dependency === 'object') {
+        return dependency;
+      }
+      return {
+        supported: false,
+        required: false,
+        available: true,
+        installing: false,
+        state: 'not_applicable',
+        message: '',
+        error: ''
+      };
     }
   },
   mounted() {
     this.startRunStatePolling();
-    this.refreshModeState();
+    this.refreshModeState().finally(() => {
+      if (this.wintunDependency.installing) {
+        this.modeSuccess = this.wintunDependency.message || 'Installing Wintun dependency in the background...';
+        this.startWintunInstallPolling();
+      }
+    });
   },
   beforeUnmount() {
     this.stopRunStatePolling();
+    this.stopWintunInstallPolling();
   },
   watch: {
     backendMode(nextMode) {
-      if (!this.switchingMode && nextMode) {
+      if (!this.switchingMode && !this.pendingTunSwitchAfterInstall && nextMode) {
         this.selectedMode = nextMode;
       }
     }
@@ -278,11 +316,16 @@ export default {
     },
     async selectMode(mode) {
       const normalizedMode = this.normalizeMode(mode);
-      if (this.loadingMode || this.switchingMode || this.selectedMode === normalizedMode) {
+      if (this.loadingMode || this.switchingMode || this.wintunDependency.installing || this.selectedMode === normalizedMode) {
         return;
       }
       if (this.backendMode === 'http' && normalizedMode === 'tun') {
         this.showTunSwitchConfirm = true;
+        return;
+      }
+      if (normalizedMode === 'tun' && this.wintunDependency.required && !this.wintunDependency.available) {
+        this.selectedMode = normalizedMode;
+        await this.installWintunDependency({ continueAfterInstall: true });
         return;
       }
       this.selectedMode = normalizedMode;
@@ -294,6 +337,13 @@ export default {
     async confirmTunSwitch() {
       this.showTunSwitchConfirm = false;
       this.selectedMode = 'tun';
+      if (this.wintunDependency.required && !this.wintunDependency.available) {
+        await this.installWintunDependency({ continueAfterInstall: true });
+        return;
+      }
+      await this.continueTunSwitchAfterDependencyReady();
+    },
+    async continueTunSwitchAfterDependencyReady() {
       this.showDashboard();
       await nextTick();
       window.dispatchEvent(new CustomEvent('aliang:tun-progress-open', {
@@ -325,11 +375,86 @@ export default {
       }
       try {
         await this.refreshSharedRunState();
-        this.selectedMode = this.backendMode;
+        this.selectedMode = this.pendingTunSwitchAfterInstall ? 'tun' : this.backendMode;
       } catch (err) {
         this.modeError = err instanceof Error ? err.message : 'Failed to load run mode status.';
       } finally {
         this.loadingMode = false;
+      }
+    },
+    startWintunInstallPolling() {
+      if (this.wintunInstallPollTimer !== null) {
+        return;
+      }
+      this.wintunInstallPollTimer = window.setInterval(() => {
+        this.pollWintunInstallState();
+      }, 2000);
+    },
+    stopWintunInstallPolling() {
+      if (this.wintunInstallPollTimer !== null) {
+        window.clearInterval(this.wintunInstallPollTimer);
+        this.wintunInstallPollTimer = null;
+      }
+    },
+    async pollWintunInstallState() {
+      if (this.wintunInstallPollInFlight) {
+        return;
+      }
+      this.wintunInstallPollInFlight = true;
+      try {
+        await this.refreshSharedRunState();
+        if (this.wintunDependency.installing) {
+          this.modeSuccess = this.wintunDependency.message || 'Installing Wintun dependency in the background...';
+          return;
+        }
+
+        this.stopWintunInstallPolling();
+        if (this.wintunDependency.available) {
+          const shouldContinue = this.pendingTunSwitchAfterInstall;
+          this.pendingTunSwitchAfterInstall = false;
+          this.modeSuccess = this.wintunDependency.message || 'Wintun dependency is ready.';
+          if (shouldContinue) {
+            await this.continueTunSwitchAfterDependencyReady();
+          }
+          return;
+        }
+
+        this.pendingTunSwitchAfterInstall = false;
+        this.modeError = this.wintunDependency.error || this.wintunDependency.message || 'Failed to install Wintun dependency.';
+      } catch (err) {
+        this.modeError = err instanceof Error ? err.message : 'Failed to refresh Wintun installation status.';
+      } finally {
+        this.wintunInstallPollInFlight = false;
+      }
+    },
+    async installWintunDependency(options = {}) {
+      this.clearMessages();
+      this.pendingTunSwitchAfterInstall = Boolean(options.continueAfterInstall);
+
+      try {
+        const result = await this.requestJSON('/api/run/wintun/install', {
+          method: 'POST'
+        });
+
+        if (result?.available) {
+          this.modeSuccess = typeof result?.message === 'string' && result.message
+            ? result.message
+            : 'Wintun dependency is already installed.';
+          if (this.pendingTunSwitchAfterInstall) {
+            this.pendingTunSwitchAfterInstall = false;
+            await this.continueTunSwitchAfterDependencyReady();
+          }
+          return;
+        }
+
+        this.modeSuccess = typeof result?.message === 'string' && result.message
+          ? result.message
+          : 'Installing Wintun dependency in the background...';
+        this.startWintunInstallPolling();
+        await this.pollWintunInstallState();
+      } catch (err) {
+        this.pendingTunSwitchAfterInstall = false;
+        this.modeError = err instanceof Error ? err.message : 'Failed to start Wintun installation.';
       }
     },
     async switchMode(options = {}) {

@@ -5,6 +5,14 @@ const runIsRunning = ref(false);
 const runStatus = ref('');
 const runDescription = ref('');
 const runSyncError = ref('');
+const runWintunDependency = ref({
+  supported: false,
+  required: false,
+  available: true,
+  installing: false,
+  state: 'not_applicable',
+  message: ''
+});
 const startupStatus = ref('UNKNOWN');
 const loading = ref(false);
 
@@ -53,6 +61,21 @@ export async function syncRunStatus() {
     runIsRunning.value = Boolean(data?.is_running);
     runStatus.value = typeof data?.status === 'string' ? data.status : '';
     runDescription.value = typeof data?.description === 'string' ? data.description : '';
+    runWintunDependency.value = {
+      supported: Boolean(data?.wintun_dependency?.supported),
+      required: Boolean(data?.wintun_dependency?.required),
+      available: data?.wintun_dependency?.available !== false,
+      installing: Boolean(data?.wintun_dependency?.installing),
+      state: typeof data?.wintun_dependency?.state === 'string' ? data.wintun_dependency.state : 'unknown',
+      message: typeof data?.wintun_dependency?.message === 'string' ? data.wintun_dependency.message : '',
+      error: typeof data?.wintun_dependency?.error === 'string' ? data.wintun_dependency.error : '',
+      installPath: typeof data?.wintun_dependency?.install_path === 'string' ? data.wintun_dependency.install_path : '',
+      targetPath: typeof data?.wintun_dependency?.target_path === 'string' ? data.wintun_dependency.target_path : '',
+      architecture: typeof data?.wintun_dependency?.architecture === 'string' ? data.wintun_dependency.architecture : '',
+      downloadURL: typeof data?.wintun_dependency?.download_url === 'string' ? data.wintun_dependency.download_url : '',
+      lastChecked: Number(data?.wintun_dependency?.last_checked || 0),
+      updatedAt: Number(data?.wintun_dependency?.updated_at || 0)
+    };
     runSyncError.value = '';
     return data;
   } catch (error) {
@@ -106,6 +129,7 @@ export async function refreshRunState() {
     isRunning: runIsRunning.value,
     status: runStatus.value,
     description: runDescription.value,
+    wintunDependency: runWintunDependency.value,
     startupStatus: startupStatus.value
   };
 }
@@ -137,6 +161,7 @@ export function useRunStatus() {
     runIsRunning,
     runStatus,
     runDescription,
+    runWintunDependency,
     runSyncError,
     startupStatus,
     loading,

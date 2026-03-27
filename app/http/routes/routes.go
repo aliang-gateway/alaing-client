@@ -128,6 +128,7 @@ func RegisterRoutes(h *Handlers, mux *http.ServeMux) {
 	register("/api/run/start", h.Run.HandleRunStart, http.MethodPost)
 	register("/api/run/stop", h.Run.HandleRunStop, http.MethodPost)
 	register("/api/run/status", h.Run.HandleRunStatus, http.MethodGet)
+	register("/api/run/wintun/install", h.Run.HandleRunWintunInstall, http.MethodPost)
 	register("/api/run/swift", h.Run.HandleRunSwift, http.MethodPost)
 
 	// Routing Rules API (/api/rules/*)

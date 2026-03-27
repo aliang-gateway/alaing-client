@@ -134,6 +134,22 @@ func (rs *RunService) StartService() map[string]interface{} {
 	}
 
 	startMode := rs.resolveAuthoritativeModeLocked()
+	if startMode == models.ModeTUN {
+		wintunStatus := getSharedWintunDependencyController().Refresh()
+		if wintunStatus.Supported && wintunStatus.Required && !wintunStatus.Available {
+			rs.modeChangeMutex.Unlock()
+			errorCode := "wintun_required"
+			if wintunStatus.Installing {
+				errorCode = "wintun_installing"
+			}
+			return map[string]interface{}{
+				"error":      errorCode,
+				"status":     "failed",
+				"msg":        wintunStatus.Message,
+				"dependency": wintunStatus,
+			}
+		}
+	}
 	rs.isRunning = true // 先设置运行状态，避免并发启动
 	rs.modeChangeMutex.Unlock()
 
@@ -239,6 +255,7 @@ func (rs *RunService) GetStatus() map[string]interface{} {
 			string(models.ModeHTTP),
 			string(models.ModeTUN),
 		},
+		"wintun_dependency": getSharedWintunDependencyController().Status(),
 	}
 
 	switch mode {
@@ -287,6 +304,22 @@ func (rs *RunService) SwitchMode(targetMode string) map[string]interface{} {
 			"status":       "already_running",
 			"current_mode": string(authoritativeMode),
 			"message":      "Already running in " + string(authoritativeMode) + " mode",
+		}
+	}
+
+	if targetModeEnum == models.ModeTUN {
+		wintunStatus := getSharedWintunDependencyController().Refresh()
+		if wintunStatus.Supported && wintunStatus.Required && !wintunStatus.Available {
+			errorCode := "wintun_required"
+			if wintunStatus.Installing {
+				errorCode = "wintun_installing"
+			}
+			return map[string]interface{}{
+				"error":      errorCode,
+				"status":     "failed",
+				"msg":        wintunStatus.Message,
+				"dependency": wintunStatus,
+			}
 		}
 	}
 
