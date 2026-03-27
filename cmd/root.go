@@ -1,9 +1,11 @@
 package cmd
 
 import (
+	"fmt"
 	"os"
 
 	"github.com/spf13/cobra"
+	"nursor.org/nursorgate/common/logger"
 )
 
 // Global flags for root command (persistent across all subcommands)
@@ -35,6 +37,8 @@ func init() {
 
 func Execute() {
 	if err := rootCmd.Execute(); err != nil {
+		logger.Error(fmt.Sprintf("Aliang command failed: %v", err))
+		notifyExecuteError(err)
 		os.Exit(1)
 	}
 }

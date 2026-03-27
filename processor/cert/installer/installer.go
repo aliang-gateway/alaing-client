@@ -521,7 +521,7 @@ func (w *WindowsInstaller) IsInstalled(certType string, certBytes []byte) (bool,
 		commonName,
 	)
 
-	cmd := exec.Command("powershell", "-Command", psCmd)
+	cmd := newPlatformCommand("powershell", "-Command", psCmd)
 	output, err := cmd.Output()
 
 	if len(output) > 0 {
@@ -545,7 +545,7 @@ func (w *WindowsInstaller) Install(certType string, certPath string) error {
 		certPath,
 	)
 
-	cmd := exec.Command("powershell", "-Command", psCmd)
+	cmd := newPlatformCommand("powershell", "-Command", psCmd)
 	output, err := cmd.CombinedOutput()
 
 	if err != nil {
@@ -579,7 +579,7 @@ func (w *WindowsInstaller) Remove(certType string, certBytes []byte) error {
 		commonName,
 	)
 
-	cmd := exec.Command("powershell", "-Command", psCmd)
+	cmd := newPlatformCommand("powershell", "-Command", psCmd)
 	output, err := cmd.CombinedOutput()
 
 	if err != nil {

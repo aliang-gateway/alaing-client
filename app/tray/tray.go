@@ -3,7 +3,6 @@ package tray
 import (
 	"fmt"
 	"os"
-	"os/exec"
 	"runtime"
 	"strings"
 	"time"
@@ -199,19 +198,24 @@ func (t *TrayApp) openDashboard() {
 
 	dashboardURL := fmt.Sprintf("http://localhost:%s", actualPort)
 
-	var cmd *exec.Cmd
+	var cmdName string
+	var args []string
 	switch runtime.GOOS {
 	case "linux":
-		cmd = exec.Command("xdg-open", dashboardURL)
+		cmdName = "xdg-open"
+		args = []string{dashboardURL}
 	case "windows":
-		cmd = exec.Command("rundll32", "url.dll,FileProtocolHandler", dashboardURL)
+		cmdName = "rundll32"
+		args = []string{"url.dll,FileProtocolHandler", dashboardURL}
 	case "darwin":
-		cmd = exec.Command("open", dashboardURL)
+		cmdName = "open"
+		args = []string{dashboardURL}
 	default:
 		logger.Error(fmt.Sprintf("Unsupported platform: %s", runtime.GOOS))
 		return
 	}
 
+	cmd := newBackgroundCommand(cmdName, args...)
 	if err := cmd.Start(); err != nil {
 		logger.Error(fmt.Sprintf("Failed to open dashboard: %v", err))
 	}
