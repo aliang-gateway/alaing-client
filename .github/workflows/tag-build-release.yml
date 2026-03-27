@@ -10,6 +10,8 @@ permissions:
 
 env:
   BINARY_NAME: aliang
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  VITE_MODE: prod
 
 jobs:
   guard:
