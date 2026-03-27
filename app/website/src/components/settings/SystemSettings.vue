@@ -197,19 +197,36 @@
 <script>
 import { nextTick } from 'vue';
 import { useNavigation } from '../../composables/useNavigation';
+import { useRunStatus } from '../../composables/useRunStatus';
 
 export default {
   name: 'SystemSettings',
   setup() {
     const { showDashboard } = useNavigation();
-    return { showDashboard };
+    const {
+      runMode,
+      runIsRunning,
+      runStatus,
+      runSyncError,
+      refreshRunState,
+      startPolling,
+      stopPolling
+    } = useRunStatus();
+
+    return {
+      showDashboard,
+      sharedRunMode: runMode,
+      sharedRunIsRunning: runIsRunning,
+      sharedRunStatus: runStatus,
+      sharedRunSyncError: runSyncError,
+      refreshSharedRunState: refreshRunState,
+      startRunStatePolling: startPolling,
+      stopRunStatePolling: stopPolling
+    };
   },
   data() {
     return {
       selectedMode: 'tun',
-      backendMode: 'tun',
-      isRunning: null,
-      modeStatus: '',
       modeError: '',
       modeSuccess: '',
       loadingMode: false,
@@ -217,8 +234,42 @@ export default {
       showTunSwitchConfirm: false
     };
   },
+  computed: {
+    backendMode() {
+      if (this.sharedRunMode === 'http') {
+        return 'http';
+      }
+      if (this.sharedRunMode === 'tun') {
+        return 'tun';
+      }
+      return this.selectedMode;
+    },
+    isRunning() {
+      if (this.sharedRunMode === 'unknown' && !this.sharedRunStatus && !this.sharedRunSyncError) {
+        return null;
+      }
+      return this.sharedRunIsRunning;
+    },
+    modeStatus() {
+      if (this.sharedRunSyncError) {
+        return `Sync failed: ${this.sharedRunSyncError}`;
+      }
+      return typeof this.sharedRunStatus === 'string' ? this.sharedRunStatus : '';
+    }
+  },
   mounted() {
+    this.startRunStatePolling();
     this.refreshModeState();
+  },
+  beforeUnmount() {
+    this.stopRunStatePolling();
+  },
+  watch: {
+    backendMode(nextMode) {
+      if (!this.switchingMode && nextMode) {
+        this.selectedMode = nextMode;
+      }
+    }
   },
   methods: {
     clearMessages() {
@@ -267,16 +318,14 @@ export default {
     normalizeMode(mode) {
       return mode === 'http' ? 'http' : 'tun';
     },
-    async refreshModeState() {
+    async refreshModeState(options = {}) {
       this.loadingMode = true;
-      this.clearMessages();
+      if (!options.preserveMessages) {
+        this.clearMessages();
+      }
       try {
-        const runStatus = await this.requestJSON('/api/run/status');
-        const mode = this.normalizeMode(runStatus?.current_mode);
-        this.backendMode = mode;
-        this.selectedMode = mode;
-        this.isRunning = Boolean(runStatus?.is_running);
-        this.modeStatus = typeof runStatus?.status === 'string' ? runStatus.status : '';
+        await this.refreshSharedRunState();
+        this.selectedMode = this.backendMode;
       } catch (err) {
         this.modeError = err instanceof Error ? err.message : 'Failed to load run mode status.';
       } finally {
@@ -299,7 +348,7 @@ export default {
         this.modeSuccess = typeof result?.message === 'string' && result.message
           ? result.message
           : `Applied ${this.selectedMode.toUpperCase()} mode successfully.`;
-        await this.refreshModeState();
+        await this.refreshModeState({ preserveMessages: true });
         if (options.reportTunProgress) {
           window.dispatchEvent(new CustomEvent('aliang:tun-progress-success', {
             detail: {
