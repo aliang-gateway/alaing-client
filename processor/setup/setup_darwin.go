@@ -232,14 +232,3 @@ func (d *DarwinServiceManager) unload() error {
 	}
 	return nil
 }
-
-// parseInt 辅助函数：解析整数
-func parseInt(s string) int {
-	var result int
-	for _, c := range s {
-		if c >= '0' && c <= '9' {
-			result = result*10 + int(c-'0')
-		}
-	}
-	return result
-}
