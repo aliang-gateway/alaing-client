@@ -118,7 +118,9 @@ func runStart(cmd *cobra.Command, args []string) error {
 
 	// 启动 HTTP 服务器（包含代理注册中心初始化）
 	// HTTP server always starts, but API requests are gated by startup status middleware
-	go httpServer.StartHttpServer()
+	if err := httpServer.StartHttpServer(); err != nil {
+		return fmt.Errorf("failed to start HTTP server: %w", err)
+	}
 
 	// 等待信号并优雅关闭
 	logger.Info("Server started successfully. Press Ctrl+C to stop.")

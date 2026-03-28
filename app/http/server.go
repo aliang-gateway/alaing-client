@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
-	"log"
 	"net"
 	"net/http"
 	"path/filepath"
@@ -38,13 +37,13 @@ var (
 )
 
 // StartHttpServer 启动HTTP服务器，注册所有路由
-func StartHttpServer() {
+func StartHttpServer() error {
 	serverMutex.Lock()
 	defer serverMutex.Unlock()
 
 	if isRunning {
 		logger.Info("HTTP server is already running")
-		return
+		return nil
 	}
 
 	// 定义 HTTP 服务端口
@@ -56,48 +55,58 @@ func StartHttpServer() {
 	// 注册所有路由
 	registerAllRoutes()
 
-	// 启动 HTTP 服务（非阻塞）
-	go func() {
-		logger.Info(fmt.Sprintf("Starting HTTP server on %s...\n", port))
+	logger.Info(fmt.Sprintf("Starting HTTP server on %s...\n", port))
 
-		// Wrap mux with middleware stack
-		middlewares := middleware.GetDefaultMiddleware()
-		wrappedMux := middleware.Chain(mux, middlewares...)
+	// Wrap mux with middleware stack
+	middlewares := middleware.GetDefaultMiddleware()
+	wrappedMux := middleware.Chain(mux, middlewares...)
 
-		// 尝试监听端口，如果被占用则尝试其他端口
-		listener, err := net.Listen("tcp", port)
-		if err != nil {
-			if strings.Contains(err.Error(), "address already in use") {
-				// 尝试自动选择可用端口
-				logger.Warn(fmt.Sprintf("Port %s is already in use, trying to find an available port...", port))
-				listener, err = net.Listen("tcp", "127.0.0.1:0") // 0 means auto-select port
-				if err != nil {
-					log.Fatalf("HTTP server failed: unable to find available port: %v", err)
-				}
-				actualAddr := listener.Addr().(*net.TCPAddr)
-				actualPort = fmt.Sprintf("%d", actualAddr.Port)
-				logger.Info(fmt.Sprintf("HTTP server listening on alternative port: %s", actualAddr.String()))
-			} else {
-				log.Fatalf("HTTP server failed: %v", err)
+	// 尝试监听端口，如果被占用则尝试其他端口
+	listener, err := net.Listen("tcp", port)
+	if err != nil {
+		if strings.Contains(err.Error(), "address already in use") {
+			// 尝试自动选择可用端口
+			logger.Warn(fmt.Sprintf("Port %s is already in use, trying to find an available port...", port))
+			listener, err = net.Listen("tcp", "127.0.0.1:0") // 0 means auto-select port
+			if err != nil {
+				return fmt.Errorf("http server failed: unable to find available port: %w", err)
 			}
+			actualAddr := listener.Addr().(*net.TCPAddr)
+			actualPort = fmt.Sprintf("%d", actualAddr.Port)
+			logger.Info(fmt.Sprintf("HTTP server listening on alternative port: %s", actualAddr.String()))
 		} else {
-			// Store the actual port from the default port
-			_, portStr, _ := net.SplitHostPort(port)
-			actualPort = portStr
+			return fmt.Errorf("http server failed: %w", err)
 		}
+	} else {
+		// Store the actual port from the default port
+		_, portStr, _ := net.SplitHostPort(port)
+		actualPort = portStr
+	}
 
-		// Create HTTP server
-		server = &http.Server{
-			Handler: wrappedMux,
-		}
+	// Create HTTP server
+	server = &http.Server{
+		Handler: wrappedMux,
+	}
+	srv := server
+	isRunning = true
 
-		isRunning = true
-
-		err = server.Serve(listener)
+	// 启动 HTTP 服务（非阻塞）
+	go func(listener net.Listener, srv *http.Server) {
+		err := srv.Serve(listener)
 		if err != nil && err != http.ErrServerClosed {
-			log.Fatalf("HTTP server failed: %v", err)
+			logger.Error(fmt.Sprintf("HTTP server failed: %v", err))
 		}
-	}()
+
+		serverMutex.Lock()
+		defer serverMutex.Unlock()
+		if server == srv {
+			isRunning = false
+			server = nil
+			actualPort = ""
+		}
+	}(listener, srv)
+
+	return nil
 }
 
 // registerAllRoutes 注册所有HTTP路由

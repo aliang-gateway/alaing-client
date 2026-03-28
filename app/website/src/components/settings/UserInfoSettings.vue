@@ -27,65 +27,72 @@
         {{ authNotice }}
       </div>
 
-      <form v-if="!isAuthenticated" class="space-y-4" @submit.prevent="submitLogin">
-        <div class="rounded-xl border border-dashed border-slate-300 bg-slate-50/80 p-4 dark:border-slate-700 dark:bg-slate-900/50">
-          <div class="mb-3 flex items-start gap-3">
-            <span class="material-symbols-outlined text-primary">lock</span>
+      <form v-if="!isAuthenticated" class="mx-auto max-w-sm space-y-4 py-4" @submit.prevent="submitLogin">
+        <div class="rounded-xl border border-slate-200 bg-slate-50/80 p-5 dark:border-slate-800 dark:bg-slate-900/50">
+          <div class="flex flex-col items-center gap-3 text-center">
+            <div class="flex size-12 items-center justify-center rounded-full bg-primary/10">
+              <span class="material-symbols-outlined text-2xl text-primary">lock</span>
+            </div>
             <div>
-              <p class="text-sm font-semibold text-slate-900 dark:text-white">User-center actions are locked</p>
+              <p class="text-sm font-semibold text-slate-900 dark:text-white">Sign in to continue</p>
               <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                Log in to view package usage, update your username, and redeem a code. Settings gating from T5 stays in place until the session is restored.
+                Log in to view usage, update profile, and redeem codes.
               </p>
             </div>
           </div>
-          <ul class="space-y-2 text-xs text-slate-500 dark:text-slate-400">
-            <li class="flex items-center justify-between rounded-lg bg-white px-3 py-2 dark:bg-background-dark">
-              <span>Package usage summary</span>
-              <span class="font-semibold text-amber-600 dark:text-amber-300">Blocked</span>
-            </li>
-            <li class="flex items-center justify-between rounded-lg bg-white px-3 py-2 dark:bg-background-dark">
-              <span>Profile username update</span>
-              <span class="font-semibold text-amber-600 dark:text-amber-300">Blocked</span>
-            </li>
-            <li class="flex items-center justify-between rounded-lg bg-white px-3 py-2 dark:bg-background-dark">
-              <span>Redeem code action</span>
-              <span class="font-semibold text-amber-600 dark:text-amber-300">Blocked</span>
-            </li>
-          </ul>
         </div>
 
-        <div>
-          <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">Email</label>
-          <input
-            v-model.trim="email"
-            type="email"
-            autocomplete="username"
-            class="h-10 w-full rounded border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none transition focus:border-primary dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
-            placeholder="name@example.com"
-            :disabled="loginPending"
-          />
+        <div class="space-y-3">
+          <div>
+            <label class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">Email</label>
+            <div class="relative">
+              <span class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400">
+                <span class="material-symbols-outlined text-[18px]">mail</span>
+              </span>
+              <input
+                v-model.trim="email"
+                type="email"
+                autocomplete="username"
+                class="h-10 w-full rounded-lg border border-slate-200 bg-white pl-9 pr-3 text-sm text-slate-700 outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/10 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:focus:ring-primary/20"
+                placeholder="name@example.com"
+                :disabled="loginPending"
+              />
+            </div>
+          </div>
+          <div>
+            <label class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">Password</label>
+            <div class="relative">
+              <span class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400">
+                <span class="material-symbols-outlined text-[18px]">key</span>
+              </span>
+              <input
+                v-model="password"
+                type="password"
+                autocomplete="current-password"
+                class="h-10 w-full rounded-lg border border-slate-200 bg-white pl-9 pr-3 text-sm text-slate-700 outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/10 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:focus:ring-primary/20"
+                placeholder="Enter your password"
+                :disabled="loginPending"
+              />
+            </div>
+          </div>
         </div>
-        <div>
-          <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">Password</label>
-          <input
-            v-model="password"
-            type="password"
-            autocomplete="current-password"
-            class="h-10 w-full rounded border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none transition focus:border-primary dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
-            placeholder="Enter your password"
-            :disabled="loginPending"
-          />
+
+        <div v-if="loginError" class="flex items-center gap-2 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700 dark:border-rose-900 dark:bg-rose-950/30 dark:text-rose-300">
+          <span class="material-symbols-outlined text-sm">error</span>
+          {{ loginError }}
         </div>
-        <p v-if="loginError" class="text-xs text-rose-500">{{ loginError }}</p>
+
         <button
           type="submit"
-          class="inline-flex h-10 w-full items-center justify-center rounded bg-primary px-4 text-sm font-semibold text-white transition hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
+          class="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-primary px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
           :disabled="loginPending"
         >
-          {{ loginPending ? 'Logging in...' : 'Log In' }}
+          <span v-if="loginPending" class="inline-block size-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
+          {{ loginPending ? 'Signing in...' : 'Sign In' }}
         </button>
-        <p class="text-xs text-slate-400">
-          Login is required before proxy operations, quick chat, and configuration editing can proceed.
+
+        <p class="text-center text-[11px] text-slate-400">
+          Required for proxy operations, quick chat, and configuration editing.
         </p>
       </form>
 

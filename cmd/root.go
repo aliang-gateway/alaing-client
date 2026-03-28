@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"runtime/debug"
 
 	"github.com/spf13/cobra"
 	"nursor.org/nursorgate/common/logger"
@@ -36,6 +37,15 @@ func init() {
 }
 
 func Execute() {
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			err := fmt.Errorf("panic: %v", recovered)
+			logger.Error(fmt.Sprintf("Aliang panicked: %v\n%s", recovered, debug.Stack()))
+			notifyExecuteError(err)
+			os.Exit(1)
+		}
+	}()
+
 	if err := rootCmd.Execute(); err != nil {
 		logger.Error(fmt.Sprintf("Aliang command failed: %v", err))
 		notifyExecuteError(err)

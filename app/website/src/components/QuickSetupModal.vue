@@ -127,12 +127,7 @@
                   : 'max-h-[300px] overflow-y-auto',
               ]"
             >
-              <div
-                v-for="item in configs"
-                :key="item.uuid"
-                :id="`quick-setup-config-${item.uuid}`"
-                class="space-y-3"
-              >
+              <div v-for="item in configs" :key="item.uuid" class="space-y-3">
                 <div
                   role="button"
                   tabindex="0"
@@ -186,124 +181,6 @@
                     </button>
                   </div>
                 </div>
-
-                <transition name="slide-up-panel">
-                  <section
-                    v-if="editorExpanded && selectedConfig?.uuid === item.uuid"
-                    :id="`quick-setup-editor-${item.uuid}`"
-                    class="border-t border-slate-100 dark:border-slate-800 pt-6 px-1"
-                  >
-                    <div class="flex items-center justify-between mb-6">
-                      <div class="flex items-center gap-2">
-                        <h4 class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Selected Config</h4>
-                        <span
-                          v-if="isDraftSelected"
-                          class="px-2 py-0.5 text-[10px] font-bold rounded uppercase bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300"
-                        >
-                          Draft
-                        </span>
-                      </div>
-                      <span class="text-[10px] text-slate-400">{{ selectedConfig?.uuid || 'N/A' }}</span>
-                    </div>
-
-                    <div class="grid grid-cols-2 gap-6">
-                      <div class="space-y-1.5 col-span-1">
-                        <label class="text-xs font-bold text-slate-500 ml-1" for="quickSetupConfigName">Config Name</label>
-                        <input
-                          id="quickSetupConfigName"
-                          v-model="form.name"
-                          class="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:ring-primary focus:border-primary"
-                          type="text"
-                        />
-                      </div>
-                      <div class="space-y-1.5 col-span-1">
-                        <label class="text-xs font-bold text-slate-500 ml-1" for="quickSetupVersion">Version</label>
-                        <input
-                          id="quickSetupVersion"
-                          v-model="form.version"
-                          class="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:ring-primary focus:border-primary"
-                          type="text"
-                        />
-                      </div>
-                      <div class="space-y-1.5 col-span-1">
-                        <label class="text-xs font-bold text-slate-500 ml-1" for="quickSetupFormat">Format</label>
-                        <select
-                          id="quickSetupFormat"
-                          v-model="form.format"
-                          class="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:ring-primary focus:border-primary"
-                        >
-                          <option value="json">json</option>
-                          <option value="yaml">yaml</option>
-                        </select>
-                      </div>
-                      <div class="space-y-1.5 col-span-2">
-                        <label class="text-xs font-bold text-slate-500 ml-1" for="quickSetupFilePath">Local Disk Path</label>
-                        <input
-                          id="quickSetupFilePath"
-                          v-model="form.filePath"
-                          class="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:ring-primary focus:border-primary"
-                          type="text"
-                        />
-                      </div>
-                      <div class="space-y-1.5 col-span-2">
-                        <label class="text-xs font-bold text-slate-500 ml-1" for="quickSetupContent">Content</label>
-                        <div class="border border-slate-200 dark:border-slate-700 rounded-lg overflow-hidden">
-                          <CodeMirror
-                            id="quickSetupContent"
-                            v-model="form.content"
-                            class="text-sm"
-                            :extensions="editorExtensions"
-                            :style="{ minHeight: '220px' }"
-                            :basic-setup="basicSetup"
-                          />
-                        </div>
-                      </div>
-                    </div>
-
-                    <div class="flex items-center justify-between mt-6">
-                      <p class="text-xs text-slate-500">{{ statusMessage }}</p>
-                      <div class="flex justify-end gap-3">
-                        <button
-                          type="button"
-                          class="px-4 py-2 text-sm font-bold text-slate-500 hover:text-slate-700 transition-colors"
-                          @click="collapseEditor"
-                        >
-                          取消编辑
-                        </button>
-                        <button
-                          type="button"
-                          class="px-4 py-2 text-sm font-bold text-slate-600 hover:text-slate-800 transition-colors"
-                          @click="saveConfig"
-                        >
-                          保存
-                        </button>
-                        <button
-                          type="button"
-                          class="px-6 py-2 bg-primary text-white text-sm font-bold rounded-lg hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all disabled:opacity-60"
-                          :disabled="applying"
-                          @click="applyConfig"
-                        >
-                          {{ applying ? '应用中...' : '应用' }}
-                        </button>
-                      </div>
-                    </div>
-
-                    <div class="mt-5 grid grid-cols-1 md:grid-cols-2 gap-3">
-                      <input
-                        v-model="cloud.cloudUrl"
-                        class="px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:ring-primary focus:border-primary"
-                        type="text"
-                        placeholder="Cloud sync URL (e.g. https://example.com/configs)"
-                      />
-                      <input
-                        v-model="cloud.authToken"
-                        class="px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:ring-primary focus:border-primary"
-                        type="text"
-                        placeholder="Cloud auth token (optional)"
-                      />
-                    </div>
-                  </section>
-                </transition>
               </div>
 
               <div
@@ -314,6 +191,123 @@
               </div>
             </div>
           </section>
+
+          <transition name="slide-up-panel">
+            <section
+              v-if="editorExpanded"
+              class="border-t border-slate-100 dark:border-slate-800 pt-6"
+            >
+              <div class="flex items-center justify-between mb-6">
+                <div class="flex items-center gap-2">
+                  <h4 class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Selected Config</h4>
+                  <span
+                    v-if="isDraftSelected"
+                    class="px-2 py-0.5 text-[10px] font-bold rounded uppercase bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300"
+                  >
+                    Draft
+                  </span>
+                </div>
+                <span class="text-[10px] text-slate-400">{{ selectedConfig?.uuid || 'N/A' }}</span>
+              </div>
+
+              <div class="grid grid-cols-2 gap-6">
+                <div class="space-y-1.5 col-span-1">
+                  <label class="text-xs font-bold text-slate-500 ml-1" for="quickSetupConfigName">Config Name</label>
+                  <input
+                    id="quickSetupConfigName"
+                    v-model="form.name"
+                    class="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:ring-primary focus:border-primary"
+                    type="text"
+                  />
+                </div>
+                <div class="space-y-1.5 col-span-1">
+                  <label class="text-xs font-bold text-slate-500 ml-1" for="quickSetupVersion">Version</label>
+                  <input
+                    id="quickSetupVersion"
+                    v-model="form.version"
+                    class="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:ring-primary focus:border-primary"
+                    type="text"
+                  />
+                </div>
+                <div class="space-y-1.5 col-span-1">
+                  <label class="text-xs font-bold text-slate-500 ml-1" for="quickSetupFormat">Format</label>
+                  <select
+                    id="quickSetupFormat"
+                    v-model="form.format"
+                    class="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:ring-primary focus:border-primary"
+                  >
+                    <option value="json">json</option>
+                    <option value="yaml">yaml</option>
+                  </select>
+                </div>
+                <div class="space-y-1.5 col-span-2">
+                  <label class="text-xs font-bold text-slate-500 ml-1" for="quickSetupFilePath">Local Disk Path</label>
+                  <input
+                    id="quickSetupFilePath"
+                    v-model="form.filePath"
+                    class="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:ring-primary focus:border-primary"
+                    type="text"
+                  />
+                </div>
+                <div class="space-y-1.5 col-span-2">
+                  <label class="text-xs font-bold text-slate-500 ml-1" for="quickSetupContent">Content</label>
+                  <div class="border border-slate-200 dark:border-slate-700 rounded-lg overflow-hidden">
+                    <CodeMirror
+                      id="quickSetupContent"
+                      v-model="form.content"
+                      class="text-sm"
+                      :extensions="editorExtensions"
+                      :style="{ minHeight: '220px' }"
+                      :basic-setup="basicSetup"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div class="flex items-center justify-between mt-6">
+                <p class="text-xs text-slate-500">{{ statusMessage }}</p>
+                <div class="flex justify-end gap-3">
+                  <button
+                    type="button"
+                    class="px-4 py-2 text-sm font-bold text-slate-500 hover:text-slate-700 transition-colors"
+                    @click="collapseEditor"
+                  >
+                    取消编辑
+                  </button>
+                  <button
+                    type="button"
+                    class="px-4 py-2 text-sm font-bold text-slate-600 hover:text-slate-800 transition-colors"
+                    @click="saveConfig"
+                  >
+                    保存
+                  </button>
+                  <button
+                    type="button"
+                    class="px-6 py-2 bg-primary text-white text-sm font-bold rounded-lg hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all disabled:opacity-60"
+                    :disabled="applying"
+                    @click="applyConfig"
+                  >
+                    {{ applying ? '应用中...' : '应用' }}
+                  </button>
+                </div>
+              </div>
+
+              <div class="mt-5 grid grid-cols-1 md:grid-cols-2 gap-3">
+                <input
+                  v-model="cloud.cloudUrl"
+                  class="px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:ring-primary focus:border-primary"
+                  type="text"
+                  placeholder="Cloud sync URL (e.g. https://example.com/configs)"
+                />
+                <input
+                  v-model="cloud.authToken"
+                  class="px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:ring-primary focus:border-primary"
+                  type="text"
+                  placeholder="Cloud auth token (optional)"
+                />
+              </div>
+            </section>
+          </transition>
 
           <section v-show="!editorExpanded" class="border-t border-slate-100 dark:border-slate-800 pt-6">
             <div class="rounded-lg border border-dashed border-slate-200 dark:border-slate-700 p-4 text-xs text-slate-500">
@@ -328,7 +322,7 @@
 </template>
 
 <script setup>
-import { computed, nextTick, reactive, ref, watch } from 'vue';
+import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
 import { Codemirror as CodeMirror } from 'vue-codemirror';
 import { json } from '@codemirror/lang-json';
 import { yaml } from '@codemirror/lang-yaml';
@@ -497,17 +491,6 @@ function resetFormForSoftware(software) {
   form.format = 'json';
 }
 
-async function scrollToConfigEditor(uuid) {
-  if (!uuid) {
-    return;
-  }
-  await nextTick();
-  const target =
-    document.getElementById(`quick-setup-editor-${uuid}`) ||
-    document.getElementById(`quick-setup-config-${uuid}`);
-  target?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-}
-
 function createNewConfig() {
   removeDraftConfigs();
   const draft = buildDraftConfig(selectedSoftware.value);
@@ -518,7 +501,6 @@ function createNewConfig() {
   editorExpanded.value = true;
   dataLoaded.value = true;
   statusMessage.value = '新配置项已创建，正在编辑草稿。';
-  void scrollToConfigEditor(draft.uuid);
 }
 
 function toggleAddSoftwareForm() {
@@ -637,14 +619,12 @@ function toggleConfigEditor(item) {
   selectConfig(item);
   editorExpanded.value = true;
   statusMessage.value = `正在编辑 ${item?.name || '配置项'}。`;
-  void scrollToConfigEditor(item?.uuid);
 }
 
 function editConfigItem(item) {
   selectedConfig.value = item;
   applyConfigToForm(item);
   editorExpanded.value = true;
-  void scrollToConfigEditor(item?.uuid);
 }
 
 async function saveConfig() {
@@ -791,6 +771,21 @@ watch(showAddSoftware, async (value) => {
   }
   await nextTick();
   newSoftwareInput.value?.focus?.();
+});
+
+function onModalKeydown(e) {
+  if (e.key === 'Escape' && props.open) {
+    e.stopImmediatePropagation();
+    emit('close');
+  }
+}
+
+onMounted(() => {
+  window.addEventListener('keydown', onModalKeydown, true);
+});
+
+onUnmounted(() => {
+  window.removeEventListener('keydown', onModalKeydown, true);
 });
 
 </script>

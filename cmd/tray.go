@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
+	httpServer "nursor.org/nursorgate/app/http"
 	"nursor.org/nursorgate/app/tray"
 	"nursor.org/nursorgate/common/logger"
 	"nursor.org/nursorgate/processor/runtime"
@@ -61,6 +62,10 @@ func runTray(cmd *cobra.Command, args []string) error {
 
 	if err := InitializeGlobalRuleEngine(); err != nil {
 		logger.Error(fmt.Sprintf("Failed to initialize global rule engine for tray mode: %v", err))
+	}
+
+	if err := httpServer.StartHttpServer(); err != nil {
+		return fmt.Errorf("failed to start dashboard server for tray mode: %w", err)
 	}
 
 	// Start the tray application
