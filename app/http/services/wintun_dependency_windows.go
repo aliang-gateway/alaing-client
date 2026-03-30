@@ -152,13 +152,24 @@ func (c *windowsWintunDependencyController) installWintun() error {
 		return err
 	}
 	targetPath := filepath.Join(targetDir, "wintun.dll")
+	preferredDownloadURL := resolvePreferredWintunDownloadURL(runtime.GOARCH)
 
 	if installedPath, ok := detectInstalledWintun(); ok {
 		c.updateProgress("installed", "Wintun dependency is already installed.", installedPath, targetPath, "")
 		return nil
 	}
 
-	c.updateProgress("downloading", "Downloading Wintun dependency package.", "", targetPath, "")
+	if preferredDownloadURL != "" {
+		c.updateProgress("downloading", "Downloading Wintun dependency directly from the mirror.", "", targetPath, "")
+		if err := downloadFile(targetPath, preferredDownloadURL); err == nil {
+			return nil
+		} else {
+			logger.Warn("Direct Wintun mirror download failed, falling back to official package", "url", preferredDownloadURL, "error", err)
+			c.updateProgress("downloading", "Mirror download failed. Falling back to the official Wintun package.", "", targetPath, "")
+		}
+	}
+
+	c.updateProgress("downloading", "Downloading Wintun dependency package from the official source.", "", targetPath, "")
 	if err := downloadFile(archivePath, wintunDownloadURL); err != nil {
 		return fmt.Errorf("failed to download Wintun package: %w", err)
 	}
@@ -198,7 +209,7 @@ func (c *windowsWintunDependencyController) refreshLocked() {
 		c.state.InstallPath = installedPath
 		c.state.TargetPath = targetPath
 		c.state.Architecture = runtime.GOARCH
-		c.state.DownloadURL = wintunDownloadURL
+		c.state.DownloadURL = resolvePreferredWintunDownloadURL(runtime.GOARCH)
 		c.state.LastChecked = time.Now().Unix()
 		c.state.UpdatedAt = time.Now().Unix()
 		return
@@ -215,7 +226,7 @@ func (c *windowsWintunDependencyController) refreshLocked() {
 	c.state.InstallPath = ""
 	c.state.TargetPath = targetPath
 	c.state.Architecture = runtime.GOARCH
-	c.state.DownloadURL = wintunDownloadURL
+	c.state.DownloadURL = resolvePreferredWintunDownloadURL(runtime.GOARCH)
 	c.state.LastChecked = time.Now().Unix()
 	c.state.UpdatedAt = time.Now().Unix()
 }
@@ -233,7 +244,7 @@ func (c *windowsWintunDependencyController) updateProgress(state string, message
 	c.state.InstallPath = installPath
 	c.state.TargetPath = targetPath
 	c.state.Architecture = runtime.GOARCH
-	c.state.DownloadURL = wintunDownloadURL
+	c.state.DownloadURL = resolvePreferredWintunDownloadURL(runtime.GOARCH)
 	c.state.UpdatedAt = time.Now().Unix()
 }
 
@@ -249,17 +260,28 @@ func downloadFile(destination string, url string) error {
 		return fmt.Errorf("unexpected HTTP status %d", resp.StatusCode)
 	}
 
-	file, err := os.Create(destination)
+	if err := os.MkdirAll(filepath.Dir(destination), 0o755); err != nil {
+		return err
+	}
+
+	tempPath := destination + ".tmp"
+	file, err := os.Create(tempPath)
 	if err != nil {
 		return err
 	}
-	defer file.Close()
 
 	if _, err := io.Copy(file, resp.Body); err != nil {
+		file.Close()
+		return err
+	}
+	if err := file.Close(); err != nil {
 		return err
 	}
 
-	return nil
+	if err := os.Remove(destination); err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	return os.Rename(tempPath, destination)
 }
 
 func extractZipArchive(archivePath string, destination string) error {
@@ -407,5 +429,16 @@ func resolveWintunInstallTarget() (targetDir string, sourceSubdir string, err er
 		return system32, "x86", nil
 	default:
 		return "", "", fmt.Errorf("unsupported Windows architecture for Wintun: %s", runtime.GOARCH)
+	}
+}
+
+func resolvePreferredWintunDownloadURL(goarch string) string {
+	switch goarch {
+	case "amd64", "386":
+		return wintunMirrorURLX86
+	case "arm64":
+		return wintunMirrorURLARM64
+	default:
+		return ""
 	}
 }
