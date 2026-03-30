@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -15,6 +16,7 @@ import (
 	"time"
 
 	"nursor.org/nursorgate/common/logger"
+	"nursor.org/nursorgate/processor/setup"
 )
 
 const (
@@ -138,9 +140,13 @@ func (c *windowsWintunDependencyController) installWintun() error {
 
 	archivePath := filepath.Join(cacheDir, wintunArchiveName)
 	extractDir := filepath.Join(cacheDir, wintunExtractedName)
+	directDLLPath := filepath.Join(cacheDir, "wintun.direct.dll")
 	defer func() {
 		if err := os.Remove(archivePath); err != nil && !os.IsNotExist(err) {
 			logger.Warn("Failed to remove temporary Wintun archive", "path", archivePath, "error", err)
+		}
+		if err := os.Remove(directDLLPath); err != nil && !os.IsNotExist(err) {
+			logger.Warn("Failed to remove temporary Wintun DLL", "path", directDLLPath, "error", err)
 		}
 		if err := os.RemoveAll(extractDir); err != nil && !os.IsNotExist(err) {
 			logger.Warn("Failed to remove extracted Wintun directory", "path", extractDir, "error", err)
@@ -161,11 +167,20 @@ func (c *windowsWintunDependencyController) installWintun() error {
 
 	if preferredDownloadURL != "" {
 		c.updateProgress("downloading", "Downloading Wintun dependency directly from the mirror.", "", targetPath, "")
-		if err := downloadFile(targetPath, preferredDownloadURL); err == nil {
-			return nil
+		if err := downloadFile(directDLLPath, preferredDownloadURL); err == nil {
+			c.updateProgress("installing", "Installing mirrored Wintun DLL into the Windows system directory.", directDLLPath, targetPath, "")
+			if err := installWintunDLL(directDLLPath, targetPath); err == nil {
+				return nil
+			} else {
+				logger.Warn("Direct Wintun mirror install failed, falling back to official package", "url", preferredDownloadURL, "error", err)
+			}
 		} else {
 			logger.Warn("Direct Wintun mirror download failed, falling back to official package", "url", preferredDownloadURL, "error", err)
-			c.updateProgress("downloading", "Mirror download failed. Falling back to the official Wintun package.", "", targetPath, "")
+		}
+		c.updateProgress("downloading", "Mirror install failed. Falling back to the official Wintun package.", "", targetPath, "")
+		if installedPath, ok := detectInstalledWintun(); ok {
+			c.updateProgress("installed", "Wintun dependency is already installed.", installedPath, targetPath, "")
+			return nil
 		}
 	}
 
@@ -185,7 +200,7 @@ func (c *windowsWintunDependencyController) installWintun() error {
 	}
 
 	c.updateProgress("installing", "Installing Wintun into the Windows system directory.", sourcePath, targetPath, "")
-	if err := copyFile(sourcePath, targetPath); err != nil {
+	if err := installWintunDLL(sourcePath, targetPath); err != nil {
 		return fmt.Errorf("failed to install Wintun DLL to %s: %w", targetPath, err)
 	}
 
@@ -372,6 +387,39 @@ func copyFile(source string, destination string) error {
 		return err
 	}
 	return os.Rename(tempPath, destination)
+}
+
+func installWintunDLL(source string, destination string) error {
+	if setup.IsRoot() {
+		return copyFile(source, destination)
+	}
+	return copyFileElevated(source, destination)
+}
+
+func copyFileElevated(source string, destination string) error {
+	sourceWin := strings.ReplaceAll(source, "/", "\\")
+	destinationWin := strings.ReplaceAll(destination, "/", "\\")
+
+	psArgs := fmt.Sprintf(
+		"-NoProfile -ExecutionPolicy Bypass -Command \"Copy-Item -Path '%s' -Destination '%s' -Force\"",
+		escapePowerShellSingleQuoted(sourceWin),
+		escapePowerShellSingleQuoted(destinationWin),
+	)
+	psCmd := fmt.Sprintf(
+		"Start-Process -FilePath powershell -Verb RunAs -Wait -ArgumentList %q",
+		psArgs,
+	)
+
+	cmd := exec.Command("powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", psCmd)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("elevated copy failed: %w: %s", err, strings.TrimSpace(string(output)))
+	}
+	return nil
+}
+
+func escapePowerShellSingleQuoted(value string) string {
+	return strings.ReplaceAll(value, "'", "''")
 }
 
 func detectInstalledWintun() (string, bool) {

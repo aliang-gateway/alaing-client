@@ -187,14 +187,34 @@
           </h1>
         </div>
         <div class="flex items-center gap-4">
-          <div class="flex items-center gap-1">
-            
-            <button
-              type="button"
-              class="size-10 flex items-center justify-center rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 transition-colors"
-            >
-              <span class="material-symbols-outlined">help_outline</span>
-            </button>
+          <div class="rounded-xl border border-slate-200 bg-slate-50/90 px-3 py-2 dark:border-slate-700 dark:bg-slate-800/70">
+            <div class="flex items-center gap-3">
+              <div class="flex size-10 items-center justify-center rounded-lg" :class="serverLinkIconWrapClass">
+                <span class="material-symbols-outlined text-lg" :class="serverLinkIconClass">{{ serverLinkIcon }}</span>
+              </div>
+              <div class="min-w-[210px]">
+                <div class="flex items-center gap-2">
+                  <p class="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-400">Server Link</p>
+                  <span class="rounded-full px-2 py-0.5 text-[10px] font-bold" :class="serverLinkBadgeClass">
+                    {{ serverLinkBadgeText }}
+                  </span>
+                </div>
+                <div class="mt-1 grid grid-cols-3 gap-2 text-[11px]">
+                  <div>
+                    <p class="text-slate-400">Latency</p>
+                    <p class="font-semibold text-slate-700 dark:text-slate-100">{{ serverLatencyLabel }}</p>
+                  </div>
+                  <div>
+                    <p class="text-slate-400">Mode</p>
+                    <p class="font-semibold text-slate-700 dark:text-slate-100">{{ runModeLabel }}</p>
+                  </div>
+                  <div>
+                    <p class="text-slate-400">State</p>
+                    <p class="font-semibold" :class="serverStateTextClass">{{ serverStateLabel }}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
           <div class="h-8 w-px bg-slate-200 dark:bg-slate-800 mx-2"></div>
           <button
@@ -815,9 +835,14 @@ const usageTotal = ref(0);
 const usageTotalPages = ref(1);
 const usageMaxPages = 20;
 const appliedRequestFilter = ref('all');
+const serverLinkOnline = ref(false);
+const serverLinkPending = ref(false);
+const serverLinkLatencyMs = ref(null);
+const serverLinkLastCheckedAt = ref(0);
 let tunStartLogTimer = null;
 let tunStartStatusTimer = null;
 let tunStartCountdownTimer = null;
+let serverLinkTimer = null;
 
 const accountSubtitle = computed(() => {
   if (!isAuthenticated.value) {
@@ -934,6 +959,122 @@ const trendSummaryText = computed(() => {
   const latestPoint = trendPoints.value[trendPoints.value.length - 1];
   return `${latestPoint.requests} requests in latest bucket`;
 });
+
+const serverLinkBadgeText = computed(() => {
+  if (serverLinkPending.value) {
+    return 'Checking';
+  }
+  if (runSyncError.value) {
+    return 'Degraded';
+  }
+  return serverLinkOnline.value ? 'Connected' : 'Offline';
+});
+
+const serverLinkBadgeClass = computed(() => {
+  if (serverLinkPending.value) {
+    return 'bg-sky-100 text-sky-700 dark:bg-sky-500/15 dark:text-sky-300';
+  }
+  if (runSyncError.value) {
+    return 'bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300';
+  }
+  return serverLinkOnline.value
+    ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300'
+    : 'bg-red-100 text-red-700 dark:bg-red-500/15 dark:text-red-300';
+});
+
+const serverLinkIcon = computed(() => {
+  if (serverLinkPending.value) {
+    return 'network_ping';
+  }
+  if (runSyncError.value) {
+    return 'warning';
+  }
+  return serverLinkOnline.value ? 'cloud_done' : 'cloud_off';
+});
+
+const serverLinkIconClass = computed(() => {
+  if (serverLinkPending.value) {
+    return 'text-sky-600 dark:text-sky-300';
+  }
+  if (runSyncError.value) {
+    return 'text-amber-600 dark:text-amber-300';
+  }
+  return serverLinkOnline.value ? 'text-emerald-600 dark:text-emerald-300' : 'text-red-600 dark:text-red-300';
+});
+
+const serverLinkIconWrapClass = computed(() => {
+  if (serverLinkPending.value) {
+    return 'bg-sky-100 dark:bg-sky-500/10';
+  }
+  if (runSyncError.value) {
+    return 'bg-amber-100 dark:bg-amber-500/10';
+  }
+  return serverLinkOnline.value ? 'bg-emerald-100 dark:bg-emerald-500/10' : 'bg-red-100 dark:bg-red-500/10';
+});
+
+const serverLatencyLabel = computed(() => {
+  if (serverLinkPending.value) {
+    return '...';
+  }
+  if (typeof serverLinkLatencyMs.value === 'number') {
+    return `${Math.round(serverLinkLatencyMs.value)} ms`;
+  }
+  return '--';
+});
+
+const serverStateLabel = computed(() => {
+  if (runSyncError.value) {
+    return 'Sync issue';
+  }
+  if (runIsRunning.value) {
+    return 'Serving';
+  }
+  if (!serverLinkOnline.value) {
+    return 'No link';
+  }
+  if (startupStatus.value === 'READY' || startupStatus.value === 'CONFIGURED') {
+    return 'Ready';
+  }
+  return startupStatus.value === 'UNKNOWN' ? 'Checking' : startupStatus.value;
+});
+
+const serverStateTextClass = computed(() => {
+  if (runSyncError.value) {
+    return 'text-amber-600 dark:text-amber-300';
+  }
+  if (runIsRunning.value) {
+    return 'text-emerald-600 dark:text-emerald-300';
+  }
+  if (!serverLinkOnline.value) {
+    return 'text-red-600 dark:text-red-300';
+  }
+  return 'text-slate-700 dark:text-slate-100';
+});
+
+async function sampleServerLink() {
+  serverLinkPending.value = true;
+  const startedAt = performance.now();
+
+  try {
+    const response = await fetch('/api/run/status', {
+      method: 'GET',
+      cache: 'no-store'
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok || payload?.code !== 0) {
+      throw new Error(payload?.msg || payload?.message || `HTTP ${response.status}`);
+    }
+    serverLinkOnline.value = true;
+    serverLinkLatencyMs.value = performance.now() - startedAt;
+    serverLinkLastCheckedAt.value = Date.now();
+  } catch (_) {
+    serverLinkOnline.value = false;
+    serverLinkLatencyMs.value = null;
+    serverLinkLastCheckedAt.value = Date.now();
+  } finally {
+    serverLinkPending.value = false;
+  }
+}
 
 async function syncAccountBalance() {
   if (!isAuthenticated.value) {
@@ -1537,6 +1678,8 @@ const certBadgeClass = computed(() => {
 onMounted(() => {
   startCertPolling();
   startRunStatusPolling();
+  sampleServerLink();
+  serverLinkTimer = window.setInterval(sampleServerLink, 15000);
   syncAccountBalance();
   loadDashboardUsageData();
   window.addEventListener('keydown', handleDashboardKeydown);
@@ -1550,6 +1693,10 @@ onUnmounted(() => {
   stopCertPolling();
   stopRunStatusPolling();
   stopTunStartObservers();
+  if (serverLinkTimer !== null) {
+    window.clearInterval(serverLinkTimer);
+    serverLinkTimer = null;
+  }
   window.removeEventListener('keydown', handleDashboardKeydown);
   window.removeEventListener('aliang:tun-progress-open', handleExternalTunProgressOpen);
   window.removeEventListener('aliang:tun-progress-update', handleExternalTunProgressUpdate);
