@@ -30,11 +30,18 @@ func NewServiceManager(opts InstallOptions) ServiceManager {
 // getPlistPath 获取 plist 文件路径
 func getPlistPath(name string, systemWide bool) string {
 	if systemWide {
-		return filepath.Join("/Library/LaunchDaemons", fmt.Sprintf("org.nursor.%s.plist", name))
+		return "/Library/LaunchDaemons/one.aliang.core.plist"
 	}
 
 	homeDir, _ := os.UserHomeDir()
 	return filepath.Join(homeDir, "Library/LaunchAgents", fmt.Sprintf("org.nursor.%s.plist", name))
+}
+
+func getLaunchdLabel(name string, systemWide bool) string {
+	if systemWide {
+		return "one.aliang.core"
+	}
+	return fmt.Sprintf("org.nursor.%s", name)
 }
 
 // Install 安装 macOS 服务
@@ -79,7 +86,7 @@ func (d *DarwinServiceManager) Install(options InstallOptions) error {
 
 	// 生成 plist 内容
 	plistData := LaunchdPlistData{
-		Label:             fmt.Sprintf("org.nursor.%s", options.Name),
+		Label:             getLaunchdLabel(options.Name, options.SystemWide),
 		ProgramPath:       execPath,
 		Args:              args,
 		RunAtLoad:         options.StartType == StartAutomatic,
@@ -181,7 +188,7 @@ func (d *DarwinServiceManager) Status() (*ServiceStatus, error) {
 	}
 
 	// 使用 launchctl list 查看服务状态
-	label := fmt.Sprintf("org.nursor.%s", d.name)
+	label := getLaunchdLabel(d.name, d.systemWide)
 	cmd := exec.Command("launchctl", "list", label)
 	output, err := cmd.CombinedOutput()
 	if err != nil {

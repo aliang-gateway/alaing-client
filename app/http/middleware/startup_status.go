@@ -72,6 +72,9 @@ func isConfigurationAPI(path string) bool {
 		"/api/run/tun/status",
 		"/api/run/wintun/install",
 		"/api/run/wintun/status",
+		"/api/system/service/status",
+		"/api/system/service/install",
+		"/api/system/service/uninstall",
 	}
 
 	for _, endpoint := range configEndpoints {

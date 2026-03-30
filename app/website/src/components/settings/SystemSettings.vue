@@ -130,12 +130,77 @@
 
         <div class="space-y-2">
           <p class="text-sm font-semibold">Software Status</p>
-          <div class="rounded border-l-4 border-primary bg-slate-50 p-3 dark:bg-slate-800/50">
-            <p class="mb-2 text-[10px] leading-relaxed text-slate-600 dark:text-slate-400">
-              Register Opencode to macOS LaunchDaemons to ensure background auto-start and system-wide interception.
-            </p>
-            <button type="button" class="w-full rounded bg-slate-900 py-1.5 text-[11px] font-bold text-white hover:opacity-90 dark:bg-primary">
-              Register to System (macOS)
+          <div class="rounded border-l-4 p-3" :class="serviceCardClass">
+            <div class="flex items-start justify-between gap-3">
+              <div>
+                <p class="text-sm font-semibold text-slate-800 dark:text-slate-100">{{ systemServiceTitle }}</p>
+                <p class="mt-1 text-[10px] leading-relaxed text-slate-600 dark:text-slate-400">
+                  {{ systemServiceDescription }}
+                </p>
+                <p
+                  v-if="showServicePrivilegeHint"
+                  class="mt-2 text-[10px] font-semibold text-amber-700 dark:text-amber-300"
+                >
+                  需要管理员权限后才能注册成系统服务。
+                </p>
+              </div>
+              <span class="rounded-full px-2 py-0.5 text-[10px] font-bold" :class="serviceBadgeClass">
+                {{ systemServiceBadge }}
+              </span>
+            </div>
+
+            <div v-if="systemServiceInfo.warning" class="mt-3 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-[10px] text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">
+              {{ systemServiceInfo.warning }}
+            </div>
+
+            <div v-if="systemServiceInfo.supported && systemServiceInfo.installed" class="mt-3 grid grid-cols-2 gap-2 rounded border border-slate-200 bg-white/70 p-3 text-[10px] text-slate-600 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-300">
+              <div>
+                <p class="text-slate-400">Status</p>
+                <p class="mt-1 font-semibold text-slate-700 dark:text-slate-100">{{ systemServiceInfo.status || 'unknown' }}</p>
+              </div>
+              <div>
+                <p class="text-slate-400">PID</p>
+                <p class="mt-1 font-semibold text-slate-700 dark:text-slate-100">{{ systemServiceInfo.pid || '-' }}</p>
+              </div>
+              <div>
+                <p class="text-slate-400">Platform</p>
+                <p class="mt-1 font-semibold text-slate-700 dark:text-slate-100">{{ friendlyPlatformLabel }}</p>
+              </div>
+              <div>
+                <p class="text-slate-400">Kind</p>
+                <p class="mt-1 font-semibold text-slate-700 dark:text-slate-100">{{ friendlyServiceLabel }}</p>
+              </div>
+            </div>
+
+            <p v-if="systemServiceError" class="mt-3 text-[11px] text-red-500">{{ systemServiceError }}</p>
+            <p v-if="systemServiceMessage" class="mt-3 text-[11px] text-emerald-600 dark:text-emerald-400">{{ systemServiceMessage }}</p>
+
+            <div class="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+              <button
+                type="button"
+                class="rounded bg-slate-900 py-1.5 text-[11px] font-bold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-primary"
+                :disabled="serviceActionLoading || !systemServiceInfo.supported || systemServiceInfo.installed || showServicePrivilegeHint"
+                @click="registerSystemService"
+              >
+                {{ serviceActionLoading && serviceAction === 'install' ? '注册中...' : '注册成系统服务' }}
+              </button>
+              <button
+                type="button"
+                class="rounded border border-red-200 py-1.5 text-[11px] font-bold text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-red-500/30 dark:text-red-300 dark:hover:bg-red-500/10"
+                :disabled="serviceActionLoading || !systemServiceInfo.supported || !systemServiceInfo.installed"
+                @click="uninstallSystemService"
+              >
+                {{ serviceActionLoading && serviceAction === 'uninstall' ? '卸载中...' : '卸载系统服务' }}
+              </button>
+            </div>
+
+            <button
+              type="button"
+              class="mt-2 w-full rounded border border-slate-200 py-1.5 text-[11px] font-bold text-slate-700 transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:text-slate-100 dark:hover:bg-slate-900/50"
+              :disabled="serviceActionLoading"
+              @click="refreshSystemServiceStatus"
+            >
+              刷新系统服务状态
             </button>
           </div>
         </div>
@@ -248,6 +313,24 @@ export default {
       showTunSwitchConfirm: false,
       pendingTunSwitchAfterInstall: false,
       authoritativeWintunDependency: null,
+      systemServiceInfo: {
+        supported: false,
+        installed: false,
+        running: false,
+        status: 'unknown',
+        pid: 0,
+        platform: '',
+        service_kind: '',
+        display_name: '',
+        message: '',
+        warning: '',
+        requires_admin: false,
+        has_privileges: false
+      },
+      serviceActionLoading: false,
+      serviceAction: '',
+      systemServiceError: '',
+      systemServiceMessage: '',
       wintunInstallPollTimer: null,
       wintunInstallPollInFlight: false
     };
@@ -299,6 +382,61 @@ export default {
     },
     showInstallingWintunBanner() {
       return this.wintunDependency.installing;
+    },
+    showServicePrivilegeHint() {
+      return this.systemServiceInfo.supported && this.systemServiceInfo.requires_admin && !this.systemServiceInfo.has_privileges;
+    },
+    systemServiceTitle() {
+      if (!this.systemServiceInfo.supported) {
+        return '系统服务不受支持';
+      }
+      return this.systemServiceInfo.display_name || 'Aliang 系统服务';
+    },
+    systemServiceDescription() {
+      if (!this.systemServiceInfo.supported) {
+        return '当前平台在本版本中未提供可用的系统服务注册能力。';
+      }
+      if (!this.systemServiceInfo.installed) {
+        return `将应用注册成 ${this.friendlyServiceLabel}，用于后台自启动和系统级代理准备。`;
+      }
+      return this.systemServiceInfo.message || '系统服务已注册。';
+    },
+    systemServiceBadge() {
+      if (!this.systemServiceInfo.supported) {
+        return '不支持';
+      }
+      if (!this.systemServiceInfo.installed) {
+        return '未注册';
+      }
+      return this.systemServiceInfo.running ? '运行中' : '已注册';
+    },
+    friendlyPlatformLabel() {
+      return this.systemServiceInfo.platform_label || this.systemServiceInfo.platform || '-';
+    },
+    friendlyServiceLabel() {
+      return this.systemServiceInfo.service_label || this.systemServiceInfo.service_kind || '系统服务';
+    },
+    serviceBadgeClass() {
+      if (!this.systemServiceInfo.supported) {
+        return 'bg-slate-200 text-slate-600 dark:bg-slate-700 dark:text-slate-300';
+      }
+      if (!this.systemServiceInfo.installed) {
+        return 'bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300';
+      }
+      return this.systemServiceInfo.running
+        ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300'
+        : 'bg-sky-100 text-sky-700 dark:bg-sky-500/15 dark:text-sky-300';
+    },
+    serviceCardClass() {
+      if (!this.systemServiceInfo.supported) {
+        return 'border-slate-300 bg-slate-50 dark:border-slate-700 dark:bg-slate-800/50';
+      }
+      if (!this.systemServiceInfo.installed) {
+        return 'border-primary bg-slate-50 dark:bg-slate-800/50';
+      }
+      return this.systemServiceInfo.running
+        ? 'border-emerald-400 bg-emerald-50/70 dark:border-emerald-500/40 dark:bg-emerald-500/10'
+        : 'border-sky-400 bg-sky-50/70 dark:border-sky-500/40 dark:bg-sky-500/10';
     }
   },
   mounted() {
@@ -309,6 +447,7 @@ export default {
         this.startWintunInstallPolling();
       }
     });
+    this.refreshSystemServiceStatus();
   },
   beforeUnmount() {
     this.stopRunStatePolling();
@@ -347,6 +486,16 @@ export default {
       });
       this.authoritativeWintunDependency = result && typeof result === 'object' ? result : null;
       return this.authoritativeWintunDependency;
+    },
+    async refreshSystemServiceStatus() {
+      try {
+        const result = await this.requestJSON('/api/system/service/status', {
+          method: 'GET'
+        });
+        this.systemServiceInfo = result && typeof result === 'object' ? result : this.systemServiceInfo;
+      } catch (err) {
+        this.systemServiceError = err instanceof Error ? err.message : 'Failed to load system service status.';
+      }
     },
     async ensureWintunInstallProgressModal() {
       await this.dispatchTunProgressEvent('aliang:tun-progress-open', {
@@ -438,6 +587,51 @@ export default {
         this.modeError = err instanceof Error ? err.message : 'Failed to load run mode status.';
       } finally {
         this.loadingMode = false;
+      }
+    },
+    clearSystemServiceMessages() {
+      this.systemServiceError = '';
+      this.systemServiceMessage = '';
+    },
+    async registerSystemService() {
+      this.clearSystemServiceMessages();
+      this.serviceActionLoading = true;
+      this.serviceAction = 'install';
+      try {
+        const result = await this.requestJSON('/api/system/service/install', {
+          method: 'POST'
+        });
+        this.systemServiceInfo = result && typeof result === 'object' ? result : this.systemServiceInfo;
+        this.systemServiceMessage = this.systemServiceInfo.message || 'System service registered successfully.';
+      } catch (err) {
+        this.systemServiceError = err instanceof Error ? err.message : 'Failed to register system service.';
+      } finally {
+        this.serviceActionLoading = false;
+        this.serviceAction = '';
+      }
+    },
+    async uninstallSystemService() {
+      if (!confirm('确定要卸载系统服务吗？\n这会移除后台自启动能力。')) {
+        return;
+      }
+      if (!confirm('请再次确认：卸载后系统重启将不会自动启动 Aliang 服务。是否继续？')) {
+        return;
+      }
+
+      this.clearSystemServiceMessages();
+      this.serviceActionLoading = true;
+      this.serviceAction = 'uninstall';
+      try {
+        const result = await this.requestJSON('/api/system/service/uninstall', {
+          method: 'POST'
+        });
+        this.systemServiceInfo = result && typeof result === 'object' ? result : this.systemServiceInfo;
+        this.systemServiceMessage = this.systemServiceInfo.message || 'System service uninstalled successfully.';
+      } catch (err) {
+        this.systemServiceError = err instanceof Error ? err.message : 'Failed to uninstall system service.';
+      } finally {
+        this.serviceActionLoading = false;
+        this.serviceAction = '';
       }
     },
     startWintunInstallPolling() {

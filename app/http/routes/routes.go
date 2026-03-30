@@ -20,6 +20,7 @@ type Handlers struct {
 	SoftwareCfg   *handlers.SoftwareConfigHandler
 	Token         *handlers.TokenHandler
 	Run           *handlers.RunHandler
+	SystemService *handlers.SystemServiceHandler
 	LogStream     *handlers.LogStreamHandler
 	Rules         *handlers.RulesHandler
 	DNSCache      *handlers.DNSCacheHandler
@@ -66,6 +67,7 @@ func newHandlers(runService *services.RunService) *Handlers {
 		SoftwareCfg:        handlers.NewSoftwareConfigHandler(softwareCfgService),
 		Token:              handlers.NewTokenHandler(tokenService),
 		Run:                handlers.NewRunHandler(runService),
+		SystemService:      handlers.NewSystemServiceHandler(services.NewSystemServiceService()),
 		LogStream:          handlers.NewLogStreamHandler(),
 		Rules:              handlers.NewRulesHandler(),
 		DNSCache:           handlers.NewDNSCacheHandler(),
@@ -132,6 +134,11 @@ func RegisterRoutes(h *Handlers, mux *http.ServeMux) {
 	register("/api/run/wintun/status", h.Run.HandleRunWintunStatus, http.MethodGet)
 	register("/api/run/tun/status", h.Run.HandleRunTUNStatus, http.MethodGet)
 	register("/api/run/swift", h.Run.HandleRunSwift, http.MethodPost)
+
+	// System service routes (/api/system/service/*)
+	register("/api/system/service/status", h.SystemService.HandleStatus, http.MethodGet)
+	register("/api/system/service/install", h.SystemService.HandleInstall, http.MethodPost)
+	register("/api/system/service/uninstall", h.SystemService.HandleUninstall, http.MethodPost)
 
 	// Routing Rules API (/api/rules/*)
 	register("/api/rules/geoip/status", h.Rules.HandleGetGeoIPStatus, http.MethodGet)
