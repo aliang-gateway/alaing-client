@@ -69,6 +69,7 @@ func isConfigurationAPI(path string) bool {
 		"/api/software-config/cloud/pull",
 		"/api/logs", // Logs access (for diagnosis)
 		"/api/run/status",
+		"/api/run/tun/status",
 		"/api/run/wintun/install",
 		"/api/run/wintun/status",
 	}

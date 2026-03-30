@@ -50,6 +50,12 @@ func (rh *RunHandler) HandleRunWintunStatus(w http.ResponseWriter, r *http.Reque
 	common.Success(w, result)
 }
 
+// HandleRunTUNStatus handles GET /api/run/tun/status
+func (rh *RunHandler) HandleRunTUNStatus(w http.ResponseWriter, r *http.Request) {
+	result := services.GetTUNStartupStatus()
+	common.Success(w, result)
+}
+
 // HandleRunSwift handles POST /api/run/swift
 func (rh *RunHandler) HandleRunSwift(w http.ResponseWriter, r *http.Request) {
 	var req struct {

@@ -21,9 +21,13 @@ type StartupState struct {
 }
 
 func Start() {
+	ResetStartupProgress()
+	UpdateStartupProgress("starting", "requested", 5, "Preparing TUN startup.", "", false)
+
 	defer func() {
 		if r := recover(); r != nil {
 			logger.Error(fmt.Sprintf("Recovered from panic in Start: %v", r))
+			FailStartupProgress("panic", fmt.Errorf("Recovered from panic in Start: %v", r))
 			RunStatusChan <- map[string]string{"status": "failed", "message": fmt.Sprintf("Recovered from panic in Start: %v", r)}
 		}
 	}()
@@ -38,6 +42,7 @@ func Start() {
 	// 使用带回滚的启动流程
 	if err := startWithRollback(state); err != nil {
 		logger.Error(fmt.Sprintf("TUN 启动失败: %v", err))
+		FailStartupProgress(GetStartupProgress().Phase, err)
 		// 执行回滚
 		rollbackStartup(state)
 		RunStatusChan <- map[string]string{"status": "failed", "message": err.Error()}
@@ -45,6 +50,7 @@ func Start() {
 	}
 
 	logger.Info("TUN 服务启动成功，设备名称: ", defaultConfig.Interface)
+	CompleteStartupProgress("TUN service started successfully.")
 	RunStatusChan <- map[string]string{"status": "success", "message": "TUN service started successfully"}
 
 	signal.Notify(TunSignal, syscall.SIGINT, syscall.SIGTERM)
@@ -57,10 +63,12 @@ func Start() {
 // startWithRollback 执行启动步骤并追踪状态
 func startWithRollback(state *StartupState) error {
 	// Step 1: 添加设备状态监控
+	UpdateStartupProgress("starting", "monitoring_device", 10, "Starting TUN device monitoring.", "", false)
 	go monitorTunDevice(defaultConfig.Device)
 	state.monitorStarted = true
 
 	// Step 2: 插入配置并启动 engine
+	UpdateStartupProgress("starting", "creating_tun", 25, "Creating the virtual TUN adapter.", "", false)
 	config.Insert(&defaultConfig)
 	if err := engine.Start(); err != nil {
 		return fmt.Errorf("engine 启动失败: %w", err)
@@ -73,6 +81,7 @@ func startWithRollback(state *StartupState) error {
 	logger.Info("TUN: Rule engine has been initialized globally (see cmd/start.go)")
 
 	// Step 3: 获取默认网关
+	UpdateStartupProgress("starting", "resolving_gateway", 45, "Resolving the current default gateway.", "", false)
 	_dfgw, err := GetDefaultGatewayForTUN()
 	if err != nil {
 		return fmt.Errorf("获取默认网关失败: %w", err)
@@ -80,17 +89,20 @@ func startWithRollback(state *StartupState) error {
 	defaultGateway = _dfgw
 
 	// Step 4: 配置 TUN 接口
+	UpdateStartupProgress("starting", "configuring_interface", 60, "Configuring the virtual adapter interface.", "", false)
 	if err := ConfigureTunInterface(defaultConfig.Device); err != nil {
 		return fmt.Errorf("配置 TUN 接口失败: %w", err)
 	}
 	state.interfaceConfigured = true
 
 	// Step 5: 等待设备就绪（最多等待 10 秒）
+	UpdateStartupProgress("starting", "waiting_device_ready", 78, "Waiting for the virtual adapter to become ready.", "", false)
 	if err := waitForTunDeviceReady(defaultConfig.Device, 10*time.Second); err != nil {
 		return fmt.Errorf("等待 TUN 设备就绪失败: %w", err)
 	}
 
 	// Step 6: 配置路由（最关键的步骤）
+	UpdateStartupProgress("starting", "configuring_routes", 90, "Configuring TUN routing rules.", "", false)
 	if err := ConfigureTunRoute(); err != nil {
 		return fmt.Errorf("配置 TUN 路由失败: %w", err)
 	}

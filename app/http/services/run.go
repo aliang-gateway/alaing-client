@@ -256,6 +256,7 @@ func (rs *RunService) GetStatus() map[string]interface{} {
 			string(models.ModeTUN),
 		},
 		"wintun_dependency": getSharedWintunDependencyController().Status(),
+		"tun_startup":       runner2.GetStartupProgress(),
 	}
 
 	switch mode {
@@ -278,6 +279,20 @@ func (rs *RunService) GetStatus() map[string]interface{} {
 	}
 
 	return response
+}
+
+func GetTUNStartupStatus() map[string]interface{} {
+	progress := runner2.GetStartupProgress()
+	return map[string]interface{}{
+		"active":              progress.Active,
+		"status":              progress.Status,
+		"phase":               progress.Phase,
+		"progress_percent":    progress.Progress,
+		"message":             progress.Message,
+		"error":               progress.Error,
+		"permission_required": progress.PermissionRequired,
+		"updated_at":          progress.UpdatedAt,
+	}
 }
 
 // SwitchMode switches the operating mode

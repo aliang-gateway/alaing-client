@@ -16,6 +16,7 @@ import (
 	"golang.org/x/text/transform"
 	"nursor.org/nursorgate/common/logger"
 	utils2 "nursor.org/nursorgate/inbound/tun/runner/utils"
+	"nursor.org/nursorgate/processor/setup"
 )
 
 type RouteEntry struct {
@@ -86,8 +87,12 @@ func configureWindowsTunInterface(ifname string) error {
 		}
 	}
 
+	if !setup.IsRoot() {
+		UpdateStartupProgress("starting", "requesting_permission", 52, "Requesting Windows administrator permission to configure the virtual adapter.", "", true)
+	}
+
 	for _, cmd := range commands {
-		if err := utils2.RunCommand(cmd[0], cmd[1:]...); err != nil {
+		if err := runWindowsPrivilegedCommand(cmd[0], cmd[1:]...); err != nil {
 			errStr := fmt.Sprintf("netsh command failed: %v", err)
 			logger.Error(errStr)
 			return errors.New(errStr)
@@ -324,6 +329,10 @@ func configureWindowsTunRoute() error {
 
 	logger.Info(fmt.Printf("找到默认网关: %s", defaultGateway))
 
+	if !setup.IsRoot() {
+		UpdateStartupProgress("starting", "requesting_permission", 88, "Requesting Windows administrator permission to configure TUN routes.", "", true)
+	}
+
 	// 删除现有默认路由
 	commands := [][]string{
 		{"route", "delete", "0.0.0.0"},
@@ -331,7 +340,7 @@ func configureWindowsTunRoute() error {
 	}
 
 	for _, cmd := range commands {
-		if err := utils2.RunCommand(cmd[0], cmd[1:]...); err != nil {
+		if err := runWindowsPrivilegedCommand(cmd[0], cmd[1:]...); err != nil {
 			logger.Error(fmt.Printf("删除路由失败: %v", err))
 		}
 	}
@@ -345,7 +354,7 @@ func configureWindowsTunRoute() error {
 	}
 
 	for _, cmd := range commands {
-		if err := utils2.RunCommand(cmd[0], cmd[1:]...); err != nil {
+		if err := runWindowsPrivilegedCommand(cmd[0], cmd[1:]...); err != nil {
 			err = fmt.Errorf("添加路由失败: %w", err)
 			logger.Error(fmt.Printf("%v", err))
 			return err
@@ -353,6 +362,13 @@ func configureWindowsTunRoute() error {
 	}
 
 	return nil
+}
+
+func runWindowsPrivilegedCommand(name string, args ...string) error {
+	if setup.IsRoot() {
+		return utils2.RunCommand(name, args...)
+	}
+	return utils2.RunCommandElevated(name, args...)
 }
 
 func configureDarwinTunRoute() error {

@@ -832,6 +832,7 @@ const serverLinkLatencyMs = ref(null);
 const serverLinkLastCheckedAt = ref(0);
 let tunStartLogTimer = null;
 let tunStartStatusTimer = null;
+let tunStartBackendTimer = null;
 let serverLinkTimer = null;
 
 const accountSubtitle = computed(() => {
@@ -1448,6 +1449,9 @@ const tunStartupPhase = computed(() => {
 });
 
 const tunStartupProgressPercent = computed(() => {
+  if (typeof tunStartModal.value.progressPercent === 'number' && Number.isFinite(tunStartModal.value.progressPercent)) {
+    return Math.max(0, Math.min(100, tunStartModal.value.progressPercent));
+  }
   switch (tunStartupPhase.value) {
     case 'installing_dependency':
       switch (tunStartModal.value.installState) {
@@ -1757,7 +1761,9 @@ function createTunStartModalState() {
     statusHint: 'Press Start to begin a TUN startup attempt.',
     errorMessage: '',
     logs: [],
-    startedAtMs: 0
+    startedAtMs: 0,
+    progressPercent: null,
+    permissionRequired: false
   };
 }
 
@@ -1821,7 +1827,9 @@ function markTunStartModalError(message, overrides = {}) {
 
 function startTunStartObservers() {
   stopTunStartObservers();
+  loadTunStartupBackendStatus();
   tunStartLogTimer = window.setInterval(loadTunStartLogs, 1200);
+  tunStartBackendTimer = window.setInterval(loadTunStartupBackendStatus, 800);
   tunStartStatusTimer = window.setInterval(async () => {
     try {
       await syncRunStatus();
@@ -1842,6 +1850,10 @@ function stopTunStartObservers() {
   if (tunStartStatusTimer !== null) {
     window.clearInterval(tunStartStatusTimer);
     tunStartStatusTimer = null;
+  }
+  if (tunStartBackendTimer !== null) {
+    window.clearInterval(tunStartBackendTimer);
+    tunStartBackendTimer = null;
   }
 }
 
@@ -1873,6 +1885,55 @@ async function loadTunStartLogs() {
         ...tunStartModal.value,
         errorMessage: error instanceof Error ? error.message : 'Failed to load startup logs.'
       };
+    }
+  }
+}
+
+async function loadTunStartupBackendStatus() {
+  if (!tunStartModal.value.visible) {
+    return;
+  }
+
+  try {
+    const response = await fetch('/api/run/tun/status', {
+      method: 'GET',
+      cache: 'no-store'
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok || payload?.code !== 0) {
+      throw new Error(payload?.msg || payload?.message || `Request failed (${response.status})`);
+    }
+
+    const data = payload?.data || {};
+    updateTunStartModal({
+      phase: typeof data.phase === 'string' && data.phase ? data.phase : tunStartModal.value.phase,
+      progressPercent: Number.isFinite(Number(data.progress_percent)) ? Number(data.progress_percent) : tunStartModal.value.progressPercent,
+      permissionRequired: Boolean(data.permission_required),
+      statusLabel: typeof data.message === 'string' && data.message ? data.message : tunStartModal.value.statusLabel,
+      statusHint: typeof data.error === 'string' && data.error
+        ? data.error
+        : (Boolean(data.permission_required)
+          ? 'Windows is requesting administrator permission to continue TUN startup.'
+          : tunStartModal.value.statusHint)
+    });
+
+    if (data.status === 'success') {
+      markTunStartModalSuccess(typeof data.message === 'string' ? data.message : 'TUN service started successfully.');
+      return;
+    }
+
+    if (data.status === 'failed') {
+      markTunStartModalError(typeof data.error === 'string' && data.error ? data.error : 'TUN startup failed.', {
+        statusHint: Boolean(data.permission_required)
+          ? 'Administrator permission is required or was denied while creating the TUN adapter.'
+          : 'Review the log lines below for the exact failure point.'
+      });
+    }
+  } catch (error) {
+    if (tunStartModal.value.status === 'starting') {
+      updateTunStartModal({
+        errorMessage: error instanceof Error ? error.message : 'Failed to sync backend TUN startup state.'
+      });
     }
   }
 }

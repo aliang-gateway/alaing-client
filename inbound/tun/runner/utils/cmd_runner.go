@@ -14,6 +14,10 @@ func RunCommand(name string, args ...string) error {
 	return cmd.Run()
 }
 
+func RunCommandElevated(name string, args ...string) error {
+	return RunCommand(name, args...)
+}
+
 func GetRunCommand(name string, args ...string) *exec.Cmd {
 	cmd := exec.Command(name, args...)
 
