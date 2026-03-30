@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"runtime"
 
+	"nursor.org/nursorgate/common/cache"
 	"nursor.org/nursorgate/common/logger"
 	cert_config "nursor.org/nursorgate/processor/cert"
 	client_cert "nursor.org/nursorgate/processor/cert/client"
@@ -119,14 +120,9 @@ func (cs *CertService) GetCertStatus(certType string) (CertStatusResult, error) 
 // ExportCert exports a certificate to ~/.aliang/ directory
 // If the certificate doesn't exist, it will be generated
 func (cs *CertService) ExportCert(certType string) (string, error) {
-	homeDir, err := os.UserHomeDir()
+	certDir, err := cache.GetCacheDir()
 	if err != nil {
-		return "", fmt.Errorf("failed to get user home directory: %w", err)
-	}
-
-	certDir := filepath.Join(homeDir, ".aliang")
-	if err := os.MkdirAll(certDir, 0700); err != nil {
-		return "", fmt.Errorf("failed to create certificate directory: %w", err)
+		return "", fmt.Errorf("failed to resolve certificate directory: %w", err)
 	}
 
 	// Get certificate configuration
@@ -226,7 +222,12 @@ func (cs *CertService) RemoveCert(certType string) error {
 func (cs *CertService) GetSystemInfo() (SystemInfo, error) {
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
-		homeDir = "~"
+		cacheDir, cacheErr := cache.GetCacheDir()
+		if cacheErr == nil {
+			homeDir = cacheDir
+		} else {
+			homeDir = "~"
+		}
 	}
 
 	return SystemInfo{
@@ -253,12 +254,12 @@ func (cs *CertService) getCertBytes(certType string) ([]byte, error) {
 
 // getMitmCACert returns the MITM CA certificate bytes from filesystem
 func (cs *CertService) getMitmCACert() ([]byte, error) {
-	homeDir, err := os.UserHomeDir()
+	certDir, err := cache.GetCacheDir()
 	if err != nil {
-		return nil, fmt.Errorf("failed to get user home directory: %w", err)
+		return nil, fmt.Errorf("failed to resolve certificate directory: %w", err)
 	}
 
-	certPath := filepath.Join(homeDir, ".aliang", "mitm-ca.pem")
+	certPath := filepath.Join(certDir, "mitm-ca.pem")
 
 	// Check if file exists
 	if _, err := os.Stat(certPath); os.IsNotExist(err) {
@@ -275,12 +276,12 @@ func (cs *CertService) getMitmCACert() ([]byte, error) {
 
 // getRootCACert returns the Root CA certificate bytes from filesystem
 func (cs *CertService) getRootCACert() ([]byte, error) {
-	homeDir, err := os.UserHomeDir()
+	certDir, err := cache.GetCacheDir()
 	if err != nil {
-		return nil, fmt.Errorf("failed to get user home directory: %w", err)
+		return nil, fmt.Errorf("failed to resolve certificate directory: %w", err)
 	}
 
-	certPath := filepath.Join(homeDir, ".aliang", "root-ca.pem")
+	certPath := filepath.Join(certDir, "root-ca.pem")
 
 	// Check if file exists
 	if _, err := os.Stat(certPath); os.IsNotExist(err) {
@@ -293,12 +294,12 @@ func (cs *CertService) getRootCACert() ([]byte, error) {
 
 // getMTLSCert returns the mTLS certificate bytes from filesystem
 func (cs *CertService) getMTLSCert() ([]byte, error) {
-	homeDir, err := os.UserHomeDir()
+	certDir, err := cache.GetCacheDir()
 	if err != nil {
-		return nil, fmt.Errorf("failed to get user home directory: %w", err)
+		return nil, fmt.Errorf("failed to resolve certificate directory: %w", err)
 	}
 
-	certPath := filepath.Join(homeDir, ".aliang", "mtls-client.pem")
+	certPath := filepath.Join(certDir, "mtls-client.pem")
 
 	if _, err := os.Stat(certPath); os.IsNotExist(err) {
 		if _, exportErr := cs.ExportCert("mtls-cert"); exportErr != nil {
@@ -311,8 +312,10 @@ func (cs *CertService) getMTLSCert() ([]byte, error) {
 
 // getExportPath returns the export path for a certificate type
 func (cs *CertService) getExportPath(certType string) string {
-	homeDir, _ := os.UserHomeDir()
-	certDir := filepath.Join(homeDir, ".aliang")
+	certDir, err := cache.GetCacheDir()
+	if err != nil {
+		certDir = filepath.Join(os.TempDir(), "aliang")
+	}
 
 	switch certType {
 	case "mitm-ca":

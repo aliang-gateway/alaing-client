@@ -2,8 +2,10 @@ package cmd
 
 import (
 	"fmt"
+	"runtime"
 
 	"github.com/spf13/cobra"
+	"nursor.org/nursorgate/app/http/services"
 	"nursor.org/nursorgate/common/logger"
 	"nursor.org/nursorgate/processor/setup"
 )
@@ -135,21 +137,9 @@ func runServiceInstall(cmd *cobra.Command, args []string) error {
 		return setup.ErrServiceExists
 	}
 
-	// 获取可执行文件路径
-	execPath, err := setup.GetCurrentExecutable()
+	options, err := services.BuildCLIServiceInstallOptions(configPath, serviceSystemWide)
 	if err != nil {
-		return fmt.Errorf("failed to get executable path: %w", err)
-	}
-
-	// 准备安装选项
-	options := setup.InstallOptions{
-		Name:           setup.GetServiceName(),
-		DisplayName:    "Nursorgate Network Service",
-		Description:    "Nursorgate network proxy and routing service",
-		ExecutablePath: execPath,
-		ConfigPath:     configPath,
-		SystemWide:     serviceSystemWide,
-		StartType:      setup.StartAutomatic,
+		return err
 	}
 
 	// 安装服务
@@ -159,6 +149,13 @@ func runServiceInstall(cmd *cobra.Command, args []string) error {
 	}
 
 	fmt.Println("✓ Service installed successfully")
+	if runtime.GOOS == "darwin" {
+		if err := setup.InstallMacOSTrayAgent(options.ExecutablePath); err != nil {
+			fmt.Printf("Warning: Service installed, but failed to install macOS menu bar companion: %v\n", err)
+		} else {
+			fmt.Println("✓ macOS menu bar companion installed successfully")
+		}
+	}
 
 	// 如果指定了 --start 标志，立即启动服务
 	if serviceStartNow {
@@ -194,8 +191,20 @@ func runServiceUninstall(cmd *cobra.Command, args []string) error {
 		logger.Error("Failed to uninstall service", "error", err)
 		return fmt.Errorf("failed to uninstall service: %w", err)
 	}
+	if serviceSystemWide {
+		if err := services.RemoveManagedSystemServiceExecutable(); err != nil {
+			return fmt.Errorf("service uninstalled, but failed to remove managed executable: %w", err)
+		}
+	}
 
 	fmt.Println("✓ Service uninstalled successfully")
+	if runtime.GOOS == "darwin" {
+		if err := setup.UninstallMacOSTrayAgent(); err != nil {
+			fmt.Printf("Warning: Service uninstalled, but failed to remove macOS menu bar companion: %v\n", err)
+		} else {
+			fmt.Println("✓ macOS menu bar companion removed successfully")
+		}
+	}
 	return nil
 }
 

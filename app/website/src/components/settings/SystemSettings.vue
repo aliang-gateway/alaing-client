@@ -128,6 +128,104 @@
           </div>
         </div>
 
+        <div
+          v-if="showSystemServiceConfirm"
+          class="fixed inset-0 z-[1000] flex items-center justify-center bg-slate-950/65 p-4 backdrop-blur-sm"
+          role="dialog"
+          aria-modal="true"
+          @click.self="closeSystemServiceConfirm"
+        >
+          <div class="w-full max-w-lg overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-900">
+            <div class="border-b border-slate-200 bg-slate-50/85 px-5 py-4 dark:border-slate-700 dark:bg-slate-800/65">
+              <div class="flex items-start justify-between gap-4">
+                <div class="flex items-start gap-3">
+                  <div
+                    class="mt-0.5 flex h-11 w-11 items-center justify-center rounded-2xl border text-sm shadow-sm"
+                    :class="systemServiceConfirmAction === 'uninstall'
+                      ? 'border-red-200 bg-red-50 text-red-600 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-200'
+                      : 'border-primary/20 bg-primary/10 text-primary dark:border-primary/30 dark:bg-primary/15'"
+                  >
+                    <span class="material-symbols-outlined text-[20px]">
+                      {{ systemServiceConfirmAction === 'uninstall' ? 'delete' : 'deployed_code' }}
+                    </span>
+                  </div>
+                  <div>
+                    <p
+                      class="text-[11px] font-bold uppercase tracking-[0.22em]"
+                      :class="systemServiceConfirmAction === 'uninstall'
+                        ? 'text-red-500 dark:text-red-300'
+                        : 'text-primary'"
+                    >
+                      {{ systemServiceConfirmAction === 'uninstall' ? 'Remove Service' : 'Register Service' }}
+                    </p>
+                    <h3 class="mt-1 text-lg font-semibold text-slate-900 dark:text-slate-100">
+                      {{ systemServiceConfirmTitle }}
+                    </h3>
+                    <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                      {{ systemServiceConfirmDescription }}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  class="rounded-xl p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-700 disabled:cursor-not-allowed disabled:opacity-50 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+                  :disabled="serviceActionLoading"
+                  @click="closeSystemServiceConfirm"
+                >
+                  <span class="material-symbols-outlined text-lg">close</span>
+                </button>
+              </div>
+            </div>
+
+            <div class="space-y-4 p-5">
+              <div
+                class="rounded-2xl border px-4 py-3 text-sm"
+                :class="systemServiceConfirmAction === 'uninstall'
+                  ? 'border-red-200 bg-red-50 text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-200'
+                  : 'border-primary/20 bg-primary/5 text-slate-700 dark:border-primary/30 dark:bg-primary/10 dark:text-slate-100'"
+              >
+                {{ systemServiceConfirmHighlight }}
+              </div>
+
+              <div class="rounded-2xl border border-slate-200 bg-slate-50/80 p-4 dark:border-slate-700 dark:bg-slate-800/45">
+                <p class="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">Operation Summary</p>
+                <div class="mt-3 space-y-2">
+                  <div
+                    v-for="item in systemServiceConfirmChecklist"
+                    :key="item"
+                    class="flex items-start gap-2 text-sm text-slate-700 dark:text-slate-200"
+                  >
+                    <span class="material-symbols-outlined mt-0.5 text-[16px] text-primary">check_circle</span>
+                    <span>{{ item }}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="flex gap-3">
+                <button
+                  type="button"
+                  class="inline-flex h-11 flex-1 items-center justify-center rounded-xl border border-slate-200 px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:text-slate-100 dark:hover:bg-slate-800"
+                  :disabled="serviceActionLoading"
+                  @click="closeSystemServiceConfirm"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  class="inline-flex h-11 flex-1 items-center justify-center rounded-xl px-4 text-sm font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-60"
+                  :class="systemServiceConfirmAction === 'uninstall'
+                    ? 'bg-red-600 hover:bg-red-500 dark:bg-red-500 dark:hover:bg-red-400'
+                    : 'bg-primary hover:bg-primary/90'"
+                  :disabled="serviceActionLoading"
+                  @click="confirmSystemServiceAction"
+                >
+                  {{ systemServiceConfirmButtonLabel }}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <div class="space-y-2">
           <p class="text-sm font-semibold">Software Status</p>
           <div class="rounded border-l-4 p-3" :class="serviceCardClass">
@@ -180,7 +278,7 @@
                 type="button"
                 class="rounded bg-slate-900 py-1.5 text-[11px] font-bold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-primary"
                 :disabled="serviceActionLoading || !systemServiceInfo.supported || systemServiceInfo.installed || showServicePrivilegeHint"
-                @click="registerSystemService"
+                @click="openSystemServiceConfirm('install')"
               >
                 {{ serviceActionLoading && serviceAction === 'install' ? '注册中...' : '注册成系统服务' }}
               </button>
@@ -188,7 +286,7 @@
                 type="button"
                 class="rounded border border-red-200 py-1.5 text-[11px] font-bold text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-red-500/30 dark:text-red-300 dark:hover:bg-red-500/10"
                 :disabled="serviceActionLoading || !systemServiceInfo.supported || !systemServiceInfo.installed"
-                @click="uninstallSystemService"
+                @click="openSystemServiceConfirm('uninstall')"
               >
                 {{ serviceActionLoading && serviceAction === 'uninstall' ? '卸载中...' : '卸载系统服务' }}
               </button>
@@ -311,6 +409,8 @@ export default {
       loadingMode: false,
       switchingMode: false,
       showTunSwitchConfirm: false,
+      showSystemServiceConfirm: false,
+      systemServiceConfirmAction: '',
       pendingTunSwitchAfterInstall: false,
       authoritativeWintunDependency: null,
       systemServiceInfo: {
@@ -399,7 +499,7 @@ export default {
       if (!this.systemServiceInfo.installed) {
         return `将应用注册成 ${this.friendlyServiceLabel}，用于后台自启动和系统级代理准备。`;
       }
-      return this.systemServiceInfo.message || '系统服务已注册。';
+      return this.systemServiceInfo.message || '系统服务已注册。卸载时会保留配置文件。';
     },
     systemServiceBadge() {
       if (!this.systemServiceInfo.supported) {
@@ -437,6 +537,43 @@ export default {
       return this.systemServiceInfo.running
         ? 'border-emerald-400 bg-emerald-50/70 dark:border-emerald-500/40 dark:bg-emerald-500/10'
         : 'border-sky-400 bg-sky-50/70 dark:border-sky-500/40 dark:bg-sky-500/10';
+    },
+    systemServiceConfirmTitle() {
+      return this.systemServiceConfirmAction === 'uninstall'
+        ? '确定要卸载当前系统服务吗？'
+        : `确定要注册 ${this.friendlyServiceLabel} 吗？`;
+    },
+    systemServiceConfirmDescription() {
+      if (this.systemServiceConfirmAction === 'uninstall') {
+        return '卸载后，Aliang 将不再随系统自动启动，后台代理准备能力也会被移除。';
+      }
+      return `注册后会创建 ${this.friendlyServiceLabel}，用于后台自启动和系统级运行准备。`;
+    },
+    systemServiceConfirmHighlight() {
+      if (this.systemServiceConfirmAction === 'uninstall') {
+        return '此操作会移除后台自启动能力，并删除托管的可执行文件；配置文件会保留。';
+      }
+      return '注册完成后，系统会在后台启动 Aliang；macOS 还会尝试配置菜单栏 companion。';
+    },
+    systemServiceConfirmChecklist() {
+      if (this.systemServiceConfirmAction === 'uninstall') {
+        return [
+          `移除 ${this.friendlyServiceLabel} 的系统注册`,
+          '停止系统重启后的自动启动',
+          '删除托管的可执行文件，保留现有配置文件'
+        ];
+      }
+      return [
+        `注册 ${this.friendlyServiceLabel} 到当前系统`,
+        '准备托管运行所需的受管配置与数据目录',
+        '允许后台自启动和本地控制面板协同工作'
+      ];
+    },
+    systemServiceConfirmButtonLabel() {
+      if (this.systemServiceConfirmAction === 'uninstall') {
+        return this.serviceActionLoading ? '卸载中...' : '确认卸载';
+      }
+      return this.serviceActionLoading ? '注册中...' : '确认注册';
     }
   },
   mounted() {
@@ -593,6 +730,27 @@ export default {
       this.systemServiceError = '';
       this.systemServiceMessage = '';
     },
+    openSystemServiceConfirm(action) {
+      if (this.serviceActionLoading) {
+        return;
+      }
+      this.systemServiceConfirmAction = action === 'uninstall' ? 'uninstall' : 'install';
+      this.showSystemServiceConfirm = true;
+    },
+    closeSystemServiceConfirm() {
+      if (this.serviceActionLoading) {
+        return;
+      }
+      this.showSystemServiceConfirm = false;
+      this.systemServiceConfirmAction = '';
+    },
+    async confirmSystemServiceAction() {
+      if (this.systemServiceConfirmAction === 'uninstall') {
+        await this.uninstallSystemService();
+        return;
+      }
+      await this.registerSystemService();
+    },
     async registerSystemService() {
       this.clearSystemServiceMessages();
       this.serviceActionLoading = true;
@@ -603,6 +761,8 @@ export default {
         });
         this.systemServiceInfo = result && typeof result === 'object' ? result : this.systemServiceInfo;
         this.systemServiceMessage = this.systemServiceInfo.message || 'System service registered successfully.';
+        this.showSystemServiceConfirm = false;
+        this.systemServiceConfirmAction = '';
       } catch (err) {
         this.systemServiceError = err instanceof Error ? err.message : 'Failed to register system service.';
       } finally {
@@ -611,13 +771,6 @@ export default {
       }
     },
     async uninstallSystemService() {
-      if (!confirm('确定要卸载系统服务吗？\n这会移除后台自启动能力。')) {
-        return;
-      }
-      if (!confirm('请再次确认：卸载后系统重启将不会自动启动 Aliang 服务。是否继续？')) {
-        return;
-      }
-
       this.clearSystemServiceMessages();
       this.serviceActionLoading = true;
       this.serviceAction = 'uninstall';
@@ -627,6 +780,8 @@ export default {
         });
         this.systemServiceInfo = result && typeof result === 'object' ? result : this.systemServiceInfo;
         this.systemServiceMessage = this.systemServiceInfo.message || 'System service uninstalled successfully.';
+        this.showSystemServiceConfirm = false;
+        this.systemServiceConfirmAction = '';
       } catch (err) {
         this.systemServiceError = err instanceof Error ? err.message : 'Failed to uninstall system service.';
       } finally {

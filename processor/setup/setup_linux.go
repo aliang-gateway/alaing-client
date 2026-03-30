@@ -142,14 +142,21 @@ func (l *LinuxServiceManager) Uninstall() error {
 		return ErrServiceNotInstalled
 	}
 
+	status, err := l.Status()
+	if err != nil {
+		return fmt.Errorf("failed to inspect systemd service status before uninstall: %w", err)
+	}
+
 	// 停止服务
-	if err := l.systemctlStop(); err != nil {
-		logger.Warn("Failed to stop service", "error", err)
+	if status.IsRunning {
+		if err := l.systemctlStop(); err != nil {
+			return fmt.Errorf("failed to stop service before uninstall: %w", err)
+		}
 	}
 
 	// 禁用服务
 	if err := l.systemctlDisable(); err != nil {
-		logger.Warn("Failed to disable service", "error", err)
+		return fmt.Errorf("failed to disable service before uninstall: %w", err)
 	}
 
 	// 删除 unit 文件
@@ -159,7 +166,7 @@ func (l *LinuxServiceManager) Uninstall() error {
 
 	// 重新加载 systemd
 	if err := l.systemctlReload(); err != nil {
-		logger.Warn("Failed to reload systemd", "error", err)
+		return fmt.Errorf("failed to reload systemd after uninstall: %w", err)
 	}
 
 	logger.Info("Service uninstalled successfully")

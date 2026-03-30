@@ -3,11 +3,11 @@ package handlers
 import (
 	"fmt"
 	"net/http"
-	"os"
 	"path/filepath"
 
 	"nursor.org/nursorgate/app/http/common"
 	"nursor.org/nursorgate/app/http/services"
+	"nursor.org/nursorgate/common/cache"
 	"nursor.org/nursorgate/common/logger"
 	cert_config "nursor.org/nursorgate/processor/cert"
 	"nursor.org/nursorgate/processor/cert/generator"
@@ -264,14 +264,14 @@ func (ch *CertHandler) HandleGenerateCert(w http.ResponseWriter, r *http.Request
 	}
 
 	// Determine export path
-	homeDir, err := os.UserHomeDir()
+	certDir, err := cache.GetCacheDir()
 	if err != nil {
-		logger.Error(fmt.Sprintf("Failed to get user home directory: %v", err))
-		common.Error(w, common.CodeInternalServer, "Failed to get home directory", nil)
+		logger.Error(fmt.Sprintf("Failed to resolve certificate directory: %v", err))
+		common.Error(w, common.CodeInternalServer, "Failed to resolve certificate directory", nil)
 		return
 	}
 
-	exportPath := filepath.Join(homeDir, ".aliang", config.FileName+".pem")
+	exportPath := filepath.Join(certDir, config.FileName+".pem")
 
 	// Generate certificate
 	if err := generator.GenerateCertificateFromConfig(config, exportPath); err != nil {

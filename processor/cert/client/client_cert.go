@@ -17,6 +17,7 @@ import (
 	"sync"
 	"time"
 
+	"nursor.org/nursorgate/common/cache"
 	"nursor.org/nursorgate/common/logger"
 	"nursor.org/nursorgate/processor/cert/generator"
 
@@ -32,11 +33,11 @@ var mu sync.RWMutex
 
 // GetCertDir returns the certificate directory path
 func GetCertDir() (string, error) {
-	homeDir, err := os.UserHomeDir()
+	certDir, err := cache.GetCacheDir()
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(homeDir, ".aliang"), nil
+	return certDir, nil
 }
 
 // LoadMitmCACertificate loads the MITM CA certificate from filesystem

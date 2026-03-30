@@ -117,7 +117,7 @@ func (w *WindowsServiceManager) Uninstall() error {
 	status, err := s.Query()
 	if err == nil && status.State != svc.Stopped {
 		if _, err := s.Control(svc.Stop); err != nil {
-			logger.Warn("Failed to stop service", "error", err)
+			return fmt.Errorf("failed to stop service before uninstall: %w", err)
 		}
 	}
 

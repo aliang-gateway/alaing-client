@@ -128,10 +128,16 @@ func (d *DarwinServiceManager) Uninstall() error {
 		return ErrServiceNotInstalled
 	}
 
-	// 停止服务
-	if err := d.unload(); err != nil {
-		logger.Warn("Failed to unload service", "error", err)
-		// 继续尝试删除文件
+	status, err := d.Status()
+	if err != nil {
+		return fmt.Errorf("failed to inspect launchd service status before uninstall: %w", err)
+	}
+
+	// 仅当服务已加载/运行时卸载，避免未加载时误报
+	if status.Status == "running" || status.Status == "loaded" {
+		if err := d.unload(); err != nil {
+			return fmt.Errorf("failed to unload service before uninstall: %w", err)
+		}
 	}
 
 	// 删除 plist 文件
