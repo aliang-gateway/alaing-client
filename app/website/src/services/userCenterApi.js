@@ -1,3 +1,5 @@
+import { clearChatIdentityProfileCache, persistChatIdentityProfile } from '../utils/chatIdentityCache';
+
 function extractEnvelope(json) {
   const payload = json && typeof json === 'object' ? json : {};
   const data = payload?.data && typeof payload.data === 'object' ? payload.data : {};
@@ -31,17 +33,36 @@ async function request(path, options = {}) {
   return envelope;
 }
 
+function syncChatIdentityCache(envelope) {
+  if (!envelope || typeof envelope !== 'object') {
+    return;
+  }
+
+  if (envelope.status === 'success' && envelope.data && typeof envelope.data === 'object') {
+    persistChatIdentityProfile(envelope.data);
+    return;
+  }
+
+  if (envelope.status === 'unauthenticated') {
+    clearChatIdentityProfileCache();
+  }
+}
+
 export async function getUserCenterProfile() {
-  return request('/api/user-center/profile', {
+  const envelope = await request('/api/user-center/profile', {
     method: 'GET'
   });
+  syncChatIdentityCache(envelope);
+  return envelope;
 }
 
 export async function updateUserCenterProfile(username) {
-  return request('/api/user-center/profile', {
+  const envelope = await request('/api/user-center/profile', {
     method: 'PUT',
     body: JSON.stringify({ username })
   });
+  syncChatIdentityCache(envelope);
+  return envelope;
 }
 
 export async function getUserCenterUsageSummary() {

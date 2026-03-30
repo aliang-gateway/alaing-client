@@ -738,6 +738,403 @@
     * ----------------------------------------------------------
     */
 
+    class SBPusherProtocolMembers {
+        constructor(payload = {}) {
+            payload = payload && typeof payload == 'object' ? payload : {};
+            let presence = payload.presence && typeof payload.presence == 'object' ? payload.presence : {};
+            let hash = presence.hash && typeof presence.hash == 'object' ? presence.hash : {};
+            this.members = {};
+            for (var id in hash) {
+                this.members[id] = {
+                    id: id,
+                    info: hash[id] && typeof hash[id] == 'object' ? hash[id] : {}
+                };
+            }
+            this.count = typeof presence.count == 'number' ? presence.count : Object.keys(this.members).length;
+        }
+
+        each(callback) {
+            if (typeof callback != 'function') {
+                return;
+            }
+            for (var id in this.members) {
+                callback(this.members[id]);
+            }
+        }
+    }
+
+    class SBPusherProtocolChannel {
+        constructor(client, name) {
+            this.client = client;
+            this.name = name;
+            this.callbacks = {};
+            this.members = null;
+            this.subscribed = false;
+            this.subscribing = false;
+        }
+
+        bind(event, callback) {
+            if (!(event in this.callbacks)) {
+                this.callbacks[event] = [];
+            }
+            this.callbacks[event].push(callback);
+            return this;
+        }
+
+        unbind(event, callback = false) {
+            if (!(event in this.callbacks)) {
+                return this;
+            }
+            if (!callback) {
+                this.callbacks[event] = [];
+                return this;
+            }
+            this.callbacks[event] = this.callbacks[event].filter((item) => item !== callback);
+            return this;
+        }
+
+        emit(event, data) {
+            let callbacks = event in this.callbacks ? this.callbacks[event].slice() : [];
+            for (var i = 0; i < callbacks.length; i++) {
+                try {
+                    callbacks[i](data);
+                } catch (error) {
+                    console.warn('Support Board: pusher channel callback failed.', error);
+                }
+            }
+        }
+
+        trigger(event, data = {}) {
+            return this.client.trigger(this.name, event, data);
+        }
+
+        unsubscribe() {
+            this.client.unsubscribe(this.name);
+        }
+
+        isPresence() {
+            return this.name.indexOf('presence-') === 0;
+        }
+
+        requiresAuth() {
+            return this.name.indexOf('private-') === 0 || this.isPresence();
+        }
+
+        subscriptionSucceeded(data) {
+            this.subscribed = true;
+            this.subscribing = false;
+            if (this.isPresence()) {
+                this.members = new SBPusherProtocolMembers(data);
+                this.emit('pusher:subscription_succeeded', this.members);
+            } else {
+                this.emit('pusher:subscription_succeeded', data);
+            }
+        }
+
+        subscriptionError(error) {
+            this.subscribing = false;
+            this.emit('pusher:subscription_error', error);
+        }
+
+        memberAdded(data) {
+            let member = {
+                id: data && typeof data == 'object' && 'user_id' in data ? data.user_id : '',
+                info: data && typeof data == 'object' && data.user_info && typeof data.user_info == 'object' ? data.user_info : {}
+            };
+            if (this.members && member.id !== '') {
+                this.members.members[member.id] = member;
+                this.members.count = Object.keys(this.members.members).length;
+            }
+            this.emit('pusher:member_added', member);
+        }
+
+        memberRemoved(data) {
+            let member = {
+                id: data && typeof data == 'object' && 'user_id' in data ? data.user_id : '',
+                info: {}
+            };
+            if (this.members && member.id in this.members.members) {
+                delete this.members.members[member.id];
+                this.members.count = Object.keys(this.members.members).length;
+            }
+            this.emit('pusher:member_removed', member);
+        }
+    }
+
+    class SBPusherProtocolClient {
+        constructor(key, options = {}) {
+            this.key = key;
+            this.options = options && typeof options == 'object' ? options : {};
+            this.channels = {};
+            this.socket = false;
+            this.socket_id = '';
+            this.ready = false;
+            this.manual_close = false;
+            this.reconnect_attempts = 0;
+            this.activity_timeout = 120000;
+            this.activity_timer = false;
+            this.ready_callbacks = [];
+            this.connect();
+        }
+
+        onReady(callback) {
+            if (typeof callback != 'function') {
+                return;
+            }
+            if (this.ready && this.socket_id) {
+                callback();
+                return;
+            }
+            this.ready_callbacks.push(callback);
+        }
+
+        buildURL() {
+            let force_tls = !!this.options.forceTLS;
+            let protocol = force_tls ? 'wss' : 'ws';
+            let cluster = this.options.cluster ? this.options.cluster : 'mt1';
+            let host = this.options.wsHost ? this.options.wsHost : `ws-${cluster}.pusher.com`;
+            let port = force_tls ? (this.options.wssPort || 443) : (this.options.wsPort || 80);
+            return `${protocol}://${host}:${port}/app/${encodeURIComponent(this.key)}?protocol=7&client=aliang-web&version=${encodeURIComponent(version)}`;
+        }
+
+        connect() {
+            if (typeof WebSocket == ND) {
+                console.warn('Support Board: WebSocket is not available in this browser.');
+                return;
+            }
+            this.manual_close = false;
+            try {
+                this.socket = new WebSocket(this.buildURL());
+            } catch (error) {
+                console.warn('Support Board: failed to initialize Pusher websocket.', error);
+                this.scheduleReconnect();
+                return;
+            }
+
+            this.socket.onmessage = (event) => {
+                this.handleMessage(event.data);
+            };
+
+            this.socket.onclose = () => {
+                this.ready = false;
+                this.socket_id = '';
+                this.stopActivityTimer();
+                for (var name in this.channels) {
+                    this.channels[name].subscribed = false;
+                    this.channels[name].subscribing = false;
+                }
+                if (!this.manual_close) {
+                    this.scheduleReconnect();
+                }
+            };
+
+            this.socket.onerror = (error) => {
+                console.warn('Support Board: Pusher websocket transport error.', error);
+            };
+        }
+
+        scheduleReconnect() {
+            let delay = Math.min(1000 * Math.max(this.reconnect_attempts + 1, 1), 5000);
+            this.reconnect_attempts++;
+            setTimeout(() => {
+                if (!this.manual_close) {
+                    this.connect();
+                }
+            }, delay);
+        }
+
+        flushReadyCallbacks() {
+            let callbacks = this.ready_callbacks.slice();
+            this.ready_callbacks = [];
+            for (var i = 0; i < callbacks.length; i++) {
+                try {
+                    callbacks[i]();
+                } catch (error) {
+                    console.warn('Support Board: Pusher ready callback failed.', error);
+                }
+            }
+        }
+
+        stopActivityTimer() {
+            if (this.activity_timer) {
+                clearTimeout(this.activity_timer);
+                this.activity_timer = false;
+            }
+        }
+
+        resetActivityTimer() {
+            this.stopActivityTimer();
+            this.activity_timer = setTimeout(() => {
+                this.send('pusher:ping', {});
+            }, this.activity_timeout);
+        }
+
+        parseData(data) {
+            if (typeof data != 'string') {
+                return data;
+            }
+            try {
+                return JSON.parse(data);
+            } catch (error) {
+                return data;
+            }
+        }
+
+        handleMessage(raw) {
+            let payload = this.parseData(raw);
+            if (!payload || typeof payload != 'object') {
+                return;
+            }
+            this.resetActivityTimer();
+
+            let event = payload.event;
+            let data = this.parseData(payload.data);
+            let channel_name = payload.channel;
+
+            if (event == 'pusher:connection_established') {
+                this.ready = true;
+                this.reconnect_attempts = 0;
+                this.socket_id = data && typeof data == 'object' && data.socket_id ? data.socket_id : '';
+                if (data && typeof data == 'object' && data.activity_timeout) {
+                    this.activity_timeout = Number(data.activity_timeout) * 1000;
+                }
+                this.flushReadyCallbacks();
+                for (var name in this.channels) {
+                    this.subscribe(name);
+                }
+                return;
+            }
+
+            if (event == 'pusher:ping') {
+                this.send('pusher:pong', {});
+                return;
+            }
+
+            if (event == 'pusher:pong') {
+                return;
+            }
+
+            let channel = channel_name && channel_name in this.channels ? this.channels[channel_name] : false;
+            if (channel) {
+                switch (event) {
+                    case 'pusher_internal:subscription_succeeded':
+                        channel.subscriptionSucceeded(data);
+                        return;
+                    case 'pusher_internal:member_added':
+                        channel.memberAdded(data);
+                        return;
+                    case 'pusher_internal:member_removed':
+                        channel.memberRemoved(data);
+                        return;
+                    case 'pusher:error':
+                        channel.subscriptionError(data);
+                        return;
+                    default:
+                        channel.emit(event, data);
+                        return;
+                }
+            }
+        }
+
+        send(event, data = {}, channel = false) {
+            if (!this.socket || this.socket.readyState !== WebSocket.OPEN) {
+                return false;
+            }
+            let payload = {
+                event: event,
+                data: typeof data == 'string' ? data : JSON.stringify(data)
+            };
+            if (channel) {
+                payload.channel = channel;
+            }
+            this.socket.send(JSON.stringify(payload));
+            return true;
+        }
+
+        authorize(channel) {
+            let endpoint = this.options.authEndpoint;
+            let params = $.extend({}, this.options.auth && this.options.auth.params ? this.options.auth.params : {}, {
+                socket_id: this.socket_id,
+                channel_name: channel
+            });
+
+            return new Promise((resolve, reject) => {
+                $.ajax({
+                    method: 'POST',
+                    url: endpoint,
+                    data: params
+                }).done((response) => {
+                    let parsed = response;
+                    if (typeof parsed == 'string') {
+                        try {
+                            parsed = JSON.parse(parsed);
+                        } catch (error) {
+                            reject({ type: 'auth', error: 'invalid_auth_response', response: response });
+                            return;
+                        }
+                    }
+                    resolve(parsed && typeof parsed == 'object' ? parsed : {});
+                }).fail((xhr) => {
+                    reject({
+                        type: 'auth',
+                        status: xhr && xhr.status ? xhr.status : 0,
+                        response: xhr && xhr.responseText ? xhr.responseText : ''
+                    });
+                });
+            });
+        }
+
+        subscribe(channel_name) {
+            if (!(channel_name in this.channels)) {
+                this.channels[channel_name] = new SBPusherProtocolChannel(this, channel_name);
+            }
+            let channel = this.channels[channel_name];
+            if (!this.ready || !this.socket_id || channel.subscribed || channel.subscribing) {
+                return channel;
+            }
+
+            channel.subscribing = true;
+            let subscribe_now = (auth_response = {}) => {
+                let data = { channel: channel_name };
+                if (auth_response && typeof auth_response == 'object') {
+                    if (auth_response.auth) {
+                        data.auth = auth_response.auth;
+                    }
+                    if (auth_response.channel_data) {
+                        data.channel_data = typeof auth_response.channel_data == 'string' ? auth_response.channel_data : JSON.stringify(auth_response.channel_data);
+                    }
+                }
+                this.send('pusher:subscribe', data);
+            };
+
+            if (channel.requiresAuth()) {
+                this.authorize(channel_name).then((auth_response) => {
+                    subscribe_now(auth_response);
+                }).catch((error) => {
+                    channel.subscriptionError(error);
+                });
+            } else {
+                subscribe_now();
+            }
+
+            return channel;
+        }
+
+        unsubscribe(channel_name) {
+            if (channel_name in this.channels) {
+                this.send('pusher:unsubscribe', { channel: channel_name });
+                delete this.channels[channel_name];
+            }
+        }
+
+        trigger(channel_name, event, data = {}) {
+            if (event.indexOf('client-') !== 0) {
+                return false;
+            }
+            return this.send(event, data, channel_name);
+        }
+    }
+
     var SBPusher = {
         channels: {},
         channels_presence: [],
@@ -752,28 +1149,47 @@
 
         // Initialize Pusher
         init: function (onSuccess = false) {
-            if (SBPusher.active) {
-                if (this.pusher) {
-                    return onSuccess ? onSuccess() : true;
-                } else if (onSuccess) {
-                    $(window).one('SBPusherInit', () => {
-                        onSuccess();
-                    });
-                } else return;
-                this.initialized = true;
-                $.getScript('https://js.pusher.com/7.0/pusher.min.js', () => {
-                    this.pusher = new Pusher(admin ? SB_ADMIN_SETTINGS['pusher-key'] : CHAT_SETTINGS['pusher-key'], {
-                        cluster: admin ? SB_ADMIN_SETTINGS['pusher-cluster'] : CHAT_SETTINGS['pusher-cluster'],
-                        wsHost: admin ? SB_ADMIN_SETTINGS['pusher-host'] : CHAT_SETTINGS['pusher-host'],
-                        wsPort: admin ? SB_ADMIN_SETTINGS['pusher-ws-port'] : CHAT_SETTINGS['pusher-ws-port'],
-                        forceTLS: (admin ? SB_ADMIN_SETTINGS['pusher-scheme'] : CHAT_SETTINGS['pusher-scheme']) === 'https',
-                        enabledTransports: ['ws', 'wss'],
-                        authEndpoint: SB_URL + '/include/pusher.php',
-                        auth: { params: { login: SBF.loginCookie() } }
-                    });
-                    SBF.event('SBPusherInit');
+            if (!SBPusher.active) {
+                return false;
+            }
+
+            if (this.pusher) {
+                if (onSuccess) {
+                    this.pusher.onReady(onSuccess);
+                }
+                return true;
+            }
+
+            if (onSuccess) {
+                $(window).one('SBPusherInit', () => {
+                    this.pusher.onReady(onSuccess);
                 });
             }
+
+            if (this.initialized) {
+                return true;
+            }
+
+            this.initialized = true;
+            let host = admin ? SB_ADMIN_SETTINGS['pusher-host'] : CHAT_SETTINGS['pusher-host'];
+            let port = parseInt(admin ? SB_ADMIN_SETTINGS['pusher-ws-port'] : CHAT_SETTINGS['pusher-ws-port']);
+            let scheme = admin ? SB_ADMIN_SETTINGS['pusher-scheme'] : CHAT_SETTINGS['pusher-scheme'];
+            let options = {
+                cluster: admin ? SB_ADMIN_SETTINGS['pusher-cluster'] : CHAT_SETTINGS['pusher-cluster'],
+                authEndpoint: SB_URL + '/include/pusher.php',
+                auth: { params: { login: SBF.loginCookie() } },
+                forceTLS: scheme === 'https'
+            };
+            if (host) {
+                options.wsHost = host;
+            }
+            if (!isNaN(port)) {
+                options.wsPort = port;
+                options.wssPort = port;
+            }
+            this.pusher = new SBPusherProtocolClient(admin ? SB_ADMIN_SETTINGS['pusher-key'] : CHAT_SETTINGS['pusher-key'], options);
+            SBF.event('SBPusherInit');
+            return true;
         },
 
         // Initialize Push notifications
@@ -1123,6 +1539,9 @@
     const SB_IDENTITY_FETCH_TIMEOUT_MS = 2500;
     const SB_IDENTITY_FETCH_MAX_RETRIES = 2;
     const SB_IDENTITY_NON_RETRY_STATUS = [401, 403, 404];
+    const SB_SHARED_IDENTITY_STORAGE_KEY = 'aliang.user-center.profile.v1';
+    const SB_SHARED_IDENTITY_EVENT_NAME = 'aliang:chat-identity-updated';
+    const SB_SHARED_IDENTITY_CACHE_TTL = 7 * 24 * 60 * 60 * 1000;
     let sbIdentityCache = { expiresAt: 0, identity: false };
     let sbIdentityGate = { checked: false, allowed: false, promise: false };
 
@@ -1141,6 +1560,100 @@
             trust_level: 'forwarded_unverified',
             source: SB_IDENTITY_API_URL
         });
+    }
+
+    function sbDispatchSharedIdentityEvent(profile = null) {
+        if (typeof window == ND || typeof window.dispatchEvent != 'function' || typeof CustomEvent == ND) {
+            return;
+        }
+        try {
+            window.dispatchEvent(new CustomEvent(SB_SHARED_IDENTITY_EVENT_NAME, {
+                detail: profile ? { profile: profile } : { profile: null }
+            }));
+        } catch (e) { }
+    }
+
+    function sbSharedIdentityProfile(raw = {}) {
+        raw = raw && typeof raw == 'object' ? raw : {};
+        return raw.profile && typeof raw.profile == 'object' ? raw.profile : raw;
+    }
+
+    function sbSharedIdentityToContract(raw = {}) {
+        let profile = sbSharedIdentityProfile(raw);
+        let saved_at = 'saved_at' in profile && !isNaN(Number(profile.saved_at)) ? Number(profile.saved_at) : Date.now();
+        if ((Date.now() - saved_at) > SB_SHARED_IDENTITY_CACHE_TTL) {
+            return false;
+        }
+        let identity = sbBuildIdentityPayloadContract({
+            id: 'id' in profile ? profile.id : '',
+            email: 'email' in profile ? profile.email : '',
+            username: 'username' in profile ? profile.username : '',
+            role: 'role' in profile ? profile.role : '',
+            account_status: 'account_status' in profile && !SBF.null(profile.account_status) ? profile.account_status : ('status' in profile ? profile.status : ''),
+            status: 'status' in profile && !SBF.null(profile.status) ? profile.status : 'resolved',
+            trust_level: 'trust_level' in profile && !SBF.null(profile.trust_level) ? profile.trust_level : 'profile_frontend_cached',
+            source: 'source' in profile && !SBF.null(profile.source) ? profile.source : `${SB_IDENTITY_API_URL}#browser-cache`
+        });
+        return sbIdentityHasUsableIdentity(identity) ? identity : false;
+    }
+
+    function sbReadSharedIdentityCache() {
+        try {
+            if (typeof localStorage == ND) {
+                return false;
+            }
+            let raw = localStorage.getItem(SB_SHARED_IDENTITY_STORAGE_KEY);
+            if (!raw) {
+                return false;
+            }
+            return sbSharedIdentityToContract(JSON.parse(raw));
+        } catch (e) {
+            return false;
+        }
+    }
+
+    function sbWriteSharedIdentityCache(identity = false) {
+        identity = sbBuildIdentityPayloadContract(identity || {});
+        if (!sbIdentityHasUsableIdentity(identity)) {
+            return false;
+        }
+        let profile = {
+            id: identity.id,
+            email: identity.email,
+            username: identity.username,
+            role: identity.role,
+            status: identity.account_status || identity.status,
+            account_status: identity.account_status || identity.status,
+            trust_level: identity.trust_level || SB_IDENTITY_TRUST_LEVEL,
+            source: identity.source || SB_IDENTITY_API_URL,
+            saved_at: Date.now()
+        };
+        try {
+            if (typeof localStorage == ND) {
+                return false;
+            }
+            localStorage.setItem(SB_SHARED_IDENTITY_STORAGE_KEY, JSON.stringify({
+                version: 1,
+                saved_at: profile.saved_at,
+                profile: profile
+            }));
+            sbDispatchSharedIdentityEvent(profile);
+            return true;
+        } catch (e) {
+            return false;
+        }
+    }
+
+    function sbHydrateIdentityFromSharedCache() {
+        let shared_identity = sbReadSharedIdentityCache();
+        if (!shared_identity) {
+            return false;
+        }
+        sbIdentityCache = {
+            expiresAt: Date.now() + SB_IDENTITY_CACHE_TTL,
+            identity: shared_identity
+        };
+        return shared_identity;
     }
 
     function sbMergePayloadIdentity(payload = {}, identity = {}) {
@@ -1585,12 +2098,14 @@
                         expiresAt: Date.now() + SB_IDENTITY_CACHE_TTL,
                         identity: normalized
                     };
+                    sbWriteSharedIdentityCache(normalized);
                     done(normalized);
                 }).catch((error) => {
                     let status = error && error.status ? error.status : 0;
                     let retryableError = (error && (error.type == 'network' || error.type == 'timeout')) || sbIdentityIsRetryableStatus(status);
                     if (SB_IDENTITY_NON_RETRY_STATUS.includes(status)) {
-                        done(sbIdentityFallback('unavailable'));
+                        let shared_identity = sbHydrateIdentityFromSharedCache();
+                        done(shared_identity ? shared_identity : sbIdentityFallback('unavailable'));
                         return;
                     }
                     if (retryableError && attempt < (maxAttempts - 1)) {
@@ -1599,7 +2114,8 @@
                         setTimeout(next, delay);
                         return;
                     }
-                    done(sbIdentityFallback('unavailable'));
+                    let shared_identity = sbHydrateIdentityFromSharedCache();
+                    done(shared_identity ? shared_identity : sbIdentityFallback('unavailable'));
                 });
             };
             next();
@@ -1608,10 +2124,40 @@
 
     function sbRefreshIdentityCache(forceRefresh = true) {
         if (!activeUser()) {
-            return Promise.resolve(sbIdentityFallback('unavailable'));
+            let shared_identity = sbHydrateIdentityFromSharedCache();
+            return Promise.resolve(shared_identity ? shared_identity : sbIdentityFallback('unavailable'));
         }
         return sbResolveApiUserIdentity(forceRefresh).catch(() => {
-            return sbIdentityFallback('unavailable');
+            let shared_identity = sbHydrateIdentityFromSharedCache();
+            return shared_identity ? shared_identity : sbIdentityFallback('unavailable');
+        });
+    }
+
+    if (typeof window != ND && typeof window.addEventListener == 'function') {
+        window.addEventListener(SB_SHARED_IDENTITY_EVENT_NAME, function (event) {
+            let detail = event && event.detail && typeof event.detail == 'object' ? event.detail : {};
+            let shared_identity = detail.profile ? sbSharedIdentityToContract(detail.profile) : sbHydrateIdentityFromSharedCache();
+            if (shared_identity) {
+                sbIdentityCache = {
+                    expiresAt: Date.now() + SB_IDENTITY_CACHE_TTL,
+                    identity: shared_identity
+                };
+                sbResetIdentityGate();
+            } else if (!detail.profile) {
+                sbInvalidateIdentityCache();
+            }
+        });
+
+        window.addEventListener('storage', function (event) {
+            if (!event || event.key != SB_SHARED_IDENTITY_STORAGE_KEY) {
+                return;
+            }
+            let shared_identity = sbHydrateIdentityFromSharedCache();
+            if (shared_identity) {
+                sbResetIdentityGate();
+            } else {
+                sbInvalidateIdentityCache();
+            }
         });
     }
 

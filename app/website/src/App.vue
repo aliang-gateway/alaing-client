@@ -25,17 +25,40 @@
 </template>
 
 <script setup>
-import { ref } from 'vue';
+import { ref, watch } from 'vue';
 import DashboardPage from './components/DashboardPage.vue';
 import SettingsPage from './components/SettingsPage.vue';
 import CertManagementModal from './components/CertManagementModal.vue';
 import QuickSetupModal from './components/QuickSetupModal.vue';
 import { useAuthStore } from './stores/auth';
+import { getUserCenterProfile } from './services/userCenterApi';
+import { clearChatIdentityProfileCache } from './utils/chatIdentityCache';
 
 const isQuickSetupOpen = ref(false);
 const isCertModalOpen = ref(false);
 const certModalRef = ref(null);
-const { isReady } = useAuthStore();
+const { isReady, isAuthenticated } = useAuthStore();
+
+async function syncChatIdentityProfile() {
+  if (!isReady.value) {
+    return;
+  }
+
+  if (!isAuthenticated.value) {
+    clearChatIdentityProfileCache();
+    return;
+  }
+
+  try {
+    await getUserCenterProfile();
+  } catch (_) {
+    // Keep the last successful browser cache available for chat fallback.
+  }
+}
+
+watch([isReady, isAuthenticated], () => {
+  void syncChatIdentityProfile();
+}, { immediate: true });
 </script>
 
 <style>
