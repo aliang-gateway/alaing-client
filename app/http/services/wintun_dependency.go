@@ -3,6 +3,7 @@ package services
 const (
 	wintunDownloadURL    = "https://www.wintun.net/builds/wintun-0.14.1.zip"
 	wintunMirrorURLX86   = "https://nursor-1305838434.cos.ap-chengdu.myqcloud.com/static/wintun/bin/x86/wintun.dll"
+	wintunMirrorURLAMD64 = "https://nursor-1305838434.cos.ap-chengdu.myqcloud.com/static/wintun/bin/amd64/wintun.dll"
 	wintunMirrorURLARM64 = "https://nursor-1305838434.cos.ap-chengdu.myqcloud.com/static/wintun/bin/arm64/wintun.dll"
 )
 

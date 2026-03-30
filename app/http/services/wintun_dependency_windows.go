@@ -434,7 +434,9 @@ func resolveWintunInstallTarget() (targetDir string, sourceSubdir string, err er
 
 func resolvePreferredWintunDownloadURL(goarch string) string {
 	switch goarch {
-	case "amd64", "386":
+	case "amd64":
+		return wintunMirrorURLAMD64
+	case "386":
 		return wintunMirrorURLX86
 	case "arm64":
 		return wintunMirrorURLARM64
