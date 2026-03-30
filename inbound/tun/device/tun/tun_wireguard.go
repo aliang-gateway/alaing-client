@@ -26,8 +26,6 @@ type TUN struct {
 	wMutex sync.Mutex
 }
 
-func SetCreateTUNAttemptHook(func(name string, attempt int, maxRetries int, err error)) {}
-
 func Open(name string, mtu uint32) (_ device.Device, err error) {
 	defer func() {
 		if r := recover(); r != nil {
