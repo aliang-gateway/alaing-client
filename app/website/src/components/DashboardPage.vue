@@ -722,6 +722,23 @@
             {{ tunStartModal.errorMessage }}
           </div>
 
+          <div v-if="tunStartModal.maxRetries > 0" class="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700 dark:border-slate-700 dark:bg-slate-800/50 dark:text-slate-200">
+            Retry Progress: {{ tunStartModal.retryCount || 0 }} / {{ tunStartModal.maxRetries }}
+          </div>
+
+          <div v-if="tunStartModal.errors.length > 0" class="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 dark:border-amber-500/30 dark:bg-amber-500/10">
+            <p class="text-sm font-semibold text-amber-800 dark:text-amber-200">Captured Errors</p>
+            <div class="mt-2 space-y-1">
+              <p
+                v-for="(item, index) in tunStartModal.errors"
+                :key="`${index}-${item}`"
+                class="text-xs leading-5 text-amber-700 dark:text-amber-100 break-all"
+              >
+                {{ item }}
+              </p>
+            </div>
+          </div>
+
           <div class="overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-700">
             <div class="flex items-center justify-between gap-3 border-b border-slate-200 bg-slate-50/80 px-4 py-3 dark:border-slate-700 dark:bg-slate-800/60">
               <div>
@@ -1413,37 +1430,30 @@ const tunStartupPhase = computed(() => {
   if (!tunStartModal.value.visible) {
     return 'idle';
   }
+  if (tunStartModal.value.status === 'success') {
+    return 'running';
+  }
+  if (tunStartModal.value.status === 'error') {
+    return 'error';
+  }
   if (tunStartModal.value.phase === 'installing_dependency') {
     return 'installing_dependency';
   }
   if (tunStartModal.value.phase === 'switching_mode') {
     return 'switching_mode';
   }
-  const logs = tunStartModal.value.logs;
-  const loweredMessages = logs.map((entry) => String(entry.message || '').toLowerCase());
-  const hasFailure = loweredMessages.some((message) =>
-    message.includes('failed') ||
-    message.includes('error') ||
-    message.includes('operation not permitted')
-  );
-  if (hasFailure || tunStartModal.value.status === 'error') {
-    return 'error';
-  }
-  const hasRunning = loweredMessages.some((message) =>
-    message.includes('tun service is running') ||
-    message.includes('tun started') ||
-    message.includes('service started')
-  );
-  if (runIsRunning.value || tunStartModal.value.status === 'success' || hasRunning) {
-    return 'running';
-  }
-  const hasCreateTun = loweredMessages.some((message) =>
-    message.includes('starting tun service') ||
-    message.includes('create tun') ||
-    message.includes('tun 启动')
-  );
-  if (hasCreateTun) {
+  if ([
+    'monitoring_device',
+    'creating_tun',
+    'resolving_gateway',
+    'configuring_interface',
+    'waiting_device_ready',
+    'requesting_permission',
+  ].includes(tunStartModal.value.phase)) {
     return 'creating_tun';
+  }
+  if (tunStartModal.value.phase === 'configuring_routes') {
+    return 'finalizing_startup';
   }
   return 'requested';
 });
@@ -1474,6 +1484,8 @@ const tunStartupProgressPercent = computed(() => {
       return 18;
     case 'creating_tun':
       return 56;
+    case 'finalizing_startup':
+      return 88;
     case 'running':
       return 100;
     case 'error':
@@ -1483,9 +1495,88 @@ const tunStartupProgressPercent = computed(() => {
   }
 });
 
+function describeTunBackendPhase(phase, options = {}) {
+  const retryCount = Number(options.retryCount || 0);
+  const maxRetries = Number(options.maxRetries || 0);
+  const progressPercent = Number(options.progressPercent || 0);
+  const baseMessage = typeof options.message === 'string' ? options.message : '';
+
+  switch (phase) {
+    case 'requested':
+      return {
+        statusLabel: 'Start request accepted',
+        statusHint: 'The backend received the TUN startup request and is preparing the sequence.'
+      };
+    case 'monitoring_device':
+      return {
+        statusLabel: 'Preparing device monitor',
+        statusHint: 'The backend is attaching the TUN device observer before the adapter comes up.'
+      };
+    case 'creating_tun':
+      return {
+        statusLabel: maxRetries > 0
+          ? `Creating TUN device (${Math.max(retryCount, 1)}/${maxRetries})`
+          : 'Creating TUN device',
+        statusHint: baseMessage || 'The backend is asking the WireGuard/Wintun layer to create the virtual adapter.'
+      };
+    case 'resolving_gateway':
+      return {
+        statusLabel: 'Resolving default gateway',
+        statusHint: 'The backend is reading the current system gateway before rewriting TUN routes.'
+      };
+    case 'requesting_permission':
+      return {
+        statusLabel: 'Waiting for administrator approval',
+        statusHint: 'Windows is showing a UAC prompt. Approve it to continue creating and configuring the virtual adapter.'
+      };
+    case 'configuring_interface':
+      return {
+        statusLabel: 'Configuring virtual adapter',
+        statusHint: 'The backend is assigning the TUN interface address, metric, and adapter state.'
+      };
+    case 'waiting_device_ready':
+      return {
+        statusLabel: 'Waiting for virtual adapter readiness',
+        statusHint: 'The virtual adapter exists, and the backend is waiting for Windows to report it as ready.'
+      };
+    case 'configuring_routes':
+      return {
+        statusLabel: 'Configuring TUN routes',
+        statusHint: 'The backend is rewriting system routes so traffic starts flowing through the new TUN adapter.'
+      };
+    case 'running':
+      return {
+        statusLabel: 'TUN startup complete',
+        statusHint: baseMessage || 'The TUN engine is running and ready to proxy traffic.'
+      };
+    case 'failed':
+      return {
+        statusLabel: maxRetries > 0 ? `TUN startup failed after ${retryCount}/${maxRetries} attempts` : 'TUN startup failed',
+        statusHint: baseMessage || 'Review the captured errors and logs below for the exact failure point.'
+      };
+    default:
+      return {
+        statusLabel: progressPercent > 0 ? `TUN startup ${progressPercent}%` : 'Starting TUN proxy...',
+        statusHint: baseMessage || 'We are following backend startup progress and collecting fresh logs for this attempt.'
+      };
+  }
+}
+
 const tunStartupSteps = computed(() => {
   const phase = tunStartupPhase.value;
   const isError = tunStartModal.value.status === 'error';
+  const createStepDescription = tunStartModal.value.phase === 'requesting_permission'
+    ? 'Windows is asking for administrator approval so the backend can finish creating and configuring the virtual adapter.'
+    : tunStartModal.value.phase === 'waiting_device_ready'
+      ? 'The backend already created the virtual adapter and is waiting for Windows to report it as ready.'
+      : tunStartModal.value.phase === 'configuring_interface'
+        ? 'The backend is assigning interface addresses and metrics on the freshly created virtual adapter.'
+        : tunStartModal.value.phase === 'resolving_gateway'
+          ? 'The backend is resolving the current default gateway before it can safely switch traffic into the TUN path.'
+          : 'The backend is creating the TUN interface and asking the OS for network privileges.';
+  const finalizeDescription = tunStartModal.value.phase === 'configuring_routes'
+    ? 'The backend is applying route changes so packets begin traversing the TUN interface.'
+    : 'The proxy waits for the engine to come up and confirms the service is ready to route traffic.';
   if (phase === 'installing_dependency' || phase === 'switching_mode') {
     const installDone = phase !== 'installing_dependency';
     const switchActive = phase === 'switching_mode';
@@ -1514,28 +1605,32 @@ const tunStartupSteps = computed(() => {
     ];
   }
   return [
-    {
-      key: 'request',
-      icon: phase === 'requested' ? 'hourglass_top' : 'play_circle',
-      label: 'Start Requested',
-      description: 'The dashboard has sent a TUN startup request to the backend.',
-      state: isError || phase === 'running' || phase === 'creating_tun' ? 'done' : phase === 'requested' ? 'active' : 'pending'
-    },
-    {
-      key: 'create',
-      icon: isError && phase === 'error' ? 'error' : 'router',
-      label: 'Create TUN Device',
-      description: 'The backend is creating the TUN interface and asking the OS for network privileges.',
-      state: isError ? 'error' : phase === 'running' ? 'done' : phase === 'creating_tun' ? 'active' : 'pending'
-    },
-    {
-      key: 'ready',
-      icon: isError ? 'error' : 'verified',
-      label: 'Finalize Startup',
-      description: 'The proxy waits for the engine to come up and confirms the service is ready to route traffic.',
-      state: isError ? 'error' : phase === 'running' ? 'done' : 'pending'
-    }
-  ];
+      {
+        key: 'request',
+        icon: 'play_circle',
+        label: 'Start Requested',
+        description: 'The dashboard has sent a TUN startup request to the backend.',
+        state: phase === 'requested' ? 'active' : (phase === 'creating_tun' || phase === 'finalizing_startup' || phase === 'running' || isError ? 'done' : 'pending')
+      },
+      {
+        key: 'create',
+        icon: 'router',
+        label: 'Create TUN Device',
+        description: createStepDescription,
+        state: phase === 'creating_tun'
+          ? (isError ? 'error' : 'active')
+          : (phase === 'finalizing_startup' || phase === 'running' ? 'done' : (isError ? 'error' : 'pending'))
+      },
+      {
+        key: 'ready',
+        icon: 'verified',
+        label: 'Finalize Startup',
+        description: finalizeDescription,
+        state: phase === 'finalizing_startup'
+          ? (isError ? 'error' : 'active')
+          : (phase === 'running' ? 'done' : (isError && tunStartModal.value.phase === 'configuring_routes' ? 'error' : 'pending'))
+      }
+    ];
 });
 
 async function toggleProxyPower() {
@@ -1577,9 +1672,6 @@ async function toggleProxyPower() {
     runActionMessage.value = runIsRunning.value ? 'Proxy stopped successfully.' : 'Proxy start request sent successfully.';
     await syncStartupStatus();
     await syncRunStatus();
-    if (startingTun) {
-      markTunStartModalSuccess(data?.message || data?.details || 'TUN service started successfully.');
-    }
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Proxy action failed';
     runSyncError.value = message;
@@ -1763,7 +1855,10 @@ function createTunStartModalState() {
     logs: [],
     startedAtMs: 0,
     progressPercent: null,
-    permissionRequired: false
+    permissionRequired: false,
+    errors: [],
+    retryCount: 0,
+    maxRetries: 0
   };
 }
 
@@ -1777,7 +1872,10 @@ function openTunStartModal(overrides = {}) {
     installState: overrides.installState || 'idle',
     statusLabel: overrides.statusLabel || 'Starting TUN proxy...',
     statusHint: overrides.statusHint || 'We are following backend startup progress and collecting fresh logs for this attempt.',
-    startedAtMs: Date.now()
+    startedAtMs: Date.now(),
+    errors: Array.isArray(overrides.errors) ? overrides.errors : [],
+    retryCount: Number(overrides.retryCount || 0),
+    maxRetries: Number(overrides.maxRetries || 0)
   }
   loadTunStartLogs();
   startTunStartObservers();
@@ -1829,13 +1927,10 @@ function startTunStartObservers() {
   stopTunStartObservers();
   loadTunStartupBackendStatus();
   tunStartLogTimer = window.setInterval(loadTunStartLogs, 1200);
-  tunStartBackendTimer = window.setInterval(loadTunStartupBackendStatus, 800);
+  tunStartBackendTimer = window.setInterval(loadTunStartupBackendStatus, 250);
   tunStartStatusTimer = window.setInterval(async () => {
     try {
       await syncRunStatus();
-      if (tunStartModal.value.visible && tunStartModal.value.status === 'starting' && runIsRunning.value) {
-        markTunStartModalSuccess('The service switched to running state.');
-      }
     } catch {
       // Keep polling logs so the modal can still show backend progress or failure details.
     }
@@ -1905,16 +2000,25 @@ async function loadTunStartupBackendStatus() {
     }
 
     const data = payload?.data || {};
+    const phaseCopy = describeTunBackendPhase(typeof data.phase === 'string' ? data.phase : tunStartModal.value.phase, {
+      retryCount: Number(data.retry_count || 0),
+      maxRetries: Number(data.max_retries || 0),
+      progressPercent: Number(data.progress_percent || 0),
+      message: typeof data.message === 'string' ? data.message : ''
+    });
     updateTunStartModal({
       phase: typeof data.phase === 'string' && data.phase ? data.phase : tunStartModal.value.phase,
       progressPercent: Number.isFinite(Number(data.progress_percent)) ? Number(data.progress_percent) : tunStartModal.value.progressPercent,
       permissionRequired: Boolean(data.permission_required),
-      statusLabel: typeof data.message === 'string' && data.message ? data.message : tunStartModal.value.statusLabel,
+      errors: Array.isArray(data.errors) ? data.errors : tunStartModal.value.errors,
+      retryCount: Number(data.retry_count || 0),
+      maxRetries: Number(data.max_retries || 0),
+      statusLabel: phaseCopy.statusLabel,
       statusHint: typeof data.error === 'string' && data.error
         ? data.error
         : (Boolean(data.permission_required)
           ? 'Windows is requesting administrator permission to continue TUN startup.'
-          : tunStartModal.value.statusHint)
+          : phaseCopy.statusHint)
     });
 
     if (data.status === 'success') {
@@ -1924,6 +2028,9 @@ async function loadTunStartupBackendStatus() {
 
     if (data.status === 'failed') {
       markTunStartModalError(typeof data.error === 'string' && data.error ? data.error : 'TUN startup failed.', {
+        errors: Array.isArray(data.errors) ? data.errors : tunStartModal.value.errors,
+        retryCount: Number(data.retry_count || tunStartModal.value.retryCount || 0),
+        maxRetries: Number(data.max_retries || tunStartModal.value.maxRetries || 0),
         statusHint: Boolean(data.permission_required)
           ? 'Administrator permission is required or was denied while creating the TUN adapter.'
           : 'Review the log lines below for the exact failure point.'

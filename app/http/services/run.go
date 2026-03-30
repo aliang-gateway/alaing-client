@@ -290,6 +290,9 @@ func GetTUNStartupStatus() map[string]interface{} {
 		"progress_percent":    progress.Progress,
 		"message":             progress.Message,
 		"error":               progress.Error,
+		"errors":              progress.Errors,
+		"retry_count":         progress.RetryCount,
+		"max_retries":         progress.MaxRetries,
 		"permission_required": progress.PermissionRequired,
 		"updated_at":          progress.UpdatedAt,
 	}

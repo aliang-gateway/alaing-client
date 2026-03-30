@@ -13,6 +13,12 @@ const (
 	defaultMTU = 0 /* auto */
 )
 
+var createTUNAttemptHook func(name string, attempt int, maxRetries int, err error)
+
+func SetCreateTUNAttemptHook(hook func(name string, attempt int, maxRetries int, err error)) {
+	createTUNAttemptHook = hook
+}
+
 func createTUN(name string, mtu int) (tun.Device, error) {
 	var device tun.Device
 	var err error
@@ -23,8 +29,15 @@ func createTUN(name string, mtu int) (tun.Device, error) {
 		// 尝试创建TUN设备
 		device, err = tun.CreateTUN(name, mtu)
 		if err == nil {
+			if createTUNAttemptHook != nil {
+				createTUNAttemptHook(name, i+1, maxRetries, nil)
+			}
 			logger.Info(fmt.Sprintf("成功创建TUN设备: %s", name))
 			return device, nil
+		}
+
+		if createTUNAttemptHook != nil {
+			createTUNAttemptHook(name, i+1, maxRetries, err)
 		}
 
 		// 记录错误

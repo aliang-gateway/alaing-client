@@ -8,6 +8,7 @@ import (
 
 	"go.uber.org/automaxprocs/maxprocs"
 	"nursor.org/nursorgate/common/logger"
+	tunDevice "nursor.org/nursorgate/inbound/tun/device/tun"
 	"nursor.org/nursorgate/inbound/tun/engine"
 	"nursor.org/nursorgate/processor/config"
 )
@@ -35,6 +36,17 @@ func Start() {
 	maxprocs.Set(maxprocs.Logger(func(string, ...any) {}))
 
 	defaultConfig = GetDefaultDeviceConfiguration()
+	tunDevice.SetCreateTUNAttemptHook(func(name string, attempt int, maxRetries int, err error) {
+		SetStartupRetryInfo(attempt, maxRetries)
+		if err != nil {
+			errMsg := fmt.Sprintf("Create TUN attempt %d/%d failed: %v", attempt, maxRetries, err)
+			AppendStartupError(errMsg)
+			UpdateStartupProgress("starting", "creating_tun", 25, fmt.Sprintf("Creating the virtual TUN adapter (attempt %d/%d).", attempt, maxRetries), errMsg, isPermissionLikeError(errMsg))
+			return
+		}
+		UpdateStartupProgress("starting", "creating_tun", 35, fmt.Sprintf("Virtual TUN adapter created after %d/%d attempt(s).", attempt, maxRetries), "", false)
+	})
+	defer tunDevice.SetCreateTUNAttemptHook(nil)
 
 	// 追踪启动状态
 	state := &StartupState{}
@@ -42,6 +54,7 @@ func Start() {
 	// 使用带回滚的启动流程
 	if err := startWithRollback(state); err != nil {
 		logger.Error(fmt.Sprintf("TUN 启动失败: %v", err))
+		AppendStartupError(err.Error())
 		FailStartupProgress(GetStartupProgress().Phase, err)
 		// 执行回滚
 		rollbackStartup(state)
@@ -71,6 +84,7 @@ func startWithRollback(state *StartupState) error {
 	UpdateStartupProgress("starting", "creating_tun", 25, "Creating the virtual TUN adapter.", "", false)
 	config.Insert(&defaultConfig)
 	if err := engine.Start(); err != nil {
+		AppendStartupError(fmt.Sprintf("engine 启动失败: %v", err))
 		return fmt.Errorf("engine 启动失败: %w", err)
 	}
 	state.engineStarted = true
@@ -84,6 +98,7 @@ func startWithRollback(state *StartupState) error {
 	UpdateStartupProgress("starting", "resolving_gateway", 45, "Resolving the current default gateway.", "", false)
 	_dfgw, err := GetDefaultGatewayForTUN()
 	if err != nil {
+		AppendStartupError(fmt.Sprintf("获取默认网关失败: %v", err))
 		return fmt.Errorf("获取默认网关失败: %w", err)
 	}
 	defaultGateway = _dfgw
@@ -91,6 +106,7 @@ func startWithRollback(state *StartupState) error {
 	// Step 4: 配置 TUN 接口
 	UpdateStartupProgress("starting", "configuring_interface", 60, "Configuring the virtual adapter interface.", "", false)
 	if err := ConfigureTunInterface(defaultConfig.Device); err != nil {
+		AppendStartupError(fmt.Sprintf("配置 TUN 接口失败: %v", err))
 		return fmt.Errorf("配置 TUN 接口失败: %w", err)
 	}
 	state.interfaceConfigured = true
@@ -98,12 +114,14 @@ func startWithRollback(state *StartupState) error {
 	// Step 5: 等待设备就绪（最多等待 10 秒）
 	UpdateStartupProgress("starting", "waiting_device_ready", 78, "Waiting for the virtual adapter to become ready.", "", false)
 	if err := waitForTunDeviceReady(defaultConfig.Device, 10*time.Second); err != nil {
+		AppendStartupError(fmt.Sprintf("等待 TUN 设备就绪失败: %v", err))
 		return fmt.Errorf("等待 TUN 设备就绪失败: %w", err)
 	}
 
 	// Step 6: 配置路由（最关键的步骤）
 	UpdateStartupProgress("starting", "configuring_routes", 90, "Configuring TUN routing rules.", "", false)
 	if err := ConfigureTunRoute(); err != nil {
+		AppendStartupError(fmt.Sprintf("配置 TUN 路由失败: %v", err))
 		return fmt.Errorf("配置 TUN 路由失败: %w", err)
 	}
 	state.routesConfigured = true
