@@ -8,20 +8,22 @@ import (
 	"io"
 	"net/http"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
 	"sync"
 	"time"
+	"unsafe"
 
+	"golang.org/x/sys/windows"
 	"nursor.org/nursorgate/common/logger"
 	"nursor.org/nursorgate/processor/setup"
 )
 
 const (
-	wintunArchiveName   = "wintun-0.14.1.zip"
-	wintunExtractedName = "wintun-0.14.1"
+	wintunArchiveName    = "wintun-0.14.1.zip"
+	wintunExtractedName  = "wintun-0.14.1"
+	wintunErrorCancelled = "uac_cancelled"
 )
 
 type windowsWintunDependencyController struct {
@@ -37,6 +39,7 @@ func newWintunDependencyController() wintunDependencyController {
 			Available:    false,
 			Installing:   false,
 			State:        "checking",
+			Progress:     5,
 			Message:      "Checking Windows Wintun dependency.",
 			Architecture: runtime.GOARCH,
 			DownloadURL:  wintunDownloadURL,
@@ -80,6 +83,8 @@ func (c *windowsWintunDependencyController) StartInstall() WintunDependencyStatu
 
 	c.state.Installing = true
 	c.state.State = "queued"
+	c.state.Progress = 10
+	c.state.ErrorCode = ""
 	c.state.Message = "Preparing Wintun dependency installation in the background."
 	c.state.Error = ""
 	c.state.UpdatedAt = time.Now().Unix()
@@ -103,7 +108,9 @@ func (c *windowsWintunDependencyController) install() {
 		c.state.Installing = false
 		c.state.Available = false
 		c.state.State = "failed"
+		c.state.Progress = progressForWintunState("failed")
 		c.state.Message = "Wintun dependency installation failed."
+		c.state.ErrorCode = classifyWintunInstallError(err)
 		c.state.Error = message
 		c.state.LastChecked = time.Now().Unix()
 		c.state.UpdatedAt = time.Now().Unix()
@@ -116,11 +123,15 @@ func (c *windowsWintunDependencyController) install() {
 	c.state.Installing = false
 	if c.state.Available {
 		c.state.State = "installed"
+		c.state.Progress = progressForWintunState("installed")
 		c.state.Message = "Wintun dependency is installed and ready for TUN mode."
+		c.state.ErrorCode = ""
 		c.state.Error = ""
 	} else {
 		c.state.State = "failed"
+		c.state.Progress = progressForWintunState("failed")
 		c.state.Message = "Wintun installation finished, but the DLL was not found in the Windows system directory."
+		c.state.ErrorCode = "verification_failed"
 		c.state.Error = "Wintun installation could not be verified after completion."
 	}
 	c.state.UpdatedAt = time.Now().Unix()
@@ -219,7 +230,9 @@ func (c *windowsWintunDependencyController) refreshLocked() {
 		c.state.Required = true
 		c.state.Available = true
 		c.state.State = "installed"
+		c.state.Progress = progressForWintunState("installed")
 		c.state.Message = "Wintun dependency is available for TUN mode."
+		c.state.ErrorCode = ""
 		c.state.Error = ""
 		c.state.InstallPath = installedPath
 		c.state.TargetPath = targetPath
@@ -235,7 +248,9 @@ func (c *windowsWintunDependencyController) refreshLocked() {
 	c.state.Available = false
 	if !c.state.Installing {
 		c.state.State = "missing"
+		c.state.Progress = progressForWintunState("missing")
 		c.state.Message = "Wintun dependency is missing. Install it before enabling TUN mode."
+		c.state.ErrorCode = ""
 		c.state.Error = ""
 	}
 	c.state.InstallPath = ""
@@ -254,13 +269,53 @@ func (c *windowsWintunDependencyController) updateProgress(state string, message
 	c.state.Installing = true
 	c.state.Available = false
 	c.state.State = state
+	c.state.Progress = progressForWintunState(state)
 	c.state.Message = message
+	if errMsg == "" {
+		c.state.ErrorCode = ""
+	} else {
+		c.state.ErrorCode = "install_failed"
+	}
 	c.state.Error = errMsg
 	c.state.InstallPath = installPath
 	c.state.TargetPath = targetPath
 	c.state.Architecture = runtime.GOARCH
 	c.state.DownloadURL = resolvePreferredWintunDownloadURL(runtime.GOARCH)
 	c.state.UpdatedAt = time.Now().Unix()
+}
+
+func progressForWintunState(state string) int {
+	switch state {
+	case "checking":
+		return 5
+	case "queued":
+		return 10
+	case "downloading":
+		return 30
+	case "extracting":
+		return 55
+	case "installing":
+		return 80
+	case "installed":
+		return 100
+	case "missing":
+		return 0
+	case "failed":
+		return 100
+	default:
+		return 0
+	}
+}
+
+func classifyWintunInstallError(err error) string {
+	if err == nil {
+		return ""
+	}
+	message := strings.ToLower(err.Error())
+	if strings.Contains(message, "administrator permission request was cancelled") {
+		return wintunErrorCancelled
+	}
+	return "install_failed"
 }
 
 func downloadFile(destination string, url string) error {
@@ -399,27 +454,100 @@ func installWintunDLL(source string, destination string) error {
 func copyFileElevated(source string, destination string) error {
 	sourceWin := strings.ReplaceAll(source, "/", "\\")
 	destinationWin := strings.ReplaceAll(destination, "/", "\\")
-
 	psArgs := fmt.Sprintf(
-		"-NoProfile -ExecutionPolicy Bypass -Command \"Copy-Item -Path '%s' -Destination '%s' -Force\"",
+		"-NoProfile -ExecutionPolicy Bypass -Command \"Copy-Item -LiteralPath '%s' -Destination '%s' -Force\"",
 		escapePowerShellSingleQuoted(sourceWin),
 		escapePowerShellSingleQuoted(destinationWin),
 	)
-	psCmd := fmt.Sprintf(
-		"Start-Process -FilePath powershell -Verb RunAs -Wait -ArgumentList %q",
-		psArgs,
-	)
 
-	cmd := exec.Command("powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", psCmd)
-	output, err := cmd.CombinedOutput()
+	exitCode, err := runElevatedHidden("powershell.exe", psArgs)
 	if err != nil {
-		return fmt.Errorf("elevated copy failed: %w: %s", err, strings.TrimSpace(string(output)))
+		return fmt.Errorf("elevated copy failed: %w", err)
+	}
+	if exitCode != 0 {
+		return fmt.Errorf("elevated copy exited with code %d", exitCode)
 	}
 	return nil
 }
 
 func escapePowerShellSingleQuoted(value string) string {
 	return strings.ReplaceAll(value, "'", "''")
+}
+
+const (
+	seeMaskNoCloseProcess = 0x00000040
+	swHide                = 0
+	errorCancelled        = 1223
+)
+
+type shellExecuteInfo struct {
+	CbSize       uint32
+	FMask        uint32
+	Hwnd         uintptr
+	LpVerb       *uint16
+	LpFile       *uint16
+	LpParameters *uint16
+	LpDirectory  *uint16
+	NShow        int32
+	HInstApp     uintptr
+	LpIDList     uintptr
+	LpClass      *uint16
+	HKeyClass    uintptr
+	DwHotKey     uint32
+	HIconMonitor uintptr
+	HProcess     windows.Handle
+}
+
+func runElevatedHidden(executable string, parameters string) (uint32, error) {
+	shell32 := windows.NewLazySystemDLL("shell32.dll")
+	shellExecuteExW := shell32.NewProc("ShellExecuteExW")
+
+	verbPtr, err := windows.UTF16PtrFromString("runas")
+	if err != nil {
+		return 0, err
+	}
+	filePtr, err := windows.UTF16PtrFromString(executable)
+	if err != nil {
+		return 0, err
+	}
+	paramsPtr, err := windows.UTF16PtrFromString(parameters)
+	if err != nil {
+		return 0, err
+	}
+
+	info := shellExecuteInfo{
+		CbSize:       uint32(unsafe.Sizeof(shellExecuteInfo{})),
+		FMask:        seeMaskNoCloseProcess,
+		LpVerb:       verbPtr,
+		LpFile:       filePtr,
+		LpParameters: paramsPtr,
+		NShow:        swHide,
+	}
+
+	r1, _, callErr := shellExecuteExW.Call(uintptr(unsafe.Pointer(&info)))
+	if r1 == 0 {
+		if callErr != nil && callErr != windows.ERROR_SUCCESS {
+			if errno, ok := callErr.(windows.Errno); ok && uint32(errno) == errorCancelled {
+				return 0, fmt.Errorf("administrator permission request was cancelled")
+			}
+			return 0, callErr
+		}
+		return 0, fmt.Errorf("ShellExecuteExW returned failure")
+	}
+	if info.HProcess == 0 {
+		return 0, fmt.Errorf("ShellExecuteExW did not return a process handle")
+	}
+	defer windows.CloseHandle(info.HProcess)
+
+	if _, err := windows.WaitForSingleObject(info.HProcess, windows.INFINITE); err != nil {
+		return 0, err
+	}
+
+	var exitCode uint32
+	if err := windows.GetExitCodeProcess(info.HProcess, &exitCode); err != nil {
+		return 0, err
+	}
+	return exitCode, nil
 }
 
 func detectInstalledWintun() (string, bool) {

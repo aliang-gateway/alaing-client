@@ -70,6 +70,7 @@ func isConfigurationAPI(path string) bool {
 		"/api/logs", // Logs access (for diagnosis)
 		"/api/run/status",
 		"/api/run/wintun/install",
+		"/api/run/wintun/status",
 	}
 
 	for _, endpoint := range configEndpoints {

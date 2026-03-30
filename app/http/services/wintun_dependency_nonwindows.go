@@ -17,6 +17,8 @@ func (noopWintunDependencyController) Status() WintunDependencyStatus {
 		Available:    true,
 		Installing:   false,
 		State:        "not_applicable",
+		Progress:     100,
+		ErrorCode:    "",
 		Message:      "Wintun dependency is only required on Windows.",
 		Architecture: runtime.GOARCH,
 		DownloadURL:  wintunDownloadURL,

@@ -15,6 +15,8 @@ type WintunDependencyStatus struct {
 	Available    bool   `json:"available"`
 	Installing   bool   `json:"installing"`
 	State        string `json:"state"`
+	Progress     int    `json:"progress_percent,omitempty"`
+	ErrorCode    string `json:"error_code,omitempty"`
 	Message      string `json:"message"`
 	Error        string `json:"error,omitempty"`
 	Architecture string `json:"architecture,omitempty"`
@@ -43,6 +45,10 @@ func GetWintunDependencyStatus() WintunDependencyStatus {
 
 func StartWintunDependencyInstall() WintunDependencyStatus {
 	return getSharedWintunDependencyController().StartInstall()
+}
+
+func RefreshWintunDependencyStatus() WintunDependencyStatus {
+	return getSharedWintunDependencyController().Refresh()
 }
 
 func setSharedWintunDependencyControllerForTest(controller wintunDependencyController) {

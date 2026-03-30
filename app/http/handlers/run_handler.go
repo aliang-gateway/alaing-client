@@ -44,6 +44,12 @@ func (rh *RunHandler) HandleRunWintunInstall(w http.ResponseWriter, r *http.Requ
 	common.Success(w, result)
 }
 
+// HandleRunWintunStatus handles GET /api/run/wintun/status
+func (rh *RunHandler) HandleRunWintunStatus(w http.ResponseWriter, r *http.Request) {
+	result := services.RefreshWintunDependencyStatus()
+	common.Success(w, result)
+}
+
 // HandleRunSwift handles POST /api/run/swift
 func (rh *RunHandler) HandleRunSwift(w http.ResponseWriter, r *http.Request) {
 	var req struct {
