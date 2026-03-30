@@ -626,7 +626,7 @@
             <button
               type="button"
               class="rounded-lg p-1.5 text-slate-500 transition hover:bg-slate-100 hover:text-slate-700 disabled:cursor-not-allowed disabled:opacity-60 dark:hover:bg-slate-800 dark:hover:text-slate-200"
-              :disabled="tunStartModal.status === 'starting'"
+              :disabled="tunStartModalCloseDisabled"
               @click="closeTunStartModal"
             >
               <span class="material-symbols-outlined text-lg">close</span>
@@ -657,6 +657,12 @@
               <div class="flex-1">
                 <div class="text-sm font-semibold text-slate-800 dark:text-slate-100">{{ tunStartModal.statusLabel }}</div>
                 <div class="mt-1 text-xs text-slate-500 dark:text-slate-400">{{ tunStartModal.statusHint }}</div>
+                <div
+                  v-if="tunStartModalCloseDisabled && tunStartModalCountdownSeconds > 0"
+                  class="mt-2 text-[11px] font-semibold text-primary dark:text-primary"
+                >
+                  Close unlocks in {{ tunStartModalCountdownSeconds }}s or when installation finishes.
+                </div>
               </div>
             </div>
 
@@ -737,10 +743,10 @@
             <button
               type="button"
               class="inline-flex h-11 items-center justify-center rounded-lg border border-slate-200 px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:text-slate-100 dark:hover:bg-slate-800"
-              :disabled="tunStartModal.status === 'starting'"
+              :disabled="tunStartModalCloseDisabled"
               @click="closeTunStartModal"
             >
-              {{ tunStartModal.status === 'success' ? 'Close' : 'Done' }}
+              {{ tunStartModalCloseDisabled && tunStartModalCountdownSeconds > 0 ? `Please wait ${tunStartModalCountdownSeconds}s` : (tunStartModal.status === 'success' ? 'Close' : 'Done') }}
             </button>
           </div>
         </div>
@@ -796,6 +802,7 @@ const runActionLoading = ref(false);
 const runActionMessage = ref('');
 const accountBalance = ref(null);
 const tunStartModal = ref(createTunStartModalState());
+const tunStartModalNowMs = ref(Date.now());
 const dashboardLoading = ref(false);
 const dashboardError = ref('');
 const dashboardStats = ref({});
@@ -810,6 +817,7 @@ const usageMaxPages = 20;
 const appliedRequestFilter = ref('all');
 let tunStartLogTimer = null;
 let tunStartStatusTimer = null;
+let tunStartCountdownTimer = null;
 
 const accountSubtitle = computed(() => {
   if (!isAuthenticated.value) {
@@ -1173,7 +1181,7 @@ function handleDashboardKeydown(event) {
     return;
   }
 
-  if (tunStartModal.value.visible && tunStartModal.value.status !== 'starting') {
+  if (tunStartModal.value.visible && !tunStartModalCloseDisabled.value) {
     closeTunStartModal();
   }
 }
@@ -1273,6 +1281,12 @@ const tunStartupPhase = computed(() => {
   if (!tunStartModal.value.visible) {
     return 'idle';
   }
+  if (tunStartModal.value.phase === 'installing_dependency') {
+    return 'installing_dependency';
+  }
+  if (tunStartModal.value.phase === 'switching_mode') {
+    return 'switching_mode';
+  }
   const logs = tunStartModal.value.logs;
   const loweredMessages = logs.map((entry) => String(entry.message || '').toLowerCase());
   const hasFailure = loweredMessages.some((message) =>
@@ -1304,6 +1318,23 @@ const tunStartupPhase = computed(() => {
 
 const tunStartupProgressPercent = computed(() => {
   switch (tunStartupPhase.value) {
+    case 'installing_dependency':
+      switch (tunStartModal.value.installState) {
+        case 'queued':
+          return 16;
+        case 'downloading':
+          return 28;
+        case 'extracting':
+          return 42;
+        case 'installing':
+          return 58;
+        case 'installed':
+          return 72;
+        default:
+          return 20;
+      }
+    case 'switching_mode':
+      return 82;
     case 'requested':
       return 18;
     case 'creating_tun':
@@ -1320,6 +1351,33 @@ const tunStartupProgressPercent = computed(() => {
 const tunStartupSteps = computed(() => {
   const phase = tunStartupPhase.value;
   const isError = tunStartModal.value.status === 'error';
+  if (phase === 'installing_dependency' || phase === 'switching_mode') {
+    const installDone = phase !== 'installing_dependency';
+    const switchActive = phase === 'switching_mode';
+    return [
+      {
+        key: 'dependency',
+        icon: isError && phase === 'installing_dependency' ? 'error' : 'download',
+        label: 'Install Wintun Dependency',
+        description: 'Download and install the Wintun driver package required by Windows before TUN mode can start.',
+        state: isError && phase === 'installing_dependency' ? 'error' : installDone ? 'done' : 'active'
+      },
+      {
+        key: 'switch',
+        icon: isError && phase === 'switching_mode' ? 'error' : 'sync_alt',
+        label: 'Apply TUN Mode',
+        description: 'Switch the backend from HTTP mode to TUN mode after the Wintun dependency becomes available.',
+        state: isError && phase === 'switching_mode' ? 'error' : switchActive ? 'active' : installDone ? 'pending' : 'pending'
+      },
+      {
+        key: 'ready',
+        icon: isError ? 'error' : 'verified',
+        label: 'Finalize Startup',
+        description: 'Wait for the TUN engine to confirm that packet routing is ready for real traffic.',
+        state: isError && phase !== 'installing_dependency' && phase !== 'switching_mode' ? 'error' : phase === 'running' ? 'done' : 'pending'
+      }
+    ];
+  }
   return [
     {
       key: 'request',
@@ -1343,6 +1401,30 @@ const tunStartupSteps = computed(() => {
       state: isError ? 'error' : phase === 'running' ? 'done' : 'pending'
     }
   ];
+});
+
+const tunStartModalRemainingLockMs = computed(() => {
+  if (!tunStartModal.value.visible) {
+    return 0;
+  }
+  return Math.max(0, Number(tunStartModal.value.lockUntilMs || 0) - tunStartModalNowMs.value);
+});
+
+const tunStartModalCountdownSeconds = computed(() => {
+  return Math.ceil(tunStartModalRemainingLockMs.value / 1000);
+});
+
+const tunStartModalCloseDisabled = computed(() => {
+  if (!tunStartModal.value.visible) {
+    return false;
+  }
+  if (tunStartModal.value.status !== 'starting') {
+    return false;
+  }
+  if (tunStartModal.value.phase === 'installing_dependency') {
+    return tunStartModalRemainingLockMs.value > 0;
+  }
+  return true;
 });
 
 async function toggleProxyPower() {
@@ -1459,6 +1541,7 @@ onMounted(() => {
   loadDashboardUsageData();
   window.addEventListener('keydown', handleDashboardKeydown);
   window.addEventListener('aliang:tun-progress-open', handleExternalTunProgressOpen);
+  window.addEventListener('aliang:tun-progress-update', handleExternalTunProgressUpdate);
   window.addEventListener('aliang:tun-progress-success', handleExternalTunProgressSuccess);
   window.addEventListener('aliang:tun-progress-error', handleExternalTunProgressError);
 });
@@ -1469,6 +1552,7 @@ onUnmounted(() => {
   stopTunStartObservers();
   window.removeEventListener('keydown', handleDashboardKeydown);
   window.removeEventListener('aliang:tun-progress-open', handleExternalTunProgressOpen);
+  window.removeEventListener('aliang:tun-progress-update', handleExternalTunProgressUpdate);
   window.removeEventListener('aliang:tun-progress-success', handleExternalTunProgressSuccess);
   window.removeEventListener('aliang:tun-progress-error', handleExternalTunProgressError);
 });
@@ -1552,64 +1636,116 @@ function createTunStartModalState() {
   return {
     visible: false,
     status: 'idle',
+    phase: 'startup',
+    installState: 'idle',
     title: 'Starting TUN Proxy',
     detail: 'Preparing the TUN engine and waiting for backend startup logs.',
     statusLabel: 'Waiting to start',
     statusHint: 'Press Start to begin a TUN startup attempt.',
     errorMessage: '',
     logs: [],
-    startedAtMs: 0
+    startedAtMs: 0,
+    lockUntilMs: 0
   };
 }
 
+function startTunStartCountdownTimer() {
+  stopTunStartCountdownTimer();
+  tunStartModalNowMs.value = Date.now();
+  tunStartCountdownTimer = window.setInterval(() => {
+    tunStartModalNowMs.value = Date.now();
+  }, 1000);
+}
+
+function stopTunStartCountdownTimer() {
+  if (tunStartCountdownTimer !== null) {
+    window.clearInterval(tunStartCountdownTimer);
+    tunStartCountdownTimer = null;
+  }
+}
+
 function openTunStartModal(overrides = {}) {
+  const lockSeconds = Number(overrides.lockSeconds || 0);
   tunStartModal.value = {
     ...createTunStartModalState(),
     ...overrides,
     visible: true,
     status: 'starting',
+    phase: overrides.phase || 'startup',
+    installState: overrides.installState || 'idle',
     statusLabel: overrides.statusLabel || 'Starting TUN proxy...',
     statusHint: overrides.statusHint || 'We are following backend startup progress and collecting fresh logs for this attempt.',
-    startedAtMs: Date.now()
+    startedAtMs: Date.now(),
+    lockUntilMs: lockSeconds > 0 ? Date.now() + (lockSeconds * 1000) : 0
   };
+  if (lockSeconds > 0) {
+    startTunStartCountdownTimer();
+  } else {
+    stopTunStartCountdownTimer();
+  }
   loadTunStartLogs();
   startTunStartObservers();
 }
 
+function updateTunStartModal(overrides = {}) {
+  const nextLockUntilMs = Number(overrides.lockSeconds || 0) > 0
+    ? Date.now() + (Number(overrides.lockSeconds) * 1000)
+    : ('lockUntilMs' in overrides ? Number(overrides.lockUntilMs || 0) : tunStartModal.value.lockUntilMs);
+
+  tunStartModal.value = {
+    ...tunStartModal.value,
+    ...overrides,
+    lockUntilMs: nextLockUntilMs
+  };
+
+  if (tunStartModal.value.lockUntilMs > Date.now()) {
+    startTunStartCountdownTimer();
+  } else {
+    stopTunStartCountdownTimer();
+  }
+}
+
 function closeTunStartModal() {
-  if (tunStartModal.value.status === 'starting') {
+  if (tunStartModalCloseDisabled.value) {
     return;
   }
   stopTunStartObservers();
+  stopTunStartCountdownTimer();
   tunStartModal.value = createTunStartModalState();
 }
 
-function markTunStartModalSuccess(message) {
+function markTunStartModalSuccess(message, overrides = {}) {
   tunStartModal.value = {
     ...tunStartModal.value,
+    ...overrides,
     status: 'success',
-    title: 'TUN Proxy Started',
-    detail: 'The TUN engine reported a successful startup.',
-    statusLabel: 'Startup complete',
+    lockUntilMs: 0,
+    title: overrides.title || 'TUN Proxy Started',
+    detail: overrides.detail || 'The TUN engine reported a successful startup.',
+    statusLabel: overrides.statusLabel || 'Startup complete',
     statusHint: typeof message === 'string' && message.trim()
       ? message
-      : 'The service is running and ready to proxy traffic.',
+      : (overrides.statusHint || 'The service is running and ready to proxy traffic.'),
     errorMessage: ''
   };
   stopTunStartObservers();
+  stopTunStartCountdownTimer();
 }
 
-function markTunStartModalError(message) {
+function markTunStartModalError(message, overrides = {}) {
   tunStartModal.value = {
     ...tunStartModal.value,
+    ...overrides,
     status: 'error',
-    title: 'TUN Startup Failed',
-    detail: 'The backend could not finish creating the TUN engine.',
-    statusLabel: 'Startup failed',
-    statusHint: 'Review the log lines below for the exact failure point.',
+    lockUntilMs: 0,
+    title: overrides.title || 'TUN Startup Failed',
+    detail: overrides.detail || 'The backend could not finish creating the TUN engine.',
+    statusLabel: overrides.statusLabel || 'Startup failed',
+    statusHint: overrides.statusHint || 'Review the log lines below for the exact failure point.',
     errorMessage: typeof message === 'string' && message.trim() ? message : 'TUN startup failed.'
   };
   stopTunStartObservers();
+  stopTunStartCountdownTimer();
 }
 
 function startTunStartObservers() {
@@ -1740,21 +1876,51 @@ function logEntryRowClass(level) {
 function handleExternalTunProgressOpen(event) {
   const detail = event instanceof CustomEvent ? (event.detail || {}) : {};
   openTunStartModal({
+    phase: typeof detail.phase === 'string' && detail.phase ? detail.phase : 'startup',
+    installState: typeof detail.installState === 'string' && detail.installState ? detail.installState : 'idle',
     title: typeof detail.title === 'string' && detail.title ? detail.title : 'Starting TUN Proxy',
     detail: typeof detail.detail === 'string' && detail.detail ? detail.detail : 'Preparing the TUN engine and waiting for backend startup logs.',
     statusLabel: typeof detail.statusLabel === 'string' && detail.statusLabel ? detail.statusLabel : 'Starting TUN proxy...',
-    statusHint: typeof detail.statusHint === 'string' && detail.statusHint ? detail.statusHint : 'We are following backend startup progress and collecting fresh logs for this attempt.'
+    statusHint: typeof detail.statusHint === 'string' && detail.statusHint ? detail.statusHint : 'We are following backend startup progress and collecting fresh logs for this attempt.',
+    lockSeconds: Number(detail.lockSeconds || 0)
+  });
+}
+
+function handleExternalTunProgressUpdate(event) {
+  const detail = event instanceof CustomEvent ? (event.detail || {}) : {};
+  if (!tunStartModal.value.visible) {
+    handleExternalTunProgressOpen(event);
+    return;
+  }
+  updateTunStartModal({
+    phase: typeof detail.phase === 'string' && detail.phase ? detail.phase : tunStartModal.value.phase,
+    installState: typeof detail.installState === 'string' && detail.installState ? detail.installState : tunStartModal.value.installState,
+    title: typeof detail.title === 'string' && detail.title ? detail.title : tunStartModal.value.title,
+    detail: typeof detail.detail === 'string' && detail.detail ? detail.detail : tunStartModal.value.detail,
+    statusLabel: typeof detail.statusLabel === 'string' && detail.statusLabel ? detail.statusLabel : tunStartModal.value.statusLabel,
+    statusHint: typeof detail.statusHint === 'string' && detail.statusHint ? detail.statusHint : tunStartModal.value.statusHint,
+    lockUntilMs: Number(detail.lockUntilMs || tunStartModal.value.lockUntilMs || 0)
   });
 }
 
 function handleExternalTunProgressSuccess(event) {
   const detail = event instanceof CustomEvent ? (event.detail || {}) : {};
-  markTunStartModalSuccess(typeof detail.message === 'string' ? detail.message : '');
+  markTunStartModalSuccess(typeof detail.message === 'string' ? detail.message : '', {
+    title: typeof detail.title === 'string' && detail.title ? detail.title : '',
+    detail: typeof detail.detail === 'string' && detail.detail ? detail.detail : '',
+    statusLabel: typeof detail.statusLabel === 'string' && detail.statusLabel ? detail.statusLabel : '',
+    statusHint: typeof detail.statusHint === 'string' && detail.statusHint ? detail.statusHint : ''
+  });
 }
 
 function handleExternalTunProgressError(event) {
   const detail = event instanceof CustomEvent ? (event.detail || {}) : {};
-  markTunStartModalError(typeof detail.message === 'string' ? detail.message : 'TUN startup failed.');
+  markTunStartModalError(typeof detail.message === 'string' ? detail.message : 'TUN startup failed.', {
+    title: typeof detail.title === 'string' && detail.title ? detail.title : '',
+    detail: typeof detail.detail === 'string' && detail.detail ? detail.detail : '',
+    statusLabel: typeof detail.statusLabel === 'string' && detail.statusLabel ? detail.statusLabel : '',
+    statusHint: typeof detail.statusHint === 'string' && detail.statusHint ? detail.statusHint : ''
+  });
 }
 
 const filteredRequestRows = computed(() => {
