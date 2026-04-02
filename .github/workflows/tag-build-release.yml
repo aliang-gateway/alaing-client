@@ -276,6 +276,17 @@ jobs:
           # Run MSI build script with WiX paths
           & scripts/build-msi.ps1 -Version $msiVersion -OutputDir release -WiXPath $wixPath -CandleExe $wixCandleExe -LightExe $wixLightExe
 
+          # Normalize MSI filename so upload/release naming is predictable
+          $generatedMsi = Get-ChildItem -Path "release" -Filter "aliang-*.msi" -File -ErrorAction SilentlyContinue |
+            Sort-Object LastWriteTime -Descending |
+            Select-Object -First 1
+          if (-not $generatedMsi) {
+            throw "MSI build completed but no .msi file was found in release/"
+          }
+          $normalizedMsi = "release/${{ matrix.asset_name }}.msi"
+          Copy-Item -Path $generatedMsi.FullName -Destination $normalizedMsi -Force
+          Write-Host "Normalized MSI: $normalizedMsi"
+
       - name: Upload packaged artifact
         uses: actions/upload-artifact@v4
         with:
@@ -284,11 +295,20 @@ jobs:
           if-no-files-found: error
 
       - name: Upload package artifact
+        if: matrix.package_type != 'msi'
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.asset_name }}-package
           path: release/*.${{ matrix.package_type }}
           if-no-files-found: ignore
+
+      - name: Upload MSI package artifact
+        if: matrix.package_type == 'msi'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.asset_name }}-package
+          path: release/${{ matrix.asset_name }}.msi
+          if-no-files-found: error
 
   release:
     name: Publish release assets
