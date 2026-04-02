@@ -30,9 +30,11 @@ if (Test-Path "C:\Program Files (x86)\WiX Toolset v3.11\bin\candle.exe") {
 
 if (-not $wixPath) {
     Write-Host "WiX Toolset not found. Installing via NuGet..." -ForegroundColor Yellow
-    # Download WiX via NuGet
+
+    # Download nuget.exe if not present
     $nugetExe = "$env:TEMP\nuget.exe"
-    if (-not (Test-Path $nugetExe)) {
+    if (!(Test-Path $nugetExe)) {
+        Write-Host "Downloading nuget.exe..." -ForegroundColor Yellow
         Invoke-WebRequest -Uri "https://dist.nuget.org/win-x86-commandline/latest/nuget.exe" -OutFile $nugetExe
     }
 
