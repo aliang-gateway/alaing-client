@@ -16,6 +16,7 @@ $SERVICE_NAME = "aliang"
 $MANUFACTURER = "Aliang"
 $UPGRADE_CODE = "A1B2C3D4-E5F6-7890-ABCD-EF1234567890"  # Should be generated once per product
 $ICON_FILE = "desktop-logo.ico"
+$ENV_COMPONENT_GUID = "64E4CB9B-2509-4EFA-8A58-5DFAF5DD17E8"
 
 Write-Host "=== Building Aliang MSI Installer ===" -ForegroundColor Cyan
 Write-Host "Version: $Version"
@@ -153,7 +154,7 @@ $iconDefXml
 
         <!-- Environment Variables (must be inside a Component) -->
         <DirectoryRef Id="INSTALLFOLDER">
-            <Component Id="EnvironmentComponent" Guid="*">
+            <Component Id="EnvironmentComponent" Guid="$ENV_COMPONENT_GUID">
                 <Environment Id="ALIANG_DATA_DIR" Name="ALIANG_DATA_DIR" Value="[AliangData]" Permanent="yes" Part="last" Action="set" System="yes"/>
                 <Environment Id="ALIANG_LOG_DIR" Name="ALIANG_LOG_DIR" Value="[AliangData]\logs" Permanent="yes" Part="last" Action="set" System="yes"/>
                 <Environment Id="ALIANG_SOCKET_PATH" Name="ALIANG_SOCKET_PATH" Value="%PROGRAMDATA%\Aliang\aliang-core.sock" Permanent="yes" Part="last" Action="set" System="yes"/>
@@ -206,10 +207,16 @@ try {
     # Compile WiX source
     Write-Host "Compiling WiX source with: $useCandleExe" -ForegroundColor Yellow
     & $useCandleExe -nologo -ext WixUIExtension -out "$sourceDir\aliang.wixobj" "$wxsPath"
+    if ($LASTEXITCODE -ne 0) {
+        throw "candle.exe failed with exit code $LASTEXITCODE"
+    }
 
     # Link/Combine into MSI
     Write-Host "Linking into MSI with: $useLightExe" -ForegroundColor Yellow
     & $useLightExe -nologo -ext WixUIExtension -o "$OutputDir\aliang-$Version.msi" "$sourceDir\aliang.wixobj"
+    if ($LASTEXITCODE -ne 0) {
+        throw "light.exe failed with exit code $LASTEXITCODE"
+    }
 
     Write-Host "MSI created successfully!" -ForegroundColor Green
     Write-Host "Output: $OutputDir\aliang-$Version.msi" -ForegroundColor Cyan
