@@ -238,6 +238,10 @@ jobs:
         env:
           VERSION: ${{ github.ref_name }}
         run: |
+          # Strip 'v' prefix from version for WiX compatibility
+          $msiVersion = $env:VERSION -replace '^v', ''
+          Write-Host "Building MSI version: $msiVersion"
+
           # Download nuget.exe if not present
           $nugetExe = "$env:TEMP\nuget.exe"
           if (!(Test-Path $nugetExe)) {
@@ -270,7 +274,7 @@ jobs:
           Copy-Item "dist\$env:BINARY_NAME.exe" scripts\
 
           # Run MSI build script with WiX paths
-          & scripts/build-msi.ps1 -Version $env:VERSION -OutputDir release -WiXPath $wixPath -CandleExe $wixCandleExe -LightExe $wixLightExe
+          & scripts/build-msi.ps1 -Version $msiVersion -OutputDir release -WiXPath $wixPath -CandleExe $wixCandleExe -LightExe $wixLightExe
 
       - name: Upload packaged artifact
         uses: actions/upload-artifact@v4
