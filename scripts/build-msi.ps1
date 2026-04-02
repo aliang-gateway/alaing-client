@@ -3,7 +3,8 @@
 
 param(
     [string]$Version = "1.0.0",
-    [string]$OutputDir = "."
+    [string]$OutputDir = ".",
+    [string]$WiXPath = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -19,30 +20,34 @@ Write-Host "Version: $Version"
 Write-Host "Output: $OutputDir"
 
 # Check if WiX is installed
-$wixPath = $null
-if (Test-Path "C:\Program Files (x86)\WiX Toolset v3.11\bin\candle.exe") {
-    $wixPath = "C:\Program Files (x86)\WiX Toolset v3.11\bin"
-} elseif (Test-Path "C:\Program Files (x86)\WiX Toolset v3\bin\candle.exe") {
-    $wixPath = "C:\Program Files (x86)\WiX Toolset v3\bin"
-} elseif (Get-Command candle.exe -ErrorAction SilentlyContinue) {
-    $wixPath = Split-Path (Get-Command candle.exe).Source
-}
-
-if (-not $wixPath) {
-    Write-Host "WiX Toolset not found. Installing via NuGet..." -ForegroundColor Yellow
-
-    # Download nuget.exe if not present
-    $nugetExe = "$env:TEMP\nuget.exe"
-    if (!(Test-Path $nugetExe)) {
-        Write-Host "Downloading nuget.exe..." -ForegroundColor Yellow
-        Invoke-WebRequest -Uri "https://dist.nuget.org/win-x86-commandline/latest/nuget.exe" -OutFile $nugetExe
+if (-not $WiXPath) {
+    $wixPath = $null
+    if (Test-Path "C:\Program Files (x86)\WiX Toolset v3.11\bin\candle.exe") {
+        $wixPath = "C:\Program Files (x86)\WiX Toolset v3.11\bin"
+    } elseif (Test-Path "C:\Program Files (x86)\WiX Toolset v3\bin\candle.exe") {
+        $wixPath = "C:\Program Files (x86)\WiX Toolset v3\bin"
+    } elseif (Get-Command candle.exe -ErrorAction SilentlyContinue) {
+        $wixPath = Split-Path (Get-Command candle.exe).Source
     }
 
-    $wixPath = "$env:TEMP\wix"
-    New-Item -ItemType Directory -Force -Path $wixPath | Out-Null
-    & $nugetExe install WiX -Version 3.11.2 -OutputDirectory $wixPath -NoCache
+    if (-not $wixPath) {
+        Write-Host "WiX Toolset not found. Installing via NuGet..." -ForegroundColor Yellow
 
-    $wixPath = "$wixPath\wix\WiX.Toolset.3.11.2\tools"
+        # Download nuget.exe if not present
+        $nugetExe = "$env:TEMP\nuget.exe"
+        if (!(Test-Path $nugetExe)) {
+            Write-Host "Downloading nuget.exe..." -ForegroundColor Yellow
+            Invoke-WebRequest -Uri "https://dist.nuget.org/win-x86-commandline/latest/nuget.exe" -OutFile $nugetExe
+        }
+
+        $wixPath = "$env:TEMP\wix"
+        New-Item -ItemType Directory -Force -Path $wixPath | Out-Null
+        & $nugetExe install WiX -Version 3.11.2 -OutputDirectory $wixPath -NoHttpCache
+
+        $wixPath = "$wixPath\WiX.3.11.2\tools\bin"
+    }
+} else {
+    $wixPath = $WiXPath
 }
 
 Write-Host "Using WiX from: $wixPath" -ForegroundColor Green

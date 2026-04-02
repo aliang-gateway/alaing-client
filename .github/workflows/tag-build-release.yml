@@ -246,16 +246,17 @@ jobs:
 
           # Download and install WiX
           $wixPath = "$env:TEMP\wix"
-          if (!(Test-Path "$wixPath\wix\WiX.Toolset.3.11.2\tools\bin\candle.exe")) {
+          if (!(Test-Path "$wixPath\WiX.3.11.2\tools\bin\candle.exe")) {
             New-Item -ItemType Directory -Force -Path $wixPath | Out-Null
-            & $nugetExe install WiX -Version 3.11.2 -OutputDirectory $wixPath -NoCache -Verbosity quiet
+            & $nugetExe install WiX -Version 3.11.2 -OutputDirectory $wixPath -NoHttpCache -Verbosity quiet
           }
+          $wixPath = "$wixPath\WiX.3.11.2\tools\bin"
 
           # Copy binary to scripts dir
-          Copy-Item "dist\$env:BINARY_NAME" scripts\
+          Copy-Item "dist\$env:BINARY_NAME.exe" scripts\
 
           # Run MSI build script
-          & scripts/build-msi.ps1 -Version $env:VERSION -OutputDir release
+          & scripts/build-msi.ps1 -Version $env:VERSION -OutputDir release -WiXPath $wixPath
 
       - name: Upload packaged artifact
         uses: actions/upload-artifact@v4
