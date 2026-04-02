@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	auth "nursor.org/nursorgate/processor/auth"
-	"nursor.org/nursorgate/processor/config"
+	auth "aliang.one/nursorgate/processor/auth"
+	"aliang.one/nursorgate/processor/config"
 )
 
 func TestRunStopAndCertHTTPIntegration(t *testing.T) {

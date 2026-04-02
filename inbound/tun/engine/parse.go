@@ -7,13 +7,13 @@ import (
 	"runtime"
 	"strings"
 
-	"nursor.org/nursorgate/inbound/tun/device"
-	"nursor.org/nursorgate/inbound/tun/device/fdbased"
-	"nursor.org/nursorgate/inbound/tun/device/tun"
-	"nursor.org/nursorgate/outbound/proxy"
-	"nursor.org/nursorgate/outbound/proxy/direct"
-	"nursor.org/nursorgate/outbound/proxy/http"
-	"nursor.org/nursorgate/outbound/proxy/proto"
+	"aliang.one/nursorgate/inbound/tun/device"
+	"aliang.one/nursorgate/inbound/tun/device/fdbased"
+	"aliang.one/nursorgate/inbound/tun/device/tun"
+	"aliang.one/nursorgate/outbound/proxy"
+	"aliang.one/nursorgate/outbound/proxy/direct"
+	"aliang.one/nursorgate/outbound/proxy/http"
+	"aliang.one/nursorgate/outbound/proxy/proto"
 )
 
 func parseProxy(s string) (proxy.Proxy, error) {

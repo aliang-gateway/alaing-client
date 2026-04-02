@@ -8,11 +8,11 @@ import (
 	"os"
 	"path/filepath"
 
-	"nursor.org/nursorgate/app/http/storage"
-	"nursor.org/nursorgate/common/logger"
-	"nursor.org/nursorgate/outbound"
-	"nursor.org/nursorgate/processor/config"
-	"nursor.org/nursorgate/processor/dns"
+	"aliang.one/nursorgate/app/http/storage"
+	"aliang.one/nursorgate/common/logger"
+	"aliang.one/nursorgate/outbound"
+	"aliang.one/nursorgate/processor/config"
+	"aliang.one/nursorgate/processor/dns"
 )
 
 // Embed the default configuration

@@ -4,11 +4,11 @@ import (
 	"context"
 	"net"
 
-	"nursor.org/nursorgate/inbound/tun/dialer"
+	"aliang.one/nursorgate/inbound/tun/dialer"
 
-	M "nursor.org/nursorgate/inbound/tun/metadata"
-	"nursor.org/nursorgate/outbound/proxy"
-	"nursor.org/nursorgate/outbound/proxy/proto"
+	M "aliang.one/nursorgate/inbound/tun/metadata"
+	"aliang.one/nursorgate/outbound/proxy"
+	"aliang.one/nursorgate/outbound/proxy/proto"
 )
 
 var _ proxy.Proxy = (*Direct)(nil)

@@ -6,12 +6,12 @@ import (
 	"sync"
 	"time"
 
-	"nursor.org/nursorgate/common/logger"
-	M "nursor.org/nursorgate/inbound/tun/metadata"
-	"nursor.org/nursorgate/processor/cache"
-	"nursor.org/nursorgate/processor/config"
-	"nursor.org/nursorgate/processor/geoip"
-	"nursor.org/nursorgate/processor/routing"
+	"aliang.one/nursorgate/common/logger"
+	M "aliang.one/nursorgate/inbound/tun/metadata"
+	"aliang.one/nursorgate/processor/cache"
+	"aliang.one/nursorgate/processor/config"
+	"aliang.one/nursorgate/processor/geoip"
+	"aliang.one/nursorgate/processor/routing"
 )
 
 // RuleEngine evaluates routing rules in priority order

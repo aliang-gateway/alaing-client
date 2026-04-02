@@ -15,9 +15,9 @@ import (
 	"time"
 	"unsafe"
 
+	"aliang.one/nursorgate/common/logger"
+	"aliang.one/nursorgate/processor/setup"
 	"golang.org/x/sys/windows"
-	"nursor.org/nursorgate/common/logger"
-	"nursor.org/nursorgate/processor/setup"
 )
 
 const (

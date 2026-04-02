@@ -9,11 +9,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"nursor.org/nursorgate/app/http/middleware"
-	"nursor.org/nursorgate/cmd"
-	auth "nursor.org/nursorgate/processor/auth"
-	"nursor.org/nursorgate/processor/config"
-	"nursor.org/nursorgate/processor/runtime"
+	"aliang.one/nursorgate/app/http/middleware"
+	"aliang.one/nursorgate/cmd"
+	auth "aliang.one/nursorgate/processor/auth"
+	"aliang.one/nursorgate/processor/config"
+	"aliang.one/nursorgate/processor/runtime"
 )
 
 // ===== Test 1: Startup State Initialization =====

@@ -3,7 +3,7 @@ package repositories
 import (
 	"errors"
 
-	proxyRegistry "nursor.org/nursorgate/outbound"
+	proxyRegistry "aliang.one/nursorgate/outbound"
 )
 
 // ProxyRepositoryImpl provides access to proxy functionality

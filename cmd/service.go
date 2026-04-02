@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"runtime"
 
+	"aliang.one/nursorgate/app/http/services"
+	"aliang.one/nursorgate/common/logger"
+	"aliang.one/nursorgate/processor/setup"
 	"github.com/spf13/cobra"
-	"nursor.org/nursorgate/app/http/services"
-	"nursor.org/nursorgate/common/logger"
-	"nursor.org/nursorgate/processor/setup"
 )
 
 var (

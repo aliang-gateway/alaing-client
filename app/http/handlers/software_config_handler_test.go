@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"nursor.org/nursorgate/app/http/services"
-	"nursor.org/nursorgate/app/http/storage"
+	"aliang.one/nursorgate/app/http/services"
+	"aliang.one/nursorgate/app/http/storage"
 )
 
 func TestSoftwareConfigHandler_SaveActivateAndCloudEndpoints(t *testing.T) {

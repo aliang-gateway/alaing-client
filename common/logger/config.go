@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"nursor.org/nursorgate/common/cache"
+	"aliang.one/nursorgate/common/cache"
 )
 
 // LogLevel represents logging level

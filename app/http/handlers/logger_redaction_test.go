@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"nursor.org/nursorgate/common/logger"
+	"aliang.one/nursorgate/common/logger"
 )
 
 func TestLogRedaction(t *testing.T) {

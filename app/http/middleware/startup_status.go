@@ -5,8 +5,8 @@ import (
 	"net/http"
 	"strings"
 
-	"nursor.org/nursorgate/app/http/common"
-	"nursor.org/nursorgate/processor/runtime"
+	"aliang.one/nursorgate/app/http/common"
+	"aliang.one/nursorgate/processor/runtime"
 )
 
 // StartupStatusMiddleware checks the system's startup status and gates API access accordingly

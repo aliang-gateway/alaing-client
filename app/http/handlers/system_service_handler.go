@@ -4,9 +4,9 @@ import (
 	"errors"
 	"net/http"
 
-	"nursor.org/nursorgate/app/http/common"
-	"nursor.org/nursorgate/app/http/services"
-	"nursor.org/nursorgate/processor/setup"
+	"aliang.one/nursorgate/app/http/common"
+	"aliang.one/nursorgate/app/http/services"
+	"aliang.one/nursorgate/processor/setup"
 )
 
 type SystemServiceHandler struct {

@@ -6,8 +6,8 @@ import (
 	"net"
 	"time"
 
-	"nursor.org/nursorgate/common/logger"
-	"nursor.org/nursorgate/processor/cert/server"
+	"aliang.one/nursorgate/common/logger"
+	"aliang.one/nursorgate/processor/cert/server"
 )
 
 // AliangServerConnector establishes mTLS connections to the cursor server

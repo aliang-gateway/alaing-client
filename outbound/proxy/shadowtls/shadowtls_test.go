@@ -4,9 +4,9 @@ import (
 	"strings"
 	"testing"
 
-	"nursor.org/nursorgate/inbound/tun/metadata"
-	"nursor.org/nursorgate/outbound/proxy/proto"
-	"nursor.org/nursorgate/processor/config"
+	"aliang.one/nursorgate/inbound/tun/metadata"
+	"aliang.one/nursorgate/outbound/proxy/proto"
+	"aliang.one/nursorgate/processor/config"
 )
 
 // TestNew tests the New() factory function for creating ShadowTLS proxy instances

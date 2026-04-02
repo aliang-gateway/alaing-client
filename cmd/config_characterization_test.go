@@ -5,9 +5,9 @@ import (
 	"path/filepath"
 	"testing"
 
-	"nursor.org/nursorgate/app/http/storage"
-	"nursor.org/nursorgate/common/cache"
-	processorconfig "nursor.org/nursorgate/processor/config"
+	"aliang.one/nursorgate/app/http/storage"
+	"aliang.one/nursorgate/common/cache"
+	processorconfig "aliang.one/nursorgate/processor/config"
 )
 
 func resetConfigPipelineStateForTest(t *testing.T) {

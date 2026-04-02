@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 
-	"nursor.org/nursorgate/common/logger"
+	"aliang.one/nursorgate/common/logger"
 )
 
 // BaseResolver 基础DNS解析器实现

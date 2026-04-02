@@ -4,7 +4,7 @@ import (
 	"reflect"
 	"testing"
 
-	"nursor.org/nursorgate/processor/runtime"
+	"aliang.one/nursorgate/processor/runtime"
 )
 
 func TestGetSuggestedActions_UsesSessionLoginSemanticsForConfiguring(t *testing.T) {

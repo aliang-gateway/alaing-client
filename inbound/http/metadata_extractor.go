@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	"nursor.org/nursorgate/common/logger"
-	M "nursor.org/nursorgate/inbound/tun/metadata"
+	"aliang.one/nursorgate/common/logger"
+	M "aliang.one/nursorgate/inbound/tun/metadata"
 )
 
 // ExtractMetadataFromCONNECT extracts connection metadata from a CONNECT request

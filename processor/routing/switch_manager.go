@@ -3,8 +3,8 @@ package routing
 import (
 	"sync"
 
-	"nursor.org/nursorgate/common/logger"
-	"nursor.org/nursorgate/common/model"
+	"aliang.one/nursorgate/common/logger"
+	"aliang.one/nursorgate/common/model"
 )
 
 // SwitchManager manages the global routing switches

@@ -6,7 +6,7 @@ import (
 	"io/ioutil"
 	"sync"
 
-	"nursor.org/nursorgate/common/logger"
+	"aliang.one/nursorgate/common/logger"
 )
 
 var (

@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"net/netip"
 
-	"nursor.org/nursorgate/common/logger"
-	"nursor.org/nursorgate/common/model"
+	"aliang.one/nursorgate/common/logger"
+	"aliang.one/nursorgate/common/model"
 )
 
 // T028: Route decision types (3 constants)

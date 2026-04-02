@@ -2,7 +2,7 @@
 package tun
 
 import (
-	"nursor.org/nursorgate/inbound/tun/device"
+	"aliang.one/nursorgate/inbound/tun/device"
 )
 
 const Driver = "tun"

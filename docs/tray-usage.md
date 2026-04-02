@@ -251,7 +251,7 @@ app/http/
 **启动托盘：**
 
 ```go
-import "nursor.org/nursorgate/app/tray"
+import "aliang.one/nursorgate/app/tray"
 
 tray.Run()  // 阻塞直到退出
 ```
@@ -259,7 +259,7 @@ tray.Run()  // 阻塞直到退出
 **HTTP 服务器控制：**
 
 ```go
-import httpServer "nursor.org/nursorgate/app/http"
+import httpServer "aliang.one/nursorgate/app/http"
 
 httpServer.StartHttpServer()  // 启动服务器
 httpServer.StopHttpServer()   // 停止服务器

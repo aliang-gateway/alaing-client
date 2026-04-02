@@ -7,7 +7,7 @@ import (
 	"net/url"
 	"strings"
 
-	"nursor.org/nursorgate/processor/config"
+	"aliang.one/nursorgate/processor/config"
 )
 
 type dashboardEnvelope struct {

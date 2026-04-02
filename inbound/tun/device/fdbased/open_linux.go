@@ -5,7 +5,7 @@ import (
 
 	"github.com/sagernet/gvisor/pkg/tcpip/link/fdbased"
 
-	"nursor.org/nursorgate/inbound/tun/device"
+	"aliang.one/nursorgate/inbound/tun/device"
 )
 
 func open(fd int, mtu uint32, offset int) (device.Device, error) {

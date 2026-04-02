@@ -10,9 +10,9 @@ import (
 	"sync"
 	"time"
 
+	"aliang.one/nursorgate/common/cache"
+	"aliang.one/nursorgate/common/logger"
 	"github.com/oschwald/geoip2-golang"
-	"nursor.org/nursorgate/common/cache"
-	"nursor.org/nursorgate/common/logger"
 )
 
 // Service provides GeoIP lookup functionality using MaxMind GeoLite2 database

@@ -42,11 +42,11 @@ Package: aliang
 Version: $VERSION
 Section: net
 Priority: optional
-Maintainer: Aliang <nursor@nursor.org>
+Maintainer: Aliang <nursor@aliang.one>
 Description: Aliang Gateway Proxy Client
  Aliang is a proxy gateway client that provides secure and fast
  network access with automatic proxy switching and rule-based routing.
-Homepage: https://nursor.org
+Homepage: https://aliang.one
 Architecture: $ARCH
 Depends: libc6 (>= 2.34)
 Control: aliang
@@ -66,7 +66,7 @@ case "$1" in
         cat > /lib/systemd/system/aliang.service << 'SERVICE_EOF'
 [Unit]
 Description=Aliang Core Service
-Documentation=https://nursor.org
+Documentation=https://aliang.one
 After=network.target
 
 [Service]

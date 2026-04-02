@@ -14,8 +14,8 @@ import (
 	"path/filepath"
 	"time"
 
-	"nursor.org/nursorgate/common/logger"
-	cert_config "nursor.org/nursorgate/processor/cert"
+	"aliang.one/nursorgate/common/logger"
+	cert_config "aliang.one/nursorgate/processor/cert"
 )
 
 // GenerateCertificateFromConfig generates a certificate based on configuration

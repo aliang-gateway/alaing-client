@@ -4,9 +4,9 @@ import (
 	"io"
 	"net/http"
 
-	"nursor.org/nursorgate/app/http/common"
-	"nursor.org/nursorgate/app/http/models"
-	"nursor.org/nursorgate/app/http/services"
+	"aliang.one/nursorgate/app/http/common"
+	"aliang.one/nursorgate/app/http/models"
+	"aliang.one/nursorgate/app/http/services"
 )
 
 // AuthHandler Token和用户认证处理器

@@ -8,7 +8,7 @@ import (
 	"github.com/google/uuid"
 	"go.uber.org/atomic"
 
-	M "nursor.org/nursorgate/inbound/tun/metadata"
+	M "aliang.one/nursorgate/inbound/tun/metadata"
 )
 
 type tracker interface {

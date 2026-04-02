@@ -1,9 +1,9 @@
 package cmd
 
 import (
+	"aliang.one/nursorgate/app/tray"
+	"aliang.one/nursorgate/common/logger"
 	"github.com/spf13/cobra"
-	"nursor.org/nursorgate/app/tray"
-	"nursor.org/nursorgate/common/logger"
 )
 
 var trayAgentCmd = &cobra.Command{

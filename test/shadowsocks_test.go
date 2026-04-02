@@ -10,9 +10,9 @@ import (
 	"testing"
 	"time"
 
-	httpServer "nursor.org/nursorgate/app/http"
-	"nursor.org/nursorgate/cmd"
-	"nursor.org/nursorgate/common/logger"
+	httpServer "aliang.one/nursorgate/app/http"
+	"aliang.one/nursorgate/cmd"
+	"aliang.one/nursorgate/common/logger"
 )
 
 // TestShadowsocksViaHTTPProxy tests Shadowsocks proxy through HTTP CONNECT tunnel

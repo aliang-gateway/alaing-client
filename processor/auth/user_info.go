@@ -11,8 +11,8 @@ import (
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 
-	"nursor.org/nursorgate/common/cache"
-	"nursor.org/nursorgate/common/logger"
+	"aliang.one/nursorgate/common/cache"
+	"aliang.one/nursorgate/common/logger"
 )
 
 // UserInfo is the locally persisted Sub2API session snapshot.

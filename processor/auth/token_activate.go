@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"nursor.org/nursorgate/common/logger"
-	"nursor.org/nursorgate/processor/config"
+	"aliang.one/nursorgate/common/logger"
+	"aliang.one/nursorgate/processor/config"
 )
 
 const (

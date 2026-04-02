@@ -5,7 +5,7 @@ import (
 	"sync"
 	"testing"
 
-	"nursor.org/nursorgate/processor/config"
+	"aliang.one/nursorgate/processor/config"
 )
 
 func TestAtomicApplySuccess(t *testing.T) {

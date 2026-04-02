@@ -5,7 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	auth "nursor.org/nursorgate/processor/auth"
+	auth "aliang.one/nursorgate/processor/auth"
 )
 
 func resetUserCenterServiceHooksForTest() {

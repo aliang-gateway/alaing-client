@@ -3,7 +3,7 @@ package main
 import (
 	"os"
 
-	"nursor.org/nursorgate/cmd"
+	"aliang.one/nursorgate/cmd"
 )
 
 func main() {

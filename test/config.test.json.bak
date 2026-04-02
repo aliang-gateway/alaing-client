@@ -1,11 +1,11 @@
 {
   "api_server": "https://api.nonelane.com",
-  "nacos_server": "http://nacos-config.nursor.org",
+  "nacos_server": "http://nacos-config.aliang.one",
   "currentProxy": "door",
   "baseProxies": {
     "nonelane": {
       "type": "nonelane",
-      "core_server": "test-ai-gateway.nursor.org:18889"
+      "core_server": "test-ai-gateway.aliang.one:18889"
     }
   },
   "doorProxy": {
@@ -16,7 +16,7 @@
         "type": "vless",
         "latency": 45,
         "config": {
-          "server_host": "node2.nursor.org",
+          "server_host": "node2.aliang.one",
           "server_port": 443,
           "uuid": "74cddcdd-6d48-41cf-8e62-902e7c943fe7",
           "flow": "xtls-rprx-vision",
@@ -33,7 +33,7 @@
         "type": "shadowsocks",
         "latency": 48,
         "config": {
-          "server_host": "node1.nursor.org",
+          "server_host": "node1.aliang.one",
           "server_port": 443,
           "method": "chacha20-ietf-poly1305",
           "password": "ciLfKJczFXlhqABmWO6tFEMNkfMR9ZB6V/fFmjmIOBA=",

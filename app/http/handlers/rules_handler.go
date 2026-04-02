@@ -5,11 +5,11 @@ import (
 	"net/http"
 	"strings"
 
-	"nursor.org/nursorgate/app/http/common"
-	"nursor.org/nursorgate/processor/config"
-	"nursor.org/nursorgate/processor/geoip"
-	"nursor.org/nursorgate/processor/routing"
-	"nursor.org/nursorgate/processor/rules"
+	"aliang.one/nursorgate/app/http/common"
+	"aliang.one/nursorgate/processor/config"
+	"aliang.one/nursorgate/processor/geoip"
+	"aliang.one/nursorgate/processor/routing"
+	"aliang.one/nursorgate/processor/rules"
 )
 
 // RulesHandler handles HTTP requests for routing rules operations

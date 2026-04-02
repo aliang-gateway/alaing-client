@@ -4,7 +4,7 @@ import (
 	"sync"
 	"testing"
 
-	authuser "nursor.org/nursorgate/processor/auth"
+	authuser "aliang.one/nursorgate/processor/auth"
 )
 
 func TestStartupState_ResetGlobalStartupStateForTest_ResetsFields(t *testing.T) {

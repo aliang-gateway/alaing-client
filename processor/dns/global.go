@@ -3,9 +3,9 @@ package dns
 import (
 	"sync"
 
-	"nursor.org/nursorgate/common/logger"
-	"nursor.org/nursorgate/outbound/proxy"
-	"nursor.org/nursorgate/processor/config"
+	"aliang.one/nursorgate/common/logger"
+	"aliang.one/nursorgate/outbound/proxy"
+	"aliang.one/nursorgate/processor/config"
 )
 
 // Global DNS resolver instance (singleton)

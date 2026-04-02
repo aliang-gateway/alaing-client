@@ -12,11 +12,11 @@ import (
 	"sync"
 	"time"
 
-	"nursor.org/nursorgate/app"
-	"nursor.org/nursorgate/app/http/middleware"
-	"nursor.org/nursorgate/app/http/routes"
-	"nursor.org/nursorgate/app/http/services"
-	"nursor.org/nursorgate/common/logger"
+	"aliang.one/nursorgate/app"
+	"aliang.one/nursorgate/app/http/middleware"
+	"aliang.one/nursorgate/app/http/routes"
+	"aliang.one/nursorgate/app/http/services"
+	"aliang.one/nursorgate/common/logger"
 )
 
 var (

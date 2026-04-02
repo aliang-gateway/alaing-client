@@ -5,8 +5,8 @@ import (
 	"net"
 	"sync"
 
-	"nursor.org/nursorgate/common/logger"
-	"nursor.org/nursorgate/processor/geoip"
+	"aliang.one/nursorgate/common/logger"
+	"aliang.one/nursorgate/processor/geoip"
 )
 
 // T064: GeoIPCache manages GeoIP lookups with LRU caching

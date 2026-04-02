@@ -8,7 +8,7 @@ import (
 	"runtime"
 	"strings"
 
-	"nursor.org/nursorgate/processor/setup"
+	"aliang.one/nursorgate/processor/setup"
 )
 
 type SystemServiceStatus struct {

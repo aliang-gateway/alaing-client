@@ -5,9 +5,9 @@ package test
 import (
 	"testing"
 
-	httpServer "nursor.org/nursorgate/app/http"
-	"nursor.org/nursorgate/inbound/http"
-	"nursor.org/nursorgate/inbound/tun/runner"
+	httpServer "aliang.one/nursorgate/app/http"
+	"aliang.one/nursorgate/inbound/http"
+	"aliang.one/nursorgate/inbound/tun/runner"
 )
 
 func TestLaunch(t *testing.T) {

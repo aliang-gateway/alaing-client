@@ -3,11 +3,11 @@ package cmd
 import (
 	"fmt"
 
+	httpServer "aliang.one/nursorgate/app/http"
+	"aliang.one/nursorgate/app/tray"
+	"aliang.one/nursorgate/common/logger"
+	"aliang.one/nursorgate/processor/runtime"
 	"github.com/spf13/cobra"
-	httpServer "nursor.org/nursorgate/app/http"
-	"nursor.org/nursorgate/app/tray"
-	"nursor.org/nursorgate/common/logger"
-	"nursor.org/nursorgate/processor/runtime"
 )
 
 var trayCmd = &cobra.Command{

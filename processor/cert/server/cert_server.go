@@ -5,7 +5,7 @@ import (
 	"crypto/x509"
 	_ "embed"
 
-	"nursor.org/nursorgate/common/logger"
+	"aliang.one/nursorgate/common/logger"
 )
 
 //go:embed client.pem

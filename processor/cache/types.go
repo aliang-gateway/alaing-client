@@ -4,7 +4,7 @@ import (
 	"net/netip"
 	"time"
 
-	M "nursor.org/nursorgate/inbound/tun/metadata"
+	M "aliang.one/nursorgate/inbound/tun/metadata"
 )
 
 // RouteDecision represents the routing decision for a connection

@@ -3,7 +3,7 @@ package routing
 import (
 	"testing"
 
-	"nursor.org/nursorgate/common/model"
+	"aliang.one/nursorgate/common/model"
 )
 
 // T035: Test NoneLane disabled - traffic should fallback to SOCKS or Direct

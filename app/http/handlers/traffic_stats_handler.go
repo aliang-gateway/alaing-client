@@ -5,8 +5,8 @@ import (
 	"net/http"
 	"strings"
 
-	"nursor.org/nursorgate/app/http/common"
-	"nursor.org/nursorgate/processor/statistic"
+	"aliang.one/nursorgate/app/http/common"
+	"aliang.one/nursorgate/processor/statistic"
 )
 
 // TrafficStatsHandler 流量统计API处理器

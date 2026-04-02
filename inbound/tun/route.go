@@ -5,7 +5,7 @@ import (
 	"github.com/sagernet/gvisor/pkg/tcpip/header"
 	"github.com/sagernet/gvisor/pkg/tcpip/stack"
 
-	"nursor.org/nursorgate/inbound/tun/option"
+	"aliang.one/nursorgate/inbound/tun/option"
 )
 
 func withRouteTable(nicID tcpip.NICID) option.Option {

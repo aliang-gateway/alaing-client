@@ -12,10 +12,10 @@ import (
 
 	"github.com/google/uuid"
 
-	"nursor.org/nursorgate/app/http/models"
-	"nursor.org/nursorgate/app/http/storage"
-	"nursor.org/nursorgate/common/cache"
-	"nursor.org/nursorgate/processor/config"
+	"aliang.one/nursorgate/app/http/models"
+	"aliang.one/nursorgate/app/http/storage"
+	"aliang.one/nursorgate/common/cache"
+	"aliang.one/nursorgate/processor/config"
 )
 
 const customerConfigFilePath = "~/.aliang/config.json"

@@ -3,9 +3,9 @@ package handlers
 import (
 	"net/http"
 
-	"nursor.org/nursorgate/app/http/common"
-	authuser "nursor.org/nursorgate/processor/auth"
-	"nursor.org/nursorgate/processor/runtime"
+	"aliang.one/nursorgate/app/http/common"
+	authuser "aliang.one/nursorgate/processor/auth"
+	"aliang.one/nursorgate/processor/runtime"
 )
 
 // StartupHandler handles system startup status queries

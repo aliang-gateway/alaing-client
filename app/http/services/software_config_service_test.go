@@ -9,9 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"nursor.org/nursorgate/app/http/models"
-	"nursor.org/nursorgate/app/http/storage"
-	"nursor.org/nursorgate/processor/config"
+	"aliang.one/nursorgate/app/http/models"
+	"aliang.one/nursorgate/app/http/storage"
+	"aliang.one/nursorgate/processor/config"
 )
 
 func TestSoftwareConfigService_SaveActivateAndCloudSync(t *testing.T) {
@@ -22,7 +22,7 @@ func TestSoftwareConfigService_SaveActivateAndCloudSync(t *testing.T) {
 			APIServer: "https://api.example.com",
 			AliangServer: &config.AliangServerConfig{
 				Type:       "aliang",
-				CoreServer: "ai-gateway.nursor.org:443",
+				CoreServer: "ai-gateway.aliang.one:443",
 			},
 		},
 		Customer: &config.CustomerConfig{

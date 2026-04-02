@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"strings"
 
-	"nursor.org/nursorgate/common/logger"
-	user "nursor.org/nursorgate/processor/auth"
+	"aliang.one/nursorgate/common/logger"
+	user "aliang.one/nursorgate/processor/auth"
 )
 
 func (w *WatcherWrapConn) parseHttp1Headers(data []byte) map[string]string {

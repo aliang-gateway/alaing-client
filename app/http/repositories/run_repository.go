@@ -1,7 +1,7 @@
 package repositories
 
 import (
-	"nursor.org/nursorgate/app/http/services"
+	"aliang.one/nursorgate/app/http/services"
 )
 
 // RunRepositoryImpl provides access to run mode functionality

@@ -6,8 +6,8 @@ import (
 	"net/netip"
 	"time"
 
-	M "nursor.org/nursorgate/inbound/tun/metadata"
-	"nursor.org/nursorgate/outbound/proxy"
+	M "aliang.one/nursorgate/inbound/tun/metadata"
+	"aliang.one/nursorgate/outbound/proxy"
 )
 
 // TunDNSBridge 为TUN模块提供DNS功能的桥接适配器

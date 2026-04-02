@@ -391,8 +391,8 @@ logger.Info("HTTP: Rule engine has been initialized globally (see cmd/start.go)"
 
 **清理的导入**:
 ```go
-- "nursor.org/nursorgate/common/model"
-- "nursor.org/nursorgate/processor/rules"
+- "aliang.one/nursorgate/common/model"
+- "aliang.one/nursorgate/processor/rules"
 - "time"  (仅在initializeRuleEngine中使用)
 ```
 
@@ -417,7 +417,7 @@ logger.Info("TUN: Rule engine has been initialized globally (see cmd/start.go)")
 
 **清理的导入**:
 ```go
-- "nursor.org/nursorgate/processor/rules"
+- "aliang.one/nursorgate/processor/rules"
 ```
 
 ---

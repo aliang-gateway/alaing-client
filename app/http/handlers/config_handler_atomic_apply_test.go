@@ -7,7 +7,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"nursor.org/nursorgate/processor/config"
+	"aliang.one/nursorgate/processor/config"
 )
 
 func TestAtomicApplySuccess_ConfigHandlerUpdatesVersionHash(t *testing.T) {

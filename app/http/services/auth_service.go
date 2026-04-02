@@ -5,10 +5,10 @@ import (
 	"strings"
 	"time"
 
-	"nursor.org/nursorgate/app/http/models"
-	"nursor.org/nursorgate/common/logger"
-	auth "nursor.org/nursorgate/processor/auth"
-	"nursor.org/nursorgate/processor/runtime"
+	"aliang.one/nursorgate/app/http/models"
+	"aliang.one/nursorgate/common/logger"
+	auth "aliang.one/nursorgate/processor/auth"
+	"aliang.one/nursorgate/processor/runtime"
 )
 
 // AuthService 认证服务

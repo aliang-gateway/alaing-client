@@ -609,7 +609,7 @@ func (c *Config) EffectiveAliangCoreServer() string {
 	if c != nil && c.Core != nil && c.Core.AliangServer != nil && strings.TrimSpace(c.Core.AliangServer.CoreServer) != "" {
 		return strings.TrimSpace(c.Core.AliangServer.CoreServer)
 	}
-	return "ai-gateway.nursor.org:443"
+	return "ai-gateway.aliang.one:443"
 }
 
 func (c *Config) EffectiveDefaultProxy() string {

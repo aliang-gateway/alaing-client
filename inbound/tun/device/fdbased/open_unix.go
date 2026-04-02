@@ -4,9 +4,10 @@ package fdbased
 
 import (
 	"fmt"
-	"nursor.org/nursorgate/inbound/tun/device"
-	"nursor.org/nursorgate/inbound/tun/device/iobased"
 	"os"
+
+	"aliang.one/nursorgate/inbound/tun/device"
+	"aliang.one/nursorgate/inbound/tun/device/iobased"
 )
 
 func open(fd int, mtu uint32, offset int) (device.Device, error) {

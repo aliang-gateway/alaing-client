@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"nursor.org/nursorgate/processor/config"
+	"aliang.one/nursorgate/processor/config"
 )
 
 type UserProfile struct {

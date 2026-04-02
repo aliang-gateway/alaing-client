@@ -12,15 +12,15 @@ import (
 	"strings"
 	"time"
 
-	"nursor.org/nursorgate/common/logger"
-	"nursor.org/nursorgate/inbound/tun/dialer"
-	M "nursor.org/nursorgate/inbound/tun/metadata"
-	"nursor.org/nursorgate/outbound"
-	outboundproxy "nursor.org/nursorgate/outbound/proxy"
-	"nursor.org/nursorgate/processor/config"
-	"nursor.org/nursorgate/processor/rules"
-	"nursor.org/nursorgate/processor/statistic"
-	watcher "nursor.org/nursorgate/processor/watcher"
+	"aliang.one/nursorgate/common/logger"
+	"aliang.one/nursorgate/inbound/tun/dialer"
+	M "aliang.one/nursorgate/inbound/tun/metadata"
+	"aliang.one/nursorgate/outbound"
+	outboundproxy "aliang.one/nursorgate/outbound/proxy"
+	"aliang.one/nursorgate/processor/config"
+	"aliang.one/nursorgate/processor/rules"
+	"aliang.one/nursorgate/processor/statistic"
+	watcher "aliang.one/nursorgate/processor/watcher"
 )
 
 var reverseLookupAddr = func(ctx context.Context, addr string) ([]string, error) {

@@ -5,8 +5,8 @@ import (
 	"net/http"
 	"runtime/debug"
 
-	"nursor.org/nursorgate/app/http/common"
-	"nursor.org/nursorgate/common/logger"
+	"aliang.one/nursorgate/app/http/common"
+	"aliang.one/nursorgate/common/logger"
 )
 
 // RecoveryMiddleware recovers from panics and returns a 500 error with proper response format

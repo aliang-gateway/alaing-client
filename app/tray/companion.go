@@ -7,33 +7,33 @@ import (
 	"strings"
 	"time"
 
+	"aliang.one/nursorgate/common/logger"
+	"aliang.one/nursorgate/common/version"
+	"aliang.one/nursorgate/internal/ipc"
+	"aliang.one/nursorgate/processor/setup"
 	"github.com/getlantern/systray"
-	"nursor.org/nursorgate/common/logger"
-	"nursor.org/nursorgate/common/version"
-	"nursor.org/nursorgate/internal/ipc"
-	"nursor.org/nursorgate/processor/setup"
 )
 
 const (
-	defaultHTTPPort    = "56431"
-	companionHTTPURL   = "http://127.0.0.1:56431"
+	defaultHTTPPort  = "56431"
+	companionHTTPURL = "http://127.0.0.1:56431"
 )
 
 // CompanionApp is the macOS tray companion that communicates with Core via IPC.
 type CompanionApp struct {
 	mProxyStatus   *systray.MenuItem
-	mStart        *systray.MenuItem
-	mStop         *systray.MenuItem
-	mRestart      *systray.MenuItem
+	mStart         *systray.MenuItem
+	mStop          *systray.MenuItem
+	mRestart       *systray.MenuItem
 	mOpenDashboard *systray.MenuItem
-	mQuit         *systray.MenuItem
+	mQuit          *systray.MenuItem
 
-	ipcClient  *ipc.Client
-	httpURL    string
-	isRunning  bool
-	coreReady  bool
+	ipcClient    *ipc.Client
+	httpURL      string
+	isRunning    bool
+	coreReady    bool
 	reconnectSeq int
-	done       chan struct{}
+	done         chan struct{}
 }
 
 // NewCompanionApp creates a new CompanionApp with IPC client.

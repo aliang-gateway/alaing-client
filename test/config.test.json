@@ -4,7 +4,7 @@
   "baseProxies": {
     "nonelane": {
       "type": "nonelane",
-      "core_server": "test-ai-gateway.nursor.org:18889"
+      "core_server": "test-ai-gateway.aliang.one:18889"
     }
   },
   "socksProxy": {

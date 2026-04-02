@@ -12,7 +12,7 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"nursor.org/nursorgate/common/logger"
+	"aliang.one/nursorgate/common/logger"
 )
 
 // HTTP server state management

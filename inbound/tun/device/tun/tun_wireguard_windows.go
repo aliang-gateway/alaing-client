@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"time"
 
+	"aliang.one/nursorgate/common/logger"
 	"golang.zx2c4.com/wireguard/tun"
-	"nursor.org/nursorgate/common/logger"
 )
 
 const (

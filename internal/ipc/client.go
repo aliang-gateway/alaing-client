@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	"nursor.org/nursorgate/common/logger"
+	"aliang.one/nursorgate/common/logger"
 )
 
 const (
@@ -20,7 +20,7 @@ const (
 
 // Client represents the IPC client used by the Shell.
 type Client struct {
-	transport  Transport
+	transport Transport
 	conn      net.Conn
 	httpURL   string
 	mu        sync.Mutex

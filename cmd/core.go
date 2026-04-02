@@ -8,19 +8,19 @@ import (
 	"os/signal"
 	"syscall"
 
+	httpServer "aliang.one/nursorgate/app/http"
+	"aliang.one/nursorgate/app/http/services"
+	"aliang.one/nursorgate/app/http/storage"
+	"aliang.one/nursorgate/common/logger"
+	"aliang.one/nursorgate/common/version"
+	auth "aliang.one/nursorgate/processor/auth"
+	"aliang.one/nursorgate/processor/config"
+	"aliang.one/nursorgate/processor/rules"
+	"aliang.one/nursorgate/processor/runtime"
+	"aliang.one/nursorgate/processor/setup"
 	"github.com/spf13/cobra"
-	httpServer "nursor.org/nursorgate/app/http"
-	"nursor.org/nursorgate/app/http/services"
-	"nursor.org/nursorgate/app/http/storage"
-	"nursor.org/nursorgate/common/logger"
-	"nursor.org/nursorgate/common/version"
-	auth "nursor.org/nursorgate/processor/auth"
-	"nursor.org/nursorgate/processor/config"
-	"nursor.org/nursorgate/processor/rules"
-	"nursor.org/nursorgate/processor/runtime"
-	"nursor.org/nursorgate/processor/setup"
 
-	"nursor.org/nursorgate/internal/ipc"
+	"aliang.one/nursorgate/internal/ipc"
 )
 
 var coreCmd = &cobra.Command{

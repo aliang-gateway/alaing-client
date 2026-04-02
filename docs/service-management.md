@@ -291,7 +291,7 @@ type ServiceManager interface {
 可以通过编程方式使用服务管理功能：
 
 ```go
-import "nursor.org/nursorgate/processor/setup"
+import "aliang.one/nursorgate/processor/setup"
 
 options := setup.InstallOptions{
     Name:           "my-service",

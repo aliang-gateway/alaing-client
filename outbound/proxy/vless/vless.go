@@ -13,17 +13,17 @@ import (
 	"sync"
 	"time"
 
+	"aliang.one/nursorgate/common/logger"
+	"aliang.one/nursorgate/inbound/tun/dialer"
+	M "aliang.one/nursorgate/inbound/tun/metadata"
+	"aliang.one/nursorgate/outbound/proxy"
+	"aliang.one/nursorgate/outbound/proxy/proto"
 	stls "github.com/sagernet/sing-box/common/tls"
 	sopt "github.com/sagernet/sing-box/option"
 	vlessSingBox "github.com/sagernet/sing-vmess/vless"
 	"github.com/sagernet/sing/common"
 	"github.com/sagernet/sing/common/json/badoption"
 	smeta "github.com/sagernet/sing/common/metadata"
-	"nursor.org/nursorgate/common/logger"
-	"nursor.org/nursorgate/inbound/tun/dialer"
-	M "nursor.org/nursorgate/inbound/tun/metadata"
-	"nursor.org/nursorgate/outbound/proxy"
-	"nursor.org/nursorgate/outbound/proxy/proto"
 )
 
 // isDNSError 检查错误是否为DNS解析相关错误

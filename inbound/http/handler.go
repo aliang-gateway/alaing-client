@@ -11,9 +11,9 @@ import (
 	"strings"
 	"time"
 
-	"nursor.org/nursorgate/common/logger"
-	M "nursor.org/nursorgate/inbound/tun/metadata"
-	"nursor.org/nursorgate/processor/tcp"
+	"aliang.one/nursorgate/common/logger"
+	M "aliang.one/nursorgate/inbound/tun/metadata"
+	"aliang.one/nursorgate/processor/tcp"
 )
 
 func HandleHttpConnection(conn net.Conn, req *http.Request) {

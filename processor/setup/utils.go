@@ -58,7 +58,7 @@ func CheckSystemPrivileges() error {
 
 // GetServiceName 获取默认服务名称
 func GetServiceName() string {
-	return "nursorgate"
+	return "alianggate"
 }
 
 // ExpandPath 展开路径中的 ~ 和环境变量

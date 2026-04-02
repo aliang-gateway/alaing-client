@@ -6,11 +6,11 @@ import (
 	"net/http"
 	"strings"
 
-	"nursor.org/nursorgate/app/http/common"
-	"nursor.org/nursorgate/app/http/services"
-	"nursor.org/nursorgate/common/logger"
-	"nursor.org/nursorgate/processor/config"
-	"nursor.org/nursorgate/processor/routing"
+	"aliang.one/nursorgate/app/http/common"
+	"aliang.one/nursorgate/app/http/services"
+	"aliang.one/nursorgate/common/logger"
+	"aliang.one/nursorgate/processor/config"
+	"aliang.one/nursorgate/processor/routing"
 )
 
 // ConfigHandler provides a local (non-Nacos) routing-config compatibility API.

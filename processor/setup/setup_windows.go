@@ -3,9 +3,9 @@ package setup
 import (
 	"fmt"
 
+	"aliang.one/nursorgate/common/logger"
 	"golang.org/x/sys/windows/svc"
 	"golang.org/x/sys/windows/svc/mgr"
-	"nursor.org/nursorgate/common/logger"
 )
 
 // WindowsServiceManager Windows 服务管理器

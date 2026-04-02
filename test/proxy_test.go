@@ -10,11 +10,11 @@ import (
 	"syscall"
 	"testing"
 
-	httpServer "nursor.org/nursorgate/app/http"
-	"nursor.org/nursorgate/cmd"
-	"nursor.org/nursorgate/common/logger"
-	authuser "nursor.org/nursorgate/processor/auth"
-	"nursor.org/nursorgate/processor/runtime"
+	httpServer "aliang.one/nursorgate/app/http"
+	"aliang.one/nursorgate/cmd"
+	"aliang.one/nursorgate/common/logger"
+	authuser "aliang.one/nursorgate/processor/auth"
+	"aliang.one/nursorgate/processor/runtime"
 )
 
 // TestHTTPProxyWithConfig starts HTTP proxy with specified config file

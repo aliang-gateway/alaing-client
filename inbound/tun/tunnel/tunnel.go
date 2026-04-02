@@ -7,10 +7,10 @@ import (
 	"sync"
 	"time"
 
-	"nursor.org/nursorgate/common/logger"
-	"nursor.org/nursorgate/inbound/tun/adapter"
-	"nursor.org/nursorgate/outbound/proxy"
-	"nursor.org/nursorgate/processor/statistic"
+	"aliang.one/nursorgate/common/logger"
+	"aliang.one/nursorgate/inbound/tun/adapter"
+	"aliang.one/nursorgate/outbound/proxy"
+	"aliang.one/nursorgate/processor/statistic"
 
 	"go.uber.org/atomic"
 )

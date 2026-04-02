@@ -2,8 +2,9 @@ package tun
 
 import (
 	"net/netip"
-	"nursor.org/nursorgate/inbound/tun/adapter"
-	"nursor.org/nursorgate/inbound/tun/option"
+
+	"aliang.one/nursorgate/inbound/tun/adapter"
+	"aliang.one/nursorgate/inbound/tun/option"
 
 	"github.com/sagernet/gvisor/pkg/tcpip/network/ipv4"
 	"github.com/sagernet/gvisor/pkg/tcpip/network/ipv6"

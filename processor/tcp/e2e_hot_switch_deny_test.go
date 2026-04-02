@@ -6,9 +6,9 @@ import (
 	"sync"
 	"testing"
 
-	"nursor.org/nursorgate/outbound"
-	"nursor.org/nursorgate/processor/config"
-	"nursor.org/nursorgate/processor/routing"
+	"aliang.one/nursorgate/outbound"
+	"aliang.one/nursorgate/processor/config"
+	"aliang.one/nursorgate/processor/routing"
 )
 
 func TestE2EHotSwitchDeny(t *testing.T) {

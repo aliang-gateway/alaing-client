@@ -7,12 +7,12 @@ import (
 	"strings"
 	"time"
 
+	httpServer "aliang.one/nursorgate/app/http"
+	"aliang.one/nursorgate/app/http/services"
+	"aliang.one/nursorgate/common/logger"
+	"aliang.one/nursorgate/common/version"
+	startupRuntime "aliang.one/nursorgate/processor/runtime"
 	"github.com/getlantern/systray"
-	httpServer "nursor.org/nursorgate/app/http"
-	"nursor.org/nursorgate/app/http/services"
-	"nursor.org/nursorgate/common/logger"
-	"nursor.org/nursorgate/common/version"
-	startupRuntime "nursor.org/nursorgate/processor/runtime"
 )
 
 // TrayApp manages the system tray application

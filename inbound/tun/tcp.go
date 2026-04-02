@@ -1,9 +1,10 @@
 package tun
 
 import (
-	"nursor.org/nursorgate/inbound/tun/adapter"
-	"nursor.org/nursorgate/inbound/tun/option"
 	"time"
+
+	"aliang.one/nursorgate/inbound/tun/adapter"
+	"aliang.one/nursorgate/inbound/tun/option"
 
 	glog "github.com/sagernet/gvisor/pkg/log"
 	"github.com/sagernet/gvisor/pkg/tcpip"

@@ -5,7 +5,7 @@ import (
 	"sync"
 	"time"
 
-	"nursor.org/nursorgate/common/logger"
+	"aliang.one/nursorgate/common/logger"
 )
 
 // TokenRefresher 定时刷新用户Token和信息

@@ -8,8 +8,8 @@ import (
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 
-	"nursor.org/nursorgate/app/http/models"
-	"nursor.org/nursorgate/common/cache"
+	"aliang.one/nursorgate/app/http/models"
+	"aliang.one/nursorgate/common/cache"
 )
 
 var (

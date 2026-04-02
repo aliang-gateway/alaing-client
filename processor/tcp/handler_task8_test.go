@@ -7,10 +7,10 @@ import (
 	"testing"
 	"time"
 
-	M "nursor.org/nursorgate/inbound/tun/metadata"
-	"nursor.org/nursorgate/outbound"
-	httpproxy "nursor.org/nursorgate/outbound/proxy/http"
-	"nursor.org/nursorgate/processor/config"
+	M "aliang.one/nursorgate/inbound/tun/metadata"
+	"aliang.one/nursorgate/outbound"
+	httpproxy "aliang.one/nursorgate/outbound/proxy/http"
+	"aliang.one/nursorgate/processor/config"
 )
 
 func TestTCPHandler_ToSocksHTTPType_UsesHTTPProxy(t *testing.T) {

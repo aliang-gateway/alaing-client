@@ -39,7 +39,7 @@ import (
 	"fmt"
 	"time"
 
-	"nursor.org/nursorgate/outbound/proxy/cursor_h2"
+	"aliang.one/nursorgate/outbound/proxy/cursor_h2"
 )
 
 func main() {
@@ -171,8 +171,8 @@ To use cursor_h2 with the proxy registry:
 
 ```go
 import (
-	"nursor.org/nursorgate/outbound/proxy"
-	"nursor.org/nursorgate/outbound/proxy/cursor_h2"
+	"aliang.one/nursorgate/outbound/proxy"
+	"aliang.one/nursorgate/outbound/proxy/cursor_h2"
 )
 
 // Create proxy instance

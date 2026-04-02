@@ -1,4 +1,4 @@
-module nursor.org/nursorgate
+module aliang.one/nursorgate
 
 go 1.25.1
 

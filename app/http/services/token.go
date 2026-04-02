@@ -1,7 +1,7 @@
 package services
 
 import (
-	"nursor.org/nursorgate/outbound"
+	"aliang.one/nursorgate/outbound"
 )
 
 // TokenService handles token operations

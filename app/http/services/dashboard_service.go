@@ -5,7 +5,7 @@ import (
 	"net/url"
 	"strings"
 
-	auth "nursor.org/nursorgate/processor/auth"
+	auth "aliang.one/nursorgate/processor/auth"
 )
 
 type DashboardService struct{}

@@ -8,10 +8,10 @@ import (
 
 	"github.com/xjasonlyu/tun2socks/v2/transport/shadowsocks/core"
 
-	"nursor.org/nursorgate/inbound/tun/metadata"
-	"nursor.org/nursorgate/outbound/proxy"
-	"nursor.org/nursorgate/outbound/proxy/proto"
-	"nursor.org/nursorgate/processor/config"
+	"aliang.one/nursorgate/inbound/tun/metadata"
+	"aliang.one/nursorgate/outbound/proxy"
+	"aliang.one/nursorgate/outbound/proxy/proto"
+	"aliang.one/nursorgate/processor/config"
 )
 
 // ShadowTLS represents a ShadowTLS proxy implementation

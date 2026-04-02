@@ -482,4 +482,4 @@ Development focuses on:
 
 **Last Updated**: December 10, 2024
 **Latest Version**: Phase 4 - Complete DNS Caching System
-**Module**: nursor.org/nursorgate
+**Module**: aliang.one/nursorgate

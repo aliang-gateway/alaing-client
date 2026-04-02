@@ -5,9 +5,9 @@ import (
 	"errors"
 	"net"
 
-	"nursor.org/nursorgate/outbound/proxy/proto"
+	"aliang.one/nursorgate/outbound/proxy/proto"
 
-	M "nursor.org/nursorgate/inbound/tun/metadata"
+	M "aliang.one/nursorgate/inbound/tun/metadata"
 )
 
 var _ Proxy = (*Base)(nil)

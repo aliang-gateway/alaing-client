@@ -9,9 +9,9 @@ import (
 	"strings"
 	"time"
 
-	"nursor.org/nursorgate/common/logger"
-	M "nursor.org/nursorgate/inbound/tun/metadata"
-	"nursor.org/nursorgate/outbound/proxy"
+	"aliang.one/nursorgate/common/logger"
+	M "aliang.one/nursorgate/inbound/tun/metadata"
+	"aliang.one/nursorgate/outbound/proxy"
 )
 
 // DialerResolverUtil 提供通过 dialer 进行 DNS 解析的工具函数

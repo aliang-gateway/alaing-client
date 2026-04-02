@@ -1,6 +1,6 @@
 package tunnel
 
-import "nursor.org/nursorgate/outbound/proxy"
+import "aliang.one/nursorgate/outbound/proxy"
 
 var (
 	defaultProxy proxy.Proxy

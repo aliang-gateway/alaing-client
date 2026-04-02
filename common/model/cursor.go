@@ -5,7 +5,7 @@ import (
 	"os"
 	"time"
 
-	"nursor.org/nursorgate/common/logger"
+	"aliang.one/nursorgate/common/logger"
 
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"

@@ -327,7 +327,7 @@ func TestConfigValidate_NewModelHelpers_ExposeRuntimeValues(t *testing.T) {
 			"api_server": "https://api.example.com",
 			"aliangServer": {
 				"type": "aliang",
-				"core_server": "ai-gateway.nursor.org:443"
+				"core_server": "ai-gateway.aliang.one:443"
 			}
 		},
 		"customer": {
@@ -372,7 +372,7 @@ func TestConfigValidate_NewModelHelpers_ExposeRuntimeValues(t *testing.T) {
 	if socksCfg.Server != "127.0.0.1" || socksCfg.ServerPort != 1080 {
 		t.Fatalf("EffectiveSocksProxy() = %#v, want host 127.0.0.1 port 1080", socksCfg)
 	}
-	if got := cfg.EffectiveAliangCoreServer(); got != "ai-gateway.nursor.org:443" {
+	if got := cfg.EffectiveAliangCoreServer(); got != "ai-gateway.aliang.one:443" {
 		t.Fatalf("EffectiveAliangCoreServer() = %q", got)
 	}
 	if got := cfg.EffectiveAIAllowlist(); len(got) != 2 {

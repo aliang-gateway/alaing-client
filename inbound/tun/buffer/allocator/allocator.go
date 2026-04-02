@@ -4,7 +4,7 @@ import (
 	"errors"
 	"math/bits"
 
-	"nursor.org/nursorgate/inbound/tun/pool"
+	"aliang.one/nursorgate/inbound/tun/pool"
 )
 
 // Allocator for incoming frames, optimized to prevent overwriting

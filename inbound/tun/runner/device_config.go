@@ -12,11 +12,11 @@ import (
 	"runtime"
 	"strings"
 
+	"aliang.one/nursorgate/common/logger"
+	utils2 "aliang.one/nursorgate/inbound/tun/runner/utils"
+	"aliang.one/nursorgate/processor/setup"
 	"golang.org/x/text/encoding/simplifiedchinese"
 	"golang.org/x/text/transform"
-	"nursor.org/nursorgate/common/logger"
-	utils2 "nursor.org/nursorgate/inbound/tun/runner/utils"
-	"nursor.org/nursorgate/processor/setup"
 )
 
 type RouteEntry struct {

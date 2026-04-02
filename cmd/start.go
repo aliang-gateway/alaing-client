@@ -8,16 +8,16 @@ import (
 	"strings"
 	"syscall"
 
+	httpServer "aliang.one/nursorgate/app/http"
+	"aliang.one/nursorgate/app/http/storage"
+	"aliang.one/nursorgate/common/cache"
+	"aliang.one/nursorgate/common/logger"
+	auth "aliang.one/nursorgate/processor/auth"
+	"aliang.one/nursorgate/processor/config"
+	"aliang.one/nursorgate/processor/geoip"
+	"aliang.one/nursorgate/processor/rules"
+	"aliang.one/nursorgate/processor/runtime"
 	"github.com/spf13/cobra"
-	httpServer "nursor.org/nursorgate/app/http"
-	"nursor.org/nursorgate/app/http/storage"
-	"nursor.org/nursorgate/common/cache"
-	"nursor.org/nursorgate/common/logger"
-	auth "nursor.org/nursorgate/processor/auth"
-	"nursor.org/nursorgate/processor/config"
-	"nursor.org/nursorgate/processor/geoip"
-	"nursor.org/nursorgate/processor/rules"
-	"nursor.org/nursorgate/processor/runtime"
 )
 
 var startCmd = &cobra.Command{

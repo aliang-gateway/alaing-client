@@ -7,8 +7,8 @@ import (
 	"github.com/sagernet/gvisor/pkg/tcpip/transport/udp"
 	"github.com/sagernet/gvisor/pkg/waiter"
 
-	"nursor.org/nursorgate/inbound/tun/adapter"
-	"nursor.org/nursorgate/inbound/tun/option"
+	"aliang.one/nursorgate/inbound/tun/adapter"
+	"aliang.one/nursorgate/inbound/tun/option"
 )
 
 func withUDPHandler(handle func(adapter.UDPConn)) option.Option {

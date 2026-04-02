@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"runtime"
 
-	"nursor.org/nursorgate/common/logger"
+	"aliang.one/nursorgate/common/logger"
 )
 
 const (

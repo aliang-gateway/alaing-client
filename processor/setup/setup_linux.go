@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"nursor.org/nursorgate/common/logger"
+	"aliang.one/nursorgate/common/logger"
 )
 
 // LinuxServiceManager Linux systemd 服务管理器

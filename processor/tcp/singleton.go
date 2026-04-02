@@ -3,8 +3,8 @@ package tcp
 import (
 	"sync"
 
-	"nursor.org/nursorgate/common/logger"
-	"nursor.org/nursorgate/processor/statistic"
+	"aliang.one/nursorgate/common/logger"
+	"aliang.one/nursorgate/processor/statistic"
 )
 
 var (

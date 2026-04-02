@@ -4,8 +4,8 @@ import (
 	"strings"
 	"testing"
 
-	"nursor.org/nursorgate/common/model"
-	"nursor.org/nursorgate/processor/config"
+	"aliang.one/nursorgate/common/model"
+	"aliang.one/nursorgate/processor/config"
 )
 
 func boolPtr(v bool) *bool { return &v }

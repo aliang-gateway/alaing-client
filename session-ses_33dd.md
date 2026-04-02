@@ -952,7 +952,7 @@ _Thinking:_
 482#YY|
 483#VY|**Last Updated**: December 10, 2024
 484#PN|**Latest Version**: Phase 4 - Complete DNS Caching System
-485#KV|**Module**: nursor.org/nursorgate
+485#KV|**Module**: aliang.one/nursorgate
 
 (End of file - total 485 lines)
 </content>
@@ -972,7 +972,7 @@ _Thinking:_
 <path>/Users/mac/MyProgram/GoProgram/AnyDoor/anydoor-core-from-nursor/go.mod</path>
 <type>file</type>
 <content>
-1#RS|module nursor.org/nursorgate
+1#RS|module aliang.one/nursorgate
 2#KM|
 3#KP|go 1.25.1
 4#RW|
@@ -1585,7 +1585,7 @@ Development focuses on:
 
 **Last Updated**: December 10, 2024
 **Latest Version**: Phase 4 - Complete DNS Caching System
-**Module**: nursor.org/nursorgate
+**Module**: aliang.one/nursorgate
 
 ```
 
@@ -1775,18 +1775,18 @@ Development focuses on:
 10#RR|// 	"encoding/json"
 11#ZP|// 	"time"
 12#TX|
-13#WX|// 	"nursor.org/nursorgate/app/http/handlers"
-14#MJ|// 	"nursor.org/nursorgate/common/logger"
-15#XT|// 	"nursor.org/nursorgate/common/model"
-16#NR|// 	"nursor.org/nursorgate/proxyserver/http"
-17#NH|// 	httpServer "nursor.org/nursorgate/proxyserver/http"
-18#KW|// 	tun "nursor.org/nursorgate/proxyserver/tun/engine"
-19#QZ|// 	runner2 "nursor.org/nursorgate/proxyserver/tun/runner"
-20#BQ|// 	"nursor.org/nursorgate/proxyserver/tun/runner/utils"
-21#ZK|// 	"nursor.org/nursorgate/outbound"
-22#WH|// 	user "nursor.org/nursorgate/processor/auth"
-23#YB|// 	"nursor.org/nursorgate/processor/cert/client"
-24#TN|// 	proxyConfig "nursor.org/nursorgate/processor/config"
+13#WX|// 	"aliang.one/nursorgate/app/http/handlers"
+14#MJ|// 	"aliang.one/nursorgate/common/logger"
+15#XT|// 	"aliang.one/nursorgate/common/model"
+16#NR|// 	"aliang.one/nursorgate/proxyserver/http"
+17#NH|// 	httpServer "aliang.one/nursorgate/proxyserver/http"
+18#KW|// 	tun "aliang.one/nursorgate/proxyserver/tun/engine"
+19#QZ|// 	runner2 "aliang.one/nursorgate/proxyserver/tun/runner"
+20#BQ|// 	"aliang.one/nursorgate/proxyserver/tun/runner/utils"
+21#ZK|// 	"aliang.one/nursorgate/outbound"
+22#WH|// 	user "aliang.one/nursorgate/processor/auth"
+23#YB|// 	"aliang.one/nursorgate/processor/cert/client"
+24#TN|// 	proxyConfig "aliang.one/nursorgate/processor/config"
 25#YH|// )
 26#HK|
 27#BP|// //export startClient
@@ -1827,7 +1827,7 @@ Development focuses on:
 62#BK|// 	user.SetInnerToken(innerTokenStr)
 63#JZ|// 	logger.SetUserInfo(innerTokenStr)
 64#JB|// 	model.NewAllowProxyDomain()
-65#NN|// 	utils.SetServerHost("api2.nursor.org:12235")
+65#NN|// 	utils.SetServerHost("api2.aliang.one:12235")
 66#TJ|// 	go runner2.Start()
 67#HT|// 	res := <-runner2.RunStatusChan
 68#JB|// 	logger.Info(res)
@@ -2573,7 +2573,7 @@ main.go
 6#QN|	"net"
 7#XV|	"time"
 8#XW|
-9#MQ|	M "nursor.org/nursorgate/inbound/tun/metadata"
+9#MQ|	M "aliang.one/nursorgate/inbound/tun/metadata"
 10#BH|)
 11#TJ|
 12#YB|const (
@@ -2731,7 +2731,7 @@ _Thinking:_
 1#JK|package main
 2#KM|
 3#YB|import (
-4#PT|	"nursor.org/nursorgate/cmd"
+4#PT|	"aliang.one/nursorgate/cmd"
 5#PY|)
 6#SY|
 7#SW|func main() {
@@ -2763,8 +2763,8 @@ _Thinking:_
 5#WY|	"context"
 6#QN|	"net"
 7#HN|
-8#JZ|	"nursor.org/nursorgate/inbound/tun/metadata"
-9#RY|	"nursor.org/nursorgate/outbound/proxy/proto"
+8#JZ|	"aliang.one/nursorgate/inbound/tun/metadata"
+9#RY|	"aliang.one/nursorgate/outbound/proxy/proto"
 10#BH|)
 11#TJ|
 12#KW|// Dialer interface for dialing connections
@@ -2805,14 +2805,14 @@ _Thinking:_
 5#BN|	"strings"
 6#JJ|	"sync"
 7#HN|
-8#ZH|	"nursor.org/nursorgate/common/logger"
-9#HH|	"nursor.org/nursorgate/outbound/proxy"
-10#MP|	"nursor.org/nursorgate/outbound/proxy/direct"
-11#VR|	"nursor.org/nursorgate/outbound/proxy/nonelane"
-12#YT|	"nursor.org/nursorgate/outbound/proxy/shadowsocks"
-13#TS|	"nursor.org/nursorgate/outbound/proxy/shadowtls"
-14#WB|	"nursor.org/nursorgate/outbound/proxy/vless"
-15#PV|	proxyConfig "nursor.org/nursorgate/processor/config"
+8#ZH|	"aliang.one/nursorgate/common/logger"
+9#HH|	"aliang.one/nursorgate/outbound/proxy"
+10#MP|	"aliang.one/nursorgate/outbound/proxy/direct"
+11#VR|	"aliang.one/nursorgate/outbound/proxy/nonelane"
+12#YT|	"aliang.one/nursorgate/outbound/proxy/shadowsocks"
+13#TS|	"aliang.one/nursorgate/outbound/proxy/shadowtls"
+14#WB|	"aliang.one/nursorgate/outbound/proxy/vless"
+15#PV|	proxyConfig "aliang.one/nursorgate/processor/config"
 16#NQ|)
 17#HX|
 18#NX|// Registry 代理注册中心，线程安全
@@ -2869,7 +2869,7 @@ _Thinking:_
 69#KB|
 70#SH|	// 如果没有提供地址，使用默认值
 71#ZQ|	if serverAddr == "" {
-72#QB|		serverAddr = "ai-gateway.nursor.org:443"
+72#QB|		serverAddr = "ai-gateway.aliang.one:443"
 73#NH|		logger.Debug("Using default nonelane server address")
 74#XK|	}
 75#SZ|
@@ -3329,11 +3329,11 @@ _Thinking:_
 5#QN|	"net"
 6#JJ|	"sync"
 7#HN|
-8#ZH|	"nursor.org/nursorgate/common/logger"
-9#XP|	"nursor.org/nursorgate/common/model"
-10#MQ|	M "nursor.org/nursorgate/inbound/tun/metadata"
-11#BP|	"nursor.org/nursorgate/processor/cache"
-12#NN|	"nursor.org/nursorgate/processor/geoip"
+8#ZH|	"aliang.one/nursorgate/common/logger"
+9#XP|	"aliang.one/nursorgate/common/model"
+10#MQ|	M "aliang.one/nursorgate/inbound/tun/metadata"
+11#BP|	"aliang.one/nursorgate/processor/cache"
+12#NN|	"aliang.one/nursorgate/processor/geoip"
 13#RZ|)
 14#BY|
 15#KP|// RuleEngine evaluates routing rules in priority order
@@ -3485,7 +3485,7 @@ _Thinking:_
 
 | 属性 | 描述 |
 |------|------|
-| **模块名** | `nursor.org/nursorgate` |
+| **模块名** | `aliang.one/nursorgate` |
 | **Go版本** | 1.25.1 |
 | **核心功能** | 透明流量拦截、智能路由、DNS缓存、实时流量管理 |
 | **Web Dashboard** | http://localhost:56431 |
@@ -3558,7 +3558,7 @@ _Thinking:_
 
 | 项目属性 | 信息 |
 |---------|------|
-| **模块名** | `nursor.org/nursorgate` |
+| **模块名** | `aliang.one/nursorgate` |
 | **Go版本** | 1.25.1 |
 | **核心功能** | TUN设备流量拦截、智能路由、DNS缓存、HTTPS MITM |
 | **管理端口** | 56431 (Web Dashboard) |
@@ -4870,16 +4870,16 @@ to continue: task(session_id="ses_30eceace9ffeO2tp4ikov89Dqe", prompt="...")
 9: 	"time"
 10: 
 11: 	"github.com/spf13/cobra"
-12: 	httpServer "nursor.org/nursorgate/app/http"
-13: 	"nursor.org/nursorgate/common/cache"
-14: 	"nursor.org/nursorgate/common/logger"
-15: 	"nursor.org/nursorgate/common/model"
-16: 	auth "nursor.org/nursorgate/processor/auth"
-17: 	"nursor.org/nursorgate/processor/config"
-18: 	"nursor.org/nursorgate/processor/geoip"
-19: 	"nursor.org/nursorgate/processor/nacos"
-20: 	"nursor.org/nursorgate/processor/rules"
-21: 	"nursor.org/nursorgate/processor/runtime"
+12: 	httpServer "aliang.one/nursorgate/app/http"
+13: 	"aliang.one/nursorgate/common/cache"
+14: 	"aliang.one/nursorgate/common/logger"
+15: 	"aliang.one/nursorgate/common/model"
+16: 	auth "aliang.one/nursorgate/processor/auth"
+17: 	"aliang.one/nursorgate/processor/config"
+18: 	"aliang.one/nursorgate/processor/geoip"
+19: 	"aliang.one/nursorgate/processor/nacos"
+20: 	"aliang.one/nursorgate/processor/rules"
+21: 	"aliang.one/nursorgate/processor/runtime"
 22: )
 23: 
 24: var startCmd = &cobra.Command{
@@ -5192,10 +5192,10 @@ task(category="visual-engineering", load_skills=["ui-ux-pro-max"], run_in_backgr
 9: 	"os"
 10: 	"strings"
 11: 
-12: 	"nursor.org/nursorgate/common/logger"
-13: 	"nursor.org/nursorgate/outbound"
-14: 	"nursor.org/nursorgate/processor/config"
-15: 	"nursor.org/nursorgate/processor/proxyserver"
+12: 	"aliang.one/nursorgate/common/logger"
+13: 	"aliang.one/nursorgate/outbound"
+14: 	"aliang.one/nursorgate/processor/config"
+15: 	"aliang.one/nursorgate/processor/proxyserver"
 16: )
 17: 
 18: // Embed the default configuration
@@ -5413,7 +5413,7 @@ task(category="visual-engineering", load_skills=["ui-ux-pro-max"], run_in_backgr
 230: 
 231: 	// 如果配置中没有指定，使用默认值
 232: 	if coreServer == "" {
-233: 		coreServer = "ai-gateway.nursor.org:443"
+233: 		coreServer = "ai-gateway.aliang.one:443"
 234: 		logger.Debug("Using default Nonelane server address")
 235: 	}
 236: 
@@ -5528,7 +5528,7 @@ Let me read more files to understand the complete picture - specifically the run
 4: 	"sync"
 5: 	"time"
 6: 
-7: 	authuser "nursor.org/nursorgate/processor/auth"
+7: 	authuser "aliang.one/nursorgate/processor/auth"
 8: )
 9: 
 10: // StartupStatus represents the current startup state
@@ -5669,12 +5669,12 @@ Let me read more files to understand the complete picture - specifically the run
 10: 	"path/filepath"
 11: 	"strings"
 12: 
-13: 	"nursor.org/nursorgate/app"
-14: 	"nursor.org/nursorgate/app/http/middleware"
-15: 	"nursor.org/nursorgate/app/http/routes"
-16: 	"nursor.org/nursorgate/app/http/services"
-17: 	"nursor.org/nursorgate/common/logger"
-18: 	"nursor.org/nursorgate/processor/latency"
+13: 	"aliang.one/nursorgate/app"
+14: 	"aliang.one/nursorgate/app/http/middleware"
+15: 	"aliang.one/nursorgate/app/http/routes"
+16: 	"aliang.one/nursorgate/app/http/services"
+17: 	"aliang.one/nursorgate/common/logger"
+18: 	"aliang.one/nursorgate/processor/latency"
 19: )
 20: 
 21: var (
@@ -8609,7 +8609,7 @@ ULTRAWORK MODE ENABLED!
   "content": {
     "endId": "m0031",
     "startId": "m0001",
-    "summary": "**项目分析完成 - Nursorgate (TUN 代理系统)**\n\n**项目概述**：\n- Go TUN-based 透明代理系统，模块名 `nursor.org/nursorgate`\n- 核心功能：TUN设备流量拦截、智能路由、DNS缓存、HTTPS MITM\n\n**启动流程分析发现的问题** (按严重性排序):\n\n| 问题 | 严重性 | 建议 |\n|------|--------|------|\n| 全局状态管理混乱 (多个单例: Registry, RuleEngine, StartupState, GeoIP) | 🔴 Critical | 引入 StartupManager |\n| 8个 init() 函数执行顺序不确定 | 🔴 Critical | 显式化初始化顺序 |\n| goroutine 中 log.Fatalf 导致程序崩溃 | 🔴 Critical | 使用 errgroup + context |\n| 错误处理不一致 | 🟡 Medium | 统一错误处理策略 |\n| 配置加载分散 | 🟡 Medium | 单一配置管道 |\n| HTTP/TUN 模式耦合 | 🟡 Medium | 模式分离 |\n\n**相关文件**:\n- `cmd/root.go` - CLI 入口 (40行)\n- `cmd/start.go` - 主启动逻辑 (293行) - 问题集中点\n- `cmd/config.go` - 配置加载 (294行)\n- `processor/runtime/startup_state.go` - 启动状态管理\n- `outbound/registry.go` - 代理注册中心 (504行)\n- `app/http/server.go` - HTTP 服务器 (235行) - 有 log.Fatalf\n\n**Plan Agent 建议的重构阶段**:\n1. Phase 0: 添加基线测试\n2. Phase 1: 引入 StartupManager 接口\n3. Phase 2: 使 init 顺序显式化\n4. Phase 3: 替换 log.Fatalf 为错误返回\n5. Phase 4: 统一配置管道\n6. Phase 5: HTTP/TUN 模式分离\n7. Phase 6: 单例包含和去全局化\n\n**策略**: 增量式重构，保持向后兼容，先添加测试再重构\n\n**用户意图**: 用户想继续执行重构任务"
+    "summary": "**项目分析完成 - Nursorgate (TUN 代理系统)**\n\n**项目概述**：\n- Go TUN-based 透明代理系统，模块名 `aliang.one/nursorgate`\n- 核心功能：TUN设备流量拦截、智能路由、DNS缓存、HTTPS MITM\n\n**启动流程分析发现的问题** (按严重性排序):\n\n| 问题 | 严重性 | 建议 |\n|------|--------|------|\n| 全局状态管理混乱 (多个单例: Registry, RuleEngine, StartupState, GeoIP) | 🔴 Critical | 引入 StartupManager |\n| 8个 init() 函数执行顺序不确定 | 🔴 Critical | 显式化初始化顺序 |\n| goroutine 中 log.Fatalf 导致程序崩溃 | 🔴 Critical | 使用 errgroup + context |\n| 错误处理不一致 | 🟡 Medium | 统一错误处理策略 |\n| 配置加载分散 | 🟡 Medium | 单一配置管道 |\n| HTTP/TUN 模式耦合 | 🟡 Medium | 模式分离 |\n\n**相关文件**:\n- `cmd/root.go` - CLI 入口 (40行)\n- `cmd/start.go` - 主启动逻辑 (293行) - 问题集中点\n- `cmd/config.go` - 配置加载 (294行)\n- `processor/runtime/startup_state.go` - 启动状态管理\n- `outbound/registry.go` - 代理注册中心 (504行)\n- `app/http/server.go` - HTTP 服务器 (235行) - 有 log.Fatalf\n\n**Plan Agent 建议的重构阶段**:\n1. Phase 0: 添加基线测试\n2. Phase 1: 引入 StartupManager 接口\n3. Phase 2: 使 init 顺序显式化\n4. Phase 3: 替换 log.Fatalf 为错误返回\n5. Phase 4: 统一配置管道\n6. Phase 5: HTTP/TUN 模式分离\n7. Phase 6: 单例包含和去全局化\n\n**策略**: 增量式重构，保持向后兼容，先添加测试再重构\n\n**用户意图**: 用户想继续执行重构任务"
   },
   "topic": "Startup Analysis Complete"
 }
@@ -8686,7 +8686,7 @@ import (
 	"context"
 
 	"github.com/spf13/cobra"
-	"nursor.org/nursorgate/processor/runtime"
+	"aliang.one/nursorgate/processor/runtime"
 )
 
 type StartupManager interface {
@@ -9127,16 +9127,16 @@ _Thinking:_
 9: 	"time"
 10: 
 11: 	"github.com/spf13/cobra"
-12: 	httpServer "nursor.org/nursorgate/app/http"
-13: 	"nursor.org/nursorgate/common/cache"
-14: 	"nursor.org/nursorgate/common/logger"
-15: 	"nursor.org/nursorgate/common/model"
-16: 	auth "nursor.org/nursorgate/processor/auth"
-17: 	"nursor.org/nursorgate/processor/config"
-18: 	"nursor.org/nursorgate/processor/geoip"
-19: 	"nursor.org/nursorgate/processor/nacos"
-20: 	"nursor.org/nursorgate/processor/rules"
-21: 	"nursor.org/nursorgate/processor/runtime"
+12: 	httpServer "aliang.one/nursorgate/app/http"
+13: 	"aliang.one/nursorgate/common/cache"
+14: 	"aliang.one/nursorgate/common/logger"
+15: 	"aliang.one/nursorgate/common/model"
+16: 	auth "aliang.one/nursorgate/processor/auth"
+17: 	"aliang.one/nursorgate/processor/config"
+18: 	"aliang.one/nursorgate/processor/geoip"
+19: 	"aliang.one/nursorgate/processor/nacos"
+20: 	"aliang.one/nursorgate/processor/rules"
+21: 	"aliang.one/nursorgate/processor/runtime"
 22: )
 23: 
 24: var startCmd = &cobra.Command{
@@ -9438,10 +9438,10 @@ _Thinking:_
 9: 	"os"
 10: 	"strings"
 11: 
-12: 	"nursor.org/nursorgate/common/logger"
-13: 	"nursor.org/nursorgate/outbound"
-14: 	"nursor.org/nursorgate/processor/config"
-15: 	"nursor.org/nursorgate/processor/proxyserver"
+12: 	"aliang.one/nursorgate/common/logger"
+13: 	"aliang.one/nursorgate/outbound"
+14: 	"aliang.one/nursorgate/processor/config"
+15: 	"aliang.one/nursorgate/processor/proxyserver"
 16: )
 17: 
 18: // Embed the default configuration
@@ -9659,7 +9659,7 @@ _Thinking:_
 230: 
 231: 	// 如果配置中没有指定，使用默认值
 232: 	if coreServer == "" {
-233: 		coreServer = "ai-gateway.nursor.org:443"
+233: 		coreServer = "ai-gateway.aliang.one:443"
 234: 		logger.Debug("Using default Nonelane server address")
 235: 	}
 236: 
@@ -10210,7 +10210,7 @@ Development focuses on:
 
 **Last Updated**: December 10, 2024
 **Latest Version**: Phase 4 - Complete DNS Caching System
-**Module**: nursor.org/nursorgate
+**Module**: aliang.one/nursorgate
 
 ```
 
@@ -10233,7 +10233,7 @@ Development focuses on:
 4: 	"sync"
 5: 	"time"
 6: 
-7: 	authuser "nursor.org/nursorgate/processor/auth"
+7: 	authuser "aliang.one/nursorgate/processor/auth"
 8: )
 9: 
 10: // StartupStatus represents the current startup state
@@ -11048,12 +11048,12 @@ Phase 0 任务是 重要，Phase 1 是关键步骤,我会它们不要重新启�
 10: 	"path/filepath"
 11: 	"strings"
 12: 
-13: 	"nursor.org/nursorgate/app"
-14: 	"nursor.org/nursorgate/app/http/middleware"
-15: 	"nursor.org/nursorgate/app/http/routes"
-16: 	"nursor.org/nursorgate/app/http/services"
-17: 	"nursor.org/nursorgate/common/logger"
-18: 	"nursor.org/nursorgate/processor/latency"
+13: 	"aliang.one/nursorgate/app"
+14: 	"aliang.one/nursorgate/app/http/middleware"
+15: 	"aliang.one/nursorgate/app/http/routes"
+16: 	"aliang.one/nursorgate/app/http/services"
+17: 	"aliang.one/nursorgate/common/logger"
+18: 	"aliang.one/nursorgate/processor/latency"
 19: )
 20: 
 21: var (
@@ -11576,7 +11576,7 @@ Phase 1 的测试文件似乎没有在 cmd 目录中创建成功。让我查看�
   "category": "deep",
   "description": "P1-1: Interface skeleton",
   "load_skills": [],
-  "prompt": "**TASK**: Create Startup manager interface skeleton and default implementation\n\n**EXPECTED OUTCOME**: Files `cmd/startup_manager_interfaces.go` and `cmd/startup_manager.go` with passing tests\n\n**REQUIRED TOOLS**: Write, Bash (for go test)\n\n**MUST DO**:\n1. Create file `cmd/startup_manager_interfaces.go` with interface definitions:\n```go\npackage cmd\n\nimport (\n\t\"context\"\n\n\t \"github.com/spf13/cobra\"\n    \"nursor.org/nursorgate/processor/runtime\"\n)\n\n    \ntype StartupManager interface {\n\tRun(ctx context.Context, cmd *cobra.Command, args []string, req StartRequest) error\n LoadAndApplyConfiguration(ctx context.Context, req StartRequest) (*Config, error)\n\tDetermineInitialStatus(ctx context.Context, req StartRequest) runtime.StartupStatus\n\tInitializeUserAndState(ctx context.Context, req StartRequest) error\n\tInitializeCoreServices(ctx context.Context) error\n\tStartRuntimes(ctx context.Context) error\n\tWaitForShutdown(ctx context.Context) error\n\t Shutdown(ctx context.Context) error\n}\n```\n\ntype ConfigApplier interface {\n\t LoadConfig(path string) (*Config, error)\n  LoadConfigFromBytes(data []byte) (*Config, error)\n  ApplyConfig(cfg *Config) error\n  ApplyDefaultConfig() error\n  IsUsingDefaultConfig() bool\n}\n\ntype StartupStateStore interface {\n    SetStatus(status runtime.StartupStatus)\n    GetStatus() runtime.StartupStatus\n    SetFetchSuccess(success bool)\n    GetFetchSuccess() bool\n}\n\n type UserInitializer interface {\n    InitializeUser(token string) error\n}\n \ntype CoreInitializer interface {\n    InitializeGlobalRuleEngine() error\n    InitializeNacosFromGlobalConfig() (NacosStopper, error)\n}\n \ntype NacosStopper interface {\n    Stop()\n}\n\n type HTTPRunner interface {\n    Start() error\n}\n \ntype SignalWaiter interface {\n    Wait() error\n}\n\n type Config struct {\n    *Config\n}\n\n type StartRequest struct {\n    ConfigPath string\n    Token      string\n}\n```\n\nType NacosStopper interface {\n    Stop()\n}\n\n type ConfigApplier = ConfigApplier\ntype Config struct {\n    *Config\n    `json:\"nursor.org/nursorgate/processor/config\"\n    )\n}\n```\n\n type HTTPRunner struct {\n    Start() error\n}\n \ntype SignalWaiter struct {\n    Wait() error\n}\n```\n2. Create `cmd/startup_manager_interfaces.go`:\n```go\npackage cmd\n\nimport (\n\t\"context\"\n\n\t\"github.com/spf13/cobra\"\n    \"nursor.org/nursorgate/processor/runtime\"\n)\n\n// StartupManager orchestrates the entire startup process\ntype StartupManager interface {\n    Run(ctx context.Context, cmd *cobra.Command, args []string, req StartRequest) error\n    // Load and apply configuration (from file or default)\n            cfg, err := LoadAndApplyConfiguration(ctx, req)\n            if err != nil {\n                return nil, cfg, err\n            }\n            return nil, cfg, err\n        }\n    }\n    cfg.Freeze()\n    return cfg, nil\n        }\n        if err != nil {\n            return nil, nil\n        }\n    }\n    if !config. {\n        return nil, cfg\n    }\n\n    // Determine initial status based on token and local user info\n    status := determineInitialStatus(token)\n    if status != runtime.UNCONFIGURED {\n        return runtime.UNCONFIGURED\n    }\n\n    // Check for local user info\n    hasLocalUserInfo, err := auth.GetUserInfoPath()\n    if err != nil {\n                return runtime.UNCONFIGURED\n            }\n        }\n            hasLocalUserInfo =\n        if status == runtime.CONFIGURED {\n                return runtime.CONFIGURED\n            }\n        }\n        if status == runtime.READY {\n            return runtime.READY\n        }\n    }\n    if status == runtime.CONFIGURED {\n        // Local user exists but custom config\n        return runtime.CONFIGURED\n    }\n    if status == runtime.CONFIGURED && usingDefault {\n        return runtime.CONFIGURED\n    }\n    if status != runtime.UNCONFIGURED && status != runtime.UNCONFIGURED {\n        return status\n    }\n    if status == runtime.READY {\n        return runtime.READY\n    }\n    if status == runtime.CONFIGURED {\n        return runtime.CONFIGURED\n    }\n    if status != runtime.CONFIGURED && status != runtime.READY {\n        return runtime.READY\n    }\n    // Note: UserInitializer.InitializeUser modifies global state directly\n    // It's important to keep this isolated for tests.\n            s.mu.Lock()\n            s.userInfo = s.userInfo\n        }\n    }(s.mu.RUnlock())\n    defer s.mu.Unlock()\n    s.userInfo = nil\n        return nil\n    }\n    if err != nil {\n                return err\n            }\n        }\n            return nil\n        }\n        if err != nil {\n            return err\n        }\n        if _, err := createFile from path or os.Stat(userInfo), check existence; user info file existence; check if has token; check if file exists for user info file\n        return runtime.UNCONFIGURED\n    }\n    if token != \"\" && !os.Stat(userInfoPath).Is.Err {\n        return \"\", token), err\n        }\n        return fmt.Sprintf(\"failed to check for local user info: %v\", err)\n    }\n    if _, err := os.Stat(userInfoPath); err != nil {\n        return fmt.Sprintf(\"failed to get user info path: %s\", err)\n    }\n\n    // Use embedded default config\n            if err := a.ApplyDefaultConfig()\n        if err != nil {\n                return fmt.Errorf(\"failed to apply default config: %w\", err)\n            }\n        }\n            setUseDefaultConfig(true)\n        } else {\n            if configPath == \"\" {\n                return nil\n            }\n            if _, err := os.Stat(configPath); err != nil {\n                return fmt.Sprintf(\"failed to stat config file: %s\", err)\n            }\n        }\n        if _, err := os.Stat(userInfoPath); err != nil {\n            return nil\n        }\n        if _, err := os.Stat(userInfoPath); err == nil {\n            return nil\n        }\n        if _, err := os.Stat(userInfoPath); err == nil {\n            return nil,        }\n    }\n\n    // Use default config\n        if err != nil {\n                return nil\n            }\n            if configPath == \"\" {\n                return nil\n            }\n            if configPath != \"\" {\n                return nil, cfg\n            }\n            cfg.Freeze()\n            return nil, cfg\n        }\n    }\n\n    // If all fields are empty, use default\n            return nil, cfg\n        }\n    }\n    // Note: User may choose to user info file manually for testing\n            // In production,, real logic handles failure via adapter layers\n            \n\n // But it about de-globalization for future refactor\n\n            // For now, create test files\n            return nil\n        }\n    }\n}\n",
+  "prompt": "**TASK**: Create Startup manager interface skeleton and default implementation\n\n**EXPECTED OUTCOME**: Files `cmd/startup_manager_interfaces.go` and `cmd/startup_manager.go` with passing tests\n\n**REQUIRED TOOLS**: Write, Bash (for go test)\n\n**MUST DO**:\n1. Create file `cmd/startup_manager_interfaces.go` with interface definitions:\n```go\npackage cmd\n\nimport (\n\t\"context\"\n\n\t \"github.com/spf13/cobra\"\n    \"aliang.one/nursorgate/processor/runtime\"\n)\n\n    \ntype StartupManager interface {\n\tRun(ctx context.Context, cmd *cobra.Command, args []string, req StartRequest) error\n LoadAndApplyConfiguration(ctx context.Context, req StartRequest) (*Config, error)\n\tDetermineInitialStatus(ctx context.Context, req StartRequest) runtime.StartupStatus\n\tInitializeUserAndState(ctx context.Context, req StartRequest) error\n\tInitializeCoreServices(ctx context.Context) error\n\tStartRuntimes(ctx context.Context) error\n\tWaitForShutdown(ctx context.Context) error\n\t Shutdown(ctx context.Context) error\n}\n```\n\ntype ConfigApplier interface {\n\t LoadConfig(path string) (*Config, error)\n  LoadConfigFromBytes(data []byte) (*Config, error)\n  ApplyConfig(cfg *Config) error\n  ApplyDefaultConfig() error\n  IsUsingDefaultConfig() bool\n}\n\ntype StartupStateStore interface {\n    SetStatus(status runtime.StartupStatus)\n    GetStatus() runtime.StartupStatus\n    SetFetchSuccess(success bool)\n    GetFetchSuccess() bool\n}\n\n type UserInitializer interface {\n    InitializeUser(token string) error\n}\n \ntype CoreInitializer interface {\n    InitializeGlobalRuleEngine() error\n    InitializeNacosFromGlobalConfig() (NacosStopper, error)\n}\n \ntype NacosStopper interface {\n    Stop()\n}\n\n type HTTPRunner interface {\n    Start() error\n}\n \ntype SignalWaiter interface {\n    Wait() error\n}\n\n type Config struct {\n    *Config\n}\n\n type StartRequest struct {\n    ConfigPath string\n    Token      string\n}\n```\n\nType NacosStopper interface {\n    Stop()\n}\n\n type ConfigApplier = ConfigApplier\ntype Config struct {\n    *Config\n    `json:\"aliang.one/nursorgate/processor/config\"\n    )\n}\n```\n\n type HTTPRunner struct {\n    Start() error\n}\n \ntype SignalWaiter struct {\n    Wait() error\n}\n```\n2. Create `cmd/startup_manager_interfaces.go`:\n```go\npackage cmd\n\nimport (\n\t\"context\"\n\n\t\"github.com/spf13/cobra\"\n    \"aliang.one/nursorgate/processor/runtime\"\n)\n\n// StartupManager orchestrates the entire startup process\ntype StartupManager interface {\n    Run(ctx context.Context, cmd *cobra.Command, args []string, req StartRequest) error\n    // Load and apply configuration (from file or default)\n            cfg, err := LoadAndApplyConfiguration(ctx, req)\n            if err != nil {\n                return nil, cfg, err\n            }\n            return nil, cfg, err\n        }\n    }\n    cfg.Freeze()\n    return cfg, nil\n        }\n        if err != nil {\n            return nil, nil\n        }\n    }\n    if !config. {\n        return nil, cfg\n    }\n\n    // Determine initial status based on token and local user info\n    status := determineInitialStatus(token)\n    if status != runtime.UNCONFIGURED {\n        return runtime.UNCONFIGURED\n    }\n\n    // Check for local user info\n    hasLocalUserInfo, err := auth.GetUserInfoPath()\n    if err != nil {\n                return runtime.UNCONFIGURED\n            }\n        }\n            hasLocalUserInfo =\n        if status == runtime.CONFIGURED {\n                return runtime.CONFIGURED\n            }\n        }\n        if status == runtime.READY {\n            return runtime.READY\n        }\n    }\n    if status == runtime.CONFIGURED {\n        // Local user exists but custom config\n        return runtime.CONFIGURED\n    }\n    if status == runtime.CONFIGURED && usingDefault {\n        return runtime.CONFIGURED\n    }\n    if status != runtime.UNCONFIGURED && status != runtime.UNCONFIGURED {\n        return status\n    }\n    if status == runtime.READY {\n        return runtime.READY\n    }\n    if status == runtime.CONFIGURED {\n        return runtime.CONFIGURED\n    }\n    if status != runtime.CONFIGURED && status != runtime.READY {\n        return runtime.READY\n    }\n    // Note: UserInitializer.InitializeUser modifies global state directly\n    // It's important to keep this isolated for tests.\n            s.mu.Lock()\n            s.userInfo = s.userInfo\n        }\n    }(s.mu.RUnlock())\n    defer s.mu.Unlock()\n    s.userInfo = nil\n        return nil\n    }\n    if err != nil {\n                return err\n            }\n        }\n            return nil\n        }\n        if err != nil {\n            return err\n        }\n        if _, err := createFile from path or os.Stat(userInfo), check existence; user info file existence; check if has token; check if file exists for user info file\n        return runtime.UNCONFIGURED\n    }\n    if token != \"\" && !os.Stat(userInfoPath).Is.Err {\n        return \"\", token), err\n        }\n        return fmt.Sprintf(\"failed to check for local user info: %v\", err)\n    }\n    if _, err := os.Stat(userInfoPath); err != nil {\n        return fmt.Sprintf(\"failed to get user info path: %s\", err)\n    }\n\n    // Use embedded default config\n            if err := a.ApplyDefaultConfig()\n        if err != nil {\n                return fmt.Errorf(\"failed to apply default config: %w\", err)\n            }\n        }\n            setUseDefaultConfig(true)\n        } else {\n            if configPath == \"\" {\n                return nil\n            }\n            if _, err := os.Stat(configPath); err != nil {\n                return fmt.Sprintf(\"failed to stat config file: %s\", err)\n            }\n        }\n        if _, err := os.Stat(userInfoPath); err != nil {\n            return nil\n        }\n        if _, err := os.Stat(userInfoPath); err == nil {\n            return nil\n        }\n        if _, err := os.Stat(userInfoPath); err == nil {\n            return nil,        }\n    }\n\n    // Use default config\n        if err != nil {\n                return nil\n            }\n            if configPath == \"\" {\n                return nil\n            }\n            if configPath != \"\" {\n                return nil, cfg\n            }\n            cfg.Freeze()\n            return nil, cfg\n        }\n    }\n\n    // If all fields are empty, use default\n            return nil, cfg\n        }\n    }\n    // Note: User may choose to user info file manually for testing\n            // In production,, real logic handles failure via adapter layers\n            \n\n // But it about de-globalization for future refactor\n\n            // For now, create test files\n            return nil\n        }\n    }\n}\n",
   "run_in_background": true,
   "session_id": "ses_30e5df87cffeMi10l9HPm0nSBB",
   "subagent_type": "Sisyphus-Junior"
@@ -11644,7 +11644,7 @@ Agent已创建了新文件但以接口定义为主。实际执行了一些函数
 ```json
 {
   "filePath": "/Users/mac/MyProgram/GoProgram/nursor/nursorgate2/cmd/startup_manager.go",
-  "content": "//go:package cmd\n\nimport (\n\t\"context\"\n\n    \"github.com/spf13/cobra\"\n    \"nursor.org/nursorgate/processor/runtime\"\n)\n\n// StartupManager orchestrates the entire startup process\ntype StartupManager interface {\n    Run(ctx context.Context, cmd *cobra.Command, args []string, req StartRequest) error\n    // LoadAndApplyConfiguration loads config from file or default,\n    // Returns immutable config after loading\n    LoadAndApplyConfiguration(ctx context.Context, req StartRequest) (*Config, error)\n    DetermineInitialStatus(ctx context.Context, req StartRequest) runtime.StartupStatus\n            InitializeUserAndState(ctx context.Context, req StartRequest) error\n            InitializeCoreServices(ctx context.Context) error\n            StartRuntimes(ctx context.Context) error\n            WaitForShutdown(ctx context.Context) error\n            Shutdown(ctx context.Context) error\n        }\n    }\n\n    // IsUsingDefaultConfig reports whether default config was loaded\n    return isUsingDefaultConfig()\n        bool\n    }\n\n            type ConfigApplier interface {\n                LoadConfig(path string) (*Config, error)\n                LoadConfigFromBytes(data []byte) (*Config, error)\n                ApplyConfig(cfg *Config) error\n                ApplyDefaultConfig() error\n                return isUsingDefaultConfig()\n            }\n\n            type StartupStateStore interface {\n                SetStatus(status runtime.StartupStatus)\n                GetStatus() runtime.StartupStatus\n                SetFetchSuccess(success bool)\n                SetFetchSuccess(success bool)\n                GetFetchSuccess() bool\n            }\n\n            type UserInitializer interface {\n                InitializeUser(token string) error\n            }\n\n            type CoreInitializer interface {\n                InitializeGlobalRuleEngine() error\n                InitializeNacosFromGlobalConfig() (NacosStopper, error)\n            }\n\n            type HTTPRunner interface {\n                Start() error\n            }\n\n            type NacosStopper interface {\n                Stop()\n            }\n\n            type HTTPRunner interface {\n                Start() error\n            }\n\n            type SignalWaiter interface {\n                Wait() error\n            }\n        }\n    }\n}\n"
+  "content": "//go:package cmd\n\nimport (\n\t\"context\"\n\n    \"github.com/spf13/cobra\"\n    \"aliang.one/nursorgate/processor/runtime\"\n)\n\n// StartupManager orchestrates the entire startup process\ntype StartupManager interface {\n    Run(ctx context.Context, cmd *cobra.Command, args []string, req StartRequest) error\n    // LoadAndApplyConfiguration loads config from file or default,\n    // Returns immutable config after loading\n    LoadAndApplyConfiguration(ctx context.Context, req StartRequest) (*Config, error)\n    DetermineInitialStatus(ctx context.Context, req StartRequest) runtime.StartupStatus\n            InitializeUserAndState(ctx context.Context, req StartRequest) error\n            InitializeCoreServices(ctx context.Context) error\n            StartRuntimes(ctx context.Context) error\n            WaitForShutdown(ctx context.Context) error\n            Shutdown(ctx context.Context) error\n        }\n    }\n\n    // IsUsingDefaultConfig reports whether default config was loaded\n    return isUsingDefaultConfig()\n        bool\n    }\n\n            type ConfigApplier interface {\n                LoadConfig(path string) (*Config, error)\n                LoadConfigFromBytes(data []byte) (*Config, error)\n                ApplyConfig(cfg *Config) error\n                ApplyDefaultConfig() error\n                return isUsingDefaultConfig()\n            }\n\n            type StartupStateStore interface {\n                SetStatus(status runtime.StartupStatus)\n                GetStatus() runtime.StartupStatus\n                SetFetchSuccess(success bool)\n                SetFetchSuccess(success bool)\n                GetFetchSuccess() bool\n            }\n\n            type UserInitializer interface {\n                InitializeUser(token string) error\n            }\n\n            type CoreInitializer interface {\n                InitializeGlobalRuleEngine() error\n                InitializeNacosFromGlobalConfig() (NacosStopper, error)\n            }\n\n            type HTTPRunner interface {\n                Start() error\n            }\n\n            type NacosStopper interface {\n                Stop()\n            }\n\n            type HTTPRunner interface {\n                Start() error\n            }\n\n            type SignalWaiter interface {\n                Wait() error\n            }\n        }\n    }\n}\n"
 }
 ```
 
@@ -12290,7 +12290,7 @@ Let me first read the existing files to understand what was actual test structur
 5: 	"path/filepath"
 6: 	"testing"
 7: 
-8: 	"nursor.org/nursorgate/processor/runtime"
+8: 	"aliang.one/nursorgate/processor/runtime"
 9: )
 10: 
 11: func TestDetermineInitialStartupStatus_WhenTokenProvided_ReturnsConfiguring(t *testing.T) {
@@ -15979,7 +15979,7 @@ import (
 	"context"
 
   "github.com/spf13/cobra"
-  "nursor.org/nursorgate/processor/runtime"
+  "aliang.one/nursorgate/processor/runtime"
 )
 
 // StartupManager orchestrates the entire startup process
@@ -21467,7 +21467,7 @@ import (
 	"context"
 
     "github.com/spf13/cobra"
-    "nursor.org/nursorgate/processor/runtime"
+    "aliang.one/nursorgate/processor/runtime"
 )
 
 func TestStartupManager() {

@@ -10,13 +10,13 @@ import (
 	"sync"
 	"time"
 
+	"aliang.one/nursorgate/common/logger"
+	"aliang.one/nursorgate/inbound/tun/dialer"
+	cert_server "aliang.one/nursorgate/processor/cert/server"
+	"aliang.one/nursorgate/processor/config"
+	watcher "aliang.one/nursorgate/processor/watcher"
 	"golang.org/x/net/context"
 	"golang.org/x/net/http2"
-	"nursor.org/nursorgate/common/logger"
-	"nursor.org/nursorgate/inbound/tun/dialer"
-	cert_server "nursor.org/nursorgate/processor/cert/server"
-	"nursor.org/nursorgate/processor/config"
-	watcher "nursor.org/nursorgate/processor/watcher"
 )
 
 type OutboundClient2 struct {

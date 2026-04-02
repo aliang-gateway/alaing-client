@@ -4,11 +4,11 @@ import (
 	"fmt"
 	"net/http"
 
-	"nursor.org/nursorgate/app/http/handlers"
-	"nursor.org/nursorgate/app/http/repositories"
-	"nursor.org/nursorgate/app/http/services"
-	"nursor.org/nursorgate/common/logger"
-	"nursor.org/nursorgate/processor/statistic"
+	"aliang.one/nursorgate/app/http/handlers"
+	"aliang.one/nursorgate/app/http/repositories"
+	"aliang.one/nursorgate/app/http/services"
+	"aliang.one/nursorgate/common/logger"
+	"aliang.one/nursorgate/processor/statistic"
 )
 
 var isDev = true

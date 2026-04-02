@@ -8,7 +8,7 @@ import (
 	"regexp"
 	"strings"
 
-	"nursor.org/nursorgate/common/logger"
+	"aliang.one/nursorgate/common/logger"
 )
 
 // DarwinServiceManager macOS 服务管理器

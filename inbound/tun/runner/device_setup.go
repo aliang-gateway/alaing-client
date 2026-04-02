@@ -3,9 +3,9 @@ package runner
 import (
 	"fmt"
 
-	"nursor.org/nursorgate/common/logger"
-	"nursor.org/nursorgate/inbound/tun/runner/utils"
-	"nursor.org/nursorgate/processor/config"
+	"aliang.one/nursorgate/common/logger"
+	"aliang.one/nursorgate/inbound/tun/runner/utils"
+	"aliang.one/nursorgate/processor/config"
 )
 
 func GetDefaultDeviceConfiguration() config.EngineConf {

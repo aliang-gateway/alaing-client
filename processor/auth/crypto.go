@@ -1,7 +1,7 @@
 package user
 
 import (
-	"nursor.org/nursorgate/processor/crypto"
+	"aliang.one/nursorgate/processor/crypto"
 )
 
 // EncryptField 加密单个字段

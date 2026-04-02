@@ -4,8 +4,8 @@ import (
 	"net/netip"
 	"testing"
 
-	"nursor.org/nursorgate/processor/cache"
-	"nursor.org/nursorgate/processor/routing"
+	"aliang.one/nursorgate/processor/cache"
+	"aliang.one/nursorgate/processor/routing"
 )
 
 func TestEvaluateWithSnapshot_DisabledTargetDeny(t *testing.T) {

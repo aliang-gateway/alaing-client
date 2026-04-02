@@ -4,7 +4,7 @@ import (
 	"sync"
 	"time"
 
-	"nursor.org/nursorgate/common/logger"
+	"aliang.one/nursorgate/common/logger"
 )
 
 // StatsCollector 流量统计收集器

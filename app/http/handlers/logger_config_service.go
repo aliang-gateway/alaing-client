@@ -3,7 +3,7 @@ package handlers
 import (
 	"time"
 
-	"nursor.org/nursorgate/common/logger"
+	"aliang.one/nursorgate/common/logger"
 )
 
 // LogConfigService handles logger configuration operations

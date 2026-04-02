@@ -1,9 +1,9 @@
 package repositories
 
 import (
-	"nursor.org/nursorgate/app/http/models"
-	"nursor.org/nursorgate/app/http/services"
-	"nursor.org/nursorgate/common/logger"
+	"aliang.one/nursorgate/app/http/models"
+	"aliang.one/nursorgate/app/http/services"
+	"aliang.one/nursorgate/common/logger"
 )
 
 // LoggerRepositoryImpl provides access to logger functionality

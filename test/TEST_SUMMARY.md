@@ -119,7 +119,7 @@ PASS TestRunServiceWithDefaultConfig
 PASS TestRunServiceWithoutDefaultConfig
 PASS TestCompleteStartupFlow
 
-ok  	nursor.org/nursorgate/test	0.301s
+ok  	aliang.one/nursorgate/test	0.301s
 ```
 
 ---

@@ -4,10 +4,10 @@ import (
 	"errors"
 	"fmt"
 
-	"nursor.org/nursorgate/common/logger"
-	auth "nursor.org/nursorgate/processor/auth"
-	"nursor.org/nursorgate/processor/config"
-	"nursor.org/nursorgate/processor/runtime"
+	"aliang.one/nursorgate/common/logger"
+	auth "aliang.one/nursorgate/processor/auth"
+	"aliang.one/nursorgate/processor/config"
+	"aliang.one/nursorgate/processor/runtime"
 )
 
 // InitializeUser 初始化用户信息和Token激活

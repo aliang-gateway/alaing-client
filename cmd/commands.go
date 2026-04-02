@@ -3,9 +3,9 @@ package cmd
 import (
 	"fmt"
 
+	"aliang.one/nursorgate/common/logger"
+	"aliang.one/nursorgate/common/version"
 	"github.com/spf13/cobra"
-	"nursor.org/nursorgate/common/logger"
-	"nursor.org/nursorgate/common/version"
 )
 
 // 添加其他有用的命令

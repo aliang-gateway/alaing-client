@@ -4,9 +4,10 @@ package tun
 
 import (
 	"fmt"
-	"nursor.org/nursorgate/inbound/tun/device"
-	"nursor.org/nursorgate/inbound/tun/device/iobased"
 	"sync"
+
+	"aliang.one/nursorgate/inbound/tun/device"
+	"aliang.one/nursorgate/inbound/tun/device/iobased"
 
 	"golang.zx2c4.com/wireguard/tun"
 )

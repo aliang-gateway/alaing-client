@@ -12,8 +12,8 @@ import (
 	"runtime"
 	"strings"
 
-	"nursor.org/nursorgate/common/logger"
-	"nursor.org/nursorgate/processor/cert"
+	"aliang.one/nursorgate/common/logger"
+	"aliang.one/nursorgate/processor/cert"
 )
 
 // CertInfo holds information about a certificate

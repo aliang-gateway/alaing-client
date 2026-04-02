@@ -4,8 +4,9 @@ package fdbased
 
 import (
 	"fmt"
-	"nursor.org/nursorgate/inbound/tun/device"
 	"strconv"
+
+	"aliang.one/nursorgate/inbound/tun/device"
 
 	"github.com/sagernet/gvisor/pkg/tcpip/stack"
 	"golang.org/x/sys/unix"

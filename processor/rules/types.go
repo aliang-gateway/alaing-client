@@ -3,7 +3,7 @@ package rules
 import (
 	"net/netip"
 
-	"nursor.org/nursorgate/processor/cache"
+	"aliang.one/nursorgate/processor/cache"
 )
 
 // EvaluationContext contains all information needed for routing decisions

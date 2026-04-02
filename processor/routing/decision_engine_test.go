@@ -3,7 +3,7 @@ package routing
 import (
 	"testing"
 
-	"nursor.org/nursorgate/common/model"
+	"aliang.one/nursorgate/common/model"
 )
 
 // T023: Test that Aliang rules have highest priority

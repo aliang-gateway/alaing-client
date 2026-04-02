@@ -6,9 +6,9 @@ import (
 	"context"
 	"fmt"
 
+	"aliang.one/nursorgate/common/logger"
+	"aliang.one/nursorgate/processor/setup"
 	"golang.org/x/sys/windows/svc"
-	"nursor.org/nursorgate/common/logger"
-	"nursor.org/nursorgate/processor/setup"
 )
 
 // MaybeRunAsWindowsService detects Windows service context and runs service dispatcher when needed.

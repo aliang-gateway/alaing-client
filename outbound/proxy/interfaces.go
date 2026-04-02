@@ -5,8 +5,8 @@ import (
 	"context"
 	"net"
 
-	"nursor.org/nursorgate/inbound/tun/metadata"
-	"nursor.org/nursorgate/outbound/proxy/proto"
+	"aliang.one/nursorgate/inbound/tun/metadata"
+	"aliang.one/nursorgate/outbound/proxy/proto"
 )
 
 // Dialer interface for dialing connections

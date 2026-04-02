@@ -6,7 +6,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"nursor.org/nursorgate/processor/config"
+	"aliang.one/nursorgate/processor/config"
 )
 
 func TestConfigStatusConsistency(t *testing.T) {

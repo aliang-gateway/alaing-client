@@ -2,7 +2,7 @@
 package buffer
 
 import (
-	"nursor.org/nursorgate/inbound/tun/buffer/allocator"
+	"aliang.one/nursorgate/inbound/tun/buffer/allocator"
 )
 
 const (

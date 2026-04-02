@@ -3,8 +3,8 @@ package tunnel
 import (
 	"sync"
 
-	"nursor.org/nursorgate/outbound/proxy"
-	"nursor.org/nursorgate/processor/statistic"
+	"aliang.one/nursorgate/outbound/proxy"
+	"aliang.one/nursorgate/processor/statistic"
 )
 
 var (

@@ -4,9 +4,9 @@ import (
 	"strings"
 	"testing"
 
-	"nursor.org/nursorgate/app/http/services"
-	"nursor.org/nursorgate/cmd"
-	"nursor.org/nursorgate/processor/config"
+	"aliang.one/nursorgate/app/http/services"
+	"aliang.one/nursorgate/cmd"
+	"aliang.one/nursorgate/processor/config"
 )
 
 // TestRunServiceWithDefaultConfig 测试当使用默认配置时，RunService.StartService() 返回错误

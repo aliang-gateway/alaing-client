@@ -9,9 +9,9 @@ import (
 	"strings"
 	"time"
 
-	"nursor.org/nursorgate/common/logger"
-	utils2 "nursor.org/nursorgate/inbound/tun/runner/utils"
-	"nursor.org/nursorgate/processor/config"
+	"aliang.one/nursorgate/common/logger"
+	utils2 "aliang.one/nursorgate/inbound/tun/runner/utils"
+	"aliang.one/nursorgate/processor/config"
 )
 
 var defaultConfig config.EngineConf

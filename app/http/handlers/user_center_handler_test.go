@@ -7,7 +7,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	auth "nursor.org/nursorgate/processor/auth"
+	auth "aliang.one/nursorgate/processor/auth"
 )
 
 func TestUserCenterHandler_ProfileAndUsage_UnauthenticatedEnvelope(t *testing.T) {

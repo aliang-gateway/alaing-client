@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"time"
 
-	"nursor.org/nursorgate/common/logger"
+	"aliang.one/nursorgate/common/logger"
 )
 
 // LoggingMiddleware logs incoming requests and outgoing responses

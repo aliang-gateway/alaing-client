@@ -12,18 +12,18 @@ package main
 // 	"encoding/json"
 // 	"time"
 
-// 	"nursor.org/nursorgate/app/http/handlers"
-// 	"nursor.org/nursorgate/common/logger"
-// 	"nursor.org/nursorgate/common/model"
-// 	"nursor.org/nursorgate/proxyserver/http"
-// 	httpServer "nursor.org/nursorgate/proxyserver/http"
-// 	tun "nursor.org/nursorgate/proxyserver/tun/engine"
-// 	runner2 "nursor.org/nursorgate/proxyserver/tun/runner"
-// 	"nursor.org/nursorgate/proxyserver/tun/runner/utils"
-// 	"nursor.org/nursorgate/outbound"
-// 	user "nursor.org/nursorgate/processor/auth"
-// 	"nursor.org/nursorgate/processor/cert/client"
-// 	proxyConfig "nursor.org/nursorgate/processor/config"
+// 	"aliang.one/nursorgate/app/http/handlers"
+// 	"aliang.one/nursorgate/common/logger"
+// 	"aliang.one/nursorgate/common/model"
+// 	"aliang.one/nursorgate/proxyserver/http"
+// 	httpServer "aliang.one/nursorgate/proxyserver/http"
+// 	tun "aliang.one/nursorgate/proxyserver/tun/engine"
+// 	runner2 "aliang.one/nursorgate/proxyserver/tun/runner"
+// 	"aliang.one/nursorgate/proxyserver/tun/runner/utils"
+// 	"aliang.one/nursorgate/outbound"
+// 	user "aliang.one/nursorgate/processor/auth"
+// 	"aliang.one/nursorgate/processor/cert/client"
+// 	proxyConfig "aliang.one/nursorgate/processor/config"
 // )
 
 // //export startClient
@@ -64,7 +64,7 @@ package main
 // 	user.SetInnerToken(innerTokenStr)
 // 	logger.SetUserInfo(innerTokenStr)
 // 	model.NewAllowProxyDomain()
-// 	utils.SetServerHost("api2.nursor.org:12235")
+// 	utils.SetServerHost("api2.aliang.one:12235")
 // 	go runner2.Start()
 // 	res := <-runner2.RunStatusChan
 // 	logger.Info(res)

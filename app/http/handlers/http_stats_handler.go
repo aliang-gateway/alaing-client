@@ -5,8 +5,8 @@ import (
 	"strconv"
 	"time"
 
-	"nursor.org/nursorgate/app/http/common"
-	"nursor.org/nursorgate/processor/statistic"
+	"aliang.one/nursorgate/app/http/common"
+	"aliang.one/nursorgate/processor/statistic"
 )
 
 type HTTPStatsHandler struct {

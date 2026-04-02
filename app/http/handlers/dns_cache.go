@@ -7,8 +7,8 @@ import (
 	"net/netip"
 	"strconv"
 
-	"nursor.org/nursorgate/processor/cache"
-	"nursor.org/nursorgate/processor/rules"
+	"aliang.one/nursorgate/processor/cache"
+	"aliang.one/nursorgate/processor/rules"
 )
 
 // DNSCacheHandler handles DNS cache management API endpoints

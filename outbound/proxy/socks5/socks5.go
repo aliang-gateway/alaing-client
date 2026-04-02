@@ -9,10 +9,10 @@ import (
 	"io"
 	"net"
 
-	"nursor.org/nursorgate/inbound/tun/dialer"
-	M "nursor.org/nursorgate/inbound/tun/metadata"
-	"nursor.org/nursorgate/outbound/proxy"
-	"nursor.org/nursorgate/outbound/proxy/proto"
+	"aliang.one/nursorgate/inbound/tun/dialer"
+	M "aliang.one/nursorgate/inbound/tun/metadata"
+	"aliang.one/nursorgate/outbound/proxy"
+	"aliang.one/nursorgate/outbound/proxy/proto"
 )
 
 const (

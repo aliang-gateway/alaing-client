@@ -4,8 +4,8 @@ import (
 	"testing"
 	"time"
 
-	auth "nursor.org/nursorgate/processor/auth"
-	"nursor.org/nursorgate/processor/runtime"
+	auth "aliang.one/nursorgate/processor/auth"
+	"aliang.one/nursorgate/processor/runtime"
 )
 
 func setupStartupStatusTestAuthEnv(t *testing.T) {

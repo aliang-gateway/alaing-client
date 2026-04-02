@@ -7,13 +7,13 @@ import (
 	"sync"
 	"time"
 
+	"aliang.one/nursorgate/common/logger"
+	"aliang.one/nursorgate/inbound/tun/adapter"
+	"aliang.one/nursorgate/inbound/tun/buffer"
+	"aliang.one/nursorgate/processor/statistic"
 	"github.com/miekg/dns"
-	"nursor.org/nursorgate/common/logger"
-	"nursor.org/nursorgate/inbound/tun/adapter"
-	"nursor.org/nursorgate/inbound/tun/buffer"
-	"nursor.org/nursorgate/processor/statistic"
 
-	M "nursor.org/nursorgate/inbound/tun/metadata"
+	M "aliang.one/nursorgate/inbound/tun/metadata"
 )
 
 // TODO: Port Restricted NAT support.

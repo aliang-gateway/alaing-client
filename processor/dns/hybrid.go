@@ -7,8 +7,8 @@ import (
 	"strings"
 	"time"
 
-	"nursor.org/nursorgate/common/logger"
-	"nursor.org/nursorgate/outbound/proxy"
+	"aliang.one/nursorgate/common/logger"
+	"aliang.one/nursorgate/outbound/proxy"
 )
 
 // HybridResolver 混合DNS解析器

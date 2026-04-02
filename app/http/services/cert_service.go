@@ -8,12 +8,12 @@ import (
 	"path/filepath"
 	"runtime"
 
-	"nursor.org/nursorgate/common/cache"
-	"nursor.org/nursorgate/common/logger"
-	cert_config "nursor.org/nursorgate/processor/cert"
-	client_cert "nursor.org/nursorgate/processor/cert/client"
-	cert_generator "nursor.org/nursorgate/processor/cert/generator"
-	cert_installer "nursor.org/nursorgate/processor/cert/installer"
+	"aliang.one/nursorgate/common/cache"
+	"aliang.one/nursorgate/common/logger"
+	cert_config "aliang.one/nursorgate/processor/cert"
+	client_cert "aliang.one/nursorgate/processor/cert/client"
+	cert_generator "aliang.one/nursorgate/processor/cert/generator"
+	cert_installer "aliang.one/nursorgate/processor/cert/installer"
 )
 
 // CertStatusResult holds the status of a certificate

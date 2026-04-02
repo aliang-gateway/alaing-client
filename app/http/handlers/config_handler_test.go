@@ -10,8 +10,8 @@ import (
 	"strings"
 	"testing"
 
-	"nursor.org/nursorgate/app/http/services"
-	"nursor.org/nursorgate/processor/config"
+	"aliang.one/nursorgate/app/http/services"
+	"aliang.one/nursorgate/processor/config"
 )
 
 func decodeCommonResponseData(t *testing.T, rec *httptest.ResponseRecorder) map[string]interface{} {
@@ -272,7 +272,7 @@ func TestConfigHandler_CustomerConfigGetAndUpdate(t *testing.T) {
 	config.SetGlobalConfig(&config.Config{
 		Core: &config.CoreConfig{
 			APIServer:    "https://api.example.com",
-			AliangServer: &config.AliangServerConfig{Type: "aliang", CoreServer: "ai-gateway.nursor.org:443"},
+			AliangServer: &config.AliangServerConfig{Type: "aliang", CoreServer: "ai-gateway.aliang.one:443"},
 		},
 		Customer: &config.CustomerConfig{
 			Proxy: &config.CustomerProxyConfig{Type: "http"},
@@ -426,7 +426,7 @@ func TestConfigHandler_CustomerConfigUpdateSucceedsWhenGlobalConfigNilAndFileExi
 	t.Setenv("HOME", tempHome)
 
 	seed := []byte(`{
-		"core":{"api_server":"https://sub2api.liang.home","aliangServer":{"type":"aliang","core_server":"ai-gateway.nursor.org:443"}},
+		"core":{"api_server":"https://sub2api.liang.home","aliangServer":{"type":"aliang","core_server":"ai-gateway.aliang.one:443"}},
 		"customer":{
 			"proxy":{"type":"http"},
 			"ai_rules":{"openai":{"enble":true,"exclude":["api.openai.com"]}},

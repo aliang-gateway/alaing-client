@@ -6,11 +6,11 @@ import (
 	"testing"
 	"time"
 
-	"nursor.org/nursorgate/app/http/models"
-	"nursor.org/nursorgate/app/http/storage"
-	"nursor.org/nursorgate/processor/config"
-	"nursor.org/nursorgate/processor/routing"
-	"nursor.org/nursorgate/processor/runtime"
+	"aliang.one/nursorgate/app/http/models"
+	"aliang.one/nursorgate/app/http/storage"
+	"aliang.one/nursorgate/processor/config"
+	"aliang.one/nursorgate/processor/routing"
+	"aliang.one/nursorgate/processor/runtime"
 )
 
 type fakeRunModeSnapshotStore struct {

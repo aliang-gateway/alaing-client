@@ -1,7 +1,7 @@
 package repositories
 
 import (
-	"nursor.org/nursorgate/app/http/services"
+	"aliang.one/nursorgate/app/http/services"
 )
 
 // TokenRepositoryImpl provides access to token functionality

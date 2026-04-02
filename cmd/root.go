@@ -7,9 +7,9 @@ import (
 	"runtime/debug"
 	"strings"
 
+	"aliang.one/nursorgate/app/tray"
+	"aliang.one/nursorgate/common/logger"
 	"github.com/spf13/cobra"
-	"nursor.org/nursorgate/app/tray"
-	"nursor.org/nursorgate/common/logger"
 )
 
 // Global flags for root command (persistent across all subcommands)

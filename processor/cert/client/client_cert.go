@@ -17,13 +17,13 @@ import (
 	"sync"
 	"time"
 
-	"nursor.org/nursorgate/common/cache"
-	"nursor.org/nursorgate/common/logger"
-	"nursor.org/nursorgate/processor/cert/generator"
+	"aliang.one/nursorgate/common/cache"
+	"aliang.one/nursorgate/common/logger"
+	"aliang.one/nursorgate/processor/cert/generator"
 
 	"golang.org/x/net/http2"
 
-	cert_config "nursor.org/nursorgate/processor/cert"
+	cert_config "aliang.one/nursorgate/processor/cert"
 )
 
 var defaultCertificate *tls.Certificate

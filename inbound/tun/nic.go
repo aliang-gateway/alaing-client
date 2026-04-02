@@ -9,7 +9,7 @@ import (
 	"github.com/sagernet/gvisor/pkg/tcpip/network/ipv6"
 	"github.com/sagernet/gvisor/pkg/tcpip/stack"
 
-	"nursor.org/nursorgate/inbound/tun/option"
+	"aliang.one/nursorgate/inbound/tun/option"
 )
 
 const (

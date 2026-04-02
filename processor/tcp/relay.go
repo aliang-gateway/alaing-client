@@ -9,9 +9,9 @@ import (
 	"sync/atomic"
 	"time"
 
-	"nursor.org/nursorgate/common/logger"
-	"nursor.org/nursorgate/inbound/tun/buffer"
-	M "nursor.org/nursorgate/inbound/tun/metadata"
+	"aliang.one/nursorgate/common/logger"
+	"aliang.one/nursorgate/inbound/tun/buffer"
+	M "aliang.one/nursorgate/inbound/tun/metadata"
 )
 
 const (

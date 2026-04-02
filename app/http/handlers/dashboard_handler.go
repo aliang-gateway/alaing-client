@@ -3,8 +3,8 @@ package handlers
 import (
 	"net/http"
 
-	"nursor.org/nursorgate/app/http/common"
-	"nursor.org/nursorgate/app/http/services"
+	"aliang.one/nursorgate/app/http/common"
+	"aliang.one/nursorgate/app/http/services"
 )
 
 type DashboardHandler struct {

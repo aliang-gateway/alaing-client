@@ -5,7 +5,7 @@ import (
 	"net"
 	"time"
 
-	M "nursor.org/nursorgate/inbound/tun/metadata"
+	M "aliang.one/nursorgate/inbound/tun/metadata"
 )
 
 // TCPConnHandler orchestrates the entire TCP connection lifecycle.

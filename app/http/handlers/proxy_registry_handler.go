@@ -3,10 +3,10 @@ package handlers
 import (
 	"net/http"
 
-	"nursor.org/nursorgate/app/http/common"
-	"nursor.org/nursorgate/app/http/repositories"
-	"nursor.org/nursorgate/outbound"
-	proxyConfig "nursor.org/nursorgate/processor/config"
+	"aliang.one/nursorgate/app/http/common"
+	"aliang.one/nursorgate/app/http/repositories"
+	"aliang.one/nursorgate/outbound"
+	proxyConfig "aliang.one/nursorgate/processor/config"
 )
 
 // ProxyRegistryHandler handles HTTP requests for proxy registry operations

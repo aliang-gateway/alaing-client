@@ -7,9 +7,9 @@ import (
 	"golang.org/x/sys/windows"
 	wun "golang.zx2c4.com/wireguard/tun"
 
-	"nursor.org/nursorgate/common/version"
-	"nursor.org/nursorgate/inbound/tun/device"
-	"nursor.org/nursorgate/inbound/tun/device/tun"
+	"aliang.one/nursorgate/common/version"
+	"aliang.one/nursorgate/inbound/tun/device"
+	"aliang.one/nursorgate/inbound/tun/device/tun"
 )
 
 func init() {

@@ -18,7 +18,7 @@
         },
         "aliangServer": {
             "type": "aliang",
-            "core_server": "ai-gateway.nursor.org:443"
+            "core_server": "ai-gateway.aliang.one:443"
         },
         "api_server": "https://sub2api.liang.home"
     },
@@ -54,7 +54,7 @@
         "proxy_rules": [
             "domains,cursor.com",
             "domains,*.cursor.com",
-            "domains,*.nursor.org"
+            "domains,*.aliang.one"
         ]
     }
 }

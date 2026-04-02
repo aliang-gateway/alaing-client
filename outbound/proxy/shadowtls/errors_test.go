@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"nursor.org/nursorgate/processor/config"
+	"aliang.one/nursorgate/processor/config"
 )
 
 // TestConfigError tests the ConfigError type

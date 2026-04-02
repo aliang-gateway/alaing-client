@@ -4,12 +4,12 @@ import (
 	"fmt"
 	"sync"
 
-	"nursor.org/nursorgate/common/logger"
-	"nursor.org/nursorgate/outbound/proxy"
-	"nursor.org/nursorgate/outbound/proxy/aliang"
-	"nursor.org/nursorgate/outbound/proxy/direct"
-	"nursor.org/nursorgate/outbound/proxy/socks5"
-	proxyConfig "nursor.org/nursorgate/processor/config"
+	"aliang.one/nursorgate/common/logger"
+	"aliang.one/nursorgate/outbound/proxy"
+	"aliang.one/nursorgate/outbound/proxy/aliang"
+	"aliang.one/nursorgate/outbound/proxy/direct"
+	"aliang.one/nursorgate/outbound/proxy/socks5"
+	proxyConfig "aliang.one/nursorgate/processor/config"
 )
 
 // Registry 代理注册中心，线程安全
@@ -59,7 +59,7 @@ func (r *Registry) RegisterAliang(serverAddr string) error {
 	}
 
 	if serverAddr == "" {
-		serverAddr = "ai-gateway.nursor.org:443"
+		serverAddr = "ai-gateway.aliang.one:443"
 		logger.Debug("Using default aliang server address")
 	}
 

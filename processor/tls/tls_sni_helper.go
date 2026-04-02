@@ -7,7 +7,7 @@ import (
 	"net"
 	"time"
 
-	"nursor.org/nursorgate/common/logger"
+	"aliang.one/nursorgate/common/logger"
 )
 
 func parseSNIFromBuffer(buf []byte) (string, []byte, error) {

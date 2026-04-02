@@ -11,12 +11,12 @@ import (
 	"net/http"
 	"net/url"
 
-	"nursor.org/nursorgate/outbound/proxy"
-	"nursor.org/nursorgate/outbound/proxy/proto"
+	"aliang.one/nursorgate/outbound/proxy"
+	"aliang.one/nursorgate/outbound/proxy/proto"
 
-	M "nursor.org/nursorgate/inbound/tun/metadata"
+	M "aliang.one/nursorgate/inbound/tun/metadata"
 
-	"nursor.org/nursorgate/inbound/tun/dialer"
+	"aliang.one/nursorgate/inbound/tun/dialer"
 )
 
 type HTTP struct {

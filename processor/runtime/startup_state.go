@@ -4,7 +4,7 @@ import (
 	"sync"
 	"time"
 
-	authuser "nursor.org/nursorgate/processor/auth"
+	authuser "aliang.one/nursorgate/processor/auth"
 )
 
 // StartupStatus represents the current startup state

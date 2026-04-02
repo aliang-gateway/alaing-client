@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"nursor.org/nursorgate/app/http/common"
+	"aliang.one/nursorgate/app/http/common"
 )
 
 type ChatHandler struct{}

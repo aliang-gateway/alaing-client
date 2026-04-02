@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"strings"
 
-	"nursor.org/nursorgate/app/http/models"
-	auth "nursor.org/nursorgate/processor/auth"
+	"aliang.one/nursorgate/app/http/models"
+	auth "aliang.one/nursorgate/processor/auth"
 )
 
 type UserCenterService struct{}
