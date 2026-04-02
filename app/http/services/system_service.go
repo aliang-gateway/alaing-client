@@ -294,11 +294,11 @@ func resolveManagedExecutablePath() (string, error) {
 	case "darwin":
 		return "/Library/Application Support/Aliang/aliang", nil
 	case "windows":
-		homeDir, err := os.UserHomeDir()
-		if err != nil {
-			return "", err
+		programFiles := os.Getenv("ProgramFiles")
+		if programFiles == "" {
+			programFiles = "C:\\Program Files"
 		}
-		return filepath.Join(homeDir, ".aliang", "aliang.exe"), nil
+		return filepath.Join(programFiles, "Aliang", "aliang.exe"), nil
 	default:
 		homeDir, err := os.UserHomeDir()
 		if err != nil {

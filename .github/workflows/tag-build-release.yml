@@ -94,6 +94,7 @@ jobs:
             asset_name: aliang-linux-amd64
             binary_ext: ''
             archive_ext: tar.gz
+            package_type: deb
           - runner: ubuntu-24.04-arm
             goos: linux
             goarch: arm64
@@ -102,6 +103,7 @@ jobs:
             asset_name: aliang-linux-arm64
             binary_ext: ''
             archive_ext: tar.gz
+            package_type: deb
           - runner: windows-2022
             goos: windows
             goarch: amd64
@@ -110,6 +112,7 @@ jobs:
             asset_name: aliang-windows-amd64
             binary_ext: .exe
             archive_ext: zip
+            package_type: msi
           - runner: macos-15-intel
             goos: darwin
             goarch: amd64
@@ -118,6 +121,7 @@ jobs:
             asset_name: aliang-darwin-amd64
             binary_ext: ''
             archive_ext: tar.gz
+            package_type: pkg
           - runner: macos-15
             goos: darwin
             goarch: arm64
@@ -126,6 +130,7 @@ jobs:
             asset_name: aliang-darwin-arm64
             binary_ext: ''
             archive_ext: tar.gz
+            package_type: pkg
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -153,7 +158,15 @@ jobs:
         shell: bash
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential pkg-config libgtk-3-dev libayatana-appindicator3-dev
+          sudo apt-get install -y build-essential pkg-config libgtk-3-dev libayatana-appindicator3-dev fpm
+
+      - name: Install macOS build dependencies
+        if: matrix.goos == 'darwin'
+        shell: bash
+        run: |
+          # Ensure build tools are available
+          which pkgbuild || brew install pkg-config
+          which productbuild || brew install productbuild
 
       - name: Prepare Go modules for CI
         shell: bash
@@ -192,12 +205,133 @@ jobs:
           New-Item -ItemType Directory -Force -Path release | Out-Null
           Compress-Archive -Path "dist/${env:BINARY_NAME}${{ matrix.binary_ext }}" -DestinationPath "release/${{ matrix.asset_name }}.${{ matrix.archive_ext }}" -Force
 
+      - name: Build DEB package
+        if: matrix.package_type == 'deb'
+        shell: bash
+        env:
+          VERSION: ${{ github.ref_name }}
+          ARCH: ${{ matrix.goarch == 'amd64' && 'amd64' || 'arm64' }}
+        run: |
+          cd scripts
+          chmod +x build-deb.sh
+          cp ../dist/$BINARY_NAME aliang
+          ./build-deb.sh
+          mv aliang_*.deb ../release/ || true
+
+      - name: Build PKG package
+        if: matrix.package_type == 'pkg'
+        shell: bash
+        env:
+          VERSION: ${{ github.ref_name }}
+        run: |
+          cd scripts
+          chmod +x build-pkg.sh
+          cp ../dist/$BINARY_NAME aliang
+          ./build-pkg.sh
+          # Find and copy the generated pkg file
+          cp Aliang-*.pkg ../release/ || true
+
+      - name: Build MSI package
+        if: matrix.package_type == 'msi'
+        shell: pwsh
+        env:
+          VERSION: ${{ github.ref_name }}
+        run: |
+          # Download and install WiX
+          $wixPath = "$env:TEMP\wix"
+          if (!(Test-Path "$wixPath\wix\WiX.Toolset.3.11.2\tools\bin\candle.exe")) {
+            New-Item -ItemType Directory -Force -Path $wixPath | Out-Null
+            & "$env:TEMP\nuget.exe" install WiX -Version 3.11.2 -OutputDirectory $wixPath -NoCache -Verbosity quiet
+          }
+          $candle = "$wixPath\wix\WiX.Toolset.3.11.2\tools\bin\candle.exe"
+          $light = "$wixPath\wix\WiX.Toolset.3.11.2\tools\bin\light.exe"
+
+          # Copy binary to scripts dir for MSI build
+          Copy-Item "dist\$env:BINARY_NAME" scripts\
+
+          # Create WiX source
+          $wxsContent = @"
+<?xml version="1.0" encoding="UTF-8"?>
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+    <Product Id="*" Name="Aliang" Language="1033" Version="$env:VERSION" Manufacturer="Aliang" UpgradeCode="A1B2C3D4-E5F6-7890-ABCD-EF1234567890">
+        <Package InstallerVersion="200" Compressed="yes" InstallScope="perMachine" Description="Aliang Gateway Proxy Client" Manufacturer="Aliang"/>
+        <MajorUpgrade DowngradeErrorMessage="A newer version of [ProductName] is already installed."/>
+        <MediaTemplate EmbedCab="yes"/>
+        <Directory Id="TARGETDIR" Name="SourceDir">
+            <Directory Id="ProgramFilesFolder">
+                <Directory Id="INSTALLFOLDER" Name="Aliang">
+                    <Component Id="MainBinary" Guid="*">
+                        <File Id="Aliangexe" Source="scripts\$env:BINARY_NAME" KeyPath="yes"/>
+                        <RegistryValue Root="HKLM" Key="Software\Aliang" Name="InstallDir" Type="string" Value="[INSTALLFOLDER]" KeyPath="yes"/>
+                    </Component>
+                </Directory>
+            </Directory>
+            <Directory Id="CommonAppDataFolder" Name="CommonAppData">
+                <Directory Id="AliangData" Name="Aliang">
+                    <Component Id="DataDirectory" Guid="*">
+                        <CreateFolder/>
+                        <RegistryValue Root="HKLM" Key="Software\Aliang" Name="DataDir" Type="string" Value="[AliangData]" KeyPath="yes"/>
+                    </Component>
+                </Directory>
+            </Directory>
+        </Directory>
+        <Feature Id="ProductFeature" Title="Aliang" Level="1">
+            <ComponentRef Id="MainBinary"/>
+            <ComponentRef Id="DataDirectory"/>
+            <ComponentRef Id="StartMenuShortcut"/>
+            <ComponentRef Id="DesktopShortcut"/>
+        </Feature>
+        <Environment Id="ALIANG_DATA_DIR" Name="ALIANG_DATA_DIR" Value="[AliangData]" Permanent="yes" Part="last" Action="set" System="yes"/>
+        <Environment Id="ALIANG_LOG_DIR" Name="ALIANG_LOG_DIR" Value="[AliangData]\logs" Permanent="yes" Part="last" Action="set" System="yes"/>
+        <Environment Id="ALIANG_SOCKET_PATH" Name="ALIANG_SOCKET_PATH" Value="%PROGRAMDATA%\Aliang\aliang-core.sock" Permanent="yes" Part="last" Action="set" System="yes"/>
+        <Directory Id="ProgramMenuFolder">
+            <Directory Id="ApplicationProgramsFolder" Name="Aliang">
+                <Component Id="StartMenuShortcut" Guid="*">
+                    <Shortcut Id="ApplicationStartMenuShortcut" Name="Aliang" Description="Aliang Gateway Proxy Client" Target="[INSTALLFOLDER]$env:BINARY_NAME" WorkingDirectory="INSTALLFOLDER"/>
+                    <RemoveFolder Id="CleanUpShortCut" On="uninstall"/>
+                    <RegistryValue Root="HKCU" Key="Software\Aliang" Name="installed" Type="integer" Value="1" KeyPath="yes"/>
+                </Component>
+            </Directory>
+        </Directory>
+        <Directory Id="DesktopFolder" Name="Desktop">
+            <Component Id="DesktopShortcut" Guid="*">
+                <Shortcut Id="DesktopShortcut" Name="Aliang" Description="Aliang Gateway Proxy Client" Target="[INSTALLFOLDER]$env:BINARY_NAME" WorkingDirectory="INSTALLFOLDER"/>
+                <RegistryValue Root="HKCU" Key="Software\Aliang" Name="DesktopShortcut" Type="integer" Value="1" KeyPath="yes"/>
+            </Component>
+        </Directory>
+        <CustomAction Id="RegisterService" Directory="INSTALLFOLDER" ExeCommand="[INSTALLFOLDER]$env:BINARY_NAME service install --system-wide" Return="ignore" Execute="deferred" Impersonate="no"/>
+        <CustomAction Id="UnregisterService" Directory="INSTALLFOLDER" ExeCommand="[INSTALLFOLDER]$env:BINARY_NAME service uninstall --system-wide" Return="ignore" Execute="deferred" Impersonate="no"/>
+        <InstallExecuteSequence>
+            <Custom Action="RegisterService" After="InstallFinalize">NOT Installed</Custom>
+            <Custom Action="UnregisterService" Before="RemoveFiles">REMOVE="ALL"</Custom>
+        </InstallExecuteSequence>
+    </Product>
+</Wix>
+"@
+          $wxsContent | Out-File -FilePath scripts\aliang.wxs -Encoding UTF8
+
+          # Build MSI
+          & $candle -nologo -out scripts\aliang.wixobj scripts\aliang.wxs
+          & $light -nologo -o "release\aliang-$env:VERSION.msi" scripts\aliang.wixobj
+
+          # Cleanup
+          Remove-Item scripts\aliang.wxs -Force -ErrorAction SilentlyContinue
+          Remove-Item scripts\aliang.wixobj -Force -ErrorAction SilentlyContinue
+          Remove-Item scripts\$env:BINARY_NAME -Force -ErrorAction SilentlyContinue
+
       - name: Upload packaged artifact
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.asset_name }}
           path: release/${{ matrix.asset_name }}.${{ matrix.archive_ext }}
           if-no-files-found: error
+
+      - name: Upload package artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.asset_name }}-package
+          path: release/*.${{ matrix.package_type }}
+          if-no-files-found: ignore
 
   release:
     name: Publish release assets
