@@ -5,7 +5,9 @@ package ipc
 import (
 	"fmt"
 	"net"
-	"os"
+	"time"
+
+	"github.com/Microsoft/go-winio"
 )
 
 // windowsTransport implements Transport using Named Pipe.
@@ -19,11 +21,7 @@ func NewTransport() Transport {
 }
 
 func (t *windowsTransport) Listen() (net.Listener, error) {
-	// Remove existing pipe file if it exists
-	os.Remove(t.path)
-
-	// Create a listener on the named pipe
-	listener, err := net.Listen("pipe", t.path)
+	listener, err := winio.ListenPipe(t.path, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to listen on named pipe %s: %w", t.path, err)
 	}
@@ -32,8 +30,8 @@ func (t *windowsTransport) Listen() (net.Listener, error) {
 }
 
 func (t *windowsTransport) Dial() (net.Conn, error) {
-	// Dial the named pipe
-	conn, err := net.Dial("pipe", t.path)
+	timeout := 2 * time.Second
+	conn, err := winio.DialPipe(t.path, &timeout)
 	if err != nil {
 		return nil, fmt.Errorf("failed to dial named pipe %s: %w", t.path, err)
 	}

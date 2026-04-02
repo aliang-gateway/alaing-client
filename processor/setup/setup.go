@@ -90,8 +90,8 @@ func QuickInstall(configPath string, systemWide bool) error {
 
 	options := InstallOptions{
 		Name:           GetServiceName(),
-		DisplayName:    "Nursorgate Network Service",
-		Description:    "Nursorgate network proxy and routing service",
+		DisplayName:    "AliangGate Network Service",
+		Description:    "AliangGate network proxy and routing service",
 		ExecutablePath: execPath,
 		ConfigPath:     configPath,
 		SystemWide:     systemWide,

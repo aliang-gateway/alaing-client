@@ -42,34 +42,42 @@ func runCore(cmd *cobra.Command, args []string) error {
 }
 
 func runCoreWithContext(ctx context.Context) error {
+	writeStartupTrace("runCoreWithContext entered")
 	logger.Info("========================================")
 	logger.Info("Starting Aliang Core Daemon")
 	logger.Info("========================================")
 
 	// 1. Ensure system-level directories exist
 	if err := setup.EnsureCoreDirs(); err != nil {
+		writeStartupTrace("runCoreWithContext EnsureCoreDirs failed: %v", err)
 		return fmt.Errorf("failed to ensure core directories: %w", err)
 	}
+	writeStartupTrace("runCoreWithContext EnsureCoreDirs ok")
 
 	// 2. Initialize IPC Server
 	ipcServer := ipc.NewServer()
 	registerIPCHandlers(ipcServer)
 
 	if err := ipcServer.Start(); err != nil {
+		writeStartupTrace("runCoreWithContext ipcServer.Start failed: %v", err)
 		return fmt.Errorf("failed to start IPC server: %w", err)
 	}
+	writeStartupTrace("runCoreWithContext ipcServer.Start ok")
 
 	// 3. Initialize core subsystems (without starting HTTP)
 	if err := initializeCoreSubsystems(); err != nil {
+		writeStartupTrace("runCoreWithContext initializeCoreSubsystems failed: %v", err)
 		ipcServer.Stop()
 		return fmt.Errorf("failed to initialize core subsystems: %w", err)
 	}
+	writeStartupTrace("runCoreWithContext initializeCoreSubsystems ok")
 
 	logger.Info("Core daemon started successfully")
 	logger.Info("IPC server listening, waiting for commands...")
 
 	// 4. Wait for shutdown signal/context cancellation
 	<-ctx.Done()
+	writeStartupTrace("runCoreWithContext context done")
 	logger.Info("Received shutdown signal, stopping core daemon...")
 
 	// 5. Stop HTTP server if running
@@ -86,6 +94,7 @@ func runCoreWithContext(ctx context.Context) error {
 
 	// 8. Stop IPC server
 	ipcServer.Stop()
+	writeStartupTrace("runCoreWithContext exited cleanly")
 
 	logger.Info("Core daemon stopped successfully")
 	return nil
@@ -93,22 +102,29 @@ func runCoreWithContext(ctx context.Context) error {
 
 // initializeCoreSubsystems initializes core subsystems without starting HTTP server.
 func initializeCoreSubsystems() error {
+	writeStartupTrace("initializeCoreSubsystems entered")
 	logger.Info("Initializing core subsystems...")
 
 	// Initialize auth persistence
 	if err := auth.InitializeAuthPersistence(); err != nil {
+		writeStartupTrace("initializeCoreSubsystems auth init failed: %v", err)
 		return fmt.Errorf("failed to initialize auth persistence: %w", err)
 	}
+	writeStartupTrace("initializeCoreSubsystems auth init ok")
 
 	// Initialize software config store
 	if err := storage.InitializeSoftwareConfigStore(); err != nil {
+		writeStartupTrace("initializeCoreSubsystems storage init failed: %v", err)
 		return fmt.Errorf("failed to initialize software config store: %w", err)
 	}
+	writeStartupTrace("initializeCoreSubsystems storage init ok")
 
 	// Load configuration (honor --config when provided by CLI/service args)
 	if err := ApplyStartupConfig(configPath); err != nil {
+		writeStartupTrace("initializeCoreSubsystems ApplyStartupConfig failed: %v", err)
 		return fmt.Errorf("failed to initialize config: %w", err)
 	}
+	writeStartupTrace("initializeCoreSubsystems ApplyStartupConfig ok configPath=%s", configPath)
 
 	// Initialize startup state
 	startupState := runtime.GetStartupState()
@@ -118,14 +134,17 @@ func initializeCoreSubsystems() error {
 
 	// Initialize user (try to load persisted info - InitializeUser handles this)
 	if err := InitializeUser(""); err != nil {
+		writeStartupTrace("initializeCoreSubsystems InitializeUser warning: %v", err)
 		logger.Warn(fmt.Sprintf("Failed to initialize user: %v (continuing anyway)", err))
 	}
 
 	// Initialize global rule engine
 	if err := initializeCoreRuleEngine(); err != nil {
+		writeStartupTrace("initializeCoreSubsystems initializeCoreRuleEngine warning: %v", err)
 		logger.Warn(fmt.Sprintf("Failed to initialize rule engine: %v (continuing anyway)", err))
 	}
 
+	writeStartupTrace("initializeCoreSubsystems completed")
 	logger.Info("Core subsystems initialized")
 	return nil
 }

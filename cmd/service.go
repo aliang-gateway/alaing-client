@@ -132,9 +132,16 @@ func runServiceInstall(cmd *cobra.Command, args []string) error {
 
 	// 检查服务是否已安装
 	if setup.IsServiceInstalled(setup.GetServiceName(), serviceSystemWide) {
-		fmt.Println("Error: Service is already installed.")
-		fmt.Println("To reinstall, please uninstall first: aliang service uninstall")
-		return setup.ErrServiceExists
+		fmt.Println("Service already exists, reinstalling...")
+		if err := setup.UninstallService(setup.GetServiceName(), serviceSystemWide); err != nil {
+			logger.Error("Failed to uninstall existing service before reinstall", "error", err)
+			return fmt.Errorf("failed to uninstall existing service before reinstall: %w", err)
+		}
+		if serviceSystemWide {
+			if err := services.RemoveManagedSystemServiceExecutable(); err != nil {
+				logger.Warn(fmt.Sprintf("Failed to remove previous managed executable during reinstall: %v", err))
+			}
+		}
 	}
 
 	options, err := services.BuildCLIServiceInstallOptions(configPath, serviceSystemWide)

@@ -5,6 +5,7 @@ go 1.25.1
 replace github.com/elazarl/goproxy v1.7.2 => ../goproxy
 
 require (
+	github.com/Microsoft/go-winio v0.6.2
 	github.com/docker/go-units v0.5.0
 	github.com/getkin/kin-openapi v0.134.0
 	github.com/getlantern/systray v1.2.2

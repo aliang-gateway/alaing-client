@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 
 	"aliang.one/nursorgate/common/logger"
 )
@@ -76,6 +77,9 @@ func CoreSocketDir() string {
 // Windows: \\.\pipe\aliang-core
 func CoreSocketPath() string {
 	if path := os.Getenv("ALIANG_SOCKET_PATH"); path != "" {
+		if runtime.GOOS == "windows" && !strings.HasPrefix(path, `\\.\pipe\`) {
+			return `\\.\pipe\aliang-core`
+		}
 		return path
 	}
 	switch runtime.GOOS {

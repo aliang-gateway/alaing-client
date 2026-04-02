@@ -13,7 +13,7 @@ $ErrorActionPreference = "Stop"
 
 $BINARY_NAME = "aliang.exe"
 # Keep in sync with processor/setup.GetServiceName()
-$SERVICE_NAME = "nursorgate"
+$SERVICE_NAME = "alianggate"
 $MANUFACTURER = "Aliang"
 $UPGRADE_CODE = "A1B2C3D4-E5F6-7890-ABCD-EF1234567890"  # Should be generated once per product
 $ICON_FILE = "desktop-logo.ico"
@@ -120,6 +120,9 @@ $wxsContent = @"
 $iconDefXml
         <!-- Directory Structure -->
         <Directory Id="TARGETDIR" Name="SourceDir">
+            <Directory Id="WindowsFolder">
+                <Directory Id="SystemFolder"/>
+            </Directory>
             <Directory Id="ProgramFilesFolder">
                 <Directory Id="INSTALLFOLDER" Name="Aliang">
                     <Component Id="MainBinary" Guid="*">
@@ -139,7 +142,7 @@ $iconDefXml
             <Directory Id="ProgramMenuFolder">
                 <Directory Id="ApplicationProgramsFolder" Name="Aliang">
                     <Component Id="StartMenuShortcut" Guid="*">
-                        <Shortcut Id="ApplicationStartMenuShortcut" Name="Aliang" Description="Aliang Gateway Proxy Client" Target="[INSTALLFOLDER]$BINARY_NAME" $shortcutIconAttr/>
+                        <Shortcut Id="ApplicationStartMenuShortcut" Name="Aliang" Description="Aliang Gateway Proxy Client" Target="[INSTALLFOLDER]$BINARY_NAME" Arguments="companion" WorkingDirectory="INSTALLFOLDER" $shortcutIconAttr/>
                         <RemoveFolder Id="CleanUpShortCut" On="uninstall"/>
                         <RegistryValue Root="HKCU" Key="Software\Aliang" Name="StartMenuInstalled" Type="integer" Value="1" KeyPath="yes"/>
                     </Component>
@@ -147,7 +150,7 @@ $iconDefXml
             </Directory>
             <Directory Id="DesktopFolder" Name="Desktop">
                 <Component Id="DesktopShortcut" Guid="*">
-                    <Shortcut Id="ApplicationDesktopShortcut" Name="Aliang" Description="Aliang Gateway Proxy Client" Target="[INSTALLFOLDER]$BINARY_NAME" $shortcutIconAttr/>
+                    <Shortcut Id="ApplicationDesktopShortcut" Name="Aliang" Description="Aliang Gateway Proxy Client" Target="[INSTALLFOLDER]$BINARY_NAME" Arguments="companion" WorkingDirectory="INSTALLFOLDER" $shortcutIconAttr/>
                     <RegistryValue Root="HKCU" Key="Software\Aliang" Name="DesktopShortcutInstalled" Type="integer" Value="1" KeyPath="yes"/>
                 </Component>
             </Directory>
@@ -168,7 +171,7 @@ $iconDefXml
                 <RegistryValue Root="HKLM" Key="Software\Aliang" Name="EnvironmentInstalled" Type="integer" Value="1" KeyPath="yes"/>
                 <Environment Id="ALIANG_DATA_DIR" Name="ALIANG_DATA_DIR" Value="[AliangData]" Permanent="yes" Part="last" Action="set" System="yes"/>
                 <Environment Id="ALIANG_LOG_DIR" Name="ALIANG_LOG_DIR" Value="[AliangData]\logs" Permanent="yes" Part="last" Action="set" System="yes"/>
-                <Environment Id="ALIANG_SOCKET_PATH" Name="ALIANG_SOCKET_PATH" Value="%PROGRAMDATA%\Aliang\aliang-core.sock" Permanent="yes" Part="last" Action="set" System="yes"/>
+                <Environment Id="ALIANG_SOCKET_PATH" Name="ALIANG_SOCKET_PATH" Value="\\.\pipe\aliang-core" Permanent="yes" Part="last" Action="set" System="yes"/>
             </Component>
         </DirectoryRef>
 

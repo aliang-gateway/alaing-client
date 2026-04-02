@@ -84,6 +84,15 @@ func (s *SystemServiceService) Install() (SystemServiceStatus, error) {
 		return meta, err
 	}
 
+	if setup.IsServiceInstalled(options.Name, true) {
+		if err := setup.UninstallService(options.Name, true); err != nil {
+			return meta, fmt.Errorf("failed to uninstall existing service before reinstall: %w", err)
+		}
+		if err := RemoveManagedSystemServiceExecutable(); err != nil {
+			meta.Warning = appendSystemServiceWarning(meta.Warning, fmt.Sprintf("Removed existing service but failed to clean previous managed executable automatically: %v", err))
+		}
+	}
+
 	if err := setup.InstallService(options); err != nil {
 		return meta, err
 	}
@@ -261,7 +270,7 @@ func buildManagedSystemServiceInstallOptions(preferredConfigPath string) (setup.
 		ConfigPath:       configPath,
 		SystemWide:       true,
 		StartType:        setup.StartAutomatic,
-		Args:             []string{"start"},
+		Args:             []string{"core"},
 		Env:              env,
 		WorkingDirectory: workingDirectory,
 	}, nil
@@ -336,6 +345,9 @@ func buildManagedSystemServiceEnvironment(configPath string) (map[string]string,
 		if err := ensureManagedCertificateAssets(sourceDir, runtimeDataDir); err != nil {
 			return nil, err
 		}
+	}
+	if runtime.GOOS == "windows" {
+		env["ALIANG_SOCKET_PATH"] = setup.CoreSocketPath()
 	}
 
 	return env, nil

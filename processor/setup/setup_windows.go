@@ -1,9 +1,12 @@
 package setup
 
 import (
+	"errors"
 	"fmt"
+	"time"
 
 	"aliang.one/nursorgate/common/logger"
+	"golang.org/x/sys/windows"
 	"golang.org/x/sys/windows/svc"
 	"golang.org/x/sys/windows/svc/mgr"
 )
@@ -72,18 +75,27 @@ func (w *WindowsServiceManager) Install(options InstallOptions) error {
 	}
 
 	// 创建服务
-	s, err := m.CreateService(
-		options.Name,
-		execPath,
-		mgr.Config{
-			DisplayName: options.DisplayName,
-			Description: options.Description,
-			StartType:   startType,
-		},
-		args...,
-	)
+	config := mgr.Config{
+		DisplayName: options.DisplayName,
+		Description: options.Description,
+		StartType:   startType,
+	}
+
+	s, err := m.CreateService(options.Name, execPath, config, args...)
 	if err != nil {
-		return fmt.Errorf("failed to create service: %w", err)
+		if !isServiceMarkedForDelete(err) {
+			return fmt.Errorf("failed to create service: %w", err)
+		}
+
+		logger.Info("Service is marked for deletion during install, waiting before retry", "name", options.Name)
+		if err := waitForServiceRemoval(options.Name, 10*time.Second); err != nil {
+			return fmt.Errorf("failed while waiting to recreate service: %w", err)
+		}
+
+		s, err = m.CreateService(options.Name, execPath, config, args...)
+		if err != nil {
+			return fmt.Errorf("failed to create service after waiting for deletion: %w", err)
+		}
 	}
 	defer s.Close()
 
@@ -123,7 +135,18 @@ func (w *WindowsServiceManager) Uninstall() error {
 
 	// 删除服务
 	if err := s.Delete(); err != nil {
-		return fmt.Errorf("failed to delete service: %w", err)
+		if !isServiceMarkedForDelete(err) {
+			return fmt.Errorf("failed to delete service: %w", err)
+		}
+
+		logger.Info("Service is already marked for deletion", "name", w.name)
+	}
+
+	s.Close()
+	m.Disconnect()
+
+	if err := waitForServiceRemoval(w.name, 10*time.Second); err != nil {
+		return err
 	}
 
 	logger.Info("Service uninstalled successfully")
@@ -281,4 +304,41 @@ func (w *WindowsServiceManager) IsInstalled() bool {
 // GetName 获取服务名称
 func (w *WindowsServiceManager) GetName() string {
 	return w.name
+}
+
+func isServiceMarkedForDelete(err error) bool {
+	return errors.Is(err, windows.ERROR_SERVICE_MARKED_FOR_DELETE)
+}
+
+func waitForServiceRemoval(name string, timeout time.Duration) error {
+	deadline := time.Now().Add(timeout)
+
+	for {
+		m, err := mgr.Connect()
+		if err != nil {
+			return fmt.Errorf("failed to connect to service manager while waiting for removal: %w", err)
+		}
+
+		s, openErr := m.OpenService(name)
+		if openErr == nil {
+			s.Close()
+			m.Disconnect()
+		} else {
+			m.Disconnect()
+
+			if errors.Is(openErr, windows.ERROR_SERVICE_DOES_NOT_EXIST) {
+				return nil
+			}
+
+			if !isServiceMarkedForDelete(openErr) {
+				return fmt.Errorf("failed while waiting for service removal: %w", openErr)
+			}
+		}
+
+		if time.Now().After(deadline) {
+			return fmt.Errorf("service %q is still marked for deletion after %s; close any tools holding the service open and try again", name, timeout)
+		}
+
+		time.Sleep(300 * time.Millisecond)
+	}
 }

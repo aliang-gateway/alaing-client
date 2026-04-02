@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 )
 
 // Socket path based on platform
@@ -25,6 +26,9 @@ func defaultSocketPath() string {
 // Uses ALIANG_SOCKET_PATH env var if set, otherwise defaults.
 func SocketPath() string {
 	if path := os.Getenv("ALIANG_SOCKET_PATH"); path != "" {
+		if runtime.GOOS == "windows" && !strings.HasPrefix(path, `\\.\pipe\`) {
+			return defaultSocketPath()
+		}
 		return path
 	}
 	return defaultSocketPath()
@@ -69,8 +73,12 @@ func CoreLogDir() string {
 func EnsureCoreDirs() error {
 	dirs := []string{
 		CoreDataDir(),
-		filepath.Dir(SocketPath()),
 		CoreLogDir(),
+	}
+
+	// Windows named pipes live under \\.\pipe and do not require filesystem directories.
+	if runtime.GOOS != "windows" {
+		dirs = append(dirs, filepath.Dir(SocketPath()))
 	}
 
 	for _, dir := range dirs {

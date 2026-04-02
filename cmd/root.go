@@ -33,8 +33,7 @@ var rootCmd = &cobra.Command{
 			tray.RunCompanion()
 			return nil
 		}
-		// Default: tray mode (inline HTTP server + tray)
-		return runTray(cmd, args)
+		return runDefaultRoot(cmd, args)
 	},
 }
 
