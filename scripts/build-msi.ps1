@@ -12,7 +12,8 @@ param(
 $ErrorActionPreference = "Stop"
 
 $BINARY_NAME = "aliang.exe"
-$SERVICE_NAME = "aliang"
+# Keep in sync with processor/setup.GetServiceName()
+$SERVICE_NAME = "nursorgate"
 $MANUFACTURER = "Aliang"
 $UPGRADE_CODE = "A1B2C3D4-E5F6-7890-ABCD-EF1234567890"  # Should be generated once per product
 $ICON_FILE = "desktop-logo.ico"
@@ -174,8 +175,8 @@ $iconDefXml
         <!-- Service Registration Custom Action -->
         <CustomAction Id="RegisterService"
                       Directory="INSTALLFOLDER"
-                      ExeCommand="[INSTALLFOLDER]$BINARY_NAME service install --system-wide"
-                      Return="ignore"
+                      ExeCommand="[INSTALLFOLDER]$BINARY_NAME service install --system-wide --start"
+                      Return="check"
                       Execute="deferred"
                       Impersonate="no"/>
         <CustomAction Id="UnregisterService"
@@ -184,11 +185,39 @@ $iconDefXml
                       Return="ignore"
                       Execute="deferred"
                       Impersonate="no"/>
+        <CustomAction Id="ForceStopService"
+                      Directory="SystemFolder"
+                      ExeCommand="sc.exe stop $SERVICE_NAME"
+                      Return="ignore"
+                      Execute="deferred"
+                      Impersonate="no"/>
+        <CustomAction Id="ForceDeleteService"
+                      Directory="SystemFolder"
+                      ExeCommand="sc.exe delete $SERVICE_NAME"
+                      Return="ignore"
+                      Execute="deferred"
+                      Impersonate="no"/>
+        <CustomAction Id="ForceStopLegacyService"
+                      Directory="SystemFolder"
+                      ExeCommand="sc.exe stop aliang"
+                      Return="ignore"
+                      Execute="deferred"
+                      Impersonate="no"/>
+        <CustomAction Id="ForceDeleteLegacyService"
+                      Directory="SystemFolder"
+                      ExeCommand="sc.exe delete aliang"
+                      Return="ignore"
+                      Execute="deferred"
+                      Impersonate="no"/>
 
         <!-- Install Execute Sequence -->
         <InstallExecuteSequence>
             <Custom Action="RegisterService" After="InstallFiles">NOT Installed</Custom>
             <Custom Action="UnregisterService" Before="RemoveFiles">REMOVE="ALL"</Custom>
+            <Custom Action="ForceStopService" After="UnregisterService">REMOVE="ALL"</Custom>
+            <Custom Action="ForceDeleteService" After="ForceStopService">REMOVE="ALL"</Custom>
+            <Custom Action="ForceStopLegacyService" After="ForceDeleteService">REMOVE="ALL"</Custom>
+            <Custom Action="ForceDeleteLegacyService" After="ForceStopLegacyService">REMOVE="ALL"</Custom>
         </InstallExecuteSequence>
     </Product>
 </Wix>

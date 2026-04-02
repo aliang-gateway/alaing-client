@@ -1,0 +1,89 @@
+//go:build windows
+
+package cmd
+
+import (
+	"context"
+	"fmt"
+
+	"golang.org/x/sys/windows/svc"
+	"nursor.org/nursorgate/common/logger"
+	"nursor.org/nursorgate/processor/setup"
+)
+
+// MaybeRunAsWindowsService detects Windows service context and runs service dispatcher when needed.
+// Returns handled=true when running as a Windows service.
+func MaybeRunAsWindowsService() (handled bool, err error) {
+	isService, err := svc.IsWindowsService()
+	if err != nil {
+		return false, fmt.Errorf("failed to detect windows service context: %w", err)
+	}
+	if !isService {
+		return false, nil
+	}
+
+	logger.Info("Detected Windows service context, starting service dispatcher...")
+	if err := svc.Run(setup.GetServiceName(), &aliangWindowsService{}); err != nil {
+		return true, fmt.Errorf("windows service runtime failed: %w", err)
+	}
+	return true, nil
+}
+
+type aliangWindowsService struct{}
+
+func (s *aliangWindowsService) Execute(args []string, req <-chan svc.ChangeRequest, status chan<- svc.Status) (bool, uint32) {
+	const accepted = svc.AcceptStop | svc.AcceptShutdown
+
+	applyWindowsServiceRuntimeArgs(args)
+
+	status <- svc.Status{State: svc.StartPending}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	done := make(chan error, 1)
+	go func() {
+		done <- runCoreWithContext(ctx)
+	}()
+
+	status <- svc.Status{State: svc.Running, Accepts: accepted}
+
+	for {
+		select {
+		case c := <-req:
+			switch c.Cmd {
+			case svc.Interrogate:
+				status <- c.CurrentStatus
+			case svc.Stop, svc.Shutdown:
+				status <- svc.Status{State: svc.StopPending, Accepts: accepted}
+				cancel()
+				if err := <-done; err != nil {
+					logger.Error("Windows service core loop exited with error", "error", err)
+					return false, 1
+				}
+				status <- svc.Status{State: svc.Stopped}
+				return false, 0
+			default:
+			}
+		case err := <-done:
+			if err != nil {
+				logger.Error("Windows service core loop exited unexpectedly", "error", err)
+				return false, 1
+			}
+			status <- svc.Status{State: svc.Stopped}
+			return false, 0
+		}
+	}
+}
+
+func applyWindowsServiceRuntimeArgs(args []string) {
+	for i := 0; i < len(args); i++ {
+		switch args[i] {
+		case "--config", "-c":
+			if i+1 < len(args) {
+				configPath = args[i+1]
+				i++
+			}
+		}
+	}
+}

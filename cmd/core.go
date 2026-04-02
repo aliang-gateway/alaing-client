@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -15,8 +16,8 @@ import (
 	"nursor.org/nursorgate/common/version"
 	auth "nursor.org/nursorgate/processor/auth"
 	"nursor.org/nursorgate/processor/config"
-	"nursor.org/nursorgate/processor/runtime"
 	"nursor.org/nursorgate/processor/rules"
+	"nursor.org/nursorgate/processor/runtime"
 	"nursor.org/nursorgate/processor/setup"
 
 	"nursor.org/nursorgate/internal/ipc"
@@ -34,6 +35,13 @@ func init() {
 }
 
 func runCore(cmd *cobra.Command, args []string) error {
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+
+	return runCoreWithContext(ctx)
+}
+
+func runCoreWithContext(ctx context.Context) error {
 	logger.Info("========================================")
 	logger.Info("Starting Aliang Core Daemon")
 	logger.Info("========================================")
@@ -60,11 +68,8 @@ func runCore(cmd *cobra.Command, args []string) error {
 	logger.Info("Core daemon started successfully")
 	logger.Info("IPC server listening, waiting for commands...")
 
-	// 4. Wait for shutdown signal
-	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
-
-	<-sigChan
+	// 4. Wait for shutdown signal/context cancellation
+	<-ctx.Done()
 	logger.Info("Received shutdown signal, stopping core daemon...")
 
 	// 5. Stop HTTP server if running
@@ -100,8 +105,8 @@ func initializeCoreSubsystems() error {
 		return fmt.Errorf("failed to initialize software config store: %w", err)
 	}
 
-	// Load configuration (use default path for core daemon)
-	if err := ApplyStartupConfig(""); err != nil {
+	// Load configuration (honor --config when provided by CLI/service args)
+	if err := ApplyStartupConfig(configPath); err != nil {
 		return fmt.Errorf("failed to initialize config: %w", err)
 	}
 
