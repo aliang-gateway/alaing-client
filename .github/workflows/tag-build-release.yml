@@ -250,22 +250,27 @@ jobs:
             New-Item -ItemType Directory -Force -Path $wixPath | Out-Null
             & $nugetExe install WiX -Version 3.11.2 -OutputDirectory $wixPath -NoHttpCache -Verbosity quiet
           }
-          # Find candle.exe in the WiX installation
+          # Find candle.exe and light.exe in the WiX installation
           $wixBin = Get-ChildItem -Path "$wixPath" -Recurse -Filter "candle.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
-          if ($wixBin) {
+          $wixLight = Get-ChildItem -Path "$wixPath" -Recurse -Filter "light.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
+          if ($wixBin -and $wixLight) {
+            $wixCandleExe = $wixBin.FullName
+            $wixLightExe = $wixLight.FullName
             $wixPath = Split-Path $wixBin.DirectoryName
           } else {
-            Write-Host "ERROR: candle.exe not found after WiX installation"
+            Write-Host "ERROR: WiX executables not found after installation"
             Get-ChildItem -Path $wixPath -Recurse | Select-Object FullName
             exit 1
           }
-          Write-Host "WiX binaries found at: $wixPath"
+          Write-Host "WiX candle: $wixCandleExe"
+          Write-Host "WiX light: $wixLightExe"
+          Write-Host "WiX path: $wixPath"
 
           # Copy binary to scripts dir
           Copy-Item "dist\$env:BINARY_NAME.exe" scripts\
 
-          # Run MSI build script
-          & scripts/build-msi.ps1 -Version $env:VERSION -OutputDir release -WiXPath $wixPath
+          # Run MSI build script with WiX paths
+          & scripts/build-msi.ps1 -Version $env:VERSION -OutputDir release -WiXPath $wixPath -CandleExe $wixCandleExe -LightExe $wixLightExe
 
       - name: Upload packaged artifact
         uses: actions/upload-artifact@v4

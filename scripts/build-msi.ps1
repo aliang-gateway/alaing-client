@@ -4,7 +4,9 @@
 param(
     [string]$Version = "1.0.0",
     [string]$OutputDir = ".",
-    [string]$WiXPath = ""
+    [string]$WiXPath = "",
+    [string]$CandleExe = "",
+    [string]$LightExe = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -44,7 +46,13 @@ if (-not $WiXPath) {
         New-Item -ItemType Directory -Force -Path $wixPath | Out-Null
         & $nugetExe install WiX -Version 3.11.2 -OutputDirectory $wixPath -NoHttpCache
 
-        $wixPath = "$wixPath\WiX.3.11.2\tools\bin"
+        # Find candle.exe dynamically instead of guessing the folder structure
+        $wixBin = Get-ChildItem -Path "$wixPath" -Recurse -Filter "candle.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
+        if (-not $wixBin) {
+            Write-Host "ERROR: Could not find candle.exe after WiX installation" -ForegroundColor Red
+            exit 1
+        }
+        $wixPath = $wixBin.DirectoryName
     }
 } else {
     $wixPath = $WiXPath
@@ -73,6 +81,19 @@ if (Test-Path $iconPath) {
     Write-Host "Warning: Icon file $iconPath not found, shortcuts will use default icon" -ForegroundColor Yellow
 }
 
+# Build icon-related XML fragments (conditioned on $iconAvailable)
+$iconDefXml = ""
+$shortcutIconAttr = ""
+if ($iconAvailable) {
+    $iconDefXml = @"
+
+        <!-- Icon Definition -->
+        <Icon Id="AliangIcon" SourceFile="$payloadDir\$ICON_FILE"/>
+        <Property Id="ARPPRODUCTICON" Value="AliangIcon"/>
+"@
+    $shortcutIconAttr = 'Icon="AliangIcon"'
+}
+
 # Create WiX source file
 Write-Host "Creating WiX source..." -ForegroundColor Cyan
 
@@ -84,18 +105,14 @@ $wxsContent = @"
 
         <MajorUpgrade DowngradeErrorMessage="A newer version of [ProductName] is already installed."/>
         <MediaTemplate EmbedCab="yes"/>
-
-        <!-- Icon Definition -->
-        <Icon Id="AliangIcon" SourceFile="$payloadDir\$ICON_FILE"/>
-        <Property Id="ARPPRODUCTICON" Value="AliangIcon"/>
-
+$iconDefXml
         <!-- Directory Structure -->
         <Directory Id="TARGETDIR" Name="SourceDir">
             <Directory Id="ProgramFilesFolder">
                 <Directory Id="INSTALLFOLDER" Name="Aliang">
                     <Component Id="MainBinary" Guid="*">
                         <File Id="Aliangexe" Source="$payloadDir\$BINARY_NAME" KeyPath="yes"/>
-                        <RegistryValue Root="HKLM" Key="Software\Aliang" Name="InstallDir" Type="string" Value="[INSTALLFOLDER]" KeyPath="yes"/>
+                        <RegistryValue Root="HKLM" Key="Software\Aliang" Name="InstallDir" Type="string" Value="[INSTALLFOLDER]"/>
                     </Component>
                 </Directory>
             </Directory>
@@ -131,7 +148,7 @@ $wxsContent = @"
                               Description="Aliang Gateway Proxy Client"
                               Target="[INSTALLFOLDER]$BINARY_NAME"
                               WorkingDirectory="INSTALLFOLDER"
-                              Icon="AliangIcon"/>
+$shortcutIconAttr/>
                     <RemoveFolder Id="CleanUpShortCut" On="uninstall"/>
                     <RegistryValue Root="HKCU" Key="Software\Aliang" Name="installed" Type="integer" Value="1" KeyPath="yes"/>
                 </Component>
@@ -146,7 +163,7 @@ $wxsContent = @"
                           Description="Aliang Gateway Proxy Client"
                           Target="[INSTALLFOLDER]$BINARY_NAME"
                           WorkingDirectory="INSTALLFOLDER"
-                          Icon="AliangIcon"/>
+$shortcutIconAttr/>
                 <RegistryValue Root="HKCU" Key="Software\Aliang" Name="DesktopShortcut" Type="integer" Value="1" KeyPath="yes"/>
             </Component>
         </Directory>
@@ -182,13 +199,25 @@ Write-Host "Building MSI..." -ForegroundColor Cyan
 Push-Location $sourceDir
 
 try {
+    # Determine WiX executables to use
+    if ($CandleExe -and (Test-Path $CandleExe)) {
+        $useCandleExe = $CandleExe
+    } else {
+        $useCandleExe = "$wixPath\candle.exe"
+    }
+    if ($LightExe -and (Test-Path $LightExe)) {
+        $useLightExe = $LightExe
+    } else {
+        $useLightExe = "$wixPath\light.exe"
+    }
+
     # Compile WiX source
-    Write-Host "Compiling WiX source..." -ForegroundColor Yellow
-    & "$wixPath\candle.exe" -nologo -ext WixUIExtension -out "$sourceDir\aliang.wixobj" "$wxsPath"
+    Write-Host "Compiling WiX source with: $useCandleExe" -ForegroundColor Yellow
+    & $useCandleExe -nologo -ext WixUIExtension -out "$sourceDir\aliang.wixobj" "$wxsPath"
 
     # Link/Combine into MSI
-    Write-Host "Linking into MSI..." -ForegroundColor Yellow
-    & "$wixPath\light.exe" -nologo -ext WixUIExtension -o "$OutputDir\aliang-$Version.msi" "$sourceDir\aliang.wixobj"
+    Write-Host "Linking into MSI with: $useLightExe" -ForegroundColor Yellow
+    & $useLightExe -nologo -ext WixUIExtension -o "$OutputDir\aliang-$Version.msi" "$sourceDir\aliang.wixobj"
 
     Write-Host "MSI created successfully!" -ForegroundColor Green
     Write-Host "Output: $OutputDir\aliang-$Version.msi" -ForegroundColor Cyan
