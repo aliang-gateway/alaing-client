@@ -20,7 +20,16 @@ $ENV_COMPONENT_GUID = "64E4CB9B-2509-4EFA-8A58-5DFAF5DD17E8"
 
 Write-Host "=== Building Aliang MSI Installer ===" -ForegroundColor Cyan
 Write-Host "Version: $Version"
-Write-Host "Output: $OutputDir"
+
+# Resolve output directory to absolute path before changing working directory
+$currentDir = (Get-Location).Path
+if ([System.IO.Path]::IsPathRooted($OutputDir)) {
+    $resolvedOutputDir = $OutputDir
+} else {
+    $resolvedOutputDir = Join-Path $currentDir $OutputDir
+}
+New-Item -ItemType Directory -Force -Path $resolvedOutputDir | Out-Null
+Write-Host "Output: $resolvedOutputDir"
 
 # Check if WiX is installed
 if (-not $WiXPath) {
@@ -214,13 +223,13 @@ try {
 
     # Link/Combine into MSI
     Write-Host "Linking into MSI with: $useLightExe" -ForegroundColor Yellow
-    & $useLightExe -nologo -ext WixUIExtension -o "$OutputDir\aliang-$Version.msi" "$sourceDir\aliang.wixobj"
+    & $useLightExe -nologo -ext WixUIExtension -o "$resolvedOutputDir\aliang-$Version.msi" "$sourceDir\aliang.wixobj"
     if ($LASTEXITCODE -ne 0) {
         throw "light.exe failed with exit code $LASTEXITCODE"
     }
 
     Write-Host "MSI created successfully!" -ForegroundColor Green
-    Write-Host "Output: $OutputDir\aliang-$Version.msi" -ForegroundColor Cyan
+    Write-Host "Output: $resolvedOutputDir\aliang-$Version.msi" -ForegroundColor Cyan
 }
 catch {
     Write-Host "Error building MSI: $_" -ForegroundColor Red
@@ -235,6 +244,6 @@ Remove-Item -Path "$buildDir" -Recurse -Force -ErrorAction SilentlyContinue
 
 Write-Host ""
 Write-Host "=== Build Complete ===" -ForegroundColor Cyan
-Write-Host "MSI Installer: $OutputDir\aliang-$Version.msi"
+Write-Host "MSI Installer: $resolvedOutputDir\aliang-$Version.msi"
 Write-Host ""
 Write-Host "Note: To install, run: msiexec /i aliang-$Version.msi"
