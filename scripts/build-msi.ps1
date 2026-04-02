@@ -129,7 +129,7 @@ $iconDefXml
             <Directory Id="ProgramMenuFolder">
                 <Directory Id="ApplicationProgramsFolder" Name="Aliang">
                     <Component Id="StartMenuShortcut" Guid="*">
-                        <Shortcut Id="ApplicationStartMenuShortcut" Name="Aliang" Description="Aliang Gateway Proxy Client" Target="[INSTALLFOLDER]" $shortcutIconAttr/>
+                        <Shortcut Id="ApplicationStartMenuShortcut" Name="Aliang" Description="Aliang Gateway Proxy Client" Target="[INSTALLFOLDER]$BINARY_NAME" $shortcutIconAttr/>
                         <RemoveFolder Id="CleanUpShortCut" On="uninstall"/>
                         <RegistryValue Root="HKCU" Key="Software\Aliang" Name="StartMenuInstalled" Type="integer" Value="1" KeyPath="yes"/>
                     </Component>
@@ -137,7 +137,7 @@ $iconDefXml
             </Directory>
             <Directory Id="DesktopFolder" Name="Desktop">
                 <Component Id="DesktopShortcut" Guid="*">
-                    <Shortcut Id="ApplicationDesktopShortcut" Name="Aliang" Description="Aliang Gateway Proxy Client" Target="[INSTALLFOLDER]" $shortcutIconAttr/>
+                    <Shortcut Id="ApplicationDesktopShortcut" Name="Aliang" Description="Aliang Gateway Proxy Client" Target="[INSTALLFOLDER]$BINARY_NAME" $shortcutIconAttr/>
                     <RegistryValue Root="HKCU" Key="Software\Aliang" Name="DesktopShortcutInstalled" Type="integer" Value="1" KeyPath="yes"/>
                 </Component>
             </Directory>
@@ -155,6 +155,7 @@ $iconDefXml
         <!-- Environment Variables (must be inside a Component) -->
         <DirectoryRef Id="INSTALLFOLDER">
             <Component Id="EnvironmentComponent" Guid="$ENV_COMPONENT_GUID">
+                <RegistryValue Root="HKLM" Key="Software\Aliang" Name="EnvironmentInstalled" Type="integer" Value="1" KeyPath="yes"/>
                 <Environment Id="ALIANG_DATA_DIR" Name="ALIANG_DATA_DIR" Value="[AliangData]" Permanent="yes" Part="last" Action="set" System="yes"/>
                 <Environment Id="ALIANG_LOG_DIR" Name="ALIANG_LOG_DIR" Value="[AliangData]\logs" Permanent="yes" Part="last" Action="set" System="yes"/>
                 <Environment Id="ALIANG_SOCKET_PATH" Name="ALIANG_SOCKET_PATH" Value="%PROGRAMDATA%\Aliang\aliang-core.sock" Permanent="yes" Part="last" Action="set" System="yes"/>
@@ -177,7 +178,7 @@ $iconDefXml
 
         <!-- Install Execute Sequence -->
         <InstallExecuteSequence>
-            <Custom Action="RegisterService" After="InstallFinalize">NOT Installed</Custom>
+            <Custom Action="RegisterService" After="InstallFiles">NOT Installed</Custom>
             <Custom Action="UnregisterService" Before="RemoveFiles">REMOVE="ALL"</Custom>
         </InstallExecuteSequence>
     </Product>
