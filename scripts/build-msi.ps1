@@ -128,7 +128,7 @@ $iconDefXml
             <Directory Id="ProgramMenuFolder">
                 <Directory Id="ApplicationProgramsFolder" Name="Aliang">
                     <Component Id="StartMenuShortcut" Guid="*">
-                        <Shortcut Id="ApplicationStartMenuShortcut" Name="Aliang" Description="Aliang Gateway Proxy Client" Target="[INSTALLFOLDER]" Arguments="" $shortcutIconAttr/>
+                        <Shortcut Id="ApplicationStartMenuShortcut" Name="Aliang" Description="Aliang Gateway Proxy Client" Target="[INSTALLFOLDER]" $shortcutIconAttr/>
                         <RemoveFolder Id="CleanUpShortCut" On="uninstall"/>
                         <RegistryValue Root="HKCU" Key="Software\Aliang" Name="StartMenuInstalled" Type="integer" Value="1" KeyPath="yes"/>
                     </Component>
@@ -136,7 +136,7 @@ $iconDefXml
             </Directory>
             <Directory Id="DesktopFolder" Name="Desktop">
                 <Component Id="DesktopShortcut" Guid="*">
-                    <Shortcut Id="ApplicationDesktopShortcut" Name="Aliang" Description="Aliang Gateway Proxy Client" Target="[INSTALLFOLDER]" Arguments="" $shortcutIconAttr/>
+                    <Shortcut Id="ApplicationDesktopShortcut" Name="Aliang" Description="Aliang Gateway Proxy Client" Target="[INSTALLFOLDER]" $shortcutIconAttr/>
                     <RegistryValue Root="HKCU" Key="Software\Aliang" Name="DesktopShortcutInstalled" Type="integer" Value="1" KeyPath="yes"/>
                 </Component>
             </Directory>
