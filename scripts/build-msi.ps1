@@ -82,6 +82,7 @@ if (Test-Path $iconPath) {
 }
 
 # Build icon-related XML fragments (conditioned on $iconAvailable)
+$iconAvailable = Test-Path $iconPath
 $iconDefXml = ""
 $shortcutIconAttr = ""
 if ($iconAvailable) {
@@ -124,49 +125,40 @@ $iconDefXml
                     </Component>
                 </Directory>
             </Directory>
+            <Directory Id="ProgramMenuFolder">
+                <Directory Id="ApplicationProgramsFolder" Name="Aliang">
+                    <Component Id="StartMenuShortcut" Guid="*">
+                        <Shortcut Id="ApplicationStartMenuShortcut" Name="Aliang" Description="Aliang Gateway Proxy Client" Target="[INSTALLFOLDER]" Arguments="" $shortcutIconAttr/>
+                        <RemoveFolder Id="CleanUpShortCut" On="uninstall"/>
+                        <RegistryValue Root="HKCU" Key="Software\Aliang" Name="StartMenuInstalled" Type="integer" Value="1" KeyPath="yes"/>
+                    </Component>
+                </Directory>
+            </Directory>
+            <Directory Id="DesktopFolder" Name="Desktop">
+                <Component Id="DesktopShortcut" Guid="*">
+                    <Shortcut Id="ApplicationDesktopShortcut" Name="Aliang" Description="Aliang Gateway Proxy Client" Target="[INSTALLFOLDER]" Arguments="" $shortcutIconAttr/>
+                    <RegistryValue Root="HKCU" Key="Software\Aliang" Name="DesktopShortcutInstalled" Type="integer" Value="1" KeyPath="yes"/>
+                </Component>
+            </Directory>
         </Directory>
 
         <!-- Features -->
         <Feature Id="ProductFeature" Title="Aliang" Level="1">
             <ComponentRef Id="MainBinary"/>
             <ComponentRef Id="DataDirectory"/>
+            <ComponentRef Id="EnvironmentComponent"/>
             <ComponentRef Id="StartMenuShortcut"/>
             <ComponentRef Id="DesktopShortcut"/>
         </Feature>
 
-        <!-- Environment Variables -->
-        <Environment Id="ALIANG_DATA_DIR" Name="ALIANG_DATA_DIR" Value="[AliangData]" Permanent="yes" Part="last" Action="set" System="yes"/>
-        <Environment Id="ALIANG_LOG_DIR" Name="ALIANG_LOG_DIR" Value="[AliangData]\logs" Permanent="yes" Part="last" Action="set" System="yes"/>
-        <Environment Id="ALIANG_SOCKET_PATH" Name="ALIANG_SOCKET_PATH" Value="%PROGRAMDATA%\Aliang\aliang-core.sock" Permanent="yes" Part="last" Action="set" System="yes"/>
-
-        <!-- Start Menu Shortcuts -->
-        <Directory Id="ProgramMenuFolder">
-            <Directory Id="ApplicationProgramsFolder" Name="Aliang">
-                <Component Id="StartMenuShortcut" Guid="*">
-                    <Shortcut Id="ApplicationStartMenuShortcut"
-                              Name="Aliang"
-                              Description="Aliang Gateway Proxy Client"
-                              Target="[INSTALLFOLDER]$BINARY_NAME"
-                              WorkingDirectory="INSTALLFOLDER"
-$shortcutIconAttr/>
-                    <RemoveFolder Id="CleanUpShortCut" On="uninstall"/>
-                    <RegistryValue Root="HKCU" Key="Software\Aliang" Name="installed" Type="integer" Value="1" KeyPath="yes"/>
-                </Component>
-            </Directory>
-        </Directory>
-
-        <!-- Desktop Shortcut -->
-        <Directory Id="DesktopFolder" Name="Desktop">
-            <Component Id="DesktopShortcut" Guid="*">
-                <Shortcut Id="DesktopShortcut"
-                          Name="Aliang"
-                          Description="Aliang Gateway Proxy Client"
-                          Target="[INSTALLFOLDER]$BINARY_NAME"
-                          WorkingDirectory="INSTALLFOLDER"
-$shortcutIconAttr/>
-                <RegistryValue Root="HKCU" Key="Software\Aliang" Name="DesktopShortcut" Type="integer" Value="1" KeyPath="yes"/>
+        <!-- Environment Variables (must be inside a Component) -->
+        <DirectoryRef Id="INSTALLFOLDER">
+            <Component Id="EnvironmentComponent" Guid="*">
+                <Environment Id="ALIANG_DATA_DIR" Name="ALIANG_DATA_DIR" Value="[AliangData]" Permanent="yes" Part="last" Action="set" System="yes"/>
+                <Environment Id="ALIANG_LOG_DIR" Name="ALIANG_LOG_DIR" Value="[AliangData]\logs" Permanent="yes" Part="last" Action="set" System="yes"/>
+                <Environment Id="ALIANG_SOCKET_PATH" Name="ALIANG_SOCKET_PATH" Value="%PROGRAMDATA%\Aliang\aliang-core.sock" Permanent="yes" Part="last" Action="set" System="yes"/>
             </Component>
-        </Directory>
+        </DirectoryRef>
 
         <!-- Service Registration Custom Action -->
         <CustomAction Id="RegisterService"
