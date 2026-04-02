@@ -8,6 +8,6 @@ import (
 )
 
 func runDefaultRoot(cmd *cobra.Command, args []string) error {
-	tray.RunWindowsCompanion()
+	tray.RunCompanion()
 	return nil
 }

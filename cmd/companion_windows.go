@@ -12,7 +12,7 @@ var companionCmd = &cobra.Command{
 	Short:  "Start Windows desktop companion",
 	Hidden: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		tray.RunWindowsCompanion()
+		tray.RunCompanion()
 		return nil
 	},
 }

@@ -29,6 +29,8 @@ mkdir -p "$SYSTEMD_DIR"
 mkdir -p "$APP_DIR"
 mkdir -p "$SHARE_DIR"
 mkdir -p "$PAYLOAD_DIR/usr/share/applications"
+mkdir -p "$PAYLOAD_DIR/var/lib/aliang"
+mkdir -p "$PAYLOAD_DIR/var/log/aliang"
 
 # Step 1: Copy pre-built binary
 echo "=== Copying binary ==="
@@ -52,26 +54,20 @@ Depends: libc6 (>= 2.34)
 Control: aliang
 CONTROL_EOF
 
-# Step 3: Create postinst script
-echo "=== Creating postinst script ==="
-cat > "$CONTROL_DIR/postinst" << 'POSTINST_EOF'
-#!/bin/bash
-set -e
-
-case "$1" in
-    configure)
-        echo "Configuring Aliang service..."
-
-        # Create systemd service
-        cat > /lib/systemd/system/aliang.service << 'SERVICE_EOF'
+# Step 3: Create systemd unit
+echo "=== Creating systemd unit ==="
+cat > "$SYSTEMD_DIR/aliang.service" << 'SERVICE_EOF'
 [Unit]
 Description=Aliang Core Service
 Documentation=https://aliang.one
-After=network.target
+After=network-online.target
+Wants=network-online.target
+ConditionPathExists=/usr/local/bin/aliang
 
 [Service]
 Type=simple
 ExecStart=/usr/local/bin/aliang core
+WorkingDirectory=/var/lib/aliang
 Restart=always
 RestartSec=5
 Environment=ALIANG_DATA_DIR=/var/lib/aliang
@@ -88,15 +84,25 @@ ReadWritePaths=/run /var/lib/aliang /var/log/aliang
 WantedBy=multi-user.target
 SERVICE_EOF
 
+# Step 4: Create postinst script
+echo "=== Creating postinst script ==="
+cat > "$CONTROL_DIR/postinst" << 'POSTINST_EOF'
+#!/bin/bash
+set -e
+
+case "$1" in
+    configure)
+        echo "Configuring Aliang service..."
+
         # Create directories
         mkdir -p /var/lib/aliang
         mkdir -p /var/log/aliang
-        mkdir -p /run
 
-        # Enable and start service
-        systemctl daemon-reload
-        systemctl enable aliang
-        systemctl start aliang
+        if command -v systemctl >/dev/null 2>&1 && [ -d /run/systemd/system ]; then
+            systemctl daemon-reload || true
+            systemctl enable aliang >/dev/null 2>&1 || true
+            systemctl restart aliang >/dev/null 2>&1 || systemctl start aliang >/dev/null 2>&1 || true
+        fi
 
         # Update icon cache for desktop environment
         if command -v gtk-update-icon-cache >/dev/null 2>&1; then
@@ -116,7 +122,7 @@ exit 0
 POSTINST_EOF
 chmod 755 "$CONTROL_DIR/postinst"
 
-# Step 4: Create prerm script
+# Step 5: Create prerm script
 echo "=== Creating prerm script ==="
 cat > "$CONTROL_DIR/prerm" << 'PRERM_EOF'
 #!/bin/bash
@@ -125,10 +131,11 @@ set -e
 case "$1" in
     remove|purge)
         echo "Stopping Aliang service..."
-        systemctl stop aliang 2>/dev/null || true
-        systemctl disable aliang 2>/dev/null || true
-        rm -f /lib/systemd/system/aliang.service
-        systemctl daemon-reload
+        if command -v systemctl >/dev/null 2>&1 && [ -d /run/systemd/system ]; then
+            systemctl stop aliang 2>/dev/null || true
+            systemctl disable aliang 2>/dev/null || true
+            systemctl daemon-reload 2>/dev/null || true
+        fi
         ;;
 esac
 
@@ -136,7 +143,7 @@ exit 0
 PRERM_EOF
 chmod 755 "$CONTROL_DIR/prerm"
 
-# Step 5: Copy icon and desktop file
+# Step 6: Copy icon and desktop file
 echo "=== Copying assets ==="
 if [ -f "$SCRIPT_DIR/logo.png" ]; then
     # Install icon to standard locations for desktop environment recognition
@@ -168,7 +175,7 @@ DESKTOP_EOF
 # Copy desktop file to standard location for desktop environment
 cp "$SHARE_DIR/aliang.desktop" "$PAYLOAD_DIR/usr/share/applications/aliang.desktop"
 
-# Step 6: Build DEB package
+# Step 7: Build DEB package
 echo "=== Building DEB package ==="
 cd "$BUILD_DIR"
 

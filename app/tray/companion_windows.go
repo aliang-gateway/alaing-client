@@ -19,7 +19,7 @@ import (
 
 const maxCompanionTraceSize = 128 * 1024
 
-type windowsCompanionApp struct {
+type CompanionApp struct {
 	mProxyStatus   *systray.MenuItem
 	mStart         *systray.MenuItem
 	mStop          *systray.MenuItem
@@ -33,15 +33,15 @@ type windowsCompanionApp struct {
 	done      chan struct{}
 }
 
-func newWindowsCompanionApp() *windowsCompanionApp {
-	return &windowsCompanionApp{
+func NewCompanionApp() *CompanionApp {
+	return &CompanionApp{
 		ipcClient: ipc.NewClient(),
 		httpURL:   "http://127.0.0.1:56431",
 		done:      make(chan struct{}),
 	}
 }
 
-func (a *windowsCompanionApp) onReady() {
+func (a *CompanionApp) onReady() {
 	logger.Info("Windows tray companion initialized")
 
 	systray.SetIcon(GetIconDisabled())
@@ -74,11 +74,11 @@ func (a *windowsCompanionApp) onReady() {
 	}()
 }
 
-func (a *windowsCompanionApp) onExit() {
+func (a *CompanionApp) onExit() {
 	logger.Info("Windows tray companion exiting")
 }
 
-func (a *windowsCompanionApp) connectAndStartHTTP() {
+func (a *CompanionApp) connectAndStartHTTP() {
 	serviceName := setup.GetServiceName()
 	if !setup.IsServiceInstalled(serviceName, true) {
 		a.failStartup("background service not installed", "后台服务未安装，无法启动桌面程序。")
@@ -126,7 +126,7 @@ func (a *windowsCompanionApp) connectAndStartHTTP() {
 	}()
 }
 
-func (a *windowsCompanionApp) waitForIPC(timeout time.Duration) bool {
+func (a *CompanionApp) waitForIPC(timeout time.Duration) bool {
 	deadline := time.Now().Add(timeout)
 	for time.Now().Before(deadline) {
 		if err := a.ipcClient.Connect(); err == nil {
@@ -137,7 +137,7 @@ func (a *windowsCompanionApp) waitForIPC(timeout time.Duration) bool {
 	return false
 }
 
-func (a *windowsCompanionApp) handleMenuEvents() {
+func (a *CompanionApp) handleMenuEvents() {
 	for {
 		select {
 		case <-a.mStart.ClickedCh:
@@ -157,7 +157,7 @@ func (a *windowsCompanionApp) handleMenuEvents() {
 	}
 }
 
-func (a *windowsCompanionApp) startProxy() {
+func (a *CompanionApp) startProxy() {
 	result, err := a.ipcClient.Send(ipc.ActionStartProxy, nil)
 	if err != nil {
 		logger.Error("Failed to start proxy from Windows companion", "error", err)
@@ -170,7 +170,7 @@ func (a *windowsCompanionApp) startProxy() {
 	a.syncState()
 }
 
-func (a *windowsCompanionApp) stopProxy() {
+func (a *CompanionApp) stopProxy() {
 	result, err := a.ipcClient.Send(ipc.ActionStopProxy, nil)
 	if err != nil {
 		logger.Error("Failed to stop proxy from Windows companion", "error", err)
@@ -183,13 +183,13 @@ func (a *windowsCompanionApp) stopProxy() {
 	a.syncState()
 }
 
-func (a *windowsCompanionApp) restartProxy() {
+func (a *CompanionApp) restartProxy() {
 	a.stopProxy()
 	time.Sleep(400 * time.Millisecond)
 	a.startProxy()
 }
 
-func (a *windowsCompanionApp) syncStateLoop() {
+func (a *CompanionApp) syncStateLoop() {
 	ticker := time.NewTicker(2 * time.Second)
 	defer ticker.Stop()
 
@@ -203,7 +203,7 @@ func (a *windowsCompanionApp) syncStateLoop() {
 	}
 }
 
-func (a *windowsCompanionApp) syncState() {
+func (a *CompanionApp) syncState() {
 	result, err := a.ipcClient.Send(ipc.ActionGetStatus, nil)
 	if err != nil {
 		a.applyUnavailableState("background service unavailable")
@@ -251,7 +251,7 @@ func (a *windowsCompanionApp) syncState() {
 	}
 }
 
-func (a *windowsCompanionApp) applyUnavailableState(reason string) {
+func (a *CompanionApp) applyUnavailableState(reason string) {
 	systray.SetIcon(GetIconDisabled())
 	systray.SetTooltip("Aliang - Service Unavailable")
 	if a.mProxyStatus != nil {
@@ -268,14 +268,14 @@ func (a *windowsCompanionApp) applyUnavailableState(reason string) {
 	}
 }
 
-func (a *windowsCompanionApp) openDashboard() {
+func (a *CompanionApp) openDashboard() {
 	cmd := newBackgroundCommand("rundll32", "url.dll,FileProtocolHandler", a.httpURL)
 	if err := cmd.Start(); err != nil {
 		logger.Error("Failed to open dashboard from Windows companion", "error", err)
 	}
 }
 
-func (a *windowsCompanionApp) quit() {
+func (a *CompanionApp) quit() {
 	logger.Info("Quitting Windows tray companion...")
 
 	select {
@@ -292,12 +292,12 @@ func (a *windowsCompanionApp) quit() {
 	os.Exit(0)
 }
 
-func RunWindowsCompanion() {
-	app := newWindowsCompanionApp()
+func RunCompanion() {
+	app := NewCompanionApp()
 	systray.Run(app.onReady, app.onExit)
 }
 
-func (a *windowsCompanionApp) failStartup(reason, message string) {
+func (a *CompanionApp) failStartup(reason, message string) {
 	a.applyUnavailableState(reason)
 	writeWindowsCompanionTrace("failStartup reason=%s", reason)
 	showWindowsCompanionMessage("Aliang", message)
