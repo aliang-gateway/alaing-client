@@ -274,14 +274,26 @@ jobs:
           Copy-Item "dist\$env:BINARY_NAME.exe" scripts\
 
           # Run MSI build script with WiX paths
-          & scripts/build-msi.ps1 -Version $msiVersion -OutputDir release -WiXPath $wixPath -CandleExe $wixCandleExe -LightExe $wixLightExe
+          $releaseDir = Join-Path $PWD "release"
+          & scripts/build-msi.ps1 -Version $msiVersion -OutputDir $releaseDir -WiXPath $wixPath -CandleExe $wixCandleExe -LightExe $wixLightExe
 
           # Normalize MSI filename so upload/release naming is predictable
-          $generatedMsi = Get-ChildItem -Path "release" -Filter "aliang-*.msi" -File -ErrorAction SilentlyContinue |
+          $generatedMsi = Get-ChildItem -Path $releaseDir -Filter "aliang-*.msi" -File -ErrorAction SilentlyContinue |
             Sort-Object LastWriteTime -Descending |
             Select-Object -First 1
           if (-not $generatedMsi) {
-            throw "MSI build completed but no .msi file was found in release/"
+            $fallbackMsi = Get-ChildItem -Path "$env:TEMP\aliang-msi-build" -Recurse -Filter "aliang-*.msi" -File -ErrorAction SilentlyContinue |
+              Sort-Object LastWriteTime -Descending |
+              Select-Object -First 1
+            if ($fallbackMsi) {
+              Copy-Item -Path $fallbackMsi.FullName -Destination $releaseDir -Force
+              $generatedMsi = Get-ChildItem -Path $releaseDir -Filter "aliang-*.msi" -File -ErrorAction SilentlyContinue |
+                Sort-Object LastWriteTime -Descending |
+                Select-Object -First 1
+            }
+          }
+          if (-not $generatedMsi) {
+            throw "MSI build completed but no .msi file was found in $releaseDir"
           }
           $normalizedMsi = "release/${{ matrix.asset_name }}.msi"
           Copy-Item -Path $generatedMsi.FullName -Destination $normalizedMsi -Force
