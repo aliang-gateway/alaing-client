@@ -150,10 +150,16 @@ func runServiceInstall(cmd *cobra.Command, args []string) error {
 
 	fmt.Println("✓ Service installed successfully")
 	if runtime.GOOS == "darwin" {
-		if err := setup.InstallMacOSTrayAgent(options.ExecutablePath); err != nil {
-			fmt.Printf("Warning: Service installed, but failed to install macOS menu bar companion: %v\n", err)
+		// Install core service LaunchAgent (for PKG scenario or standalone development)
+		if err := setup.InstallMacOSCoreService(options.ExecutablePath); err != nil {
+			fmt.Printf("Warning: Service installed, but failed to install macOS core service: %v\n", err)
 		} else {
-			fmt.Println("✓ macOS menu bar companion installed successfully")
+			fmt.Println("✓ macOS core service installed successfully")
+		}
+		// Also clean up old tray agent if it exists (for migration from old architecture)
+		if err := setup.UninstallMacOSTrayAgent(); err != nil {
+			// Not a failure — old agent may not exist
+			logger.Info("Old tray agent cleanup: %v", err)
 		}
 	}
 
@@ -199,10 +205,15 @@ func runServiceUninstall(cmd *cobra.Command, args []string) error {
 
 	fmt.Println("✓ Service uninstalled successfully")
 	if runtime.GOOS == "darwin" {
-		if err := setup.UninstallMacOSTrayAgent(); err != nil {
-			fmt.Printf("Warning: Service uninstalled, but failed to remove macOS menu bar companion: %v\n", err)
+		// Uninstall core service LaunchAgent
+		if err := setup.UninstallMacOSCoreService(); err != nil {
+			fmt.Printf("Warning: Service uninstalled, but failed to remove macOS core service: %v\n", err)
 		} else {
-			fmt.Println("✓ macOS menu bar companion removed successfully")
+			fmt.Println("✓ macOS core service removed successfully")
+		}
+		// Also clean up old tray agent if it exists
+		if err := setup.UninstallMacOSTrayAgent(); err != nil {
+			logger.Info("Old tray agent cleanup during uninstall: %v", err)
 		}
 	}
 	return nil

@@ -60,3 +60,6 @@ aliang
 app/website/node_modules
 app/website/dist
 main
+scripts/build-pkg
+scripts/aliang
+*.pkg

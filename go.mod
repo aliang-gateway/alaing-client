@@ -6,6 +6,7 @@ replace github.com/elazarl/goproxy v1.7.2 => ../goproxy
 
 require (
 	github.com/docker/go-units v0.5.0
+	github.com/getkin/kin-openapi v0.134.0
 	github.com/getlantern/systray v1.2.2
 	github.com/getsentry/sentry-go v0.40.0
 	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510
@@ -20,11 +21,14 @@ require (
 	github.com/sagernet/sing-vmess v0.2.7
 	github.com/spf13/cobra v1.10.1
 	github.com/stretchr/testify v1.10.0
+	github.com/swaggo/http-swagger/v2 v2.0.2
 	github.com/xjasonlyu/tun2socks/v2 v2.6.0
 	go.uber.org/automaxprocs v1.6.0
 	golang.org/x/time v0.14.0
 	golang.zx2c4.com/wireguard v0.0.0-20250521234502-f333402bd9cb
+	gopkg.in/yaml.v3 v3.0.1
 	gorm.io/driver/mysql v1.6.0
+	gorm.io/driver/sqlite v1.6.0
 	gorm.io/gorm v1.30.0
 )
 
@@ -35,7 +39,6 @@ require (
 	github.com/caddyserver/zerossl v0.1.3 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/fsnotify/fsnotify v1.7.0 // indirect
-	github.com/getkin/kin-openapi v0.134.0 // indirect
 	github.com/getlantern/context v0.0.0-20190109183933-c447772a6520 // indirect
 	github.com/getlantern/errors v0.0.0-20190325191628-abdb3e3e36f7 // indirect
 	github.com/getlantern/golog v0.0.0-20190830074920-4ef2e798c2d7 // indirect
@@ -54,7 +57,6 @@ require (
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/klauspost/compress v1.17.11 // indirect
 	github.com/klauspost/cpuid/v2 v2.2.10 // indirect
-	github.com/kr/pretty v0.3.1 // indirect
 	github.com/libdns/alidns v1.0.5-libdns.v1.beta1 // indirect
 	github.com/libdns/cloudflare v0.2.2-0.20250708034226-c574dccb31a6 // indirect
 	github.com/libdns/libdns v1.1.0 // indirect
@@ -73,13 +75,11 @@ require (
 	github.com/oxtoacart/bpool v0.0.0-20190530202638-03653db5a59c // indirect
 	github.com/perimeterx/marshmallow v1.1.5 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
-	github.com/rogpeppe/go-internal v1.12.0 // indirect
 	github.com/sagernet/fswatch v0.1.1 // indirect
 	github.com/sagernet/netlink v0.0.0-20240612041022-b9a21c07ac6a // indirect
 	github.com/sagernet/nftables v0.3.0-beta.4 // indirect
 	github.com/sagernet/sing-tun v0.7.3 // indirect
 	github.com/swaggo/files/v2 v2.0.0 // indirect
-	github.com/swaggo/http-swagger/v2 v2.0.2 // indirect
 	github.com/swaggo/swag v1.8.1 // indirect
 	github.com/vishvananda/netns v0.0.5 // indirect
 	github.com/woodsbury/decimal128 v1.3.0 // indirect
@@ -91,8 +91,6 @@ require (
 	golang.org/x/mod v0.29.0 // indirect
 	golang.org/x/tools v0.38.0 // indirect
 	golang.zx2c4.com/wintun v0.0.0-20230126152724-0fa3db229ce2 // indirect
-	gopkg.in/yaml.v3 v3.0.1 // indirect
-	gorm.io/driver/sqlite v1.6.0 // indirect
 )
 
 require (
