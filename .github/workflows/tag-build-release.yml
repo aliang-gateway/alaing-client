@@ -246,11 +246,20 @@ jobs:
 
           # Download and install WiX
           $wixPath = "$env:TEMP\wix"
-          if (!(Test-Path "$wixPath\WiX.3.11.2\tools\bin\candle.exe")) {
+          if (!(Test-Path "$wixPath\WiX.3.11.2\bin\candle.exe")) {
             New-Item -ItemType Directory -Force -Path $wixPath | Out-Null
             & $nugetExe install WiX -Version 3.11.2 -OutputDirectory $wixPath -NoHttpCache -Verbosity quiet
           }
-          $wixPath = "$wixPath\WiX.3.11.2\tools\bin"
+          # Find candle.exe in the WiX installation
+          $wixBin = Get-ChildItem -Path "$wixPath" -Recurse -Filter "candle.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
+          if ($wixBin) {
+            $wixPath = Split-Path $wixBin.DirectoryName
+          } else {
+            Write-Host "ERROR: candle.exe not found after WiX installation"
+            Get-ChildItem -Path $wixPath -Recurse | Select-Object FullName
+            exit 1
+          }
+          Write-Host "WiX binaries found at: $wixPath"
 
           # Copy binary to scripts dir
           Copy-Item "dist\$env:BINARY_NAME.exe" scripts\

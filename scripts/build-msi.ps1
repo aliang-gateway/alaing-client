@@ -64,11 +64,13 @@ New-Item -ItemType Directory -Force -Path $payloadDir | Out-Null
 
 # Copy binary and icon
 Write-Host "Copying binary and icon..." -ForegroundColor Cyan
+$scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 Copy-Item ".\dist\$BINARY_NAME" -Destination "$payloadDir\" -Force
-if (Test-Path ".\$ICON_FILE") {
-    Copy-Item ".\$ICON_FILE" -Destination "$payloadDir\" -Force
+$iconPath = Join-Path $scriptDir $ICON_FILE
+if (Test-Path $iconPath) {
+    Copy-Item $iconPath -Destination "$payloadDir\" -Force
 } else {
-    Write-Host "Warning: Icon file $ICON_FILE not found, shortcuts will use default icon" -ForegroundColor Yellow
+    Write-Host "Warning: Icon file $iconPath not found, shortcuts will use default icon" -ForegroundColor Yellow
 }
 
 # Create WiX source file
