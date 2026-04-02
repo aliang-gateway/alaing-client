@@ -12,6 +12,7 @@ $BINARY_NAME = "aliang.exe"
 $SERVICE_NAME = "aliang"
 $MANUFACTURER = "Aliang"
 $UPGRADE_CODE = "A1B2C3D4-E5F6-7890-ABCD-EF1234567890"  # Should be generated once per product
+$ICON_FILE = "desktop-logo.ico"
 
 Write-Host "=== Building Aliang MSI Installer ===" -ForegroundColor Cyan
 Write-Host "Version: $Version"
@@ -54,9 +55,14 @@ Remove-Item -Path $buildDir -Recurse -Force -ErrorAction SilentlyContinue
 New-Item -ItemType Directory -Force -Path $sourceDir | Out-Null
 New-Item -ItemType Directory -Force -Path $payloadDir | Out-Null
 
-# Copy binary
-Write-Host "Copying binary..." -ForegroundColor Cyan
+# Copy binary and icon
+Write-Host "Copying binary and icon..." -ForegroundColor Cyan
 Copy-Item ".\dist\$BINARY_NAME" -Destination "$payloadDir\" -Force
+if (Test-Path ".\$ICON_FILE") {
+    Copy-Item ".\$ICON_FILE" -Destination "$payloadDir\" -Force
+} else {
+    Write-Host "Warning: Icon file $ICON_FILE not found, shortcuts will use default icon" -ForegroundColor Yellow
+}
 
 # Create WiX source file
 Write-Host "Creating WiX source..." -ForegroundColor Cyan
@@ -69,6 +75,10 @@ $wxsContent = @"
 
         <MajorUpgrade DowngradeErrorMessage="A newer version of [ProductName] is already installed."/>
         <MediaTemplate EmbedCab="yes"/>
+
+        <!-- Icon Definition -->
+        <Icon Id="AliangIcon" SourceFile="$payloadDir\$ICON_FILE"/>
+        <Property Id="ARPPRODUCTICON" Value="AliangIcon"/>
 
         <!-- Directory Structure -->
         <Directory Id="TARGETDIR" Name="SourceDir">
@@ -111,7 +121,8 @@ $wxsContent = @"
                               Name="Aliang"
                               Description="Aliang Gateway Proxy Client"
                               Target="[INSTALLFOLDER]$BINARY_NAME"
-                              WorkingDirectory="INSTALLFOLDER"/>
+                              WorkingDirectory="INSTALLFOLDER"
+                              Icon="AliangIcon"/>
                     <RemoveFolder Id="CleanUpShortCut" On="uninstall"/>
                     <RegistryValue Root="HKCU" Key="Software\Aliang" Name="installed" Type="integer" Value="1" KeyPath="yes"/>
                 </Component>
@@ -125,7 +136,8 @@ $wxsContent = @"
                           Name="Aliang"
                           Description="Aliang Gateway Proxy Client"
                           Target="[INSTALLFOLDER]$BINARY_NAME"
-                          WorkingDirectory="INSTALLFOLDER"/>
+                          WorkingDirectory="INSTALLFOLDER"
+                          Icon="AliangIcon"/>
                 <RegistryValue Root="HKCU" Key="Software\Aliang" Name="DesktopShortcut" Type="integer" Value="1" KeyPath="yes"/>
             </Component>
         </Directory>
@@ -181,7 +193,7 @@ finally {
 }
 
 # Cleanup
-Remove-Item -Path $buildDir -Recurse -Force -ErrorAction SilentlyContinue
+Remove-Item -Path "$buildDir" -Recurse -Force -ErrorAction SilentlyContinue
 
 Write-Host ""
 Write-Host "=== Build Complete ===" -ForegroundColor Cyan
