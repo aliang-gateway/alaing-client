@@ -9,6 +9,8 @@ import (
 	"time"
 )
 
+const maxStartupTraceSize = 128 * 1024
+
 func writeStartupTrace(format string, args ...interface{}) {
 	line := fmt.Sprintf(format, args...)
 	writeTraceLine(filepath.Join(os.TempDir(), "aliang-companion.log"), line)
@@ -23,6 +25,10 @@ func writeStartupTrace(format string, args ...interface{}) {
 }
 
 func writeTraceLine(path, line string) {
+	if info, err := os.Stat(path); err == nil && info.Size() >= maxStartupTraceSize {
+		_ = os.Remove(path)
+	}
+
 	f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
 	if err != nil {
 		return

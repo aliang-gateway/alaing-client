@@ -20,17 +20,14 @@ func MaybeRunAsWindowsService() (handled bool, err error) {
 		return false, fmt.Errorf("failed to detect windows service context: %w", err)
 	}
 	if !isService {
-		writeStartupTrace("MaybeRunAsWindowsService not running as service")
 		return false, nil
 	}
 
-	writeStartupTrace("MaybeRunAsWindowsService detected service context")
 	logger.Info("Detected Windows service context, starting service dispatcher...")
 	if err := svc.Run(setup.GetServiceName(), &aliangWindowsService{}); err != nil {
 		writeStartupTrace("svc.Run failed: %v", err)
 		return true, fmt.Errorf("windows service runtime failed: %w", err)
 	}
-	writeStartupTrace("svc.Run exited normally")
 	return true, nil
 }
 
@@ -39,7 +36,6 @@ type aliangWindowsService struct{}
 func (s *aliangWindowsService) Execute(args []string, req <-chan svc.ChangeRequest, status chan<- svc.Status) (bool, uint32) {
 	const accepted = svc.AcceptStop | svc.AcceptShutdown
 
-	writeStartupTrace("aliangWindowsService.Execute args=%v", args)
 	applyWindowsServiceRuntimeArgs(args)
 
 	status <- svc.Status{State: svc.StartPending}
@@ -49,7 +45,6 @@ func (s *aliangWindowsService) Execute(args []string, req <-chan svc.ChangeReque
 
 	done := make(chan error, 1)
 	go func() {
-		writeStartupTrace("windows service core goroutine starting")
 		done <- runCoreWithContext(ctx)
 	}()
 
@@ -62,15 +57,12 @@ func (s *aliangWindowsService) Execute(args []string, req <-chan svc.ChangeReque
 			case svc.Interrogate:
 				status <- c.CurrentStatus
 			case svc.Stop, svc.Shutdown:
-				writeStartupTrace("windows service received stop/shutdown")
 				status <- svc.Status{State: svc.StopPending, Accepts: accepted}
 				cancel()
 				if err := <-done; err != nil {
-					writeStartupTrace("windows service stop wait returned error: %v", err)
 					logger.Error("Windows service core loop exited with error", "error", err)
 					return false, 1
 				}
-				writeStartupTrace("windows service stopped cleanly")
 				status <- svc.Status{State: svc.Stopped}
 				return false, 0
 			default:

@@ -17,6 +17,8 @@ import (
 	"golang.org/x/sys/windows"
 )
 
+const maxCompanionTraceSize = 128 * 1024
+
 type windowsCompanionApp struct {
 	mProxyStatus   *systray.MenuItem
 	mStart         *systray.MenuItem
@@ -32,7 +34,6 @@ type windowsCompanionApp struct {
 }
 
 func newWindowsCompanionApp() *windowsCompanionApp {
-	writeWindowsCompanionTrace("newWindowsCompanionApp created")
 	return &windowsCompanionApp{
 		ipcClient: ipc.NewClient(),
 		httpURL:   "http://127.0.0.1:56431",
@@ -41,7 +42,6 @@ func newWindowsCompanionApp() *windowsCompanionApp {
 }
 
 func (a *windowsCompanionApp) onReady() {
-	writeWindowsCompanionTrace("onReady entered")
 	logger.Info("Windows tray companion initialized")
 
 	systray.SetIcon(GetIconDisabled())
@@ -80,42 +80,33 @@ func (a *windowsCompanionApp) onExit() {
 
 func (a *windowsCompanionApp) connectAndStartHTTP() {
 	serviceName := setup.GetServiceName()
-	writeWindowsCompanionTrace("connectAndStartHTTP service=%s", serviceName)
 	if !setup.IsServiceInstalled(serviceName, true) {
-		writeWindowsCompanionTrace("service not installed")
 		a.failStartup("background service not installed", "后台服务未安装，无法启动桌面程序。")
 		return
 	}
 
 	status, err := setup.GetServiceStatus(serviceName, true)
-	writeWindowsCompanionTrace("service status err=%v", err)
 	if err == nil && !status.IsRunning {
 		logger.Info("Windows service not running, starting it...")
-		writeWindowsCompanionTrace("service not running, starting")
 		if err := setup.StartService(serviceName, true); err != nil {
 			logger.Error("Failed to start Windows service", "error", err)
-			writeWindowsCompanionTrace("service start failed: %v", err)
 			a.failStartup("background service start failed", fmt.Sprintf("后台服务启动失败：%v", err))
 			return
 		}
 	}
 
 	if !a.waitForIPC(10 * time.Second) {
-		writeWindowsCompanionTrace("waitForIPC timed out")
 		a.failStartup("background service startup timed out", "后台服务启动超时，未能建立 IPC 连接。")
 		return
 	}
-	writeWindowsCompanionTrace("waitForIPC succeeded")
 
 	resp, err := a.ipcClient.Send(ipc.ActionStartHTTP, nil)
 	if err != nil {
 		logger.Error("Failed to start dashboard via IPC", "error", err)
-		writeWindowsCompanionTrace("ActionStartHTTP failed: %v", err)
 		a.failStartup("failed to start dashboard", fmt.Sprintf("启动控制面板失败：%v", err))
 		return
 	}
 	if !resp.OK {
-		writeWindowsCompanionTrace("ActionStartHTTP rejected: %s", resp.Error)
 		a.failStartup("background service rejected dashboard start", "后台服务拒绝启动控制面板。")
 		return
 	}
@@ -129,7 +120,6 @@ func (a *windowsCompanionApp) connectAndStartHTTP() {
 	}
 
 	a.syncState()
-	writeWindowsCompanionTrace("connectAndStartHTTP completed httpURL=%s", a.httpURL)
 	go func() {
 		time.Sleep(300 * time.Millisecond)
 		a.openDashboard()
@@ -140,7 +130,6 @@ func (a *windowsCompanionApp) waitForIPC(timeout time.Duration) bool {
 	deadline := time.Now().Add(timeout)
 	for time.Now().Before(deadline) {
 		if err := a.ipcClient.Connect(); err == nil {
-			writeWindowsCompanionTrace("ipc connect succeeded")
 			return true
 		}
 		time.Sleep(400 * time.Millisecond)
@@ -304,15 +293,14 @@ func (a *windowsCompanionApp) quit() {
 }
 
 func RunWindowsCompanion() {
-	writeWindowsCompanionTrace("RunWindowsCompanion entered")
 	app := newWindowsCompanionApp()
 	systray.Run(app.onReady, app.onExit)
 }
 
 func (a *windowsCompanionApp) failStartup(reason, message string) {
 	a.applyUnavailableState(reason)
-	showWindowsCompanionMessage("Aliang", message)
 	writeWindowsCompanionTrace("failStartup reason=%s", reason)
+	showWindowsCompanionMessage("Aliang", message)
 	go func() {
 		time.Sleep(200 * time.Millisecond)
 		systray.Quit()
@@ -321,7 +309,6 @@ func (a *windowsCompanionApp) failStartup(reason, message string) {
 }
 
 func showWindowsCompanionMessage(title, body string) {
-	writeWindowsCompanionTrace("showWindowsCompanionMessage title=%s body=%s", title, body)
 	user32 := windows.NewLazySystemDLL("user32.dll")
 	messageBox := user32.NewProc("MessageBoxW")
 
@@ -336,6 +323,10 @@ func showWindowsCompanionMessage(title, body string) {
 
 func writeWindowsCompanionTrace(format string, args ...interface{}) {
 	path := filepath.Join(os.TempDir(), "aliang-companion.log")
+	if info, err := os.Stat(path); err == nil && info.Size() >= maxCompanionTraceSize {
+		_ = os.Remove(path)
+	}
+
 	f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
 	if err != nil {
 		return
