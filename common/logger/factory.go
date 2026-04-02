@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"sync"
 	"time"
+
+	"gopkg.in/natefinch/lumberjack.v2"
 )
 
 // mainLoggerInstance is the global main logger instance
@@ -31,24 +33,17 @@ func NewMainLogger(config *LogConfig) Logger {
 		config = DefaultLogConfig()
 	}
 
-	// Create the log writer
-	writers := []interface{}{os.Stdout}
-
-	// Add file writer if path is specified
+	// Ensure directory exists for file logging
 	if config.FileLogPath != "" {
-		// Ensure directory exists
 		logDir := filepath.Dir(config.FileLogPath)
 		if err := os.MkdirAll(logDir, 0777); err == nil {
-			// Set directory permissions
 			os.Chmod(logDir, 0777)
-			writers = append(writers, config.FileLogPath)
 		}
 	}
 
 	return &mainLogger{
-		config:  config,
-		writers: writers,
-		mu:      &sync.RWMutex{},
+		config: config,
+		mu:     &sync.RWMutex{},
 	}
 }
 
@@ -72,23 +67,17 @@ func NewHTTPLogger(config *LogConfig) Logger {
 		config = HTTPLogConfig()
 	}
 
-	writers := []interface{}{}
-
-	// Add file writer if path is specified
+	// Ensure directory exists for file logging
 	if config.FileLogPath != "" {
-		// Ensure directory exists
 		logDir := filepath.Dir(config.FileLogPath)
 		if err := os.MkdirAll(logDir, 0777); err == nil {
-			// Set directory permissions
 			os.Chmod(logDir, 0777)
-			writers = append(writers, config.FileLogPath)
 		}
 	}
 
 	return &httpLogger{
-		config:  config,
-		writers: writers,
-		mu:      &sync.RWMutex{},
+		config: config,
+		mu:     &sync.RWMutex{},
 	}
 }
 
@@ -212,12 +201,11 @@ func (tl *TracedLogger) WithContext(ctx context.Context) Logger {
 // httpLogger implements the Logger interface for HTTP-specific logging
 type httpLogger struct {
 	config  *LogConfig
-	writers []interface{}
 	mu      *sync.RWMutex
 	loggers []*log.Logger
 }
 
-// Initialize HTTP logger from config
+// initLoggers initializes the HTTP logger with rotation support
 func (hl *httpLogger) initLoggers() {
 	hl.mu.Lock()
 	defer hl.mu.Unlock()
@@ -228,26 +216,30 @@ func (hl *httpLogger) initLoggers() {
 
 	var writers []io.Writer
 
-	// Add file writer if path is specified
+	// Always add stdout
+	writers = append(writers, os.Stdout)
+
+	// Add file writer with rotation if path is specified
 	if hl.config.FileLogPath != "" {
-		file, err := os.OpenFile(hl.config.FileLogPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
-		if err == nil {
-			writers = append(writers, file)
-			// Ensure file has 0666 permissions for all users
-			os.Chmod(hl.config.FileLogPath, 0666)
+		if hl.config.EnableFileRotation {
+			rotateLogger := &lumberjack.Logger{
+				Filename:   hl.config.FileLogPath,
+				MaxSize:    int(hl.config.MaxLogSize / 1024 / 1024),
+				MaxBackups: hl.config.MaxLogBackups,
+				Compress:   true,
+			}
+			writers = append(writers, rotateLogger)
+		} else {
+			file, err := os.OpenFile(hl.config.FileLogPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+			if err == nil {
+				writers = append(writers, file)
+				os.Chmod(hl.config.FileLogPath, 0666)
+			}
 		}
 	}
 
 	// Create logger
-	var multiWriter io.Writer
-	if len(writers) == 0 {
-		multiWriter = io.Discard
-	} else if len(writers) == 1 {
-		multiWriter = writers[0]
-	} else {
-		multiWriter = io.MultiWriter(writers...)
-	}
-
+	multiWriter := io.MultiWriter(writers...)
 	logger := log.New(multiWriter, "", log.LstdFlags|log.Lshortfile)
 	hl.loggers = append(hl.loggers, logger)
 }

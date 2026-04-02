@@ -1,14 +1,10 @@
 package handlers
 
 import (
-	"fmt"
 	"net/http"
-	"os"
-	"time"
 
 	"nursor.org/nursorgate/app/http/common"
 	"nursor.org/nursorgate/app/http/services"
-	"nursor.org/nursorgate/common/logger"
 )
 
 // RunHandler handles HTTP requests for run mode operations
@@ -73,26 +69,4 @@ func (rh *RunHandler) HandleRunSwift(w http.ResponseWriter, r *http.Request) {
 
 	result := rh.runService.SwitchMode(req.TargetMode)
 	common.Success(w, result)
-}
-
-// HandleCoreShutdown handles POST /api/core/shutdown
-// Lets the tray remotely shut down the core service.
-func (rh *RunHandler) HandleCoreShutdown(w http.ResponseWriter, r *http.Request) {
-	logger.Info("Core shutdown requested via HTTP API")
-
-	// Stop proxy if running
-	result := rh.runService.StopService()
-	logger.Info(fmt.Sprintf("Proxy stop result during core shutdown: %v", result))
-
-	// Respond before exiting
-	common.Success(w, map[string]interface{}{
-		"status": "shutting_down",
-	})
-
-	// Shut down in background after response is sent
-	go func() {
-		time.Sleep(200 * time.Millisecond)
-		logger.Info("Core process exiting")
-		os.Exit(0)
-	}()
 }

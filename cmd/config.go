@@ -61,16 +61,19 @@ func resolveStartupConfigSource(explicitConfigPath string) (startupConfigSource,
 		return "", "", fmt.Errorf("failed to inspect %s: %w", startupLocalConfigPath, err)
 	}
 
-	// Check ~/.aliang/config.json
+	// Check ~/.aliang/config.json (only if HOME is available)
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
-		return "", "", fmt.Errorf("failed to get user home directory: %w", err)
-	}
-	homeConfigPath := filepath.Join(homeDir, ".aliang", "config.json")
-	if _, err := os.Stat(homeConfigPath); err == nil {
-		return startupConfigSourceUserHome, homeConfigPath, nil
-	} else if !os.IsNotExist(err) {
-		return "", "", fmt.Errorf("failed to inspect %s: %w", homeConfigPath, err)
+		// HOME not available (e.g., running as LaunchDaemon without HOME set)
+		// Skip user home config check, fall through to embedded/database
+		logger.Debug("User home directory not available, skipping ~/.aliang/config.json check")
+	} else {
+		homeConfigPath := filepath.Join(homeDir, ".aliang", "config.json")
+		if _, err := os.Stat(homeConfigPath); err == nil {
+			return startupConfigSourceUserHome, homeConfigPath, nil
+		} else if !os.IsNotExist(err) {
+			return "", "", fmt.Errorf("failed to inspect %s: %w", homeConfigPath, err)
+		}
 	}
 
 	return startupConfigSourceEmbedded, "", nil

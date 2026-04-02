@@ -2,7 +2,7 @@
 set -e
 
 # Build PKG installer for macOS
-# Architecture: Tray(.app) + Core(LaunchAgent)
+# Architecture: Tray(.app/Shell) + Core(LaunchDaemon/system-wide)
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
@@ -10,6 +10,7 @@ BUILD_DIR="$SCRIPT_DIR/build-pkg"
 PAYLOAD_DIR="$BUILD_DIR/payload"
 SCRIPTS_DIR="$BUILD_DIR/scripts"
 APP_DIR="$PAYLOAD_DIR/Applications/Aliang.app"
+CORE_DIR="$PAYLOAD_DIR/Library/Application Support/org.nursor.aliang"
 VERSION="${VERSION:-1.0.0}"
 
 echo "=== Building Aliang PKG Installer ==="
@@ -20,6 +21,7 @@ echo "Version: $VERSION"
 rm -rf "$BUILD_DIR"
 mkdir -p "$APP_DIR/Contents/MacOS"
 mkdir -p "$APP_DIR/Contents/Resources"
+mkdir -p "$CORE_DIR"
 mkdir -p "$SCRIPTS_DIR"
 
 # Step 1: Build the binary
@@ -33,12 +35,17 @@ else
 	CGO_ENABLED=0 go build -ldflags="-s -w" -o "$SCRIPT_DIR/aliang" ./cmd/aliang/main.go
 fi
 
-# Step 2: Copy binary to app bundle
+# Step 2: Copy binary to app bundle (Shell entry point)
 echo "=== Copying binary to app bundle ==="
 cp "$SCRIPT_DIR/aliang" "$APP_DIR/Contents/MacOS/aliang"
 chmod +x "$APP_DIR/Contents/MacOS/aliang"
 
-# Step 3: Copy Info.plist and icon
+# Step 3: Copy binary to Core location (for LaunchDaemon)
+echo "=== Copying binary to Core location ==="
+cp "$SCRIPT_DIR/aliang" "$CORE_DIR/aliang"
+chmod +x "$CORE_DIR/aliang"
+
+# Step 4: Copy Info.plist and icon
 echo "=== Copying Info.plist and icon ==="
 cp "$SCRIPT_DIR/Info.plist" "$APP_DIR/Contents/Info.plist"
 if [ -f "$SCRIPT_DIR/Aliang.icns" ]; then
@@ -48,7 +55,7 @@ else
     echo "=== Warning: Aliang.icns not found, skipping icon ==="
 fi
 
-# Step 4: Create preinstall script
+# Step 5: Create preinstall script
 echo "=== Creating preinstall script ==="
 cat > "$SCRIPTS_DIR/preinstall" << 'PREINSTALL_SCRIPT'
 #!/bin/bash
@@ -60,74 +67,104 @@ CURRENT_USER=$(whoami)
 USER_ID=$(id -u "$CURRENT_USER")
 echo "Preinstall: Running as user: $CURRENT_USER (UID: $USER_ID)"
 
-# Stop and remove old tray agent if exists
+# Stop and remove old tray agent if exists (LaunchAgent style)
 echo "Preinstall: Stopping old tray agent..."
 launchctl bootout "gui/${USER_ID}/one.aliang.tray" 2>&1 || true
 rm -f "$HOME/Library/LaunchAgents/one.aliang.tray.plist" 2>&1 || true
 
-# Stop and remove old core service if exists
-echo "Preinstall: Stopping old core service..."
+# Stop and remove old core LaunchAgent if exists
+echo "Preinstall: Stopping old core LaunchAgent..."
 launchctl bootout "gui/${USER_ID}/one.aliang.core" 2>&1 || true
 rm -f "$HOME/Library/LaunchAgents/one.aliang.core.plist" 2>&1 || true
+
+# Stop and remove old core LaunchDaemon if exists (system-wide)
+echo "Preinstall: Stopping old core LaunchDaemon..."
+launchctl bootout "system/org.nursor.aliang.core" 2>&1 || true
+rm -f "/Library/LaunchDaemons/org.nursor.aliang.core.plist" 2>&1 || true
 
 echo "Preinstall: Old services cleaned up"
 PREINSTALL_SCRIPT
 chmod +x "$SCRIPTS_DIR/preinstall"
 
-# Step 5: Create postinstall script
+# Step 6: Create postinstall script
 echo "=== Creating postinstall script ==="
 cat > "$SCRIPTS_DIR/postinstall" << 'POSTINSTALL_SCRIPT'
 #!/bin/bash
 
-echo "Postinstall: Setting up core service..."
+echo "Postinstall: Setting up Core service..."
 
-# Get current user info
-CURRENT_USER=$(whoami)
-USER_ID=$(id -u "$CURRENT_USER")
-echo "Postinstall: Running as user: $CURRENT_USER (UID: $USER_ID)"
+# Create system-level directories
+echo "Postinstall: Creating system directories..."
 
-# Create log directory
-LOG_DIR="$HOME/Library/Logs/Aliang"
+# Socket directory
+mkdir -p "/var/run/"
+chmod 755 "/var/run/"
+
+# Log directory
+LOG_DIR="/Library/Logs/Aliang"
 mkdir -p "$LOG_DIR"
 chmod 755 "$LOG_DIR"
-echo "Postinstall: Log directory ready at $LOG_DIR"
 
-# Create the plist directly in user LaunchAgents directory
-USER_PLIST="$HOME/Library/LaunchAgents/one.aliang.core.plist"
+# Data directory
+DATA_DIR="/Library/Application Support/org.nursor.aliang"
+mkdir -p "$DATA_DIR"
+chmod 755 "$DATA_DIR"
 
-cat > "$USER_PLIST" << 'PLIST_EOF'
+echo "Postinstall: System directories ready"
+
+# Migrate old user data if exists
+OLD_DATA_DIR="$HOME/.aliang"
+if [ -d "$OLD_DATA_DIR" ] && [ ! -f "$DATA_DIR/config.json" ]; then
+    echo "Postinstall: Migrating old user data from $OLD_DATA_DIR..."
+    cp -r "$OLD_DATA_DIR/"* "$DATA_DIR/" 2>/dev/null || true
+    echo "Postinstall: Data migration complete"
+fi
+
+# Create LaunchDaemon plist
+echo "Postinstall: Creating LaunchDaemon plist..."
+PLIST_PATH="/Library/LaunchDaemons/org.nursor.aliang.core.plist"
+
+cat > "$PLIST_PATH" << 'PLIST_EOF'
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
 	<key>Label</key>
-	<string>one.aliang.core</string>
+	<string>org.nursor.aliang.core</string>
 	<key>ProgramArguments</key>
 	<array>
-		<string>/Applications/Aliang.app/Contents/MacOS/aliang</string>
-		<string>start</string>
+		<string>/Library/Application Support/org.nursor.aliang/aliang</string>
+		<string>core</string>
 	</array>
 	<key>RunAtLoad</key>
-	<false/>
+	<true/>
 	<key>KeepAlive</key>
-	<false/>
+	<true/>
 	<key>WorkingDirectory</key>
-	<string>/Applications/Aliang.app/Contents/MacOS</string>
+	<string>/Library/Application Support/org.nursor.aliang</string>
 	<key>StandardOutPath</key>
-	<string>__LOGDIR__/core.log</string>
+	<string>/Library/Logs/Aliang/core.log</string>
 	<key>StandardErrorPath</key>
-	<string>__LOGDIR__/core.error.log</string>
+	<string>/Library/Logs/Aliang/core.error.log</string>
+	<key>EnvironmentVariables</key>
+	<dict>
+		<key>ALIANG_DATA_DIR</key>
+		<string>/Library/Application Support/org.nursor.aliang</string>
+		<key>ALIANG_LOG_DIR</key>
+		<string>/Library/Logs/Aliang</string>
+		<key>ALIANG_SOCKET_PATH</key>
+		<string>/var/run/aliang-core.sock</string>
+	</dict>
 </dict>
 </plist>
 PLIST_EOF
 
-# Fix log paths in the plist
-sed -i '' "s|__LOGDIR__|$HOME/Library/Logs/Aliang|g" "$USER_PLIST" 2>/dev/null || true
-echo "Postinstall: Plist created at $USER_PLIST"
+chmod 644 "$PLIST_PATH"
+echo "Postinstall: LaunchDaemon plist created at $PLIST_PATH"
 
-# Bootstrap core service (register but don't start - RunAtLoad=false)
-echo "Postinstall: Bootstrapping core service..."
-if launchctl bootstrap "gui/${USER_ID}" "$USER_PLIST" 2>&1; then
+# Bootstrap as system LaunchDaemon
+echo "Postinstall: Bootstrapping Core service..."
+if launchctl bootstrap "system" "$PLIST_PATH" 2>&1; then
     echo "Postinstall: Core service registered successfully"
 else
     echo "Postinstall: WARNING - bootstrap returned non-zero (service may already be registered)"
@@ -137,11 +174,10 @@ echo "Postinstall: Core service setup complete"
 POSTINSTALL_SCRIPT
 chmod +x "$SCRIPTS_DIR/postinstall"
 
-# Step 6: No need to put plist in app bundle - postinstall creates it directly
-# Just create the app bundle structure without the plist
-echo "=== App bundle ready ==="
+# Step 7: No need to put plist in app bundle - postinstall creates it directly
+echo "=== App bundle and Core binary ready ==="
 
-# Step 7: Build component package with pkgbuild
+# Step 8: Build component package with pkgbuild
 echo "=== Building component package ==="
 pkgbuild --identifier org.nursor.aliang \
     --version "$VERSION" \
@@ -150,7 +186,7 @@ pkgbuild --identifier org.nursor.aliang \
     --install-location "/" \
     "$BUILD_DIR/Aliang.pkg"
 
-# Step 8: Create distribution package with productbuild
+# Step 9: Create distribution package with productbuild
 echo "=== Building distribution package ==="
 productbuild --identifier org.nursor.aliang \
     --version "$VERSION" \
@@ -163,5 +199,7 @@ echo "PKG Installer: $SCRIPT_DIR/Aliang-${VERSION}.pkg"
 echo ""
 echo "Installation:"
 echo "  - Aliang.app will be installed to /Applications/Aliang.app"
-echo "  - Core service plist will be registered (not started)"
-echo "  - Opening Aliang.app will start the core service"
+echo "  - Core binary installed to /Library/Application Support/org.nursor.aliang/aliang"
+echo "  - Core service (LaunchDaemon) registered with system-wide scope"
+echo "  - Core starts automatically at system boot"
+echo "  - Opening Aliang.app starts the Shell which connects to Core via IPC"

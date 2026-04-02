@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/getsentry/sentry-go"
+	"gopkg.in/natefinch/lumberjack.v2"
 )
 
 // LogLevel is kept for backward compatibility
@@ -47,12 +48,12 @@ type errorInfo struct {
 // mainLogger implements the Logger interface
 type mainLogger struct {
 	config  *LogConfig
-	writers []interface{}
+	writers []io.Writer
 	mu      *sync.RWMutex
 	loggers []*log.Logger
 }
 
-// Initialize main logger implementation from config
+// initLoggers initializes the loggers with rotation support
 func (ml *mainLogger) initLoggers() {
 	ml.mu.Lock()
 	defer ml.mu.Unlock()
@@ -66,13 +67,24 @@ func (ml *mainLogger) initLoggers() {
 	// Always add stdout
 	writers = append(writers, os.Stdout)
 
-	// Add file writer if path is specified
+	// Add file writer with rotation if path is specified
 	if ml.config.FileLogPath != "" {
-		file, err := os.OpenFile(ml.config.FileLogPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
-		if err == nil {
-			writers = append(writers, file)
-			// Ensure file has 0666 permissions for all users
-			os.Chmod(ml.config.FileLogPath, 0666)
+		if ml.config.EnableFileRotation {
+			// Use lumberjack for rotation
+			rotateLogger := &lumberjack.Logger{
+				Filename:   ml.config.FileLogPath,
+				MaxSize:    int(ml.config.MaxLogSize / 1024 / 1024), // lumberjack uses MB
+				MaxBackups: ml.config.MaxLogBackups,
+				Compress:   true, // compress rotated files
+			}
+			writers = append(writers, rotateLogger)
+		} else {
+			// Simple append mode
+			file, err := os.OpenFile(ml.config.FileLogPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+			if err == nil {
+				writers = append(writers, file)
+				os.Chmod(ml.config.FileLogPath, 0666)
+			}
 		}
 	}
 

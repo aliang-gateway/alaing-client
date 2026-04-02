@@ -62,7 +62,7 @@ func DefaultLogConfig() *LogConfig {
 		CleanupInterval:    2 * time.Hour,
 		FileLogPath:        filepath.Join(logDir, "aliang_core.log"),
 		EnableFileRotation: true,
-		MaxLogSize:         100 * 1024 * 1024, // 100MB
+		MaxLogSize:         10 * 1024 * 1024, // 10MB
 		MaxLogBackups:      5,
 		SentryDSN:          os.Getenv("SENTRY_DSN"),
 		EnableSentry:       os.Getenv("SENTRY_DSN") != "",
@@ -82,7 +82,7 @@ func HTTPLogConfig() *LogConfig {
 		Level:              TRACE,
 		FileLogPath:        filepath.Join(logDir, "aliang_http.log"),
 		EnableFileRotation: true,
-		MaxLogSize:         50 * 1024 * 1024, // 50MB
+		MaxLogSize:         10 * 1024 * 1024, // 10MB
 		MaxLogBackups:      3,
 	}
 }

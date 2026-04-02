@@ -1,0 +1,284 @@
+package cmd
+
+import (
+	"encoding/json"
+	"fmt"
+	"os"
+	"os/signal"
+	"syscall"
+
+	"github.com/spf13/cobra"
+	httpServer "nursor.org/nursorgate/app/http"
+	"nursor.org/nursorgate/app/http/services"
+	"nursor.org/nursorgate/app/http/storage"
+	"nursor.org/nursorgate/common/logger"
+	"nursor.org/nursorgate/common/version"
+	auth "nursor.org/nursorgate/processor/auth"
+	"nursor.org/nursorgate/processor/config"
+	"nursor.org/nursorgate/processor/runtime"
+	"nursor.org/nursorgate/processor/rules"
+	"nursor.org/nursorgate/processor/setup"
+
+	"nursor.org/nursorgate/internal/ipc"
+)
+
+var coreCmd = &cobra.Command{
+	Use:    "core",
+	Short:  "Run as core daemon (system service)",
+	Hidden: true, // Users don't directly invoke this
+	RunE:   runCore,
+}
+
+func init() {
+	rootCmd.AddCommand(coreCmd)
+}
+
+func runCore(cmd *cobra.Command, args []string) error {
+	logger.Info("========================================")
+	logger.Info("Starting Aliang Core Daemon")
+	logger.Info("========================================")
+
+	// 1. Ensure system-level directories exist
+	if err := setup.EnsureCoreDirs(); err != nil {
+		return fmt.Errorf("failed to ensure core directories: %w", err)
+	}
+
+	// 2. Initialize IPC Server
+	ipcServer := ipc.NewServer()
+	registerIPCHandlers(ipcServer)
+
+	if err := ipcServer.Start(); err != nil {
+		return fmt.Errorf("failed to start IPC server: %w", err)
+	}
+
+	// 3. Initialize core subsystems (without starting HTTP)
+	if err := initializeCoreSubsystems(); err != nil {
+		ipcServer.Stop()
+		return fmt.Errorf("failed to initialize core subsystems: %w", err)
+	}
+
+	logger.Info("Core daemon started successfully")
+	logger.Info("IPC server listening, waiting for commands...")
+
+	// 4. Wait for shutdown signal
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+
+	<-sigChan
+	logger.Info("Received shutdown signal, stopping core daemon...")
+
+	// 5. Stop HTTP server if running
+	httpServer.StopHttpServer()
+
+	// 6. Stop proxy if running
+	runService := services.GetSharedRunService()
+	if runService.IsRunning() {
+		runService.StopService()
+	}
+
+	// 7. Stop token refresh
+	auth.StopTokenRefresh()
+
+	// 8. Stop IPC server
+	ipcServer.Stop()
+
+	logger.Info("Core daemon stopped successfully")
+	return nil
+}
+
+// initializeCoreSubsystems initializes core subsystems without starting HTTP server.
+func initializeCoreSubsystems() error {
+	logger.Info("Initializing core subsystems...")
+
+	// Initialize auth persistence
+	if err := auth.InitializeAuthPersistence(); err != nil {
+		return fmt.Errorf("failed to initialize auth persistence: %w", err)
+	}
+
+	// Initialize software config store
+	if err := storage.InitializeSoftwareConfigStore(); err != nil {
+		return fmt.Errorf("failed to initialize software config store: %w", err)
+	}
+
+	// Load configuration (use default path for core daemon)
+	if err := ApplyStartupConfig(""); err != nil {
+		return fmt.Errorf("failed to initialize config: %w", err)
+	}
+
+	// Initialize startup state
+	startupState := runtime.GetStartupState()
+	initialStatus := determineCoreInitialStatus()
+	startupState.SetStatus(initialStatus)
+	logger.Info(fmt.Sprintf("Core initial status: %s", initialStatus))
+
+	// Initialize user (try to load persisted info - InitializeUser handles this)
+	if err := InitializeUser(""); err != nil {
+		logger.Warn(fmt.Sprintf("Failed to initialize user: %v (continuing anyway)", err))
+	}
+
+	// Initialize global rule engine
+	if err := initializeCoreRuleEngine(); err != nil {
+		logger.Warn(fmt.Sprintf("Failed to initialize rule engine: %v (continuing anyway)", err))
+	}
+
+	logger.Info("Core subsystems initialized")
+	return nil
+}
+
+func determineCoreInitialStatus() runtime.StartupStatus {
+	hasLocalUserInfo, _ := auth.HasPersistedUserInfo()
+	if hasLocalUserInfo {
+		return runtime.READY
+	}
+	return runtime.UNCONFIGURED
+}
+
+func initializeCoreRuleEngine() error {
+	ruleEngine := rules.GetEngine()
+	if err := ruleEngine.Initialize(config.GetGlobalConfig()); err != nil {
+		return fmt.Errorf("failed to initialize rule engine: %w", err)
+	}
+	logger.Info("Core rule engine initialized")
+	return nil
+}
+
+// registerIPCHandlers registers all IPC handlers for Core commands.
+func registerIPCHandlers(s *ipc.Server) {
+	s.Register(ipc.ActionPing, handlePing)
+	s.Register(ipc.ActionStartHTTP, handleStartHTTP)
+	s.Register(ipc.ActionStopHTTP, handleStopHTTP)
+	s.Register(ipc.ActionGetStatus, handleGetStatus)
+	s.Register(ipc.ActionStartProxy, handleStartProxy)
+	s.Register(ipc.ActionStopProxy, handleStopProxy)
+	s.Register(ipc.ActionSwitchMode, handleSwitchMode)
+	s.Register(ipc.ActionShutdown, handleShutdown)
+}
+
+func handlePing(_ json.RawMessage) (interface{}, error) {
+	return map[string]interface{}{
+		"status":  "ok",
+		"version": version.String(),
+	}, nil
+}
+
+func handleStartHTTP(_ json.RawMessage) (interface{}, error) {
+	logger.Info("[IPC] Starting HTTP dashboard...")
+
+	// Check if already running
+	if httpServer.IsServerRunning() {
+		return map[string]interface{}{
+			"port": httpServer.GetActualPort(),
+			"url":  "http://127.0.0.1:" + httpServer.GetActualPort(),
+		}, nil
+	}
+
+	// Start HTTP server
+	if err := httpServer.StartHttpServer(); err != nil {
+		return nil, fmt.Errorf("failed to start HTTP server: %w", err)
+	}
+
+	port := httpServer.GetActualPort()
+	if port == "" {
+		port = "56431"
+	}
+
+	logger.Info(fmt.Sprintf("[IPC] HTTP dashboard started on port %s", port))
+	return map[string]interface{}{
+		"port": port,
+		"url":  "http://127.0.0.1:" + port,
+	}, nil
+}
+
+func handleStopHTTP(_ json.RawMessage) (interface{}, error) {
+	logger.Info("[IPC] Stopping HTTP dashboard...")
+
+	// Stop proxy first if running
+	runService := services.GetSharedRunService()
+	if runService.IsRunning() {
+		logger.Info("[IPC] Stopping proxy before stopping HTTP...")
+		runService.StopService()
+	}
+
+	// Stop HTTP server
+	if err := httpServer.StopHttpServer(); err != nil {
+		return nil, fmt.Errorf("failed to stop HTTP server: %w", err)
+	}
+
+	logger.Info("[IPC] HTTP dashboard stopped")
+	return map[string]interface{}{
+		"status": "stopped",
+	}, nil
+}
+
+func handleGetStatus(_ json.RawMessage) (interface{}, error) {
+	runService := services.GetSharedRunService()
+
+	status := runService.GetStatus()
+	status["http_enabled"] = httpServer.IsServerRunning()
+	status["version"] = version.String()
+
+	return status, nil
+}
+
+func handleStartProxy(_ json.RawMessage) (interface{}, error) {
+	logger.Info("[IPC] Starting proxy...")
+
+	runService := services.GetSharedRunService()
+	result := runService.StartService()
+
+	if status, ok := result["status"].(string); ok && status == "failed" {
+		return nil, fmt.Errorf("start proxy failed: %v", result)
+	}
+
+	logger.Info("[IPC] Proxy started")
+	return result, nil
+}
+
+func handleStopProxy(_ json.RawMessage) (interface{}, error) {
+	logger.Info("[IPC] Stopping proxy...")
+
+	runService := services.GetSharedRunService()
+	result := runService.StopService()
+
+	logger.Info("[IPC] Proxy stopped")
+	return result, nil
+}
+
+func handleSwitchMode(args json.RawMessage) (interface{}, error) {
+	var switchArgs ipc.SwitchModeArgs
+	if err := json.Unmarshal(args, &switchArgs); err != nil {
+		return nil, fmt.Errorf("invalid switch mode args: %w", err)
+	}
+
+	logger.Info(fmt.Sprintf("[IPC] Switching mode to %s...", switchArgs.Mode))
+
+	runService := services.GetSharedRunService()
+	result := runService.SwitchMode(switchArgs.Mode)
+
+	if status, ok := result["status"].(string); ok && status == "failed" {
+		return nil, fmt.Errorf("switch mode failed: %v", result)
+	}
+
+	logger.Info(fmt.Sprintf("[IPC] Mode switched to %s", switchArgs.Mode))
+	return result, nil
+}
+
+func handleShutdown(_ json.RawMessage) (interface{}, error) {
+	logger.Info("[IPC] Shutdown requested, stopping all services...")
+
+	// Stop proxy
+	runService := services.GetSharedRunService()
+	if runService.IsRunning() {
+		runService.StopService()
+	}
+
+	// Stop HTTP server
+	httpServer.StopHttpServer()
+
+	// Stop token refresh
+	auth.StopTokenRefresh()
+
+	logger.Info("[IPC] All services stopped, exiting...")
+	os.Exit(0)
+	return nil, nil
+}

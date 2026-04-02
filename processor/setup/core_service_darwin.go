@@ -6,53 +6,55 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"os/user"
 	"path/filepath"
 	"strings"
 )
 
-const macOSCoreServiceLabel = "one.aliang.core"
+const macOSCoreServiceLabel = "org.nursor.aliang.core"
 
-// InstallMacOSCoreService installs the core service as a LaunchAgent.
-// RunAtLoad=false, KeepAlive=false — the service is only started on demand via KickstartCoreService.
+// InstallMacOSCoreService installs the core service as a LaunchDaemon.
+// RunAtLoad=true, KeepAlive=true — the service starts automatically at system boot.
+// Core runs as root and uses system-level directories.
 func InstallMacOSCoreService(execPath string) error {
-	targetUser, err := resolveMacOSTrayAgentUser()
-	if err != nil {
-		return err
+	if !IsRoot() {
+		return fmt.Errorf("installing LaunchDaemon requires root privileges")
 	}
+
 	if strings.TrimSpace(execPath) == "" {
+		var err error
 		execPath, err = GetCurrentExecutable()
 		if err != nil {
 			return fmt.Errorf("failed to determine executable for core service: %w", err)
 		}
 	}
 
-	launchAgentsDir := filepath.Join(targetUser.HomeDir, "Library", "LaunchAgents")
-	logDir := filepath.Join(targetUser.HomeDir, "Library", "Logs", "Aliang")
-	plistPath := macOSCoreServicePlistPath(targetUser)
+	launchDaemonsDir := "/Library/LaunchDaemons"
+	dataDir := CoreDataDir()
+	logDir := CoreLogDir()
+	plistPath := macOSCoreServicePlistPath()
 
-	if err := os.MkdirAll(launchAgentsDir, 0o755); err != nil {
-		return fmt.Errorf("failed to create LaunchAgents directory: %w", err)
+	if err := os.MkdirAll(launchDaemonsDir, 0o755); err != nil {
+		return fmt.Errorf("failed to create LaunchDaemons directory: %w", err)
 	}
 	if err := os.MkdirAll(logDir, 0o755); err != nil {
 		return fmt.Errorf("failed to create core log directory: %w", err)
 	}
-	if err := chownPathToUserIfPossible(launchAgentsDir, targetUser); err != nil {
-		return err
-	}
-	if err := chownPathToUserIfPossible(logDir, targetUser); err != nil {
-		return err
-	}
 
+	// Generate plist content for LaunchDaemon
 	plistContent, err := RenderLaunchdPlist(LaunchdPlistData{
 		Label:             macOSCoreServiceLabel,
 		ProgramPath:       execPath,
-		Args:              []string{"start"},
-		RunAtLoad:         false,
-		KeepAlive:         false,
-		WorkingDirectory:  filepath.Dir(execPath),
+		Args:              []string{"core"},
+		RunAtLoad:         true,
+		KeepAlive:         true,
+		WorkingDirectory:   dataDir,
 		StandardOutPath:   filepath.Join(logDir, "core.log"),
 		StandardErrorPath: filepath.Join(logDir, "core.error.log"),
+		EnvironmentVars: map[string]string{
+			"ALIANG_DATA_DIR":    dataDir,
+			"ALIANG_LOG_DIR":     logDir,
+			"ALIANG_SOCKET_PATH": CoreSocketPath(),
+		},
 	})
 	if err != nil {
 		return fmt.Errorf("failed to render core service plist: %w", err)
@@ -61,35 +63,31 @@ func InstallMacOSCoreService(execPath string) error {
 	if err := os.WriteFile(plistPath, []byte(plistContent), 0o644); err != nil {
 		return fmt.Errorf("failed to write core service plist: %w", err)
 	}
-	if err := chownPathToUserIfPossible(plistPath, targetUser); err != nil {
-		return err
-	}
 
-	// Bootstrap registers the service but does NOT start it (RunAtLoad=false)
-	domain := fmt.Sprintf("gui/%s", targetUser.Uid)
-	_, _ = exec.Command("launchctl", "bootout", domain, plistPath).CombinedOutput()
+	// Bootout existing service first if any
+	exec.Command("launchctl", "bootout", "system/"+macOSCoreServiceLabel).CombinedOutput()
 
-	if output, err := exec.Command("launchctl", "bootstrap", domain, plistPath).CombinedOutput(); err != nil {
+	// Bootstrap as system LaunchDaemon
+	if output, err := exec.Command("launchctl", "bootstrap", "system", plistPath).CombinedOutput(); err != nil {
 		return fmt.Errorf("launchctl bootstrap failed: %w, output: %s", err, strings.TrimSpace(string(output)))
 	}
 
 	return nil
 }
 
-// UninstallMacOSCoreService stops and removes the core service LaunchAgent.
+// UninstallMacOSCoreService stops and removes the core service LaunchDaemon.
 func UninstallMacOSCoreService() error {
-	targetUser, err := resolveMacOSTrayAgentUser()
-	if err != nil {
-		return err
+	if !IsRoot() {
+		return fmt.Errorf("uninstalling LaunchDaemon requires root privileges")
 	}
 
-	plistPath := macOSCoreServicePlistPath(targetUser)
+	plistPath := macOSCoreServicePlistPath()
 	if !FileExists(plistPath) {
 		return nil
 	}
 
-	domain := fmt.Sprintf("gui/%s", targetUser.Uid)
-	output, err := exec.Command("launchctl", "bootout", domain, plistPath).CombinedOutput()
+	// Bootout the service
+	output, err := exec.Command("launchctl", "bootout", "system/"+macOSCoreServiceLabel).CombinedOutput()
 	if err != nil {
 		lowerOutput := strings.ToLower(string(output))
 		if !strings.Contains(lowerOutput, "could not find service") &&
@@ -108,14 +106,8 @@ func UninstallMacOSCoreService() error {
 
 // KickstartCoreService starts the core service via launchctl kickstart.
 func KickstartCoreService() error {
-	targetUser, err := resolveMacOSTrayAgentUser()
-	if err != nil {
-		return err
-	}
-
-	domain := fmt.Sprintf("gui/%s", targetUser.Uid)
-	target := fmt.Sprintf("%s/%s", domain, macOSCoreServiceLabel)
-	if output, err := exec.Command("launchctl", "kickstart", target).CombinedOutput(); err != nil {
+	target := "system/" + macOSCoreServiceLabel
+	if output, err := exec.Command("launchctl", "kickstart", "-p", target).CombinedOutput(); err != nil {
 		return fmt.Errorf("launchctl kickstart failed: %w, output: %s", err, strings.TrimSpace(string(output)))
 	}
 	return nil
@@ -123,13 +115,7 @@ func KickstartCoreService() error {
 
 // StopCoreServiceViaLaunchctl stops the core service via launchctl kill SIGTERM.
 func StopCoreServiceViaLaunchctl() error {
-	targetUser, err := resolveMacOSTrayAgentUser()
-	if err != nil {
-		return err
-	}
-
-	domain := fmt.Sprintf("gui/%s", targetUser.Uid)
-	target := fmt.Sprintf("%s/%s", domain, macOSCoreServiceLabel)
+	target := "system/" + macOSCoreServiceLabel
 	output, err := exec.Command("launchctl", "kill", "SIGTERM", target).CombinedOutput()
 	if err != nil {
 		lowerOutput := strings.ToLower(string(output))
@@ -145,27 +131,18 @@ func StopCoreServiceViaLaunchctl() error {
 
 // IsCoreServiceInstalled checks whether the core service plist exists.
 func IsCoreServiceInstalled() bool {
-	targetUser, err := resolveMacOSTrayAgentUser()
-	if err != nil {
-		return false
-	}
-	return FileExists(macOSCoreServicePlistPath(targetUser))
+	return FileExists(macOSCoreServicePlistPath())
 }
 
 // IsCoreServiceRunning checks whether the core service is currently running.
 func IsCoreServiceRunning() bool {
-	targetUser, err := resolveMacOSTrayAgentUser()
-	if err != nil {
-		return false
-	}
-	domain := fmt.Sprintf("gui/%s", targetUser.Uid)
-	output, err := exec.Command("launchctl", "print", fmt.Sprintf("%s/%s", domain, macOSCoreServiceLabel)).CombinedOutput()
+	output, err := exec.Command("launchctl", "print", "system/"+macOSCoreServiceLabel).CombinedOutput()
 	if err != nil {
 		return false
 	}
 	return strings.Contains(string(output), "state = running")
 }
 
-func macOSCoreServicePlistPath(targetUser *user.User) string {
-	return filepath.Join(targetUser.HomeDir, "Library", "LaunchAgents", macOSCoreServiceLabel+".plist")
+func macOSCoreServicePlistPath() string {
+	return "/Library/LaunchDaemons/" + macOSCoreServiceLabel + ".plist"
 }

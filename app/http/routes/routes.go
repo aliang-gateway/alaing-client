@@ -136,7 +136,6 @@ func RegisterRoutes(h *Handlers, mux *http.ServeMux) {
 	register("/api/run/swift", h.Run.HandleRunSwift, http.MethodPost)
 
 	// Core service lifecycle routes
-	register("/api/core/shutdown", h.Run.HandleCoreShutdown, http.MethodPost)
 
 	// System service routes (/api/system/service/*)
 	register("/api/system/service/status", h.SystemService.HandleStatus, http.MethodGet)
