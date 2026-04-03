@@ -8,6 +8,7 @@ import (
 	"aliang.one/nursorgate/app/http/storage"
 	"aliang.one/nursorgate/common/cache"
 	processorconfig "aliang.one/nursorgate/processor/config"
+	"aliang.one/nursorgate/processor/setup"
 )
 
 func resetConfigPipelineStateForTest(t *testing.T) {
@@ -255,5 +256,53 @@ func TestApplyStartupConfig_FailsFastWhenConfigNewJSONExistsButInvalid(t *testin
 	}
 	if processorconfig.GetGlobalConfig() != nil {
 		t.Fatalf("expected global config to remain unset on fail-fast invalid config.json")
+	}
+}
+
+func TestApplyStartupConfigForMode_UsesRuntimeConfigInDaemonMode(t *testing.T) {
+	resetConfigPipelineStateForTest(t)
+
+	originalWd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("failed to get working directory: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = os.Chdir(originalWd)
+	})
+
+	tempDir := t.TempDir()
+	runtimeDir := filepath.Join(tempDir, "runtime")
+	if err := os.MkdirAll(runtimeDir, 0o755); err != nil {
+		t.Fatalf("failed to create runtime directory: %v", err)
+	}
+	if err := os.Chdir(tempDir); err != nil {
+		t.Fatalf("failed to change working directory: %v", err)
+	}
+	t.Setenv("HOME", "")
+	t.Setenv("ALIANG_DATA_DIR", runtimeDir)
+
+	writeStartupTestConfigFile(t, runtimeDir, "config.json", `{
+		"core": {
+			"api_server": "https://api.runtime.example.com",
+			"aliangServer": {
+				"type": "aliang",
+				"core_server": "runtime-gateway.example.com:443"
+			}
+		}
+	}`)
+
+	if err := ApplyStartupConfigForMode(setup.RuntimeModeDaemon, ""); err != nil {
+		t.Fatalf("expected runtime config to be used in daemon mode, got: %v", err)
+	}
+
+	globalCfg := processorconfig.GetGlobalConfig()
+	if globalCfg == nil {
+		t.Fatalf("expected global config to be set")
+	}
+	if globalCfg.APIBaseURL() != "https://api.runtime.example.com" {
+		t.Fatalf("expected runtime config APIBaseURL, got %q", globalCfg.APIBaseURL())
+	}
+	if IsUsingDefaultConfig() {
+		t.Fatalf("expected custom config flag when loading runtime config")
 	}
 }

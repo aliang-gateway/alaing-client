@@ -111,7 +111,7 @@ func initializeCoreSubsystems() error {
 	}
 
 	// Load configuration (honor --config when provided by CLI/service args)
-	if err := ApplyStartupConfig(configPath); err != nil {
+	if err := ApplyStartupConfigForMode(setup.RuntimeModeDaemon, configPath); err != nil {
 		writeStartupTrace("initializeCoreSubsystems ApplyStartupConfig failed: %v", err)
 		return fmt.Errorf("failed to initialize config: %w", err)
 	}

@@ -166,7 +166,7 @@ func runServiceInstall(cmd *cobra.Command, args []string) error {
 		// Also clean up old tray agent if it exists (for migration from old architecture)
 		if err := setup.UninstallMacOSTrayAgent(); err != nil {
 			// Not a failure — old agent may not exist
-			logger.Info("Old tray agent cleanup: %v", err)
+			logger.Info("Old tray agent cleanup", "error", err)
 		}
 	}
 
@@ -220,7 +220,7 @@ func runServiceUninstall(cmd *cobra.Command, args []string) error {
 		}
 		// Also clean up old tray agent if it exists
 		if err := setup.UninstallMacOSTrayAgent(); err != nil {
-			logger.Info("Old tray agent cleanup during uninstall: %v", err)
+			logger.Info("Old tray agent cleanup during uninstall", "error", err)
 		}
 	}
 	return nil

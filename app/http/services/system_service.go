@@ -202,9 +202,7 @@ func buildSystemServiceStatusSkeleton() SystemServiceStatus {
 			meta.ExecutablePath = executablePath
 		}
 	}
-	if configPath, err := ensureManagedSystemServiceConfigPath(); err == nil && configPath != "" {
-		meta.ConfigPath = configPath
-	}
+	meta.ConfigPath = setup.RuntimeConfigPath()
 	if runtime.GOOS == "windows" {
 		meta.Warning = "Windows service registration is available, but the runtime service entrypoint should be verified in production."
 	}
@@ -300,22 +298,7 @@ func ensureManagedExecutable(sourcePath string) (string, error) {
 }
 
 func resolveManagedExecutablePath() (string, error) {
-	switch runtime.GOOS {
-	case "darwin":
-		return "/Library/Application Support/Aliang/aliang", nil
-	case "windows":
-		programFiles := os.Getenv("ProgramFiles")
-		if programFiles == "" {
-			programFiles = "C:\\Program Files"
-		}
-		return filepath.Join(programFiles, "Aliang", "aliang.exe"), nil
-	default:
-		homeDir, err := os.UserHomeDir()
-		if err != nil {
-			return "", err
-		}
-		return filepath.Join(homeDir, ".aliang", "aliang"), nil
-	}
+	return setup.RuntimeExecutablePath(), nil
 }
 
 func removeManagedExecutable() error {
@@ -376,20 +359,7 @@ func buildManagedSystemServiceEnvironment(configPath string) (map[string]string,
 }
 
 func resolveManagedRuntimeDataDir() (string, error) {
-	switch runtime.GOOS {
-	case "darwin":
-		return "/Library/Application Support/Aliang", nil
-	case "windows":
-		programData := strings.TrimSpace(os.Getenv("ProgramData"))
-		if programData == "" {
-			return "", nil
-		}
-		return filepath.Join(programData, "Aliang"), nil
-	case "linux":
-		return "/var/lib/aliang", nil
-	default:
-		return "", nil
-	}
+	return setup.CoreDataDir(), nil
 }
 
 func ensureManagedCertificateAssets(sourceDir string, targetDir string) error {
@@ -470,21 +440,14 @@ func sameFile(left string, right string) bool {
 }
 
 func resolveSystemServiceConfigPath() (string, error) {
-	if homeDir, err := os.UserHomeDir(); err == nil {
-		canonicalPath := filepath.Join(homeDir, ".aliang", "config.json")
-		if _, err := os.Stat(canonicalPath); err == nil {
-			return canonicalPath, nil
-		}
-	}
-
 	candidates := []string{}
 	if cwd, err := os.Getwd(); err == nil {
 		candidates = append(candidates, filepath.Join(cwd, "config.json"))
-		candidates = append(candidates, filepath.Join(cwd, "config.json"))
 	}
-	if homeDir, err := os.UserHomeDir(); err == nil {
-		candidates = append(candidates, filepath.Join(homeDir, ".aliang", "config.json"))
+	if userConfigPath, err := setup.UserConfigPath(); err == nil {
+		candidates = append(candidates, userConfigPath)
 	}
+	candidates = append(candidates, setup.RuntimeConfigPath())
 
 	for _, candidate := range candidates {
 		if candidate == "" {
@@ -507,12 +470,7 @@ func ensureManagedSystemServiceConfigPath() (string, error) {
 }
 
 func ensureManagedSystemServiceConfigPathWithSource(preferredSourcePath string) (string, error) {
-	homeDir, err := os.UserHomeDir()
-	if err != nil {
-		return "", err
-	}
-
-	targetPath := filepath.Join(homeDir, ".aliang", "config.json")
+	targetPath := setup.RuntimeConfigPath()
 	if _, err := os.Stat(targetPath); err == nil {
 		return targetPath, nil
 	}

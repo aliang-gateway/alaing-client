@@ -7,6 +7,7 @@ import (
 	"aliang.one/nursorgate/app/tray"
 	"aliang.one/nursorgate/common/logger"
 	"aliang.one/nursorgate/processor/runtime"
+	"aliang.one/nursorgate/processor/setup"
 	"github.com/spf13/cobra"
 )
 
@@ -47,7 +48,7 @@ func runTray(cmd *cobra.Command, args []string) error {
 
 	// Load startup configuration using the same precedence as start command:
 	// --config > ./config.json > ~/.aliang/config.json > database snapshot > embedded default
-	if err := ApplyStartupConfig(configPath); err != nil {
+	if err := ApplyStartupConfigForMode(setup.RuntimeModeInteractive, configPath); err != nil {
 		return err
 	}
 

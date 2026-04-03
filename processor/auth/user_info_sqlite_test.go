@@ -41,8 +41,8 @@ func TestUserInfoSQLitePersistence(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to get auth db path: %v", err)
 	}
-	if filepath.Base(dbPath) != "aliang.db" {
-		t.Fatalf("expected auth db path to use aliang.db, got %s", dbPath)
+	if filepath.Base(dbPath) != "aliang.data" {
+		t.Fatalf("expected auth db path to use aliang.data, got %s", dbPath)
 	}
 
 	hasPersisted, err := HasPersistedUserInfo()

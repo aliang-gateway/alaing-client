@@ -118,7 +118,11 @@ func (s *CoreConfigService) UpdateCommittedCoreConfig(payload []byte) (*CoreConf
 			if err := json.Unmarshal([]byte(snapshot.Content), &fileCfg); err != nil {
 				return fmt.Errorf("decode snapshot content for file persist: %w", err)
 			}
-			return config.SaveConfigToFile(&fileCfg, snapshot.FilePath)
+			resolvedPath, err := resolveServiceConfigPath(snapshot.FilePath)
+			if err != nil {
+				return fmt.Errorf("expand file path: %w", err)
+			}
+			return config.SaveConfigToFile(&fileCfg, resolvedPath)
 		},
 		func(snapshot *config.EffectiveConfigSnapshot) error {
 			if snapshot == nil {

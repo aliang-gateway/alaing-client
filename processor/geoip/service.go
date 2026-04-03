@@ -25,7 +25,8 @@ type Service struct {
 
 const (
 	// DefaultGeoIPDownloadURL 默认的 GeoIP 数据库下载地址
-	DefaultGeoIPDownloadURL = "https://git.io/GeoLite2-Country.mmdb"
+	DefaultGeoIPDownloadURL  = "https://git.io/GeoLite2-Country.mmdb"
+	DefaultGeoIPDatabaseFile = "GeoLite2-Country.mmdb"
 )
 
 var (
@@ -43,12 +44,29 @@ func GetService() *Service {
 	return defaultService
 }
 
+// DefaultDatabasePath returns the canonical path for the local GeoIP database.
+func DefaultDatabasePath() (string, error) {
+	geoipDir, err := cache.GetCacheSubdir("geoip")
+	if err != nil {
+		return "", fmt.Errorf("failed to resolve geoip directory: %w", err)
+	}
+	return filepath.Join(geoipDir, DefaultGeoIPDatabaseFile), nil
+}
+
 // LoadDatabase loads the MaxMind GeoLite2 database from the specified path
 // If the database file doesn't exist, it will automatically download from DefaultGeoIPDownloadURL
 // Supports ~ expansion (e.g., ~/.aliang/GeoLite2-Country.mmdb)
 func (s *Service) LoadDatabase(path string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
+	if path == "" {
+		defaultPath, err := DefaultDatabasePath()
+		if err != nil {
+			return err
+		}
+		path = defaultPath
+	}
 
 	// 展开 ~ 路径（例如 ~/.aliang/GeoLite2-Country.mmdb）
 	expandedPath, err := cache.ExpandHomePath(path)

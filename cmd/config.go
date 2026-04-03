@@ -6,13 +6,13 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
-	"path/filepath"
 
 	"aliang.one/nursorgate/app/http/storage"
 	"aliang.one/nursorgate/common/logger"
 	"aliang.one/nursorgate/outbound"
 	"aliang.one/nursorgate/processor/config"
 	"aliang.one/nursorgate/processor/dns"
+	"aliang.one/nursorgate/processor/setup"
 )
 
 // Embed the default configuration
@@ -28,7 +28,7 @@ const (
 	startupConfigSourceExplicitPath startupConfigSource = "--config"
 	startupConfigSourceLocalFile    startupConfigSource = "./config.json"
 	startupConfigSourceUserHome     startupConfigSource = "~/.aliang/config.json"
-	startupConfigSourceDatabase     startupConfigSource = "database snapshot"
+	startupConfigSourceRuntime      startupConfigSource = "runtime config"
 	startupConfigSourceEmbedded     startupConfigSource = "embedded default"
 )
 
@@ -50,7 +50,7 @@ func GetDefaultConfigBytes() []byte {
 	return []byte(defaultConfigData)
 }
 
-func resolveStartupConfigSource(explicitConfigPath string) (startupConfigSource, string, error) {
+func resolveStartupConfigSourceForMode(mode setup.RuntimeMode, explicitConfigPath string) (startupConfigSource, string, error) {
 	if explicitConfigPath != "" {
 		return startupConfigSourceExplicitPath, explicitConfigPath, nil
 	}
@@ -61,18 +61,25 @@ func resolveStartupConfigSource(explicitConfigPath string) (startupConfigSource,
 		return "", "", fmt.Errorf("failed to inspect %s: %w", startupLocalConfigPath, err)
 	}
 
-	// Check ~/.aliang/config.json (only if HOME is available)
-	homeDir, err := os.UserHomeDir()
-	if err != nil {
-		// HOME not available (e.g., running as LaunchDaemon without HOME set)
-		// Skip user home config check, fall through to embedded/database
-		logger.Debug("User home directory not available, skipping ~/.aliang/config.json check")
-	} else {
-		homeConfigPath := filepath.Join(homeDir, ".aliang", "config.json")
-		if _, err := os.Stat(homeConfigPath); err == nil {
-			return startupConfigSourceUserHome, homeConfigPath, nil
+	if mode != setup.RuntimeModeDaemon {
+		homeConfigPath, err := setup.UserConfigPath()
+		if err != nil {
+			logger.Debug("User home directory not available, skipping ~/.aliang/config.json check")
+		} else {
+			if _, err := os.Stat(homeConfigPath); err == nil {
+				return startupConfigSourceUserHome, homeConfigPath, nil
+			} else if !os.IsNotExist(err) {
+				return "", "", fmt.Errorf("failed to inspect %s: %w", homeConfigPath, err)
+			}
+		}
+	}
+
+	if mode == setup.RuntimeModeDaemon {
+		runtimeConfigPath := setup.RuntimeConfigPath()
+		if _, err := os.Stat(runtimeConfigPath); err == nil {
+			return startupConfigSourceRuntime, runtimeConfigPath, nil
 		} else if !os.IsNotExist(err) {
-			return "", "", fmt.Errorf("failed to inspect %s: %w", homeConfigPath, err)
+			return "", "", fmt.Errorf("failed to inspect %s: %w", runtimeConfigPath, err)
 		}
 	}
 
@@ -80,7 +87,11 @@ func resolveStartupConfigSource(explicitConfigPath string) (startupConfigSource,
 }
 
 func ApplyStartupConfig(explicitConfigPath string) error {
-	source, selectedPath, err := resolveStartupConfigSource(explicitConfigPath)
+	return ApplyStartupConfigForMode(setup.RuntimeModeInteractive, explicitConfigPath)
+}
+
+func ApplyStartupConfigForMode(mode setup.RuntimeMode, explicitConfigPath string) error {
+	source, selectedPath, err := resolveStartupConfigSourceForMode(mode, explicitConfigPath)
 	if err != nil {
 		return err
 	}
@@ -102,6 +113,13 @@ func ApplyStartupConfig(explicitConfigPath string) error {
 		return nil
 	case startupConfigSourceUserHome:
 		logger.Info(fmt.Sprintf("Loading configuration from user home: %s", selectedPath))
+		if err := LoadAndApplyConfig(selectedPath); err != nil {
+			return fmt.Errorf("failed to load startup config from %s (fail-fast, no fallback): %w", selectedPath, err)
+		}
+		logger.Info(fmt.Sprintf("Startup configuration source: %s", source))
+		return nil
+	case startupConfigSourceRuntime:
+		logger.Info(fmt.Sprintf("Loading configuration from runtime directory: %s", selectedPath))
 		if err := LoadAndApplyConfig(selectedPath); err != nil {
 			return fmt.Errorf("failed to load startup config from %s (fail-fast, no fallback): %w", selectedPath, err)
 		}

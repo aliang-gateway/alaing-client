@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"aliang.one/nursorgate/processor/config"
+	"aliang.one/nursorgate/processor/setup"
 )
 
 func TestMergeCustomerPayload_PreservesOmittedFields(t *testing.T) {
@@ -111,9 +112,9 @@ func TestResolveCustomerConfigPersistPath_FallsBackToRuntimeDirWithoutHome(t *te
 	t.Setenv("HOME", "")
 	t.Setenv("ALIANG_DATA_DIR", runtimeDir)
 
-	resolvedPath, err := resolveCustomerConfigPersistPath(customerConfigFilePath)
+	resolvedPath, err := resolveServiceConfigPathForMode(setup.RuntimeModeDaemon, customerConfigFilePath)
 	if err != nil {
-		t.Fatalf("resolveCustomerConfigPersistPath() error = %v", err)
+		t.Fatalf("resolveServiceConfigPathForMode() error = %v", err)
 	}
 
 	wantPath := filepath.Join(runtimeDir, "config.json")

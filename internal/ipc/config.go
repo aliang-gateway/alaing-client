@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+
+	"aliang.one/nursorgate/processor/setup"
 )
 
 // Socket path based on platform
@@ -25,66 +27,37 @@ func defaultSocketPath() string {
 // SocketPath returns the IPC socket path.
 // Uses ALIANG_SOCKET_PATH env var if set, otherwise defaults.
 func SocketPath() string {
-	if path := os.Getenv("ALIANG_SOCKET_PATH"); path != "" {
-		if runtime.GOOS == "windows" && !strings.HasPrefix(path, `\\.\pipe\`) {
-			return defaultSocketPath()
-		}
-		return path
+	path := setup.CoreSocketPath()
+	if runtime.GOOS == "windows" && !strings.HasPrefix(path, `\\.\pipe\`) {
+		return defaultSocketPath()
 	}
-	return defaultSocketPath()
+	return path
 }
 
 // CoreDataDir returns the system-level data directory.
 // Uses ALIANG_DATA_DIR env var if set, otherwise defaults.
 func CoreDataDir() string {
-	if dir := os.Getenv("ALIANG_DATA_DIR"); dir != "" {
-		return dir
-	}
-	switch runtime.GOOS {
-	case "darwin":
-		return "/Library/Application Support/one.aliang.aliang"
-	case "linux":
-		return "/var/lib/aliang"
-	case "windows":
-		return os.ExpandEnv(`${ProgramData}\Aliang`)
-	default:
-		return "/var/lib/aliang"
-	}
+	return setup.CoreDataDir()
 }
 
 // CoreLogDir returns the system-level log directory.
 func CoreLogDir() string {
-	if dir := os.Getenv("ALIANG_LOG_DIR"); dir != "" {
-		return dir
-	}
-	switch runtime.GOOS {
-	case "darwin":
-		return "/Library/Logs/Aliang"
-	case "linux":
-		return "/var/log/aliang"
-	case "windows":
-		return os.ExpandEnv(`${ProgramData}\Aliang\logs`)
-	default:
-		return "/var/log/aliang"
-	}
+	return setup.CoreLogDir()
 }
 
 // EnsureCoreDirs ensures all required directories exist.
 func EnsureCoreDirs() error {
-	dirs := []string{
-		CoreDataDir(),
-		CoreLogDir(),
+	if err := setup.EnsureCoreDirs(); err != nil {
+		return fmt.Errorf("failed to ensure core runtime directories: %w", err)
 	}
 
 	// Windows named pipes live under \\.\pipe and do not require filesystem directories.
-	if runtime.GOOS != "windows" {
-		dirs = append(dirs, filepath.Dir(SocketPath()))
+	if runtime.GOOS == "windows" {
+		return nil
 	}
 
-	for _, dir := range dirs {
-		if err := os.MkdirAll(dir, 0755); err != nil {
-			return fmt.Errorf("failed to create directory %s: %w", dir, err)
-		}
+	if err := os.MkdirAll(filepath.Dir(SocketPath()), 0755); err != nil {
+		return fmt.Errorf("failed to create socket directory %s: %w", filepath.Dir(SocketPath()), err)
 	}
 	return nil
 }

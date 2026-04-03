@@ -5,16 +5,9 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
-	"strings"
 
 	"aliang.one/nursorgate/common/logger"
-)
-
-const (
-	// macOSAppSupport is the macOS Application Support directory name
-	macOSAppSupportDir = "one.aliang.aliang"
-	// linuxLibDir is the Linux lib directory name
-	linuxLibDir = "aliang"
+	"aliang.one/nursorgate/internal/runtimepath"
 )
 
 // CoreDataDir returns the system-level data directory.
@@ -22,19 +15,7 @@ const (
 // Linux: /var/lib/aliang/
 // Windows: %ProgramData%\Aliang\
 func CoreDataDir() string {
-	if dir := os.Getenv("ALIANG_DATA_DIR"); dir != "" {
-		return dir
-	}
-	switch runtime.GOOS {
-	case "darwin":
-		return "/Library/Application Support/" + macOSAppSupportDir
-	case "linux":
-		return "/var/lib/" + linuxLibDir
-	case "windows":
-		return os.ExpandEnv(`${ProgramData}\Aliang`)
-	default:
-		return "/var/lib/" + linuxLibDir
-	}
+	return runtimepath.CoreDataDir()
 }
 
 // CoreLogDir returns the system-level log directory.
@@ -42,19 +23,7 @@ func CoreDataDir() string {
 // Linux: /var/log/aliang/
 // Windows: %ProgramData%\Aliang\logs\
 func CoreLogDir() string {
-	if dir := os.Getenv("ALIANG_LOG_DIR"); dir != "" {
-		return dir
-	}
-	switch runtime.GOOS {
-	case "darwin":
-		return "/Library/Logs/Aliang"
-	case "linux":
-		return "/var/log/" + linuxLibDir
-	case "windows":
-		return os.ExpandEnv(`${ProgramData}\Aliang\logs`)
-	default:
-		return "/var/log/" + linuxLibDir
-	}
+	return runtimepath.CoreLogDir()
 }
 
 // CoreSocketDir returns the directory containing the IPC socket.
@@ -76,22 +45,7 @@ func CoreSocketDir() string {
 // Linux: /run/aliang-core.sock
 // Windows: \\.\pipe\aliang-core
 func CoreSocketPath() string {
-	if path := os.Getenv("ALIANG_SOCKET_PATH"); path != "" {
-		if runtime.GOOS == "windows" && !strings.HasPrefix(path, `\\.\pipe\`) {
-			return `\\.\pipe\aliang-core`
-		}
-		return path
-	}
-	switch runtime.GOOS {
-	case "darwin":
-		return "/var/run/aliang-core.sock"
-	case "linux":
-		return "/run/aliang-core.sock"
-	case "windows":
-		return `\\.\pipe\aliang-core`
-	default:
-		return "/tmp/aliang-core.sock"
-	}
+	return runtimepath.CoreSocketPath()
 }
 
 // EnsureCoreDataDir creates the system-level data directory if it doesn't exist.

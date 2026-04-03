@@ -4,8 +4,9 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"runtime"
 	"sync"
+
+	"aliang.one/nursorgate/internal/runtimepath"
 )
 
 const (
@@ -56,24 +57,11 @@ func GetCacheDir() (string, error) {
 
 // resolveCacheDir resolves the cache directory path from environment or defaults.
 func resolveCacheDir() (string, error) {
-	// Check for environment variable override
-	if envDir := os.Getenv(CacheDirEnvVar); envDir != "" {
-		// Expand ~ in path if present
-		expandedDir, err := expandHome(envDir)
-		if err != nil {
-			return "", fmt.Errorf("failed to expand cache directory path '%s': %w", envDir, err)
-		}
-		return expandedDir, nil
-	}
-
-	// Use default ~/.aliang
-	homeDir, err := getHomeDir()
+	dir, err := runtimepath.ResolveStateDir()
 	if err != nil {
-		return "", fmt.Errorf("failed to get home directory: %w", err)
+		return "", fmt.Errorf("failed to resolve cache directory: %w", err)
 	}
-
-	defaultCacheDir := filepath.Join(homeDir, DefaultCacheDirName)
-	return defaultCacheDir, nil
+	return dir, nil
 }
 
 // ensureCacheDirExists creates the cache directory if it doesn't exist.
@@ -158,49 +146,12 @@ func SetCacheFilePermissions(filepath string) error {
 // getHomeDir returns the user's home directory.
 // Works across Windows, macOS, and Linux.
 func getHomeDir() (string, error) {
-	switch runtime.GOOS {
-	case "windows":
-		// Windows: USERPROFILE
-		if home := os.Getenv("USERPROFILE"); home != "" {
-			return home, nil
-		}
-	case "darwin", "linux":
-		// macOS and Linux: HOME
-		if home := os.Getenv("HOME"); home != "" {
-			return home, nil
-		}
-	default:
-		// Try HOME for any other Unix-like systems
-		if home := os.Getenv("HOME"); home != "" {
-			return home, nil
-		}
-	}
-
-	// Fallback: use os.UserHomeDir() which is more robust
-	return os.UserHomeDir()
+	return runtimepath.UserHomeDir()
 }
 
 // expandHome expands ~ in paths to the user's home directory.
 func expandHome(path string) (string, error) {
-	if len(path) == 0 {
-		return path, nil
-	}
-
-	if path[0] != '~' {
-		return path, nil
-	}
-
-	home, err := getHomeDir()
-	if err != nil {
-		return "", err
-	}
-
-	if len(path) == 1 {
-		return home, nil
-	}
-
-	// Handle paths like ~/.aliang or ~/some/path
-	return filepath.Join(home, path[1:]), nil
+	return runtimepath.ExpandHome(path)
 }
 
 // ExpandHomePath expands ~ in paths to the user's home directory.

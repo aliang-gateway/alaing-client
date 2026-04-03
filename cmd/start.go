@@ -4,19 +4,18 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"strings"
 	"syscall"
 
 	httpServer "aliang.one/nursorgate/app/http"
 	"aliang.one/nursorgate/app/http/storage"
-	"aliang.one/nursorgate/common/cache"
 	"aliang.one/nursorgate/common/logger"
 	auth "aliang.one/nursorgate/processor/auth"
 	"aliang.one/nursorgate/processor/config"
 	"aliang.one/nursorgate/processor/geoip"
 	"aliang.one/nursorgate/processor/rules"
 	"aliang.one/nursorgate/processor/runtime"
+	"aliang.one/nursorgate/processor/setup"
 	"github.com/spf13/cobra"
 )
 
@@ -86,7 +85,7 @@ func runStart(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to initialize software config persistence: %w", err)
 	}
 
-	if err := ApplyStartupConfig(configPath); err != nil {
+	if err := ApplyStartupConfigForMode(setup.RuntimeModeInteractive, configPath); err != nil {
 		return fmt.Errorf("failed to initialize startup configuration: %w", err)
 	}
 
@@ -220,16 +219,12 @@ func InitializeGlobalRuleEngine() error {
 }
 
 // initializeGeoIPDatabase loads the GeoIP database from default location
-// Default path: ~/.aliang/GeoLite2-Country.mmdb
+// Default path: <state-dir>/geoip/GeoLite2-Country.mmdb
 func initializeGeoIPDatabase() error {
-	// Get home directory
-	homeDir, err := cache.ExpandHomePath("~")
+	geoipPath, err := geoip.DefaultDatabasePath()
 	if err != nil {
-		return fmt.Errorf("failed to get home directory: %w", err)
+		return fmt.Errorf("failed to resolve GeoIP database path: %w", err)
 	}
-
-	// GeoIP database path: ~/.aliang/GeoLite2-Country.mmdb
-	geoipPath := filepath.Join(homeDir, ".aliang", "GeoLite2-Country.mmdb")
 
 	// Load database
 	logger.Info(fmt.Sprintf("Loading GeoIP database from: %s", geoipPath))

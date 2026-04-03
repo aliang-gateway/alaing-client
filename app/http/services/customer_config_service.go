@@ -14,9 +14,7 @@ import (
 
 	"aliang.one/nursorgate/app/http/models"
 	"aliang.one/nursorgate/app/http/storage"
-	"aliang.one/nursorgate/common/cache"
 	"aliang.one/nursorgate/processor/config"
-	"aliang.one/nursorgate/processor/setup"
 )
 
 const customerConfigFilePath = "~/.aliang/config.json"
@@ -129,7 +127,7 @@ func (s *CustomerConfigService) UpdateCommittedCustomerConfig(payload []byte) (*
 			if err := json.Unmarshal([]byte(snapshot.Content), &fileCfg); err != nil {
 				return fmt.Errorf("decode snapshot content for file persist: %w", err)
 			}
-			expandedPath, err := resolveCustomerConfigPersistPath(snapshot.FilePath)
+			expandedPath, err := resolveServiceConfigPath(snapshot.FilePath)
 			if err != nil {
 				return fmt.Errorf("expand file path: %w", err)
 			}
@@ -401,13 +399,9 @@ func customerUpdateBaseConfigCandidates() []string {
 }
 
 func readConfigFromPath(path string) (*config.Config, bool, error) {
-	resolvedPath := path
-	if strings.HasPrefix(path, "~") {
-		expandedPath, err := resolveCustomerConfigPersistPath(path)
-		if err != nil {
-			return nil, false, fmt.Errorf("expand config file path %q: %w", path, err)
-		}
-		resolvedPath = expandedPath
+	resolvedPath, err := resolveServiceConfigPath(path)
+	if err != nil {
+		return nil, false, fmt.Errorf("expand config file path %q: %w", path, err)
 	}
 
 	raw, err := os.ReadFile(resolvedPath)
@@ -424,53 +418,4 @@ func readConfigFromPath(path string) (*config.Config, bool, error) {
 	}
 
 	return &fileCfg, true, nil
-}
-
-func resolveCustomerConfigPersistPath(path string) (string, error) {
-	path = strings.TrimSpace(path)
-	if path == "" {
-		return "", errors.New("customer config file path is empty")
-	}
-
-	if !strings.HasPrefix(path, "~") {
-		return filepath.Clean(path), nil
-	}
-
-	if strings.TrimSpace(os.Getenv("HOME")) != "" {
-		expandedPath, err := cache.ExpandHomePath(path)
-		if err != nil {
-			return "", err
-		}
-		return filepath.Clean(expandedPath), nil
-	}
-
-	runtimeDir, err := resolveCustomerConfigRuntimeDir()
-	if err != nil {
-		return "", err
-	}
-	return filepath.Join(runtimeDir, filepath.Base(path)), nil
-}
-
-func resolveCustomerConfigRuntimeDir() (string, error) {
-	if dir := strings.TrimSpace(os.Getenv("ALIANG_DATA_DIR")); dir != "" {
-		return filepath.Clean(dir), nil
-	}
-
-	execPath, err := os.Executable()
-	if err == nil && strings.TrimSpace(execPath) != "" {
-		if resolvedExecPath, resolveErr := filepath.EvalSymlinks(execPath); resolveErr == nil && strings.TrimSpace(resolvedExecPath) != "" {
-			execPath = resolvedExecPath
-		}
-		execDir := strings.TrimSpace(filepath.Dir(execPath))
-		if execDir != "" && execDir != "." {
-			return filepath.Clean(execDir), nil
-		}
-	}
-
-	coreDataDir := strings.TrimSpace(setup.CoreDataDir())
-	if coreDataDir == "" {
-		return "", errors.New("runtime config dir is empty")
-	}
-
-	return filepath.Clean(coreDataDir), nil
 }

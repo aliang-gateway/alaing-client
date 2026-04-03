@@ -12,33 +12,21 @@ import (
 	"math/rand"
 	"net"
 	"os"
-	"path/filepath"
 	"strings"
 	"sync"
 	"time"
 
-	"aliang.one/nursorgate/common/cache"
 	"aliang.one/nursorgate/common/logger"
+	cert_config "aliang.one/nursorgate/processor/cert"
 	"aliang.one/nursorgate/processor/cert/generator"
 
 	"golang.org/x/net/http2"
-
-	cert_config "aliang.one/nursorgate/processor/cert"
 )
 
 var defaultCertificate *tls.Certificate
 var caCertPool *x509.CertPool
 var certCache = sync.Map{}
 var mu sync.RWMutex
-
-// GetCertDir returns the certificate directory path
-func GetCertDir() (string, error) {
-	certDir, err := cache.GetCacheDir()
-	if err != nil {
-		return "", err
-	}
-	return certDir, nil
-}
 
 // LoadMitmCACertificate loads the MITM CA certificate from filesystem
 func LoadMitmCACertificate() (*tls.Certificate, error) {
@@ -49,13 +37,14 @@ func LoadMitmCACertificate() (*tls.Certificate, error) {
 	}
 	mu.RUnlock()
 
-	certDir, err := GetCertDir()
+	certPath, err := cert_config.GetCertPath(cert_config.CertTypeMitmCA)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get cert dir: %w", err)
+		return nil, fmt.Errorf("failed to resolve MITM CA cert path: %w", err)
 	}
-
-	certPath := filepath.Join(certDir, "mitm-ca.pem")
-	keyPath := filepath.Join(certDir, "mitm-ca.pem.key")
+	keyPath, err := cert_config.GetCertKeyPath(cert_config.CertTypeMitmCA)
+	if err != nil {
+		return nil, fmt.Errorf("failed to resolve MITM CA key path: %w", err)
+	}
 
 	// Check if certificate files exist, if not generate them
 	if _, err := os.Stat(certPath); os.IsNotExist(err) {
@@ -84,12 +73,10 @@ func LoadMitmCACertificate() (*tls.Certificate, error) {
 
 // LoadRootCACertificate loads the Root CA certificate from filesystem
 func LoadRootCACertificate() ([]byte, error) {
-	certDir, err := GetCertDir()
+	certPath, err := cert_config.GetCertPath(cert_config.CertTypeRootCA)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get cert dir: %w", err)
+		return nil, fmt.Errorf("failed to resolve root CA cert path: %w", err)
 	}
-
-	certPath := filepath.Join(certDir, "root-ca.pem")
 
 	// Check if certificate file exists, if not generate it
 	if _, err := os.Stat(certPath); os.IsNotExist(err) {
