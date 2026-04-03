@@ -20,7 +20,7 @@ import (
 )
 
 const customerConfigFilePath = "~/.aliang/config.json"
-const startupLocalCustomerBaseConfigPath = "./config.new.json"
+const startupLocalCustomerBaseConfigPath = "./config.json"
 
 type CustomerConfigService struct {
 	store *storage.SoftwareConfigStore

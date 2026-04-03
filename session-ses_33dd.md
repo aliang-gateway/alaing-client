@@ -80,7 +80,7 @@ CHANGELOG.md
 CLAUDE.md
 cmd/
 common/
-config.new.json
+config.json
 data/
 Dockerfile
 Dockerfile-dev

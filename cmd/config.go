@@ -20,13 +20,13 @@ import (
 //go:embed config.json
 var defaultConfigData string
 
-const startupLocalConfigPath = "./config.new.json"
+const startupLocalConfigPath = "./config.json"
 
 type startupConfigSource string
 
 const (
 	startupConfigSourceExplicitPath startupConfigSource = "--config"
-	startupConfigSourceLocalFile    startupConfigSource = "./config.new.json"
+	startupConfigSourceLocalFile    startupConfigSource = "./config.json"
 	startupConfigSourceUserHome     startupConfigSource = "~/.aliang/config.json"
 	startupConfigSourceDatabase     startupConfigSource = "database snapshot"
 	startupConfigSourceEmbedded     startupConfigSource = "embedded default"

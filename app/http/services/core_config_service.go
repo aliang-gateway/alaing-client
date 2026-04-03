@@ -13,7 +13,7 @@ import (
 	"aliang.one/nursorgate/processor/config"
 )
 
-const coreConfigFilePath = "./config.new.json"
+const coreConfigFilePath = "./config.json"
 
 type CoreConfigService struct {
 	store *storage.SoftwareConfigStore

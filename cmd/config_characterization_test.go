@@ -131,7 +131,7 @@ func TestApplyStartupConfig_UsesExplicitConfigPathOverLocalConfigNewJSON(t *test
 		t.Fatalf("failed to change working directory: %v", err)
 	}
 
-	writeStartupTestConfigFile(t, tempDir, "config.new.json", `{"api_server":`)
+	writeStartupTestConfigFile(t, tempDir, "config.json", `{"api_server":`)
 	explicitPath := writeStartupTestConfigFile(t, tempDir, "explicit.json", `{
 		"core": {
 			"api_server": "https://api.explicit.example.com",
@@ -143,7 +143,7 @@ func TestApplyStartupConfig_UsesExplicitConfigPathOverLocalConfigNewJSON(t *test
 	}`)
 
 	if err := ApplyStartupConfig(explicitPath); err != nil {
-		t.Fatalf("expected explicit --config path to be used even when config.new.json exists, got: %v", err)
+		t.Fatalf("expected explicit --config path to be used even when config.json exists, got: %v", err)
 	}
 
 	globalCfg := processorconfig.GetGlobalConfig()
@@ -175,7 +175,7 @@ func TestApplyStartupConfig_UsesConfigNewJSONWhenNoExplicitPath(t *testing.T) {
 	}
 	t.Setenv("HOME", tempDir)
 
-	writeStartupTestConfigFile(t, tempDir, "config.new.json", `{
+	writeStartupTestConfigFile(t, tempDir, "config.json", `{
 		"core": {
 			"api_server": "https://api.local-config-new.example.com",
 			"aliangServer": {
@@ -186,7 +186,7 @@ func TestApplyStartupConfig_UsesConfigNewJSONWhenNoExplicitPath(t *testing.T) {
 	}`)
 
 	if err := ApplyStartupConfig(""); err != nil {
-		t.Fatalf("expected config.new.json to be used when no explicit path, got: %v", err)
+		t.Fatalf("expected config.json to be used when no explicit path, got: %v", err)
 	}
 
 	globalCfg := processorconfig.GetGlobalConfig()
@@ -194,10 +194,10 @@ func TestApplyStartupConfig_UsesConfigNewJSONWhenNoExplicitPath(t *testing.T) {
 		t.Fatalf("expected global config to be set")
 	}
 	if globalCfg.APIBaseURL() != "https://api.local-config-new.example.com" {
-		t.Fatalf("expected config.new.json APIBaseURL, got %q", globalCfg.APIBaseURL())
+		t.Fatalf("expected config.json APIBaseURL, got %q", globalCfg.APIBaseURL())
 	}
 	if IsUsingDefaultConfig() {
-		t.Fatalf("expected custom config flag when loading config.new.json")
+		t.Fatalf("expected custom config flag when loading config.json")
 	}
 }
 
@@ -247,13 +247,13 @@ func TestApplyStartupConfig_FailsFastWhenConfigNewJSONExistsButInvalid(t *testin
 		t.Fatalf("failed to change working directory: %v", err)
 	}
 
-	writeStartupTestConfigFile(t, tempDir, "config.new.json", `{"api_server":`)
+	writeStartupTestConfigFile(t, tempDir, "config.json", `{"api_server":`)
 
 	err = ApplyStartupConfig("")
 	if err == nil {
-		t.Fatalf("expected fail-fast error when config.new.json exists but is invalid")
+		t.Fatalf("expected fail-fast error when config.json exists but is invalid")
 	}
 	if processorconfig.GetGlobalConfig() != nil {
-		t.Fatalf("expected global config to remain unset on fail-fast invalid config.new.json")
+		t.Fatalf("expected global config to remain unset on fail-fast invalid config.json")
 	}
 }

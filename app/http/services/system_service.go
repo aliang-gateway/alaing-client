@@ -479,7 +479,7 @@ func resolveSystemServiceConfigPath() (string, error) {
 
 	candidates := []string{}
 	if cwd, err := os.Getwd(); err == nil {
-		candidates = append(candidates, filepath.Join(cwd, "config.new.json"))
+		candidates = append(candidates, filepath.Join(cwd, "config.json"))
 		candidates = append(candidates, filepath.Join(cwd, "config.json"))
 	}
 	if homeDir, err := os.UserHomeDir(); err == nil {

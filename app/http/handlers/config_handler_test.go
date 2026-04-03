@@ -416,7 +416,7 @@ func TestConfigHandler_CustomerConfigUpdateSucceedsWhenGlobalConfigNilAndFileExi
 	t.Cleanup(func() {
 		config.ResetGlobalConfigForTest()
 		config.ResetEffectiveConfigCommitCoordinatorForTest()
-		_ = os.Remove("./config.new.json")
+		_ = os.Remove("./config.json")
 	})
 
 	tempHome := t.TempDir()
@@ -433,8 +433,8 @@ func TestConfigHandler_CustomerConfigUpdateSucceedsWhenGlobalConfigNilAndFileExi
 			"proxy_rules":[]
 		}
 	}`)
-	if err := os.WriteFile("./config.new.json", seed, 0644); err != nil {
-		t.Fatalf("seed config.new.json failed: %v", err)
+	if err := os.WriteFile("./config.json", seed, 0644); err != nil {
+		t.Fatalf("seed config.json failed: %v", err)
 	}
 	if err := os.WriteFile(filepath.Join(tempHome, ".aliang", "config.json"), []byte(`{
 		"core":{"api_server":"https://api.aliang.one","aliangServer":{"type":"aliang","core_server":"wrong.example.com:443"}},
@@ -483,11 +483,11 @@ func TestConfigHandler_CustomerConfigUpdateSucceedsWhenGlobalConfigNilAndFileExi
 func TestConfigHandler_CustomerConfigUpdateSucceedsWhenGlobalConfigAndFileMissing(t *testing.T) {
 	config.ResetGlobalConfigForTest()
 	config.ResetEffectiveConfigCommitCoordinatorForTest()
-	_ = os.Remove("./config.new.json")
+	_ = os.Remove("./config.json")
 	t.Cleanup(func() {
 		config.ResetGlobalConfigForTest()
 		config.ResetEffectiveConfigCommitCoordinatorForTest()
-		_ = os.Remove("./config.new.json")
+		_ = os.Remove("./config.json")
 	})
 
 	h := NewConfigHandler()
