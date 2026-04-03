@@ -157,8 +157,10 @@ $iconDefXml
                         <RegistryValue Root="HKLM" Key="Software\Aliang" Name="InstallDir" Type="string" Value="[INSTALLFOLDER]"/>
                     </Component>
                     <Directory Id="InstallerAssetsFolder" Name="InstallerAssets">
-                        <Component Id="WintunInstallerAssets" Guid="*">
+                        <Component Id="WintunArchiveComponent" Guid="*">
                             <File Id="WintunArchive" Source="$payloadDir\$WINTUN_ARCHIVE_NAME" KeyPath="yes"/>
+                        </Component>
+                        <Component Id="WintunScriptComponent" Guid="*">
                             <File Id="EnsureWintunScript" Source="$payloadDir\$WINTUN_HELPER_SCRIPT"/>
                         </Component>
                     </Directory>
@@ -192,7 +194,8 @@ $iconDefXml
         <!-- Features -->
         <Feature Id="ProductFeature" Title="Aliang" Level="1">
             <ComponentRef Id="MainBinary"/>
-            <ComponentRef Id="WintunInstallerAssets"/>
+            <ComponentRef Id="WintunArchiveComponent"/>
+            <ComponentRef Id="WintunScriptComponent"/>
             <ComponentRef Id="DataDirectory"/>
             <ComponentRef Id="EnvironmentComponent"/>
             <ComponentRef Id="StartMenuShortcut"/>
