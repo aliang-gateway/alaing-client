@@ -6,7 +6,8 @@ param(
     [string]$OutputDir = ".",
     [string]$WiXPath = "",
     [string]$CandleExe = "",
-    [string]$LightExe = ""
+    [string]$LightExe = "",
+    [string]$WintunZipPath = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -17,6 +18,9 @@ $SERVICE_NAME = "alianggate"
 $MANUFACTURER = "Aliang"
 $UPGRADE_CODE = "A1B2C3D4-E5F6-7890-ABCD-EF1234567890"  # Should be generated once per product
 $ICON_FILE = "desktop-logo.ico"
+$WINTUN_ARCHIVE_NAME = "wintun-0.14.1.zip"
+$WINTUN_DOWNLOAD_URL = "https://www.wintun.net/builds/wintun-0.14.1.zip"
+$WINTUN_HELPER_SCRIPT = "ensure-wintun.ps1"
 $ENV_COMPONENT_GUID = "64E4CB9B-2509-4EFA-8A58-5DFAF5DD17E8"
 
 Write-Host "=== Building Aliang MSI Installer ===" -ForegroundColor Cyan
@@ -92,6 +96,29 @@ if (Test-Path $iconPath) {
     Write-Host "Warning: Icon file $iconPath not found, shortcuts will use default icon" -ForegroundColor Yellow
 }
 
+$wintunHelperSourcePath = Join-Path $scriptDir "msi\$WINTUN_HELPER_SCRIPT"
+if (-not (Test-Path $wintunHelperSourcePath)) {
+    throw "Required Wintun helper script not found: $wintunHelperSourcePath"
+}
+Copy-Item $wintunHelperSourcePath -Destination "$payloadDir\$WINTUN_HELPER_SCRIPT" -Force
+
+$wintunArchiveDestination = "$payloadDir\$WINTUN_ARCHIVE_NAME"
+if ($WintunZipPath) {
+    if ([System.IO.Path]::IsPathRooted($WintunZipPath)) {
+        $resolvedWintunZipPath = $WintunZipPath
+    } else {
+        $resolvedWintunZipPath = Join-Path $currentDir $WintunZipPath
+    }
+    if (-not (Test-Path $resolvedWintunZipPath)) {
+        throw "Specified Wintun archive not found: $resolvedWintunZipPath"
+    }
+    Write-Host "Using local Wintun archive: $resolvedWintunZipPath" -ForegroundColor Cyan
+    Copy-Item $resolvedWintunZipPath -Destination $wintunArchiveDestination -Force
+} else {
+    Write-Host "Downloading embedded Wintun archive from $WINTUN_DOWNLOAD_URL" -ForegroundColor Cyan
+    Invoke-WebRequest -Uri $WINTUN_DOWNLOAD_URL -OutFile $wintunArchiveDestination
+}
+
 # Build icon-related XML fragments (conditioned on $iconAvailable)
 $iconAvailable = Test-Path $iconPath
 $iconDefXml = ""
@@ -129,6 +156,12 @@ $iconDefXml
                         <File Id="Aliangexe" Source="$payloadDir\$BINARY_NAME" KeyPath="yes"/>
                         <RegistryValue Root="HKLM" Key="Software\Aliang" Name="InstallDir" Type="string" Value="[INSTALLFOLDER]"/>
                     </Component>
+                    <Directory Id="InstallerAssetsFolder" Name="InstallerAssets">
+                        <Component Id="WintunInstallerAssets" Guid="*">
+                            <File Id="WintunArchive" Source="$payloadDir\$WINTUN_ARCHIVE_NAME" KeyPath="yes"/>
+                            <File Id="EnsureWintunScript" Source="$payloadDir\$WINTUN_HELPER_SCRIPT"/>
+                        </Component>
+                    </Directory>
                 </Directory>
             </Directory>
             <Directory Id="CommonAppDataFolder" Name="CommonAppData">
@@ -159,6 +192,7 @@ $iconDefXml
         <!-- Features -->
         <Feature Id="ProductFeature" Title="Aliang" Level="1">
             <ComponentRef Id="MainBinary"/>
+            <ComponentRef Id="WintunInstallerAssets"/>
             <ComponentRef Id="DataDirectory"/>
             <ComponentRef Id="EnvironmentComponent"/>
             <ComponentRef Id="StartMenuShortcut"/>
@@ -176,6 +210,12 @@ $iconDefXml
         </DirectoryRef>
 
         <!-- Service Registration Custom Action -->
+        <CustomAction Id="InstallWintunDependency"
+                      Directory="INSTALLFOLDER"
+                      ExeCommand="&quot;[SystemFolder]WindowsPowerShell\v1.0\powershell.exe&quot; -NoProfile -NonInteractive -ExecutionPolicy Bypass -File &quot;[#EnsureWintunScript]&quot; -ArchivePath &quot;[#WintunArchive]&quot;"
+                      Return="check"
+                      Execute="deferred"
+                      Impersonate="no"/>
         <CustomAction Id="RegisterService"
                       Directory="INSTALLFOLDER"
                       ExeCommand="[INSTALLFOLDER]$BINARY_NAME service install --system-wide"
@@ -215,7 +255,8 @@ $iconDefXml
 
         <!-- Install Execute Sequence -->
         <InstallExecuteSequence>
-            <Custom Action="RegisterService" After="InstallFiles">NOT Installed</Custom>
+            <Custom Action="InstallWintunDependency" After="InstallFiles">NOT REMOVE="ALL"</Custom>
+            <Custom Action="RegisterService" After="InstallWintunDependency">NOT Installed</Custom>
             <Custom Action="UnregisterService" Before="RemoveFiles">REMOVE="ALL"</Custom>
             <Custom Action="ForceStopService" After="UnregisterService">REMOVE="ALL"</Custom>
             <Custom Action="ForceDeleteService" After="ForceStopService">REMOVE="ALL"</Custom>
