@@ -335,8 +335,8 @@ func configureWindowsTunRoute() error {
 
 	// 删除现有默认路由
 	commands := [][]string{
-		{"route", "delete", "0.0.0.0"},
-		{"route", "delete", "128.0.0.0"},
+		{"route", "delete", "0.0.0.0", "mask", "128.0.0.0", "10.0.0.1"},
+		{"route", "delete", "128.0.0.0", "mask", "128.0.0.0", "10.0.0.1"},
 	}
 
 	for _, cmd := range commands {
@@ -350,7 +350,6 @@ func configureWindowsTunRoute() error {
 		{"route", "add", "0.0.0.0", "mask", "128.0.0.0", "10.0.0.1", "metric", "1"},
 		{"route", "add", "128.0.0.0", "mask", "128.0.0.0", "10.0.0.1", "metric", "1"},
 		// 添加回原默认网关的路由，但优先级较低
-		{"route", "add", "0.0.0.0", "mask", "0.0.0.0", defaultGateway, "metric", "2"},
 	}
 
 	for _, cmd := range commands {
@@ -437,7 +436,8 @@ func configureLinuxTunRoute() error {
 
 	// 删除现有默认路由
 	commands := [][]string{
-		{"ip", "route", "del", "default"},
+		{"ip", "route", "del", "0.0.0.0/1", "via", "10.0.0.1"},
+		{"ip", "route", "del", "128.0.0.0/1", "via", "10.0.0.1"},
 	}
 
 	for _, cmd := range commands {
@@ -452,7 +452,6 @@ func configureLinuxTunRoute() error {
 		{"ip", "route", "add", "0.0.0.0/1", "via", "10.0.0.1", "metric", "1"},
 		{"ip", "route", "add", "128.0.0.0/1", "via", "10.0.0.1", "metric", "1"},
 		// 添加回原默认网关的路由，但优先级较低
-		{"ip", "route", "add", "default", "via", defaultGateway, "metric", "2"},
 	}
 
 	for _, cmd := range commands {

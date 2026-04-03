@@ -613,18 +613,10 @@ func (c *Config) EffectiveAliangCoreServer() string {
 }
 
 func (c *Config) EffectiveDefaultProxy() string {
-	if c == nil || c.Customer == nil || c.Customer.Proxy == nil {
-		return "direct"
-	}
-	if !c.Customer.Proxy.IsEnabled() {
-		return "direct"
-	}
-	switch strings.ToLower(strings.TrimSpace(c.Customer.Proxy.Type)) {
-	case "socks5":
-		return "socks"
-	default:
-		return "direct"
-	}
+	// Customer proxy availability enables the toSocks branch, but unmatched
+	// traffic should still use direct egress unless a routing rule says
+	// otherwise.
+	return "direct"
 }
 
 func (c *Config) EffectiveSocksProxy() (*Socks5Config, error) {

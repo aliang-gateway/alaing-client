@@ -57,7 +57,7 @@ func TestConfig_SetAndGetGlobalConfig_ThreadSafe(t *testing.T) {
 	if finalCfg == nil {
 		t.Fatal("GetGlobalConfig() returned nil after concurrent SetGlobalConfig calls")
 	}
-	if got := finalCfg.EffectiveDefaultProxy(); got != "direct" && got != "socks" {
+	if got := finalCfg.EffectiveDefaultProxy(); got != "direct" {
 		t.Fatalf("unexpected EffectiveDefaultProxy value %q", got)
 	}
 }

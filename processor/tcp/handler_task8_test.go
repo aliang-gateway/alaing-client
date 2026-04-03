@@ -11,6 +11,7 @@ import (
 	"aliang.one/nursorgate/outbound"
 	httpproxy "aliang.one/nursorgate/outbound/proxy/http"
 	"aliang.one/nursorgate/processor/config"
+	"aliang.one/nursorgate/processor/routing"
 )
 
 func TestTCPHandler_ToSocksHTTPType_UsesHTTPProxy(t *testing.T) {
@@ -215,6 +216,61 @@ func TestIsCustomerProxyEnabled_FalseWhenDisabled(t *testing.T) {
 
 	if isCustomerProxyEnabled() {
 		t.Fatal("expected customer proxy to be disabled")
+	}
+}
+
+func TestDefaultTLSHandler_DetermineRouteWithContext_UsesProxyRulesWhenEnabled(t *testing.T) {
+	previousCfg := config.GetGlobalConfig()
+	config.SetGlobalConfig(&config.Config{
+		Customer: &config.CustomerConfig{
+			Proxy:      &config.CustomerProxyConfig{Enable: boolPtrMetadata(true), Type: "socks5", Server: "127.0.0.1:1080"},
+			ProxyRules: []string{"domain,cursor.com,proxy"},
+		},
+	})
+	defer config.SetGlobalConfig(previousCfg)
+
+	switchManager := routing.GetSwitchManager()
+	switchManager.ResetToDefaults()
+	switchManager.SetSocksEnabled(true)
+
+	h := NewDefaultTLSHandler()
+	route, requiresSNI := h.DetermineRouteWithContext(&M.Metadata{
+		HostName: "cursor.com",
+		DstPort:  443,
+		DstIP:    parseTestAddr(t, "8.8.8.8"),
+	})
+
+	if requiresSNI {
+		t.Fatal("expected no SNI requirement when hostname is already known")
+	}
+	if route != RouteToLocalProxy {
+		t.Fatalf("route = %v, want %v", route, RouteToLocalProxy)
+	}
+}
+
+func TestDefaultTLSHandler_DetermineRouteWithContext_ProxyRulesFallbackDirectWhenDisabled(t *testing.T) {
+	previousCfg := config.GetGlobalConfig()
+	config.SetGlobalConfig(&config.Config{
+		Customer: &config.CustomerConfig{
+			Proxy:      &config.CustomerProxyConfig{Enable: boolPtrMetadata(false), Type: "socks5", Server: "127.0.0.1:1080"},
+			ProxyRules: []string{"domain,cursor.com,proxy"},
+		},
+	})
+	defer config.SetGlobalConfig(previousCfg)
+
+	switchManager := routing.GetSwitchManager()
+	switchManager.ResetToDefaults()
+	switchManager.SetSocksEnabled(true)
+
+	h := NewDefaultTLSHandler()
+	route, _ := h.DetermineRouteWithContext(&M.Metadata{
+		HostName: "cursor.com",
+		DstPort:  443,
+		DstIP:    parseTestAddr(t, "8.8.8.8"),
+	})
+
+	if route != RouteDirect {
+		t.Fatalf("route = %v, want %v", route, RouteDirect)
 	}
 }
 

@@ -319,11 +319,9 @@ func compileCanonicalRoutingFromRuntimeInputs(cfg *config.Config, switches model
 	}
 	canonical.Routing.Rules = rules
 
-	if canonical.Egress.ToSocks.Enabled {
-		canonical.Routing.DefaultEgress = string(SnapshotActionToSocks)
-	} else {
-		canonical.Routing.DefaultEgress = string(SnapshotActionDirect)
-	}
+	// Keep direct as the default egress. The customer proxy should only be used
+	// by explicit proxy_rules matches instead of hijacking all unmatched traffic.
+	canonical.Routing.DefaultEgress = string(SnapshotActionDirect)
 
 	if err := canonical.Validate(); err != nil {
 		return nil, fmt.Errorf("compile runtime canonical routing failed: %w", err)

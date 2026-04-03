@@ -359,8 +359,8 @@ func TestConfigValidate_NewModelHelpers_ExposeRuntimeValues(t *testing.T) {
 		t.Fatalf("Validate() error = %v", err)
 	}
 
-	if cfg.EffectiveDefaultProxy() != "socks" {
-		t.Fatalf("EffectiveDefaultProxy() = %q, want socks", cfg.EffectiveDefaultProxy())
+	if cfg.EffectiveDefaultProxy() != "direct" {
+		t.Fatalf("EffectiveDefaultProxy() = %q, want direct", cfg.EffectiveDefaultProxy())
 	}
 	socksCfg, err := cfg.EffectiveSocksProxy()
 	if err != nil {

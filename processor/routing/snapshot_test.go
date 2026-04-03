@@ -61,6 +61,29 @@ func TestCompileRuntimeSnapshotFromRuntimeInputs_NonAIRulesMatchProxyRules(t *te
 	}
 }
 
+func TestCompileRuntimeSnapshotFromRuntimeInputs_UnmatchedTrafficDefaultsToDirect(t *testing.T) {
+	cfg := &config.Config{
+		Customer: &config.CustomerConfig{
+			Proxy:      &config.CustomerProxyConfig{Type: "socks5"},
+			AIRules:    map[string]*config.CustomerAIRuleSetting{},
+			ProxyRules: []string{"domain,cursor.com,proxy"},
+		},
+	}
+
+	snapshot, err := CompileRuntimeSnapshotFromRuntimeInputs(cfg, model.RulesSettings{AliangEnabled: true, SocksEnabled: true})
+	if err != nil {
+		t.Fatalf("CompileRuntimeSnapshotFromRuntimeInputs() error = %v", err)
+	}
+
+	decision, err := DecideRouteFromSnapshot(snapshot, &MatchContext{Domain: "functional.events.data.microsoft.com", IP: "20.189.173.13"})
+	if err != nil {
+		t.Fatalf("DecideRouteFromSnapshot() error = %v", err)
+	}
+	if decision != RouteDirect {
+		t.Fatalf("decision = %s, want %s", decision, RouteDirect)
+	}
+}
+
 func TestCompileRuntimeSnapshotFromRuntimeInputs_ProxyTypeMapsToToSocksUpstreamType(t *testing.T) {
 	tests := []struct {
 		name          string

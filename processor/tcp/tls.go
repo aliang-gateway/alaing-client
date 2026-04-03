@@ -6,10 +6,8 @@ import (
 	"fmt"
 	"net"
 	"strings"
-	"time"
 
 	"aliang.one/nursorgate/common/logger"
-	"aliang.one/nursorgate/common/model"
 	M "aliang.one/nursorgate/inbound/tun/metadata"
 	cert_client "aliang.one/nursorgate/processor/cert/client"
 	"aliang.one/nursorgate/processor/config"
@@ -191,7 +189,18 @@ func (h *DefaultTLSHandler) decideRouteWithRoutingEngine(metadata *M.Metadata) P
 		return h.defaultFallbackRoute()
 	}
 
-	routingCfg := h.buildRoutingRulesConfig()
+	cfg := config.GetGlobalConfig()
+	if cfg == nil {
+		return h.defaultFallbackRoute()
+	}
+
+	switchStatus := routing.GetSwitchManager().GetStatus()
+	snapshot, err := routing.CompileRuntimeSnapshotFromRuntimeInputs(cfg, switchStatus)
+	if err != nil {
+		logger.Warn(fmt.Sprintf("CompileRuntimeSnapshotFromRuntimeInputs failed, fallback route used: %v", err))
+		return h.defaultFallbackRoute()
+	}
+
 	routeCtx := &routing.MatchContext{
 		Domain: strings.ToLower(strings.TrimSpace(metadata.HostName)),
 	}
@@ -199,9 +208,9 @@ func (h *DefaultTLSHandler) decideRouteWithRoutingEngine(metadata *M.Metadata) P
 		routeCtx.IP = metadata.DstIP.String()
 	}
 
-	decision, err := routing.DecideRoute(routingCfg, routeCtx)
+	decision, err := routing.DecideRouteFromSnapshot(snapshot, routeCtx)
 	if err != nil {
-		logger.Warn(fmt.Sprintf("routing.DecideRoute failed, fallback route used: %v", err))
+		logger.Warn(fmt.Sprintf("routing.DecideRouteFromSnapshot failed, fallback route used: %v", err))
 		return h.defaultFallbackRoute()
 	}
 
@@ -213,47 +222,6 @@ func (h *DefaultTLSHandler) decideRouteWithRoutingEngine(metadata *M.Metadata) P
 	default:
 		return h.defaultFallbackRoute()
 	}
-}
-
-func (h *DefaultTLSHandler) buildRoutingRulesConfig() *model.RoutingRulesConfig {
-	now := time.Now()
-	rc := model.NewRoutingRulesConfig()
-
-	switchStatus := routing.GetSwitchManager().GetStatus()
-	rc.Settings.AliangEnabled = switchStatus.AliangEnabled
-	rc.Settings.SocksEnabled = switchStatus.SocksEnabled
-	rc.Settings.GeoIPEnabled = switchStatus.GeoIPEnabled
-	rc.Settings.UpdatedAt = now
-	rc.UpdatedAt = now
-
-	cfg := config.GetGlobalConfig()
-	if cfg == nil {
-		return rc
-	}
-
-	allowlist := cfg.EffectiveAIAllowlist()
-	rules := make([]model.RoutingRule, 0, len(allowlist))
-	for i, domain := range allowlist {
-		normalizedDomain := strings.ToLower(strings.TrimSpace(domain))
-		if normalizedDomain == "" {
-			continue
-		}
-
-		rules = append(rules, model.RoutingRule{
-			ID:        fmt.Sprintf("aliang_allowlist_%d", i),
-			Type:      model.RuleTypeDomain,
-			Condition: normalizedDomain,
-			Enabled:   true,
-			CreatedAt: now,
-			UpdatedAt: now,
-		})
-	}
-
-	rc.Aliang.Rules = rules
-	rc.Aliang.Count = len(rules)
-	rc.Aliang.UpdatedAt = now
-
-	return rc
 }
 
 func (h *DefaultTLSHandler) defaultFallbackRoute() ProxyRoute {
