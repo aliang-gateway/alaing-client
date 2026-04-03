@@ -271,7 +271,7 @@ func TestConfigHandler_CustomerConfigGetAndUpdate(t *testing.T) {
 
 	config.SetGlobalConfig(&config.Config{
 		Core: &config.CoreConfig{
-			APIServer:    "https://api.example.com",
+			APIServer:    "https://api.aliang.one",
 			AliangServer: &config.AliangServerConfig{Type: "aliang", CoreServer: "ai-gateway.aliang.one:443"},
 		},
 		Customer: &config.CustomerConfig{
@@ -352,7 +352,7 @@ func TestConfigHandler_CustomerConfigRejectsForbiddenOrUnknownFields(t *testing.
 
 	config.SetGlobalConfig(&config.Config{
 		Core: &config.CoreConfig{
-			APIServer: "https://api.example.com",
+			APIServer: "https://api.aliang.one",
 		},
 		Customer: &config.CustomerConfig{
 			Proxy: &config.CustomerProxyConfig{Type: "http"},
@@ -437,7 +437,7 @@ func TestConfigHandler_CustomerConfigUpdateSucceedsWhenGlobalConfigNilAndFileExi
 		t.Fatalf("seed config.new.json failed: %v", err)
 	}
 	if err := os.WriteFile(filepath.Join(tempHome, ".aliang", "config.json"), []byte(`{
-		"core":{"api_server":"https://api.example.com","aliangServer":{"type":"aliang","core_server":"wrong.example.com:443"}},
+		"core":{"api_server":"https://api.aliang.one","aliangServer":{"type":"aliang","core_server":"wrong.example.com:443"}},
 		"customer":{"proxy":{"type":"http"}}
 	}`), 0644); err != nil {
 		t.Fatalf("seed temp home config failed: %v", err)

@@ -11,7 +11,7 @@ import (
 
 func TestMergeCustomerPayload_PreservesOmittedFields(t *testing.T) {
 	baseCfg := &config.Config{
-		Core: &config.CoreConfig{APIServer: "https://api.example.com"},
+		Core: &config.CoreConfig{APIServer: "https://api.aliang.one"},
 		Customer: &config.CustomerConfig{
 			Proxy: &config.CustomerProxyConfig{
 				Type:   "http",
@@ -91,7 +91,7 @@ func TestResolveBaseConfigForCustomerUpdate_PrefersStartupLocalConfigOverHomeCon
 	}
 
 	if err := os.WriteFile(filepath.Join(tempHome, ".aliang", "config.json"), []byte(`{
-		"core":{"api_server":"https://api.example.com"},
+		"core":{"api_server":"https://api.aliang.one"},
 		"customer":{"proxy":{"type":"http","server":"127.0.0.1:1081"}}
 	}`), 0644); err != nil {
 		t.Fatalf("write home config failed: %v", err)
@@ -103,6 +103,47 @@ func TestResolveBaseConfigForCustomerUpdate_PrefersStartupLocalConfigOverHomeCon
 	}
 	if got := baseCfg.APIBaseURL(); got != "https://sub2api.liang.home" {
 		t.Fatalf("APIBaseURL = %q, want startup local config value", got)
+	}
+}
+
+func TestResolveCustomerConfigPersistPath_FallsBackToRuntimeDirWithoutHome(t *testing.T) {
+	runtimeDir := t.TempDir()
+	t.Setenv("HOME", "")
+	t.Setenv("ALIANG_DATA_DIR", runtimeDir)
+
+	resolvedPath, err := resolveCustomerConfigPersistPath(customerConfigFilePath)
+	if err != nil {
+		t.Fatalf("resolveCustomerConfigPersistPath() error = %v", err)
+	}
+
+	wantPath := filepath.Join(runtimeDir, "config.json")
+	if resolvedPath != wantPath {
+		t.Fatalf("resolved path = %q, want %q", resolvedPath, wantPath)
+	}
+}
+
+func TestReadConfigFromPath_FallsBackToRuntimeDirWithoutHome(t *testing.T) {
+	runtimeDir := t.TempDir()
+	t.Setenv("HOME", "")
+	t.Setenv("ALIANG_DATA_DIR", runtimeDir)
+
+	configPath := filepath.Join(runtimeDir, "config.json")
+	if err := os.WriteFile(configPath, []byte(`{
+		"core":{"api_server":"https://daemon.example.com"},
+		"customer":{"proxy":{"type":"socks5","server":"127.0.0.1:1080"}}
+	}`), 0644); err != nil {
+		t.Fatalf("write runtime config failed: %v", err)
+	}
+
+	fileCfg, found, err := readConfigFromPath(customerConfigFilePath)
+	if err != nil {
+		t.Fatalf("readConfigFromPath() error = %v", err)
+	}
+	if !found {
+		t.Fatal("expected runtime config file to be found")
+	}
+	if got := fileCfg.APIBaseURL(); got != "https://daemon.example.com" {
+		t.Fatalf("APIBaseURL = %q, want runtime config value", got)
 	}
 }
 

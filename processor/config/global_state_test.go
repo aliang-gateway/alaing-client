@@ -8,7 +8,7 @@ import (
 func TestConfig_ResetGlobalConfigForTest_ClearsConfigAndFlags(t *testing.T) {
 	ResetGlobalConfigForTest()
 
-	SetGlobalConfig(&Config{Core: &CoreConfig{APIServer: "https://api.example.com"}})
+	SetGlobalConfig(&Config{Core: &CoreConfig{APIServer: "https://api.aliang.one"}})
 	SetUsingDefaultConfig(true)
 	SetHasLocalUserInfo(true)
 
@@ -38,7 +38,7 @@ func TestConfig_SetAndGetGlobalConfig_ThreadSafe(t *testing.T) {
 			defer wg.Done()
 			for j := 0; j < iterations; j++ {
 				cfg := &Config{
-					Core: &CoreConfig{APIServer: "https://api.example.com"},
+					Core: &CoreConfig{APIServer: "https://api.aliang.one"},
 					Customer: &CustomerConfig{
 						Proxy: &CustomerProxyConfig{Type: "http"},
 					},

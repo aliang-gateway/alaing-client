@@ -123,7 +123,7 @@
                 <textarea
                   :value="_providerIncludeTexts[provider]"
                   class="min-h-28 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 font-mono text-sm text-slate-700 shadow-sm transition focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
-                  placeholder="example.com&#10;api.example.com, chatgpt.com; anthropic.com"
+                  placeholder="example.com&#10;api.aliang.one, chatgpt.com; anthropic.com"
                   @input="_providerIncludeTexts[provider] = $event.target.value"
                 ></textarea>
               </label>
@@ -146,7 +146,7 @@
             <textarea
               :value="_proxyRulesText"
               class="min-h-40 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 font-mono text-sm text-slate-700 shadow-sm transition focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
-              placeholder="domain,example.com,proxy&#10;api.example.com"
+              placeholder="domain,example.com,proxy&#10;api.aliang.one"
               @input="_proxyRulesText = $event.target.value"
             ></textarea>
           </label>

@@ -143,7 +143,7 @@
 - **FR-002**: 系统必须实现路由决策引擎，优先级为：NoneLane域名 → Door域名 → GeoIP → Direct
   - **域名匹配算法**: 支持精确匹配和通配符匹配
     - 精确匹配：`example.com` 只匹配 `example.com`
-    - 通配符匹配：`*.example.com` 匹配所有子域名（如 `api.example.com`、`www.example.com`）
+    - 通配符匹配：`*.example.com` 匹配所有子域名（如 `api.aliang.one`、`www.example.com`）
     - 通配符仅支持单级前缀：`*.*.example.com` 不支持
   - **IP匹配算法**: 支持CIDR格式（如 `192.168.0.0/16`）和单IP精确匹配
   - **GeoIP匹配**: 基于MaxMind GeoLite2数据库，支持国家代码匹配（如 `CN`、`US`）

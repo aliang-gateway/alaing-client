@@ -19,7 +19,7 @@ func TestSoftwareConfigService_SaveActivateAndCloudSync(t *testing.T) {
 	t.Cleanup(config.ResetGlobalConfigForTest)
 	config.SetGlobalConfig(&config.Config{
 		Core: &config.CoreConfig{
-			APIServer: "https://api.example.com",
+			APIServer: "https://api.aliang.one",
 			AliangServer: &config.AliangServerConfig{
 				Type:       "aliang",
 				CoreServer: "ai-gateway.aliang.one:443",

@@ -324,7 +324,7 @@ func TestSocks5ConfigValidate(t *testing.T) {
 func TestConfigValidate_NewModelHelpers_ExposeRuntimeValues(t *testing.T) {
 	payload := []byte(`{
 		"core": {
-			"api_server": "https://api.example.com",
+			"api_server": "https://api.aliang.one",
 			"aliangServer": {
 				"type": "aliang",
 				"core_server": "ai-gateway.aliang.one:443"
@@ -386,7 +386,7 @@ func TestConfigValidate_NewModelHelpers_ExposeRuntimeValues(t *testing.T) {
 
 func TestConfigValidate_CustomerProxyTypeAcceptsSocks5(t *testing.T) {
 	payload := []byte(`{
-		"core": {"api_server": "https://api.example.com"},
+		"core": {"api_server": "https://api.aliang.one"},
 		"customer": {
 			"proxy": {
 				"type": "socks5",
@@ -407,7 +407,7 @@ func TestConfigValidate_CustomerProxyTypeAcceptsSocks5(t *testing.T) {
 
 func TestConfigValidate_ForbidUnknownCustomerField(t *testing.T) {
 	payload := []byte(`{
-		"core": {"api_server": "https://api.example.com"},
+		"core": {"api_server": "https://api.aliang.one"},
 		"customer": {
 			"proxy": {
 				"type": "http",
@@ -432,7 +432,7 @@ func TestConfigValidate_ForbidUnknownCustomerField(t *testing.T) {
 
 func TestConfigValidate_ForbidUnknownAIRulesField(t *testing.T) {
 	payload := []byte(`{
-		"core": {"api_server": "https://api.example.com"},
+		"core": {"api_server": "https://api.aliang.one"},
 		"customer": {
 			"proxy": {
 				"type": "http",
@@ -463,7 +463,7 @@ func TestConfigValidate_ForbidUnknownAIRulesField(t *testing.T) {
 
 func TestConfigValidate_AIRulesEnableRequired(t *testing.T) {
 	payload := []byte(`{
-		"core": {"api_server": "https://api.example.com"},
+		"core": {"api_server": "https://api.aliang.one"},
 		"customer": {
 			"proxy": {
 				"type": "http",

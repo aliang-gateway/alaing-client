@@ -79,7 +79,7 @@ func TestLoadConfigFromBytes_WithValidJSON_ReturnsConfig(t *testing.T) {
 
 	validJSON := []byte(`{
 		"core": {
-			"api_server": "https://api.example.com",
+			"api_server": "https://api.aliang.one",
 			"aliangServer": {
 				"type": "aliang",
 				"core_server": "gateway.example.com:443"
@@ -94,7 +94,7 @@ func TestLoadConfigFromBytes_WithValidJSON_ReturnsConfig(t *testing.T) {
 	if cfg == nil {
 		t.Fatalf("expected parsed config, got nil")
 	}
-	if cfg.APIBaseURL() != "https://api.example.com" {
+	if cfg.APIBaseURL() != "https://api.aliang.one" {
 		t.Fatalf("expected APIBaseURL to be parsed, got: %q", cfg.APIBaseURL())
 	}
 	if cfg.Core == nil || cfg.Core.AliangServer == nil {

@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"os"
+	"path/filepath"
 	"sync"
 
 	"aliang.one/nursorgate/common/logger"
@@ -33,6 +35,13 @@ func SaveConfigToFile(cfg *Config, filePath string) error {
 	data, err := json.MarshalIndent(cfg, "", "  ")
 	if err != nil {
 		return fmt.Errorf("failed to marshal config: %w", err)
+	}
+
+	parentDir := filepath.Dir(filePath)
+	if parentDir != "" && parentDir != "." {
+		if err := os.MkdirAll(parentDir, 0o755); err != nil {
+			return fmt.Errorf("failed to create config directory %s: %w", parentDir, err)
+		}
 	}
 
 	if err := ioutil.WriteFile(filePath, data, 0644); err != nil {
