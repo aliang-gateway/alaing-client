@@ -47,7 +47,7 @@ type LogConfig struct {
 }
 
 // DefaultLogConfig returns default configuration
-// Logs are stored in ~/.aliang/logs/ (or NURSOR_CACHE_DIR if set)
+// Logs are stored in ~/.aliang/logs/ (or ALIANG_CACHE_DIR if set)
 func DefaultLogConfig() *LogConfig {
 	logDir, err := cache.GetCacheSubdir("logs")
 	if err != nil {
@@ -70,7 +70,7 @@ func DefaultLogConfig() *LogConfig {
 }
 
 // HTTPLogConfig returns HTTP logger configuration
-// Logs are stored in ~/.aliang/logs/ (or NURSOR_CACHE_DIR if set)
+// Logs are stored in ~/.aliang/logs/ (or ALIANG_CACHE_DIR if set)
 func HTTPLogConfig() *LogConfig {
 	logDir, err := cache.GetCacheSubdir("logs")
 	if err != nil {

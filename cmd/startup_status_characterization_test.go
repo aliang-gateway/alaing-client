@@ -11,7 +11,7 @@ import (
 func setupStartupStatusTestAuthEnv(t *testing.T) {
 	baseDir := t.TempDir()
 	t.Setenv("HOME", baseDir)
-	t.Setenv("NURSOR_CACHE_DIR", baseDir)
+	t.Setenv("ALIANG_CACHE_DIR", baseDir)
 	auth.ResetAuthPersistenceForTest()
 	t.Cleanup(func() {
 		auth.ResetAuthPersistenceForTest()

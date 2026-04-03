@@ -12,7 +12,7 @@ func TestGetCacheDir_FallsBackToRuntimeDataDirInDaemonMode(t *testing.T) {
 	runtimeDir := t.TempDir()
 	t.Setenv("HOME", "")
 	t.Setenv("ALIANG_DATA_DIR", runtimeDir)
-	t.Setenv("NURSOR_CACHE_DIR", "")
+	t.Setenv("ALIANG_CACHE_DIR", "")
 
 	cacheDir, err := GetCacheDir()
 	if err != nil {
@@ -30,7 +30,7 @@ func TestGetCacheFile_UsesUnifiedRuntimeDir(t *testing.T) {
 	runtimeDir := t.TempDir()
 	t.Setenv("HOME", "")
 	t.Setenv("ALIANG_DATA_DIR", runtimeDir)
-	t.Setenv("NURSOR_CACHE_DIR", "")
+	t.Setenv("ALIANG_CACHE_DIR", "")
 
 	path, err := GetCacheFile("aliang.data")
 	if err != nil {

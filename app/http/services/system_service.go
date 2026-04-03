@@ -344,7 +344,7 @@ func buildManagedSystemServiceEnvironment(configPath string) (map[string]string,
 
 	env := map[string]string{}
 	if runtimeDataDir != "" {
-		env["NURSOR_CACHE_DIR"] = runtimeDataDir
+		env["ALIANG_CACHE_DIR"] = runtimeDataDir
 
 		sourceDir := filepath.Dir(configPath)
 		if err := ensureManagedCertificateAssets(sourceDir, runtimeDataDir); err != nil {

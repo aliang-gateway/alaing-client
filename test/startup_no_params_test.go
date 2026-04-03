@@ -200,7 +200,7 @@ func TestStartupStatusAPIAccess(t *testing.T) {
 func setupTestEnvironment(t *testing.T) {
 	baseDir := t.TempDir()
 	t.Setenv("HOME", filepath.Join(baseDir, "home"))
-	t.Setenv("NURSOR_CACHE_DIR", filepath.Join(baseDir, "cache"))
+	t.Setenv("ALIANG_CACHE_DIR", filepath.Join(baseDir, "cache"))
 
 	config.ResetGlobalConfigForTest()
 	cmd.ResetGlobalStartupStateForTest()

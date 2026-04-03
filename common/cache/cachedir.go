@@ -14,7 +14,7 @@ const (
 	DefaultCacheDirName = ".aliang"
 
 	// CacheDirEnvVar is the environment variable name for custom cache directory
-	CacheDirEnvVar = "NURSOR_CACHE_DIR"
+	CacheDirEnvVar = "ALIANG_CACHE_DIR"
 
 	// DefaultPermissions is the default permission mode for cache directory (777 = rwxrwxrwx)
 	DefaultPermissions = 0o777
@@ -37,7 +37,7 @@ func ResetCacheDirForTest() {
 
 // GetCacheDir returns the cache directory path.
 // It resolves paths in the following order:
-// 1. NURSOR_CACHE_DIR environment variable (if set)
+// 1. ALIANG_CACHE_DIR environment variable (if set)
 // 2. ~/.aliang (default)
 //
 // The directory is created with 0777 permissions if it doesn't exist.

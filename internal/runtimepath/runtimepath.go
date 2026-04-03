@@ -15,7 +15,7 @@ const (
 	ModeDaemon      Mode = "daemon"
 
 	UserStateDirName = ".aliang"
-	CacheDirEnvVar   = "NURSOR_CACHE_DIR"
+	CacheDirEnvVar   = "ALIANG_CACHE_DIR"
 )
 
 // DetectMode infers whether the current process is running as an interactive

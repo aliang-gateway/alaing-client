@@ -14,7 +14,7 @@ func TestDefaultDatabasePath_UsesGeoIPSubdirUnderRuntimeStateDir(t *testing.T) {
 	runtimeDir := t.TempDir()
 	t.Setenv("HOME", "")
 	t.Setenv("ALIANG_DATA_DIR", runtimeDir)
-	t.Setenv("NURSOR_CACHE_DIR", "")
+	t.Setenv("ALIANG_CACHE_DIR", "")
 
 	dbPath, err := DefaultDatabasePath()
 	if err != nil {
