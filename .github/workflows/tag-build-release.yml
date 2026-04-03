@@ -224,13 +224,18 @@ jobs:
         shell: bash
         env:
           VERSION: ${{ github.ref_name }}
+          ARCH: ${{ matrix.goarch }}
         run: |
           cd scripts
           chmod +x build-pkg.sh
           cp ../dist/$BINARY_NAME aliang
           ./build-pkg.sh
-          # Find and copy the generated pkg file
-          cp Aliang-*.pkg ../release/ || true
+          generated_pkg="Aliang-${VERSION}-${ARCH}.pkg"
+          if [ ! -f "$generated_pkg" ]; then
+            echo "Expected PKG not found: $generated_pkg"
+            exit 1
+          fi
+          cp "$generated_pkg" "../release/${{ matrix.asset_name }}.pkg"
 
       - name: Build MSI package
         if: matrix.package_type == 'msi'
@@ -311,7 +316,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.asset_name }}-package
-          path: release/*.${{ matrix.package_type }}
+          path: release/${{ matrix.asset_name }}.${{ matrix.package_type }}
           if-no-files-found: ignore
 
       - name: Upload MSI package artifact

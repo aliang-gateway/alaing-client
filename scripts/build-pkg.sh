@@ -12,10 +12,29 @@ SCRIPTS_DIR="$BUILD_DIR/scripts"
 APP_DIR="$PAYLOAD_DIR/Applications/Aliang.app"
 CORE_DIR="$PAYLOAD_DIR/Library/Application Support/one.aliang.aliang"
 VERSION="${VERSION:-1.0.0}"
+ARCH="${ARCH:-}"
+
+if [ -z "$ARCH" ]; then
+    case "$(uname -m)" in
+        x86_64)
+            ARCH="amd64"
+            ;;
+        arm64|aarch64)
+            ARCH="arm64"
+            ;;
+        *)
+            ARCH="$(uname -m)"
+            ;;
+    esac
+fi
+
+PKG_BASENAME="Aliang-${VERSION}-${ARCH}"
+PKG_PATH="$SCRIPT_DIR/${PKG_BASENAME}.pkg"
 
 echo "=== Building Aliang PKG Installer ==="
 echo "Project dir: $PROJECT_DIR"
 echo "Version: $VERSION"
+echo "Architecture: $ARCH"
 
 # Clean previous build
 rm -rf "$BUILD_DIR"
@@ -191,11 +210,11 @@ echo "=== Building distribution package ==="
 productbuild --identifier one.aliang.aliang \
     --version "$VERSION" \
     --package "$BUILD_DIR/Aliang.pkg" \
-    "$SCRIPT_DIR/Aliang-${VERSION}.pkg"
+    "$PKG_PATH"
 
 echo ""
 echo "=== Build Complete ==="
-echo "PKG Installer: $SCRIPT_DIR/Aliang-${VERSION}.pkg"
+echo "PKG Installer: $PKG_PATH"
 echo ""
 echo "Installation:"
 echo "  - Aliang.app will be installed to /Applications/Aliang.app"
