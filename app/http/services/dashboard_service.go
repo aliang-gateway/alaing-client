@@ -11,10 +11,11 @@ import (
 type DashboardService struct{}
 
 var (
-	getDashboardStatsFn  = auth.GetDashboardStats
-	getDashboardTrendFn  = auth.GetDashboardTrend
-	getDashboardModelsFn = auth.GetDashboardModels
-	getUsageRecordsFn    = auth.GetUsageRecords
+	getDashboardStatsFn   = auth.GetDashboardStats
+	getDashboardTrendFn   = auth.GetDashboardTrend
+	getDashboardModelsFn  = auth.GetDashboardModels
+	getUsageRecordsFn     = auth.GetUsageRecords
+	getHealthScoreFn      = auth.GetHealthScore
 )
 
 func NewDashboardService() *DashboardService {
@@ -39,6 +40,11 @@ func (s *DashboardService) GetModels(query url.Values) map[string]interface{} {
 func (s *DashboardService) GetUsageRecords(query url.Values) map[string]interface{} {
 	data, err := getUsageRecordsFn(query)
 	return dashboardResult("usage_fetch_failed", "Failed to fetch usage records", data, err)
+}
+
+func (s *DashboardService) GetHealth() map[string]interface{} {
+	data, err := getHealthScoreFn()
+	return dashboardResult("health_fetch_failed", "Failed to fetch health score", data, err)
 }
 
 func dashboardResult(errorCode, errorPrefix string, data json.RawMessage, err error) map[string]interface{} {

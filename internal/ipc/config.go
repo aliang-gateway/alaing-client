@@ -42,7 +42,7 @@ func CoreDataDir() string {
 	}
 	switch runtime.GOOS {
 	case "darwin":
-		return "/Library/Application Support/org.nursor.aliang"
+		return "/Library/Application Support/one.aliang.aliang"
 	case "linux":
 		return "/var/lib/aliang"
 	case "windows":

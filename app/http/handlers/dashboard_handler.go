@@ -46,3 +46,11 @@ func (h *DashboardHandler) HandleGetUsageRecords(w http.ResponseWriter, r *http.
 	}
 	common.Success(w, h.dashboardService.GetUsageRecords(r.URL.Query()))
 }
+
+func (h *DashboardHandler) HandleGetHealth(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		common.Error(w, http.StatusMethodNotAllowed, "Method not allowed", nil)
+		return
+	}
+	common.Success(w, h.dashboardService.GetHealth())
+}

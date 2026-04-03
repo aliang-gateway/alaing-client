@@ -10,7 +10,7 @@ import (
 	"strings"
 )
 
-const macOSCoreServiceLabel = "org.nursor.aliang.core"
+const macOSCoreServiceLabel = "one.aliang.aliang.core"
 
 // InstallMacOSCoreService installs the core service as a LaunchDaemon.
 // RunAtLoad=true, KeepAlive=true — the service starts automatically at system boot.
@@ -47,7 +47,7 @@ func InstallMacOSCoreService(execPath string) error {
 		Args:              []string{"core"},
 		RunAtLoad:         true,
 		KeepAlive:         true,
-		WorkingDirectory:   dataDir,
+		WorkingDirectory:  dataDir,
 		StandardOutPath:   filepath.Join(logDir, "core.log"),
 		StandardErrorPath: filepath.Join(logDir, "core.error.log"),
 		EnvironmentVars: map[string]string{

@@ -10,7 +10,7 @@ BUILD_DIR="$SCRIPT_DIR/build-pkg"
 PAYLOAD_DIR="$BUILD_DIR/payload"
 SCRIPTS_DIR="$BUILD_DIR/scripts"
 APP_DIR="$PAYLOAD_DIR/Applications/Aliang.app"
-CORE_DIR="$PAYLOAD_DIR/Library/Application Support/org.nursor.aliang"
+CORE_DIR="$PAYLOAD_DIR/Library/Application Support/one.aliang.aliang"
 VERSION="${VERSION:-1.0.0}"
 
 echo "=== Building Aliang PKG Installer ==="
@@ -79,8 +79,8 @@ rm -f "$HOME/Library/LaunchAgents/one.aliang.core.plist" 2>&1 || true
 
 # Stop and remove old core LaunchDaemon if exists (system-wide)
 echo "Preinstall: Stopping old core LaunchDaemon..."
-launchctl bootout "system/org.nursor.aliang.core" 2>&1 || true
-rm -f "/Library/LaunchDaemons/org.nursor.aliang.core.plist" 2>&1 || true
+launchctl bootout "system/one.aliang.aliang.core" 2>&1 || true
+rm -f "/Library/LaunchDaemons/one.aliang.aliang.core.plist" 2>&1 || true
 
 echo "Preinstall: Old services cleaned up"
 PREINSTALL_SCRIPT
@@ -106,7 +106,7 @@ mkdir -p "$LOG_DIR"
 chmod 755 "$LOG_DIR"
 
 # Data directory
-DATA_DIR="/Library/Application Support/org.nursor.aliang"
+DATA_DIR="/Library/Application Support/one.aliang.aliang"
 mkdir -p "$DATA_DIR"
 chmod 755 "$DATA_DIR"
 
@@ -122,7 +122,7 @@ fi
 
 # Create LaunchDaemon plist
 echo "Postinstall: Creating LaunchDaemon plist..."
-PLIST_PATH="/Library/LaunchDaemons/org.nursor.aliang.core.plist"
+PLIST_PATH="/Library/LaunchDaemons/one.aliang.aliang.core.plist"
 
 cat > "$PLIST_PATH" << 'PLIST_EOF'
 <?xml version="1.0" encoding="UTF-8"?>
@@ -130,10 +130,10 @@ cat > "$PLIST_PATH" << 'PLIST_EOF'
 <plist version="1.0">
 <dict>
 	<key>Label</key>
-	<string>org.nursor.aliang.core</string>
+	<string>one.aliang.aliang.core</string>
 	<key>ProgramArguments</key>
 	<array>
-		<string>/Library/Application Support/org.nursor.aliang/aliang</string>
+		<string>/Library/Application Support/one.aliang.aliang/aliang</string>
 		<string>core</string>
 	</array>
 	<key>RunAtLoad</key>
@@ -141,7 +141,7 @@ cat > "$PLIST_PATH" << 'PLIST_EOF'
 	<key>KeepAlive</key>
 	<true/>
 	<key>WorkingDirectory</key>
-	<string>/Library/Application Support/org.nursor.aliang</string>
+	<string>/Library/Application Support/one.aliang.aliang</string>
 	<key>StandardOutPath</key>
 	<string>/Library/Logs/Aliang/core.log</string>
 	<key>StandardErrorPath</key>
@@ -149,7 +149,7 @@ cat > "$PLIST_PATH" << 'PLIST_EOF'
 	<key>EnvironmentVariables</key>
 	<dict>
 		<key>ALIANG_DATA_DIR</key>
-		<string>/Library/Application Support/org.nursor.aliang</string>
+		<string>/Library/Application Support/one.aliang.aliang</string>
 		<key>ALIANG_LOG_DIR</key>
 		<string>/Library/Logs/Aliang</string>
 		<key>ALIANG_SOCKET_PATH</key>
@@ -179,7 +179,7 @@ echo "=== App bundle and Core binary ready ==="
 
 # Step 8: Build component package with pkgbuild
 echo "=== Building component package ==="
-pkgbuild --identifier org.nursor.aliang \
+pkgbuild --identifier one.aliang.aliang \
     --version "$VERSION" \
     --root "$PAYLOAD_DIR" \
     --scripts "$SCRIPTS_DIR" \
@@ -188,7 +188,7 @@ pkgbuild --identifier org.nursor.aliang \
 
 # Step 9: Create distribution package with productbuild
 echo "=== Building distribution package ==="
-productbuild --identifier org.nursor.aliang \
+productbuild --identifier one.aliang.aliang \
     --version "$VERSION" \
     --package "$BUILD_DIR/Aliang.pkg" \
     "$SCRIPT_DIR/Aliang-${VERSION}.pkg"
@@ -199,7 +199,7 @@ echo "PKG Installer: $SCRIPT_DIR/Aliang-${VERSION}.pkg"
 echo ""
 echo "Installation:"
 echo "  - Aliang.app will be installed to /Applications/Aliang.app"
-echo "  - Core binary installed to /Library/Application Support/org.nursor.aliang/aliang"
+echo "  - Core binary installed to /Library/Application Support/one.aliang.aliang/aliang"
 echo "  - Core service (LaunchDaemon) registered with system-wide scope"
 echo "  - Core starts automatically at system boot"
 echo "  - Opening Aliang.app starts the Shell which connects to Core via IPC"

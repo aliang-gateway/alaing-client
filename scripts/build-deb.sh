@@ -51,7 +51,6 @@ Description: Aliang Gateway Proxy Client
 Homepage: https://aliang.one
 Architecture: $ARCH
 Depends: libc6 (>= 2.34)
-Control: aliang
 CONTROL_EOF
 
 # Step 3: Create systemd unit
@@ -182,35 +181,24 @@ cd "$BUILD_DIR"
 # Create debian-binary file
 echo "2.0" > debian-binary
 
-# Create control archive
-ar rcs "aliang_${VERSION}_${ARCH}.deb" \
-    debian-binary \
-    "$CONTROL_DIR/control" \
-    "$CONTROL_DIR/postinst" \
-    "$CONTROL_DIR/prerm"
+# For proper DEB, use dpkg-deb when available.
+if command -v dpkg-deb >/dev/null 2>&1; then
+    if dpkg-deb --build --root-owner-group "$PAYLOAD_DIR" "aliang_${VERSION}_${ARCH}.deb"; then
+        :
+    else
+        echo "dpkg-deb build failed, falling back to manual archive assembly"
+        rm -f "aliang_${VERSION}_${ARCH}.deb"
+    fi
+fi
 
-# For proper DEB, use dpkg-deb
-dpkg-deb --build --root-owned-path "$PAYLOAD_DIR" "aliang_${VERSION}_${ARCH}.deb" 2>/dev/null || {
-    # Fallback: create using tar
-    mkdir -p "$BUILD_DIR/DEBIAN"
-    cp "$CONTROL_DIR/control" "$BUILD_DIR/DEBIAN/"
-    cp "$CONTROL_DIR/postinst" "$BUILD_DIR/DEBIAN/"
-    cp "$CONTROL_DIR/prerm" "$BUILD_DIR/DEBIAN/"
-    chmod 755 "$BUILD_DIR/DEBIAN/"*
+if [ ! -f "aliang_${VERSION}_${ARCH}.deb" ]; then
+    # Fallback: assemble a standards-compliant .deb manually.
+    tar -C "$CONTROL_DIR" -czf "$BUILD_DIR/control.tar.gz" .
+    tar --exclude='./DEBIAN' -C "$PAYLOAD_DIR" -czf "$BUILD_DIR/data.tar.gz" .
 
-    # Create data tarball
-    cd "$PAYLOAD_DIR"
-    tar -czf "$BUILD_DIR/data.tar.gz" usr/
-
-    # Create control tarball
-    cd "$BUILD_DIR"
-    tar -czf control.tar.gz DEBIAN/control DEBIAN/postinst DEBIAN/prerm
-
-    # Create deb package using ar
     rm -f "aliang_${VERSION}_${ARCH}.deb"
-   ar rc "aliang_${VERSION}_${ARCH}.deb" debian-binary
-    ar r "aliang_${VERSION}_${ARCH}.deb" data.tar.gz control.tar.gz
-}
+    ar rc "aliang_${VERSION}_${ARCH}.deb" debian-binary control.tar.gz data.tar.gz
+fi
 
 # Move to scripts directory
 mv "aliang_${VERSION}_${ARCH}.deb" "$SCRIPT_DIR/"

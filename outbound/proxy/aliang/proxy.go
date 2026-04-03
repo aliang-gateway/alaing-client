@@ -34,7 +34,7 @@ func NewAliang(config *AliangConfig) (*Aliang, error) {
 	return &Aliang{
 		Base: &proxy.Base{
 			Address:  config.Addr,
-			Protocol: proto.Aliang, // 使用 HY2 作为协议类型，或者可以添加新的类型
+			Protocol: proto.Aliang,
 		},
 		config:    config,
 		connector: NewAliangServerConnector(config),
@@ -44,7 +44,6 @@ func NewAliang(config *AliangConfig) (*Aliang, error) {
 }
 
 // DialContext implements the Proxy interface
-// Establishes a connection to the target address through the cursor H2 proxy
 func (c *Aliang) DialContext(ctx context.Context, metadata *metadata.Metadata) (net.Conn, error) {
 	c.mu.RLock()
 	if c.closed {

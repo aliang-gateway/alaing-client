@@ -201,7 +201,7 @@
                 </div>
                 <div class="mt-1 grid grid-cols-3 gap-2 text-[11px]">
                   <div>
-                    <p class="text-slate-400">Latency</p>
+                    <p class="text-slate-400">Score/Latency</p>
                     <p class="font-semibold text-slate-700 dark:text-slate-100">{{ serverLatencyLabel }}</p>
                   </div>
                   <div>
@@ -847,6 +847,7 @@ const serverLinkOnline = ref(false);
 const serverLinkPending = ref(false);
 const serverLinkLatencyMs = ref(null);
 const serverLinkLastCheckedAt = ref(0);
+const serverHealthScore = ref(null);
 let tunStartLogTimer = null;
 let tunStartStatusTimer = null;
 let tunStartBackendTimer = null;
@@ -1025,7 +1026,14 @@ const serverLatencyLabel = computed(() => {
     return '...';
   }
   if (typeof serverLinkLatencyMs.value === 'number') {
-    return `${Math.round(serverLinkLatencyMs.value)} ms`;
+    const latency = `${Math.round(serverLinkLatencyMs.value)} ms`;
+    if (typeof serverHealthScore.value === 'number') {
+      return `${serverHealthScore.value}/${latency}`;
+    }
+    return latency;
+  }
+  if (typeof serverHealthScore.value === 'number') {
+    return `${serverHealthScore.value}/--`;
   }
   return '--';
 });
@@ -1064,6 +1072,7 @@ async function sampleServerLink() {
   const startedAt = performance.now();
 
   try {
+    // Check basic connectivity with run status endpoint
     const response = await fetch('/api/run/status', {
       method: 'GET',
       cache: 'no-store'
@@ -1075,9 +1084,26 @@ async function sampleServerLink() {
     serverLinkOnline.value = true;
     serverLinkLatencyMs.value = performance.now() - startedAt;
     serverLinkLastCheckedAt.value = Date.now();
+
+    // Fetch health score from the backend service
+    try {
+      const healthResponse = await fetch('/api/health', {
+        method: 'GET',
+        cache: 'no-store'
+      });
+      const healthPayload = await healthResponse.json().catch(() => ({}));
+      if (healthResponse.ok && healthPayload?.code === 0 && healthPayload?.data) {
+        serverHealthScore.value = healthPayload.data.health_score ?? null;
+      } else {
+        serverHealthScore.value = null;
+      }
+    } catch {
+      serverHealthScore.value = null;
+    }
   } catch (_) {
     serverLinkOnline.value = false;
     serverLinkLatencyMs.value = null;
+    serverHealthScore.value = null;
     serverLinkLastCheckedAt.value = Date.now();
   } finally {
     serverLinkPending.value = false;

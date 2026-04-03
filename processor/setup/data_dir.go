@@ -12,13 +12,13 @@ import (
 
 const (
 	// macOSAppSupport is the macOS Application Support directory name
-	macOSAppSupportDir = "org.nursor.aliang"
+	macOSAppSupportDir = "one.aliang.aliang"
 	// linuxLibDir is the Linux lib directory name
 	linuxLibDir = "aliang"
 )
 
 // CoreDataDir returns the system-level data directory.
-// macOS: /Library/Application Support/org.nursor.aliang/
+// macOS: /Library/Application Support/one.aliang.aliang/
 // Linux: /var/lib/aliang/
 // Windows: %ProgramData%\Aliang\
 func CoreDataDir() string {

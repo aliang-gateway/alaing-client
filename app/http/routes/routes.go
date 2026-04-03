@@ -208,6 +208,7 @@ func RegisterRoutes(h *Handlers, mux *http.ServeMux) {
 	register("/api/dashboard/trend", h.Dashboard.HandleGetTrend, http.MethodGet)
 	register("/api/dashboard/models", h.Dashboard.HandleGetModels, http.MethodGet)
 	register("/api/dashboard/usage", h.Dashboard.HandleGetUsageRecords, http.MethodGet)
+	register("/api/health", h.Dashboard.HandleGetHealth, http.MethodGet)
 
 	registerDocsRoutes(mux, catalog)
 }

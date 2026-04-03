@@ -68,3 +68,8 @@ func GetDashboardModels(query url.Values) (json.RawMessage, error) {
 func GetUsageRecords(query url.Values) (json.RawMessage, error) {
 	return fetchDashboardData("/api/v1/usage", query)
 }
+
+// GetHealthScore fetches the health score from the backend service
+func GetHealthScore() (json.RawMessage, error) {
+	return fetchDashboardData("/api/v1/admin/ops/dashboard/snapshot-v2", nil)
+}
