@@ -294,6 +294,12 @@ func (w *WindowsServiceManager) IsInstalled() bool {
 
 	s, err := m.OpenService(w.name)
 	if err != nil {
+		if errors.Is(err, windows.ERROR_ACCESS_DENIED) {
+			return true
+		}
+		if isServiceMarkedForDelete(err) {
+			return true
+		}
 		return false
 	}
 	s.Close()

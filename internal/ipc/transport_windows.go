@@ -21,7 +21,12 @@ func NewTransport() Transport {
 }
 
 func (t *windowsTransport) Listen() (net.Listener, error) {
-	listener, err := winio.ListenPipe(t.path, nil)
+	listener, err := winio.ListenPipe(t.path, &winio.PipeConfig{
+		// Allow the system service to host the pipe while regular interactive users connect to it.
+		SecurityDescriptor: "D:P(A;;GA;;;SY)(A;;GA;;;BA)(A;;GRGW;;;AU)",
+		InputBufferSize:    4096,
+		OutputBufferSize:   4096,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to listen on named pipe %s: %w", t.path, err)
 	}

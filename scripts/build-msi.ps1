@@ -178,7 +178,7 @@ $iconDefXml
         <!-- Service Registration Custom Action -->
         <CustomAction Id="RegisterService"
                       Directory="INSTALLFOLDER"
-                      ExeCommand="[INSTALLFOLDER]$BINARY_NAME service install --system-wide --start"
+                      ExeCommand="[INSTALLFOLDER]$BINARY_NAME service install --system-wide"
                       Return="check"
                       Execute="deferred"
                       Impersonate="no"/>

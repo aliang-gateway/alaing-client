@@ -65,7 +65,7 @@ func (a *CompanionApp) onReady() {
 	mVersion.Disable()
 
 	systray.AddSeparator()
-	a.mQuit = systray.AddMenuItem("Quit Aliang", "Quit the companion and stop the Windows service")
+	a.mQuit = systray.AddMenuItem("Quit Aliang", "Quit the companion without stopping the background Windows service")
 
 	go func() {
 		a.connectAndStartHTTP()
@@ -80,22 +80,19 @@ func (a *CompanionApp) onExit() {
 
 func (a *CompanionApp) connectAndStartHTTP() {
 	serviceName := setup.GetServiceName()
-	if !setup.IsServiceInstalled(serviceName, true) {
-		a.failStartup("background service not installed", "后台服务未安装，无法启动桌面程序。")
-		return
-	}
+	writeWindowsCompanionTrace("connectAndStartHTTP service=%s", serviceName)
 
 	status, err := setup.GetServiceStatus(serviceName, true)
-	if err == nil && !status.IsRunning {
+	if err != nil || !status.IsRunning {
 		logger.Info("Windows service not running, starting it...")
-		if err := setup.StartService(serviceName, true); err != nil {
+		if err := startServiceWithElevation(serviceName); err != nil {
 			logger.Error("Failed to start Windows service", "error", err)
 			a.failStartup("background service start failed", fmt.Sprintf("后台服务启动失败：%v", err))
 			return
 		}
 	}
 
-	if !a.waitForIPC(10 * time.Second) {
+	if !a.waitForIPC(15 * time.Second) {
 		a.failStartup("background service startup timed out", "后台服务启动超时，未能建立 IPC 连接。")
 		return
 	}
@@ -284,9 +281,8 @@ func (a *CompanionApp) quit() {
 		close(a.done)
 	}
 
-	a.stopProxy()
+	_, _ = a.ipcClient.Send(ipc.ActionStopHTTP, nil)
 	_ = a.ipcClient.Close()
-	_ = setup.StopService(setup.GetServiceName(), true)
 
 	systray.Quit()
 	os.Exit(0)

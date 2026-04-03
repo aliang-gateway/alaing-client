@@ -15,5 +15,9 @@ func main() {
 		return
 	}
 
+	if cmd.MaybeRunWindowsCompanionFromArgs() {
+		return
+	}
+
 	cmd.Execute()
 }

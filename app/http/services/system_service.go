@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"time"
 
 	"aliang.one/nursorgate/processor/setup"
 )
@@ -325,9 +326,30 @@ func removeManagedExecutable() error {
 	if targetPath == "" {
 		return nil
 	}
-	if err := os.Remove(targetPath); err != nil && !os.IsNotExist(err) {
-		return err
+
+	for attempt := 0; attempt < 5; attempt++ {
+		if err := os.Remove(targetPath); err == nil || os.IsNotExist(err) {
+			return nil
+		} else if runtime.GOOS != "windows" {
+			return err
+		}
+
+		time.Sleep(300 * time.Millisecond)
 	}
+
+	if runtime.GOOS == "windows" {
+		if elevatedErr := removeFileElevated(targetPath); elevatedErr != nil {
+			if _, statErr := os.Stat(targetPath); statErr == nil {
+				return fmt.Errorf("failed to remove managed executable %q even after elevation: %w", targetPath, elevatedErr)
+			}
+			return nil
+		}
+		if _, statErr := os.Stat(targetPath); statErr == nil {
+			return fmt.Errorf("managed executable %q still exists after elevated removal", targetPath)
+		}
+		return nil
+	}
+
 	return nil
 }
 

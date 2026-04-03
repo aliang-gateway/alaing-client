@@ -68,3 +68,6 @@ alianggate
 nursorgate
 .gocache/*
 release/*
+.gomodcache
+.gomodcache/*
+.gopath/*
