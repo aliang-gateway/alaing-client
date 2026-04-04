@@ -1,7 +1,5 @@
 package cmd
 
-import "github.com/spf13/cobra"
-
 type defaultRootLaunchMode string
 
 const (
@@ -17,8 +15,4 @@ func decideWindowsDefaultLaunchMode(argv []string, hasConsole bool) defaultRootL
 		return defaultRootLaunchModeCLI
 	}
 	return defaultRootLaunchModeGUI
-}
-
-func runCommandLineDefaultRoot(cmd *cobra.Command, args []string) error {
-	return runTray(cmd, args)
 }

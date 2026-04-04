@@ -3,11 +3,8 @@ package cmd
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 	"runtime/debug"
-	"strings"
 
-	"aliang.one/nursorgate/app/tray"
 	"aliang.one/nursorgate/common/logger"
 	"github.com/spf13/cobra"
 )
@@ -25,12 +22,7 @@ var rootCmd = &cobra.Command{
 	// PersistentPreRunE: 移除，因为逻辑应该在 RunE 或子命令中处理
 	// 这样可以避免在子命令执行时也执行不必要的逻辑
 	RunE: func(cmd *cobra.Command, args []string) error {
-		// Detect if running from .app bundle on macOS
-		execPath, _ := filepath.EvalSymlinks(os.Args[0])
-		if execPath != "" && strings.Contains(execPath, ".app/Contents/MacOS/") {
-			// .app bundle launch → enter smart tray mode (companion)
-			logger.Info("Detected .app bundle launch, starting tray mode...")
-			tray.RunCompanion()
+		if maybeRunAppBundleCompanion() {
 			return nil
 		}
 		return runDefaultRoot(cmd, args)
