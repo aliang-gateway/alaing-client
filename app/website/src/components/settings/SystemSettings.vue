@@ -659,10 +659,6 @@ export default {
       if (this.loadingMode || this.switchingMode || this.wintunDependency.installing || this.selectedMode === normalizedMode) {
         return;
       }
-      if (this.backendMode === 'http' && normalizedMode === 'tun') {
-        this.showTunSwitchConfirm = true;
-        return;
-      }
       if (normalizedMode === 'tun' && this.wintunDependency.required && !this.wintunDependency.available) {
         this.selectedMode = normalizedMode;
         await this.installWintunDependency({ continueAfterInstall: true });
@@ -684,18 +680,7 @@ export default {
       await this.continueTunSwitchAfterDependencyReady();
     },
     async continueTunSwitchAfterDependencyReady() {
-      this.showDashboard();
-      await nextTick();
-      window.dispatchEvent(new CustomEvent('aliang:tun-progress-open', {
-        detail: {
-          phase: 'switching_mode',
-          title: 'Switching To TUN',
-          detail: 'Applying the new run mode and following live TUN startup logs from the dashboard.',
-          statusLabel: 'Switching from HTTP to TUN...',
-          statusHint: 'The backend is applying the new mode. If TUN startup fails, the error logs will stay visible here.'
-        }
-      }));
-      await this.switchMode({ reportTunProgress: true });
+      await this.switchMode();
     },
     async requestJSON(url, options = {}) {
       const res = await fetch(url, options);
@@ -911,7 +896,7 @@ export default {
         });
       }
     },
-    async switchMode(options = {}) {
+    async switchMode() {
       this.switchingMode = true;
       this.clearMessages();
       try {
@@ -926,24 +911,10 @@ export default {
         }
         this.modeSuccess = typeof result?.message === 'string' && result.message
           ? result.message
-          : `Applied ${this.selectedMode.toUpperCase()} mode successfully.`;
+          : `Selected ${this.selectedMode.toUpperCase()} mode successfully. Proxy will stay stopped until you press Start.`;
         await this.refreshModeState({ preserveMessages: true });
-        if (options.reportTunProgress) {
-          window.dispatchEvent(new CustomEvent('aliang:tun-progress-success', {
-            detail: {
-              message: this.modeSuccess || 'Switched to TUN mode successfully.'
-            }
-          }));
-        }
       } catch (err) {
         this.modeError = err instanceof Error ? err.message : 'Failed to switch mode.';
-        if (options.reportTunProgress) {
-          window.dispatchEvent(new CustomEvent('aliang:tun-progress-error', {
-            detail: {
-              message: this.modeError
-            }
-          }));
-        }
       } finally {
         this.switchingMode = false;
       }

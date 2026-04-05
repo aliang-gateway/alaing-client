@@ -329,15 +329,6 @@ func (rs *RunService) SwitchMode(targetMode string) map[string]interface{} {
 
 	authoritativeMode := rs.resolveAuthoritativeModeLocked()
 
-	// Check if already in target mode and running
-	if authoritativeMode == targetModeEnum && rs.isRunning {
-		return map[string]interface{}{
-			"status":       "already_running",
-			"current_mode": string(authoritativeMode),
-			"message":      "Already running in " + string(authoritativeMode) + " mode",
-		}
-	}
-
 	if targetModeEnum == models.ModeTUN {
 		wintunStatus := getSharedWintunDependencyController().Refresh()
 		if wintunStatus.Supported && wintunStatus.Required && !wintunStatus.Available {
@@ -356,16 +347,29 @@ func (rs *RunService) SwitchMode(targetMode string) map[string]interface{} {
 
 	previousMode := authoritativeMode
 	wasRunning := rs.isRunning
-	if previousMode != targetModeEnum && wasRunning {
-		logger.Info("Stopping " + string(previousMode) + " service before switching to " + string(targetModeEnum) + " mode...")
+	if previousMode == targetModeEnum {
+		message := "Run mode is already set to " + string(targetModeEnum) + "."
+		if wasRunning {
+			message += " The current proxy keeps running until you stop it."
+		} else {
+			message += " Call start to activate the proxy."
+		}
+		return map[string]interface{}{
+			"status":       "unchanged",
+			"current_mode": string(authoritativeMode),
+			"is_running":   rs.isRunning,
+			"message":      message,
+		}
+	}
+
+	if wasRunning {
+		logger.Info("Stopping " + string(previousMode) + " service before applying " + string(targetModeEnum) + " mode...")
 		rs.isRunning = false
 		rs.stopServiceSync(previousMode)
 	}
 
 	if err := applyIngressModeUpdater(targetModeEnum); err != nil {
-		if previousMode != targetModeEnum {
-			rs.rollbackToPreviousModeLocked(previousMode, wasRunning)
-		}
+		rs.rollbackToPreviousModeLocked(previousMode, wasRunning)
 		return map[string]interface{}{
 			"error":          "switch_failed",
 			"status":         "failed",
@@ -390,53 +394,32 @@ func (rs *RunService) SwitchMode(targetMode string) map[string]interface{} {
 	logger.Info("Switching to " + string(targetModeEnum) + " mode")
 
 	response := map[string]interface{}{
-		"status":      "switched",
-		"target_mode": targetModeEnum,
+		"status":                  "switched",
+		"target_mode":             targetModeEnum,
+		"current_mode":            string(targetModeEnum),
+		"is_running":              rs.isRunning,
+		"stopped_running_service": wasRunning,
+		"previous_mode":           string(previousMode),
 	}
 
 	switch targetModeEnum {
 	case models.ModeHTTP:
 		// 检查是否已经在运行 HTTP 服务
-		if rs.isRunning && previousMode == models.ModeHTTP {
-			response["message"] = "Already running in HTTP proxy mode"
-			response["status"] = "already_running"
-			return response
+		response["message"] = "Switched to HTTP mode. Proxy remains stopped until start is called."
+		response["usage"] = "POST /api/run/start after restoring an authenticated session"
+		if wasRunning {
+			response["details"] = "The previously running " + string(previousMode) + " service was stopped. Call start to launch HTTP mode."
+		} else {
+			response["details"] = "HTTP mode is selected and ready to start."
 		}
-
-		response["message"] = "Switched to HTTP proxy mode. Server is starting on 127.0.0.1:56432"
-		response["usage"] = "curl -x http://127.0.0.1:56432 https://example.com"
-		response["details"] = "HTTP proxy server will be ready in a moment"
-		response["next_action"] = "HTTP service starts automatically, you can begin using it after 1 second"
-
-		if wasRunning || targetModeEnum == models.ModeHTTP {
-			rs.isRunning = true
-			go func() {
-				logger.Info("Starting HTTP proxy server...")
-				httpStartRunner()
-			}()
-		}
+		response["next_action"] = "Call start to activate HTTP mode"
 
 	case models.ModeTUN:
-		if wasRunning {
-			tunResult := rs.handleTUNStartResultLocked(tunStartRunner())
-			if status, ok := tunResult["status"].(string); ok && status == "failed" {
-				rs.rollbackFromActivationFailureLocked(previousMode, tunResult)
-				return map[string]interface{}{
-					"error":          "switch_failed",
-					"status":         "failed",
-					"msg":            fmt.Sprintf("failed to start %s mode during hot switch", targetModeEnum),
-					"target_result":  tunResult,
-					"current_mode":   string(rs.resolveAuthoritativeModeLocked()),
-					"rollback_state": map[string]interface{}{"mode": string(previousMode), "running": rs.isRunning},
-				}
-			}
-			response["message"] = "Hot switched to TUN mode and started TUN service"
-			response["next_step"] = "TUN service is active"
-			break
-		}
-
-		response["message"] = "Switched to TUN mode. Use start to activate the TUN service"
+		response["message"] = "Switched to TUN mode. Proxy remains stopped until start is called."
 		response["usage"] = "POST /api/run/start after restoring an authenticated session"
+		if wasRunning {
+			response["details"] = "The previously running " + string(previousMode) + " service was stopped. Call start to launch TUN mode."
+		}
 		response["next_step"] = "Call start to initialize and start the TUN interface"
 	}
 

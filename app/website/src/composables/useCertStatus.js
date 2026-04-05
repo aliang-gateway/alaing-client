@@ -23,6 +23,25 @@ function statusKey(data) {
 
 let lastKey = '';
 
+function isCertTrustedAndInstalled(data) {
+  return Boolean(data?.is_installed) && Boolean(data?.is_trusted);
+}
+
+function ensurePollingState() {
+  const shouldPoll = refCount > 0 && !isCertTrustedAndInstalled(certStatus.value);
+  if (shouldPoll) {
+    if (pollTimer === null) {
+      pollTimer = window.setInterval(fetchStatus, POLL_INTERVAL);
+    }
+    return;
+  }
+
+  if (pollTimer !== null) {
+    window.clearInterval(pollTimer);
+    pollTimer = null;
+  }
+}
+
 async function fetchStatus() {
   const isFirstLoad = !certStatus.value;
   if (isFirstLoad) loading.value = true;
@@ -48,6 +67,7 @@ async function fetchStatus() {
     }
     if (!error.value) error.value = err.message;
   } finally {
+    ensurePollingState();
     if (isFirstLoad) loading.value = false;
   }
 }
@@ -56,7 +76,7 @@ function startPolling() {
   refCount++;
   if (refCount === 1) {
     fetchStatus();
-    pollTimer = setInterval(fetchStatus, POLL_INTERVAL);
+    ensurePollingState();
   }
 }
 
@@ -64,11 +84,8 @@ function stopPolling() {
   refCount--;
   if (refCount <= 0) {
     refCount = 0;
-    if (pollTimer) {
-      clearInterval(pollTimer);
-      pollTimer = null;
-    }
   }
+  ensurePollingState();
 }
 
 function invalidateCache() {

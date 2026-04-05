@@ -24,6 +24,9 @@ const (
 // CompanionApp is the macOS tray companion that communicates with Core via IPC.
 type CompanionApp struct {
 	mProxyStatus   *systray.MenuItem
+	mModeStatus    *systray.MenuItem
+	mModeHTTP      *systray.MenuItem
+	mModeTUN       *systray.MenuItem
 	mStart         *systray.MenuItem
 	mStop          *systray.MenuItem
 	mRestart       *systray.MenuItem
@@ -58,6 +61,13 @@ func (a *CompanionApp) onReady() {
 
 	a.mProxyStatus = systray.AddMenuItem("Proxy: starting core...", "Current proxy listener status")
 	a.mProxyStatus.Disable()
+
+	a.mModeStatus = systray.AddMenuItem("Current Mode: syncing...", "Selected proxy mode for the next start")
+	a.mModeStatus.Disable()
+	a.mModeHTTP = systray.AddMenuItemCheckbox("Select HTTP Mode", "Choose HTTP mode for the next explicit start", false)
+	a.mModeTUN = systray.AddMenuItemCheckbox("Select TUN Mode", "Choose TUN mode for the next explicit start", false)
+
+	systray.AddSeparator()
 
 	a.mStart = systray.AddMenuItem("Start Proxy", "Start the active proxy listener in the background service")
 	a.mStop = systray.AddMenuItem("Stop Proxy", "Stop the active proxy listener in the background service")
@@ -157,6 +167,10 @@ func (a *CompanionApp) handleMenuEvents() {
 			a.startProxy()
 		case <-a.mStop.ClickedCh:
 			a.stopProxy()
+		case <-a.mModeHTTP.ClickedCh:
+			a.selectMode("http")
+		case <-a.mModeTUN.ClickedCh:
+			a.selectMode("tun")
 		case <-a.mRestart.ClickedCh:
 			a.restartProxy()
 		case <-a.mOpenDashboard.ClickedCh:
@@ -200,10 +214,45 @@ func (a *CompanionApp) stopProxy() {
 	a.syncState()
 }
 
+func (a *CompanionApp) selectMode(mode string) {
+	logger.Info(fmt.Sprintf("Selecting %s mode from tray companion...", mode))
+	result, err := a.ipcClient.Send(ipc.ActionSwitchMode, ipc.SwitchModeArgs{Mode: mode})
+	if err != nil {
+		logger.Error(fmt.Sprintf("Failed to switch mode from tray companion: %v", err))
+		a.applyUnavailableState(fmt.Sprintf("service unavailable (%v)", err))
+		return
+	}
+
+	if !result.OK {
+		logger.Error(fmt.Sprintf("Background service rejected tray mode switch: %s", result.Error))
+	}
+	a.syncState()
+}
+
 func (a *CompanionApp) restartProxy() {
 	a.stopProxy()
 	time.Sleep(400 * time.Millisecond)
 	a.startProxy()
+}
+
+func (a *CompanionApp) syncModeMenu(mode string) {
+	if a.mModeStatus != nil {
+		a.mModeStatus.SetTitle(fmt.Sprintf("Current Mode: %s", strings.ToUpper(mode)))
+	}
+	if a.mModeHTTP != nil {
+		if mode == "http" {
+			a.mModeHTTP.Check()
+		} else {
+			a.mModeHTTP.Uncheck()
+		}
+	}
+	if a.mModeTUN != nil {
+		if mode == "tun" {
+			a.mModeTUN.Check()
+		} else {
+			a.mModeTUN.Uncheck()
+		}
+	}
 }
 
 func (a *CompanionApp) stopProxyIfNeeded() {
@@ -267,8 +316,15 @@ func (a *CompanionApp) syncState() {
 	}
 
 	a.isRunning = running
+	a.syncModeMenu(strings.ToLower(mode))
 	if a.mProxyStatus != nil {
 		a.mProxyStatus.SetTitle(fmt.Sprintf("Proxy: %s", description))
+	}
+	if a.mModeHTTP != nil {
+		a.mModeHTTP.Enable()
+	}
+	if a.mModeTUN != nil {
+		a.mModeTUN.Enable()
 	}
 	if a.mStart != nil {
 		if running {
@@ -344,6 +400,12 @@ func (a *CompanionApp) applyUnavailableState(reason string) {
 	}
 	if a.mStart != nil {
 		a.mStart.Disable()
+	}
+	if a.mModeHTTP != nil {
+		a.mModeHTTP.Disable()
+	}
+	if a.mModeTUN != nil {
+		a.mModeTUN.Disable()
 	}
 	if a.mStop != nil {
 		a.mStop.Disable()

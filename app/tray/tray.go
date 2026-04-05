@@ -18,6 +18,9 @@ import (
 // TrayApp manages the system tray application
 type TrayApp struct {
 	mProxyStatus   *systray.MenuItem
+	mModeStatus    *systray.MenuItem
+	mModeHTTP      *systray.MenuItem
+	mModeTUN       *systray.MenuItem
 	mStart         *systray.MenuItem
 	mStop          *systray.MenuItem
 	mRestart       *systray.MenuItem
@@ -63,6 +66,13 @@ func onReady() {
 	mProxyStatus := systray.AddMenuItem("Proxy: syncing status...", "Current proxy listener status")
 	mProxyStatus.Disable()
 
+	mModeStatus := systray.AddMenuItem("Current Mode: syncing...", "Selected proxy mode for the next start")
+	mModeStatus.Disable()
+	mModeHTTP := systray.AddMenuItemCheckbox("Select HTTP Mode", "Choose HTTP mode for the next explicit start", false)
+	mModeTUN := systray.AddMenuItemCheckbox("Select TUN Mode", "Choose TUN mode for the next explicit start", false)
+
+	systray.AddSeparator()
+
 	mStart := systray.AddMenuItem("Start Proxy", "Start the active HTTP/TUN proxy listener")
 	mStop := systray.AddMenuItem("Stop Proxy", "Stop the active HTTP/TUN proxy listener")
 	mStop.Disable()
@@ -82,6 +92,9 @@ func onReady() {
 
 	app := NewTrayApp()
 	app.mProxyStatus = mProxyStatus
+	app.mModeStatus = mModeStatus
+	app.mModeHTTP = mModeHTTP
+	app.mModeTUN = mModeTUN
 	app.mStart = mStart
 	app.mStop = mStop
 	app.mRestart = mRestart
@@ -125,6 +138,12 @@ func (t *TrayApp) handleMenuEvents() {
 			if t.onStop != nil {
 				t.onStop()
 			}
+
+		case <-t.mModeHTTP.ClickedCh:
+			t.selectMode("http")
+
+		case <-t.mModeTUN.ClickedCh:
+			t.selectMode("tun")
 
 		case <-t.mRestart.ClickedCh:
 			if t.onRestart != nil {
@@ -185,6 +204,44 @@ func (t *TrayApp) restartProxy() {
 	t.stopProxy()
 	time.Sleep(500 * time.Millisecond)
 	t.startProxy()
+}
+
+func (t *TrayApp) selectMode(mode string) {
+	if t.runService == nil {
+		logger.Error("Tray run service is not initialized")
+		return
+	}
+
+	logger.Info("Selecting " + mode + " mode from tray...")
+	result := t.runService.SwitchMode(mode)
+	if trayResultString(result, "status") == "failed" {
+		logger.Error(fmt.Sprintf("Failed to switch tray mode: %s", trayResultMessage(result)))
+		t.syncProxyState()
+		return
+	}
+
+	logger.Info(fmt.Sprintf("Tray mode switch result: %s", trayResultMessage(result)))
+	t.syncProxyState()
+}
+
+func (t *TrayApp) syncModeMenu(mode string) {
+	if t.mModeStatus != nil {
+		t.mModeStatus.SetTitle(fmt.Sprintf("Current Mode: %s", strings.ToUpper(mode)))
+	}
+	if t.mModeHTTP != nil {
+		if mode == "http" {
+			t.mModeHTTP.Check()
+		} else {
+			t.mModeHTTP.Uncheck()
+		}
+	}
+	if t.mModeTUN != nil {
+		if mode == "tun" {
+			t.mModeTUN.Check()
+		} else {
+			t.mModeTUN.Uncheck()
+		}
+	}
 }
 
 // openDashboard opens the web dashboard in the default browser
@@ -294,6 +351,7 @@ func (t *TrayApp) syncProxyState() {
 	}
 
 	t.isRunning = running
+	t.syncModeMenu(strings.ToLower(mode))
 
 	if t.mProxyStatus != nil {
 		t.mProxyStatus.SetTitle(fmt.Sprintf("Proxy: %s", description))

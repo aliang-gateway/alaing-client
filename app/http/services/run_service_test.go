@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"testing"
-	"time"
 
 	"aliang.one/nursorgate/app/http/models"
 	"aliang.one/nursorgate/app/http/storage"
@@ -86,17 +85,6 @@ func resetRunServiceHooksForTest() {
 	runModeStoreFactory = func() runModeSnapshotStore { return storage.NewSoftwareConfigStore() }
 	aliangLinkStatusResolver = resolveAliangLinkStatus
 	setSharedWintunDependencyControllerForTest(nil)
-}
-
-func waitForEventCount(events *[]string, expected int, timeout time.Duration) bool {
-	deadline := time.Now().Add(timeout)
-	for time.Now().Before(deadline) {
-		if len(*events) >= expected {
-			return true
-		}
-		time.Sleep(5 * time.Millisecond)
-	}
-	return len(*events) >= expected
 }
 
 func TestRunServiceStartServiceAlreadyRunning(t *testing.T) {
@@ -229,7 +217,7 @@ func TestRunServiceCharacterization_SwitchModeGuards(t *testing.T) {
 		}
 	})
 
-	t.Run("same mode while running returns already_running", func(t *testing.T) {
+	t.Run("same mode while running returns unchanged", func(t *testing.T) {
 		defer resetRunServiceHooksForTest()
 		seedActiveIngressSnapshot(t, string(models.ModeTUN))
 		runService := NewRunService()
@@ -238,8 +226,8 @@ func TestRunServiceCharacterization_SwitchModeGuards(t *testing.T) {
 
 		result := runService.SwitchMode(string(models.ModeTUN))
 
-		if status, ok := result["status"].(string); !ok || status != "already_running" {
-			t.Fatalf("expected status=already_running, got %#v", result["status"])
+		if status, ok := result["status"].(string); !ok || status != "unchanged" {
+			t.Fatalf("expected status=unchanged, got %#v", result["status"])
 		}
 		if currentMode, ok := result["current_mode"].(string); !ok || currentMode != string(models.ModeTUN) {
 			t.Fatalf("expected current_mode=tun, got %#v", result["current_mode"])
@@ -249,6 +237,7 @@ func TestRunServiceCharacterization_SwitchModeGuards(t *testing.T) {
 	t.Run("switch to tun while idle does not auto-start", func(t *testing.T) {
 		defer resetRunServiceHooksForTest()
 		seedActiveIngressSnapshot(t, string(models.ModeHTTP))
+		runModeStoreFactory = func() runModeSnapshotStore { return &fakeRunModeSnapshotStore{} }
 		runService := NewRunService()
 		runService.SetCurrentMode(string(models.ModeHTTP))
 		runService.SetRunning(false)
@@ -293,6 +282,7 @@ func TestRunServiceCharacterization_SwitchModeGuards(t *testing.T) {
 	t.Run("switch initializes routing snapshot when missing", func(t *testing.T) {
 		defer resetRunServiceHooksForTest()
 		config.ResetRoutingApplyStoreForTest()
+		runModeStoreFactory = func() runModeSnapshotStore { return &fakeRunModeSnapshotStore{} }
 
 		runService := NewRunService()
 		runService.SetCurrentMode(string(models.ModeHTTP))
@@ -316,9 +306,10 @@ func TestRunServiceCharacterization_SwitchModeGuards(t *testing.T) {
 	})
 }
 
-func TestRunServiceHotSwitchHTTPToTUN(t *testing.T) {
+func TestRunServiceSwitchModeStopsRunningServiceWithoutAutoStart(t *testing.T) {
 	defer resetRunServiceHooksForTest()
 	seedActiveIngressSnapshot(t, string(models.ModeHTTP))
+	runModeStoreFactory = func() runModeSnapshotStore { return &fakeRunModeSnapshotStore{} }
 
 	runtime.ResetGlobalStartupStateForTest()
 	runtime.GetStartupState().SetStatus(runtime.READY)
@@ -326,10 +317,6 @@ func TestRunServiceHotSwitchHTTPToTUN(t *testing.T) {
 	events := make([]string, 0, 8)
 	httpStopRunner = func() {
 		events = append(events, "http:stop")
-	}
-	tunStartRunner = func() map[string]string {
-		events = append(events, "tun:start")
-		return map[string]string{"status": "success", "message": "ok"}
 	}
 
 	runService := NewRunService()
@@ -347,68 +334,15 @@ func TestRunServiceHotSwitchHTTPToTUN(t *testing.T) {
 	if current, _ := status["current_mode"].(string); current != string(models.ModeTUN) {
 		t.Fatalf("status current_mode mismatch: got=%q want=%q", current, models.ModeTUN)
 	}
-	if running, _ := status["is_running"].(bool); !running {
-		t.Fatalf("expected running=true after successful hot switch, got %#v", status["is_running"])
+	if running, _ := status["is_running"].(bool); running {
+		t.Fatalf("expected running=false after mode switch, got %#v", status["is_running"])
 	}
 
-	if len(events) != 2 {
+	if len(events) != 1 {
 		t.Fatalf("unexpected event count: got=%d events=%v", len(events), events)
 	}
-	if events[0] != "http:stop" || events[1] != "tun:start" {
-		t.Fatalf("mutual exclusion sequencing violated, events=%v", events)
-	}
-}
-
-func TestRunServiceHotSwitchFailureRollback(t *testing.T) {
-	defer resetRunServiceHooksForTest()
-	seedActiveIngressSnapshot(t, string(models.ModeHTTP))
-
-	runtime.ResetGlobalStartupStateForTest()
-	runtime.GetStartupState().SetStatus(runtime.READY)
-
-	events := make([]string, 0, 12)
-	httpStopRunner = func() {
-		events = append(events, "http:stop")
-	}
-	tunStartRunner = func() map[string]string {
-		events = append(events, "tun:start")
-		return map[string]string{"status": "failed", "message": "tun failed"}
-	}
-	httpStartRunner = func() {
-		events = append(events, "http:start")
-	}
-
-	runService := NewRunService()
-	runService.SetCurrentMode(string(models.ModeHTTP))
-	runService.SetRunning(true)
-
-	result := runService.SwitchMode(string(models.ModeTUN))
-	if status, _ := result["status"].(string); status != "failed" {
-		t.Fatalf("expected failed status on activation failure rollback, got %#v", result)
-	}
-	if errCode, _ := result["error"].(string); errCode != "switch_failed" {
-		t.Fatalf("expected error=switch_failed, got %#v", result["error"])
-	}
-
-	if got := runService.GetCurrentMode(); got != string(models.ModeHTTP) {
-		t.Fatalf("rollback current mode mismatch: got=%q want=%q", got, models.ModeHTTP)
-	}
-	status := runService.GetStatus()
-	if current, _ := status["current_mode"].(string); current != string(models.ModeHTTP) {
-		t.Fatalf("rollback status current_mode mismatch: got=%q want=%q", current, models.ModeHTTP)
-	}
-	if running, _ := status["is_running"].(bool); !running {
-		t.Fatalf("expected running=true after rollback, got %#v", status["is_running"])
-	}
-
-	if !waitForEventCount(&events, 3, 300*time.Millisecond) {
-		t.Fatalf("unexpected event count: got=%d events=%v", len(events), events)
-	}
-	if len(events) != 3 {
-		t.Fatalf("unexpected event count: got=%d events=%v", len(events), events)
-	}
-	if events[0] != "http:stop" || events[1] != "tun:start" || events[2] != "http:start" {
-		t.Fatalf("rollback sequencing mismatch, events=%v", events)
+	if events[0] != "http:stop" {
+		t.Fatalf("expected current running service to stop before switching, events=%v", events)
 	}
 }
 

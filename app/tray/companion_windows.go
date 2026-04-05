@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 	"unsafe"
 
@@ -21,6 +22,9 @@ const maxCompanionTraceSize = 128 * 1024
 
 type CompanionApp struct {
 	mProxyStatus   *systray.MenuItem
+	mModeStatus    *systray.MenuItem
+	mModeHTTP      *systray.MenuItem
+	mModeTUN       *systray.MenuItem
 	mStart         *systray.MenuItem
 	mStop          *systray.MenuItem
 	mRestart       *systray.MenuItem
@@ -52,6 +56,13 @@ func (a *CompanionApp) onReady() {
 
 	a.mProxyStatus = systray.AddMenuItem("Proxy: starting service...", "Current proxy listener status")
 	a.mProxyStatus.Disable()
+
+	a.mModeStatus = systray.AddMenuItem("Current Mode: syncing...", "Selected proxy mode for the next start")
+	a.mModeStatus.Disable()
+	a.mModeHTTP = systray.AddMenuItemCheckbox("Select HTTP Mode", "Choose HTTP mode for the next explicit start", false)
+	a.mModeTUN = systray.AddMenuItemCheckbox("Select TUN Mode", "Choose TUN mode for the next explicit start", false)
+
+	systray.AddSeparator()
 
 	a.mStart = systray.AddMenuItem("Start Proxy", "Start the active proxy listener in the background service")
 	a.mStop = systray.AddMenuItem("Stop Proxy", "Stop the active proxy listener in the background service")
@@ -141,6 +152,10 @@ func (a *CompanionApp) handleMenuEvents() {
 			a.startProxy()
 		case <-a.mStop.ClickedCh:
 			a.stopProxy()
+		case <-a.mModeHTTP.ClickedCh:
+			a.selectMode("http")
+		case <-a.mModeTUN.ClickedCh:
+			a.selectMode("tun")
 		case <-a.mRestart.ClickedCh:
 			a.restartProxy()
 		case <-a.mOpenDashboard.ClickedCh:
@@ -180,10 +195,43 @@ func (a *CompanionApp) stopProxy() {
 	a.syncState()
 }
 
+func (a *CompanionApp) selectMode(mode string) {
+	result, err := a.ipcClient.Send(ipc.ActionSwitchMode, ipc.SwitchModeArgs{Mode: mode})
+	if err != nil {
+		logger.Error("Failed to switch mode from Windows companion", "error", err)
+		a.applyUnavailableState("background service unavailable")
+		return
+	}
+	if !result.OK {
+		logger.Error("Background service rejected mode switch", "error", result.Error)
+	}
+	a.syncState()
+}
+
 func (a *CompanionApp) restartProxy() {
 	a.stopProxy()
 	time.Sleep(400 * time.Millisecond)
 	a.startProxy()
+}
+
+func (a *CompanionApp) syncModeMenu(mode string) {
+	if a.mModeStatus != nil {
+		a.mModeStatus.SetTitle(fmt.Sprintf("Current Mode: %s", strings.ToUpper(mode)))
+	}
+	if a.mModeHTTP != nil {
+		if mode == "http" {
+			a.mModeHTTP.Check()
+		} else {
+			a.mModeHTTP.Uncheck()
+		}
+	}
+	if a.mModeTUN != nil {
+		if mode == "tun" {
+			a.mModeTUN.Check()
+		} else {
+			a.mModeTUN.Uncheck()
+		}
+	}
 }
 
 func (a *CompanionApp) syncStateLoop() {
@@ -217,6 +265,10 @@ func (a *CompanionApp) syncState() {
 		return
 	}
 
+	mode := strings.ToLower(trayResultString(data, "current_mode"))
+	if mode == "" {
+		mode = "unknown"
+	}
 	running, _ := data["is_running"].(bool)
 	description := trayResultString(data, "status")
 	if description == "" {
@@ -228,6 +280,7 @@ func (a *CompanionApp) syncState() {
 	}
 
 	a.isRunning = running
+	a.syncModeMenu(mode)
 	if running {
 		systray.SetIcon(GetIcon())
 		systray.SetTooltip("Aliang - Proxy Running")
@@ -237,6 +290,8 @@ func (a *CompanionApp) syncState() {
 	}
 
 	a.mProxyStatus.SetTitle(fmt.Sprintf("Proxy: %s", description))
+	a.mModeHTTP.Enable()
+	a.mModeTUN.Enable()
 	if running {
 		a.mStart.Disable()
 		a.mStop.Enable()
@@ -256,6 +311,12 @@ func (a *CompanionApp) applyUnavailableState(reason string) {
 	}
 	if a.mStart != nil {
 		a.mStart.Disable()
+	}
+	if a.mModeHTTP != nil {
+		a.mModeHTTP.Disable()
+	}
+	if a.mModeTUN != nil {
+		a.mModeTUN.Disable()
 	}
 	if a.mStop != nil {
 		a.mStop.Disable()

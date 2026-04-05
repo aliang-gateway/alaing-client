@@ -157,7 +157,7 @@ func (c *Client) sendHTTP(action string, args interface{}) (*Response, error) {
 		url = c.httpURL + "/api/run/stop"
 		method = http.MethodPost
 	case ActionSwitchMode:
-		url = c.httpURL + "/api/run/switch"
+		url = c.httpURL + "/api/run/swift"
 		method = http.MethodPost
 	case ActionShutdown:
 		url = c.httpURL + "/api/core/shutdown"
