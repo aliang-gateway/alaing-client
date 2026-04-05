@@ -72,7 +72,21 @@ func (h *DefaultTLSHandler) PerformMITM(ctx context.Context, originConn net.Conn
 
 	// Perform TLS handshake
 	if err := tlsConn.Handshake(); err != nil {
-		logger.Error(fmt.Sprintf("TLS handshake failed for %s: %v", serverName, err))
+		localAddr := "unknown"
+		if addr := originConn.LocalAddr(); addr != nil {
+			localAddr = addr.String()
+		}
+		remoteAddr := "unknown"
+		if addr := originConn.RemoteAddr(); addr != nil {
+			remoteAddr = addr.String()
+		}
+		logger.Error(fmt.Sprintf(
+			"TLS MITM handshake with client failed for %s: local=%s remote=%s err=%v",
+			serverName,
+			localAddr,
+			remoteAddr,
+			err,
+		))
 		return nil, err
 	}
 

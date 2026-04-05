@@ -233,7 +233,7 @@ func (g *GeoIPCache) Lookup(ip string) (string, error) {
 type RouteDecision int
 
 const (
-    RouteToCursor  RouteDecision = iota  // NoneLane
+    RouteToALiang  RouteDecision = iota  // NoneLane
     RouteToDoor                          // Door
     RouteDirect                          // Direct
 )
@@ -258,7 +258,7 @@ func DecideRoute(ctx *MatchContext, config *routing_config.RoutingRulesConfig) R
             }
             matched, _ := matchRule(ctx, rule)
             if matched {
-                return RouteToCursor
+                return RouteToALiang
             }
         }
     }

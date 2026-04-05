@@ -449,7 +449,7 @@ func TestRouterDecision_NoneLaneHighestPriority(t *testing.T) {
     decision := DecideRoute("api.internal.com", "10.0.0.1", config)
 
     // NoneLane规则应该优先匹配，即使Door规则也匹配
-    assert.Equal(t, RouteToCursor, decision) // NoneLane
+    assert.Equal(t, RouteToALiang, decision) // NoneLane
 }
 ```
 

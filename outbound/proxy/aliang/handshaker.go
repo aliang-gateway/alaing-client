@@ -28,7 +28,10 @@ func NewAliangServerConnector(config *AliangConfig) *AliangServerConnector {
 func (csc *AliangServerConnector) Dial(ctx context.Context, network, address string) (net.Conn, error) {
 	logger.Debug("[cursor_h2] Starting mTLS handshake with", address)
 	serverName := normalizeServerName(address)
-	tlsConfig, err := clientcert.GetMTLSClientTLSConfig(true, serverName)
+	// The Aliang mTLS channel is a raw encrypted tunnel. It must not advertise
+	// h2/http1.1 at the transport layer, otherwise an upstream server may bind
+	// the connection to a specific HTTP stack and reject tunneled payloads.
+	tlsConfig, err := clientcert.GetMTLSClientTLSConfig(false, serverName)
 	if err != nil {
 		logger.Error("[cursor_h2] Failed to build outbound TLS config for", address, err)
 		return nil, NewErrorWithCause(ErrTLSHandshakeFailed, "failed to load outbound TLS config", err)
@@ -66,7 +69,7 @@ func (csc *AliangServerConnector) Dial(ctx context.Context, network, address str
 		return nil, NewErrorWithCause(ErrTLSHandshakeFailed, "mTLS handshake failed", err)
 	}
 
-	logger.Debug("[cursor_h2] mTLS handshake successful with", address)
+	logger.Debug("[cursor_h2] mTLS handshake successful with", address, " negotiated_alpn=", tlsConn.ConnectionState().NegotiatedProtocol)
 	return tlsConn, nil
 }
 

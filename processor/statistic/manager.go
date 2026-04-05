@@ -58,7 +58,7 @@ func (m *Manager) Snapshot() *Snapshot {
 	byRoute := make(map[string]*RouteStats)
 
 	// Initialize route statistics
-	routes := []string{"RouteToCursor", "RouteToSocks", "RouteDirect"}
+	routes := []string{"RouteToALiang", "RouteToSocks", "RouteDirect"}
 	for _, route := range routes {
 		byRoute[route] = &RouteStats{
 			RouteType: route,
@@ -146,7 +146,7 @@ func (m *Manager) handle() {
 
 // RouteStats holds statistics for a specific route type
 type RouteStats struct {
-	RouteType       string `json:"routeType"`       // "RouteToCursor", "RouteToSocks", "RouteDirect"
+	RouteType       string `json:"routeType"`       // "RouteToALiang", "RouteToSocks", "RouteDirect"
 	ConnectionCount int    `json:"connectionCount"` // Number of connections
 	UploadTotal     int64  `json:"uploadTotal"`     // Total upload bytes
 	DownloadTotal   int64  `json:"downloadTotal"`   // Total download bytes

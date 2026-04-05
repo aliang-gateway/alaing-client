@@ -147,7 +147,7 @@
 
 ### 用户故事 2 的实施
 
-- [x] T028 [P] [US2] 在 processor/routing/decision_engine.go 中定义RouteDecision类型(RouteToCursor、RouteToDoor、RouteDirect三个常量)
+- [x] T028 [P] [US2] 在 processor/routing/decision_engine.go 中定义RouteDecision类型(RouteToALiang、RouteToDoor、RouteDirect三个常量)
 - [x] T029 [P] [US2] 在 processor/routing/decision_engine.go 中定义MatchContext结构体(包含Domain、IP、Request字段)
 - [x] T030 [P] [US2] 在 processor/routing/matcher.go 中实现matchDomain函数(支持通配符*.example.com)
 - [x] T031 [P] [US2] 在 processor/routing/matcher.go 中实现matchIP函数(支持CIDR格式192.168.0.0/16)

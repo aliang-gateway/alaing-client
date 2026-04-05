@@ -182,7 +182,7 @@ func (e *RuleEngine) checkAllowlist(ctx *EvaluationContext) *RuleResult {
 		}
 		if MatchDomain(rule.Condition(), ctx.Domain) {
 			return &RuleResult{
-				Route:       cache.RouteToCursor,
+				Route:       cache.RouteToALiang,
 				MatchedRule: "snapshot_allowlist",
 				RequiresSNI: false,
 				Reason:      fmt.Sprintf("Domain %s matched snapshot allowlist", ctx.Domain),
@@ -285,7 +285,7 @@ func (e *RuleEngine) evaluateWithSnapshot(snapshot *routing.RuntimeSnapshot, ctx
 	switch decision {
 	case routing.RouteToAliang:
 		return &RuleResult{
-			Route:       cache.RouteToCursor,
+			Route:       cache.RouteToALiang,
 			MatchedRule: "snapshot",
 			RequiresSNI: requiresSNI,
 			Reason:      "snapshot decision: toAliang",
@@ -391,8 +391,8 @@ func (e *RuleEngine) StoreBinding(metadata *M.Metadata) {
 	// Convert route string to RouteDecision
 	var route cache.RouteDecision
 	switch metadata.Route {
-	case "RouteToCursor":
-		route = cache.RouteToCursor
+	case "RouteToALiang":
+		route = cache.RouteToALiang
 	case "RouteToSocks":
 		route = cache.RouteToSocks
 	case "RouteDirect":

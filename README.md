@@ -32,7 +32,7 @@ Successfully implemented automatic DNS binding persistence:
   - CONNECT requests
 
 - **Automatic Storage**: DNS bindings stored to cache immediately after successful relay
-- **Route Decision Tracking**: Each binding stores the routing decision used (RouteToCursor/RouteToDoor/RouteDirect)
+- **Route Decision Tracking**: Each binding stores the routing decision used (RouteToALiang/RouteToDoor/RouteDirect)
 
 **Files Modified:**
 - `inbound/tun/metadata/metadata.go` - Added Route field for tracking final routing decision
@@ -162,7 +162,7 @@ Fixed three critical dashboard display issues:
          │
     ┌────▼──────────────────────────────────────┐
     │          Route Execution                  │
-    │  RouteToCursor (MITM) → Aliang Proxy   │
+    │  RouteToALiang (MITM) → Aliang Proxy   │
     │  RouteToDoor (Forward) → VLESS/SS Proxy  │
     │  RouteDirect → Direct TCP Connection     │
     └────┬──────────────────────────────────────┘

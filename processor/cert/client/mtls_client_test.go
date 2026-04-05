@@ -44,4 +44,20 @@ func TestGetMTLSClientTLSConfigBuilds(t *testing.T) {
 	if cfg.ServerName != "ai-gateway.aliang.one" {
 		t.Fatalf("unexpected server name: %q", cfg.ServerName)
 	}
+	if len(cfg.NextProtos) == 0 {
+		t.Fatal("expected HTTP2-enabled mTLS config to advertise ALPN")
+	}
+}
+
+func TestGetMTLSClientTLSConfigWithoutALPNForRawTunnel(t *testing.T) {
+	cfg, err := GetMTLSClientTLSConfig(false, "ai-gateway.aliang.one")
+	if err != nil {
+		t.Fatalf("GetMTLSClientTLSConfig returned error: %v", err)
+	}
+	if cfg == nil {
+		t.Fatal("expected non-nil TLS config")
+	}
+	if len(cfg.NextProtos) != 0 {
+		t.Fatalf("expected raw tunnel mTLS config to omit ALPN, got %v", cfg.NextProtos)
+	}
 }

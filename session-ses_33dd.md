@@ -502,7 +502,7 @@ _Thinking:_
 32#ZN|  - CONNECT requests
 33#QY|
 34#VT|- **Automatic Storage**: DNS bindings stored to cache immediately after successful relay
-35#JK|- **Route Decision Tracking**: Each binding stores the routing decision used (RouteToCursor/RouteToDoor/RouteDirect)
+35#JK|- **Route Decision Tracking**: Each binding stores the routing decision used (RouteToALiang/RouteToDoor/RouteDirect)
 36#MV|
 37#HT|**Files Modified:**
 38#WZ|- `inbound/tun/metadata/metadata.go` - Added Route field for tracking final routing decision
@@ -632,7 +632,7 @@ _Thinking:_
 162#VM|         │
 163#KR|    ┌────▼──────────────────────────────────────┐
 164#HQ|    │          Route Execution                  │
-165#PB|    │  RouteToCursor (MITM) → Nonelane Proxy   │
+165#PB|    │  RouteToALiang (MITM) → Nonelane Proxy   │
 166#VH|    │  RouteToDoor (Forward) → VLESS/SS Proxy  │
 167#SS|    │  RouteDirect → Direct TCP Connection     │
 168#BT|    └────┬──────────────────────────────────────┘
@@ -1135,7 +1135,7 @@ Successfully implemented automatic DNS binding persistence:
   - CONNECT requests
 
 - **Automatic Storage**: DNS bindings stored to cache immediately after successful relay
-- **Route Decision Tracking**: Each binding stores the routing decision used (RouteToCursor/RouteToDoor/RouteDirect)
+- **Route Decision Tracking**: Each binding stores the routing decision used (RouteToALiang/RouteToDoor/RouteDirect)
 
 **Files Modified:**
 - `inbound/tun/metadata/metadata.go` - Added Route field for tracking final routing decision
@@ -1265,7 +1265,7 @@ Fixed three critical dashboard display issues:
          │
     ┌────▼──────────────────────────────────────┐
     │          Route Execution                  │
-    │  RouteToCursor (MITM) → Nonelane Proxy   │
+    │  RouteToALiang (MITM) → Nonelane Proxy   │
     │  RouteToDoor (Forward) → VLESS/SS Proxy  │
     │  RouteDirect → Direct TCP Connection     │
     └────┬──────────────────────────────────────┘
@@ -3926,7 +3926,7 @@ High-level architectural overview of the codebase
 - Traffic handling
   - TUN intercepts traffic; TLS SNI, HTTP Host/header, and CONNECT metadata extraction populate DNS binding records (DNSInfo) stored in the DNS cache.
   - The DNS cache layer combines domain → IP and IP → domain mappings with hit/miss stats; a StoreBinding path persists new bindings.
-  - Routing decisions trigger RouteExecution: RouteToCursor (MITM-like path) or RouteToDoor (forward to a door proxy such as VLESS or Shadowsocks), or RouteDirect for direct connection.
+  - Routing decisions trigger RouteExecution: RouteToALiang (MITM-like path) or RouteToDoor (forward to a door proxy such as VLESS or Shadowsocks), or RouteDirect for direct connection.
   - Data relay occurs via the chosen path, with stats updated by the traffic stats subsystem.
 - Observability and control
   - HTTP endpoints expose runtime status, DNS cache status, router engine status, and configuration toggles; a startup status API gate (StartupStatus) prevents premature routing until the system is ready.
@@ -9760,7 +9760,7 @@ Successfully implemented automatic DNS binding persistence:
   - CONNECT requests
 
 - **Automatic Storage**: DNS bindings stored to cache immediately after successful relay
-- **Route Decision Tracking**: Each binding stores the routing decision used (RouteToCursor/RouteToDoor/RouteDirect)
+- **Route Decision Tracking**: Each binding stores the routing decision used (RouteToALiang/RouteToDoor/RouteDirect)
 
 **Files Modified:**
 - `inbound/tun/metadata/metadata.go` - Added Route field for tracking final routing decision
@@ -9890,7 +9890,7 @@ Fixed three critical dashboard display issues:
          │
     ┌────▼──────────────────────────────────────┐
     │          Route Execution                  │
-    │  RouteToCursor (MITM) → Nonelane Proxy   │
+    │  RouteToALiang (MITM) → Nonelane Proxy   │
     │  RouteToDoor (Forward) → VLESS/SS Proxy  │
     │  RouteDirect → Direct TCP Connection     │
     └────┬──────────────────────────────────────┘

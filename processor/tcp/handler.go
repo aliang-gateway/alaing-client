@@ -116,6 +116,51 @@ func NewTCPConnectionHandler(
 	}
 }
 
+func logObservedTLSServerName(metadata *M.Metadata, source string) {
+	if metadata == nil || metadata.HostName == "" {
+		return
+	}
+
+	sourceAddr := metadata.SourceAddress()
+	if !metadata.SrcIP.IsValid() || metadata.SrcIP.IsUnspecified() {
+		sourceAddr = fmt.Sprintf("unknown:%d", metadata.SrcPort)
+	}
+
+	destIP := metadata.DstIP.String()
+	if !metadata.DstIP.IsValid() || metadata.DstIP.IsUnspecified() {
+		destIP = "unknown"
+	}
+
+	logger.Info(fmt.Sprintf(
+		"[TUN TLS] observed server_name=%s source=%s src=%s dst=%s:%d",
+		metadata.HostName,
+		source,
+		sourceAddr,
+		destIP,
+		metadata.DstPort,
+	))
+}
+
+func logAliangGateProxy(metadata *M.Metadata, routeSource string) {
+	if metadata == nil || metadata.HostName == "" {
+		return
+	}
+
+	destIP := metadata.DstIP.String()
+	if !metadata.DstIP.IsValid() || metadata.DstIP.IsUnspecified() {
+		destIP = "unknown"
+	}
+
+	logger.Info(fmt.Sprintf(
+		"[AliangGate] proxying server_name=%s route_source=%s dst=%s:%d final_route=%s",
+		metadata.HostName,
+		routeSource,
+		destIP,
+		metadata.DstPort,
+		metadata.Route,
+	))
+}
+
 // Handle processes a single TCP connection.
 // It is the main orchestration entry point.
 func (h *TCPConnectionHandler) Handle(ctx context.Context, originConn net.Conn, metadata *M.Metadata) error {
@@ -291,10 +336,12 @@ func (h *TCPConnectionHandler) handleTLS(
 			cacheHit = true
 			logger.Debug(fmt.Sprintf("TLS: Found domain in cache for IP %s: %s (hit count: %d)",
 				metadata.DstIP, metadata.HostName, cachedEntry.HitCount))
+			logObservedTLSServerName(metadata, "cache")
 		}
 	} else {
 		cacheHit = true
 		sni = metadata.HostName
+		logObservedTLSServerName(metadata, "preset")
 	}
 
 	// STEP 2: Only extract SNI if we didn't find domain in cache
@@ -308,6 +355,7 @@ func (h *TCPConnectionHandler) handleTLS(
 		} else if sni != "" {
 			// Set hostname with SNI binding source
 			metadata.SetHostName(sni, M.BindingSourceSNI, 5*time.Minute)
+			logObservedTLSServerName(metadata, "sni")
 
 			// Check if this is a DoH (DNS over HTTPS) provider
 			// DoH traffic should be routed directly without proxy interception
@@ -375,7 +423,7 @@ func (h *TCPConnectionHandler) dialDirect(ctx context.Context, metadata *M.Metad
 func (h *TCPConnectionHandler) dialByRoute(ctx context.Context, metadata *M.Metadata, route ProxyRoute) (net.Conn, error) {
 	switch route {
 	case RouteToALiang:
-		metadata.Route = "RouteToCursor"
+		metadata.Route = "RouteToALiang"
 		aliangProxy, err := h.getAliangProxyForExecution()
 		if err != nil {
 			return nil, err
@@ -398,7 +446,13 @@ func (h *TCPConnectionHandler) resolveTLSRoute(
 	mitmedSNI string,
 ) (net.Conn, net.Conn, error) {
 	if route == RouteToALiang {
-		mitmed, err := h.tlsHandler.PerformMITM(ctx, originConn, mitmedSNI)
+		metadata.Route = "RouteToALiang"
+		mitmConn := wrapped
+		if mitmConn == nil {
+			mitmConn = originConn
+		}
+
+		mitmed, err := h.tlsHandler.PerformMITM(ctx, mitmConn, mitmedSNI)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -407,6 +461,8 @@ func (h *TCPConnectionHandler) resolveTLSRoute(
 		if err != nil {
 			return nil, nil, err
 		}
+
+		logAliangGateProxy(metadata, "tls")
 
 		return remote, h.wrapAliangHTTPConn(mitmed), nil
 	}

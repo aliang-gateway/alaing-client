@@ -11,8 +11,8 @@ import (
 type RouteDecision string
 
 const (
-	// RouteToCursor routes traffic through Cursor MITM proxy (Aliang)
-	RouteToCursor RouteDecision = "cursor"
+	// RouteToALiang routes traffic through Cursor MITM proxy (Aliang)
+	RouteToALiang RouteDecision = "aliang"
 
 	// RouteToSocks routes traffic through SOCKS proxy
 	RouteToSocks RouteDecision = "socks"

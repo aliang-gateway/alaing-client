@@ -21,6 +21,10 @@ var mtlsCACertPEM []byte
 // GetMTLSClientTLSConfig returns the outbound TLS config used by the aliang mTLS connector.
 // The certificate material is embedded from processor/cert/client so the runtime consistently
 // uses the dedicated client-auth certificate rather than the MITM server certificate.
+//
+// When isHTTP2 is false, the config intentionally does not advertise any ALPN.
+// This keeps the mTLS channel as a raw encrypted tunnel that can carry arbitrary
+// upper-layer payloads, including both HTTP/1.1 and HTTP/2 bytes.
 func GetMTLSClientTLSConfig(isHTTP2 bool, serverName string) (*tls.Config, error) {
 	cert, err := tls.X509KeyPair(mtlsClientCertPEM, mtlsClientKeyPEM)
 	if err != nil {
