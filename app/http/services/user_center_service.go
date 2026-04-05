@@ -15,6 +15,7 @@ var (
 	updateUserProfileFn    = auth.UpdateUserProfile
 	getUserUsageSummaryFn  = auth.GetUserUsageSummary
 	getUserUsageProgressFn = auth.GetUserUsageProgress
+	getUserAPIKeysFn       = auth.GetUserAPIKeys
 	redeemCodeFn           = auth.RedeemCode
 )
 
@@ -146,6 +147,57 @@ func (s *UserCenterService) GetUsageProgress() map[string]interface{} {
 	return map[string]interface{}{
 		"status": "success",
 		"data":   models.UsageProgressResponse{Items: progress.Items},
+	}
+}
+
+func (s *UserCenterService) GetAPIKeys() map[string]interface{} {
+	apiKeys, err := getUserAPIKeysFn()
+	if err != nil {
+		if isSessionMissingError(err) {
+			return map[string]interface{}{
+				"status": "unauthenticated",
+				"error":  "session_missing",
+				"msg":    "No authenticated session found",
+			}
+		}
+		return map[string]interface{}{
+			"status": "failed",
+			"error":  "api_keys_fetch_failed",
+			"msg":    fmt.Sprintf("Failed to fetch API keys: %v", err),
+		}
+	}
+
+	items := make([]models.UserAPIKeyResponse, 0, len(apiKeys))
+	for _, key := range apiKeys {
+		var group *models.APIKeyGroupResponse
+		if key.Group != nil {
+			group = &models.APIKeyGroupResponse{
+				ID:                    key.Group.ID,
+				Name:                  key.Group.Name,
+				Description:           key.Group.Description,
+				Platform:              key.Group.Platform,
+				RateMultiplier:        key.Group.RateMultiplier,
+				ClaudeCodeOnly:        key.Group.ClaudeCodeOnly,
+				AllowMessagesDispatch: key.Group.AllowMessagesDispatch,
+			}
+		}
+
+		items = append(items, models.UserAPIKeyResponse{
+			ID:              key.ID,
+			Key:             key.Key,
+			Name:            key.Name,
+			GroupID:         key.GroupID,
+			Status:          key.Status,
+			Provider:        key.Provider,
+			Masked:          key.Masked,
+			SecretAvailable: key.SecretAvailable,
+			Group:           group,
+		})
+	}
+
+	return map[string]interface{}{
+		"status": "success",
+		"data":   models.UserAPIKeyListResponse{Items: items},
 	}
 }
 

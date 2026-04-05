@@ -416,6 +416,14 @@ func (c *Config) GetRedeemURL() string {
 	return fmt.Sprintf("%s/api/v1/redeem", c.APIBaseURL())
 }
 
+func (c *Config) GetUserAPIKeysURL() string {
+	return fmt.Sprintf("%s/api/v1/keys", c.APIBaseURL())
+}
+
+func (c *Config) GetAvailableGroupsURL() string {
+	return fmt.Sprintf("%s/api/v1/groups/available", c.APIBaseURL())
+}
+
 // GetInboundsURL returns the complete Inbounds API URL
 func (c *Config) GetInboundsURL() string {
 	return fmt.Sprintf("%s/api/production/prod/sui/user/sui/inbounds", c.APIBaseURL())

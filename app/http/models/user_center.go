@@ -36,3 +36,29 @@ type UsageProgressResponse struct {
 type RedeemCodeResponse struct {
 	Data json.RawMessage `json:"data"`
 }
+
+type APIKeyGroupResponse struct {
+	ID                    int64   `json:"id"`
+	Name                  string  `json:"name"`
+	Description           string  `json:"description"`
+	Platform              string  `json:"platform"`
+	RateMultiplier        float64 `json:"rate_multiplier"`
+	ClaudeCodeOnly        bool    `json:"claude_code_only"`
+	AllowMessagesDispatch bool    `json:"allow_messages_dispatch"`
+}
+
+type UserAPIKeyResponse struct {
+	ID              int64                `json:"id"`
+	Key             string               `json:"key"`
+	Name            string               `json:"name"`
+	GroupID         *int64               `json:"group_id,omitempty"`
+	Status          string               `json:"status"`
+	Provider        string               `json:"provider"`
+	Masked          bool                 `json:"masked"`
+	SecretAvailable bool                 `json:"secret_available"`
+	Group           *APIKeyGroupResponse `json:"group,omitempty"`
+}
+
+type UserAPIKeyListResponse struct {
+	Items []UserAPIKeyResponse `json:"items"`
+}

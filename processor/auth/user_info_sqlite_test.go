@@ -18,19 +18,20 @@ func TestUserInfoSQLitePersistence(t *testing.T) {
 	}
 
 	original := &UserInfo{
-		AccessToken:   "access-token-1",
-		RefreshToken:  "refresh-token-1",
-		TokenType:     "Bearer",
-		ExpiresIn:     3600,
-		Username:      "tester",
-		Email:         "tester@example.com",
-		Role:          "user",
-		ID:            42,
-		Status:        "active",
-		Balance:       12.5,
-		Concurrency:   3,
-		AllowedGroups: []int64{1, 3},
-		UpdatedAt:     time.Now().UTC(),
+		AccessToken:        "access-token-1",
+		RefreshToken:       "refresh-token-1",
+		TokenType:          "Bearer",
+		ExpiresIn:          3600,
+		AliangSessionToken: "aliang-session-token-1",
+		Username:           "tester",
+		Email:              "tester@example.com",
+		Role:               "user",
+		ID:                 42,
+		Status:             "active",
+		Balance:            12.5,
+		Concurrency:        3,
+		AllowedGroups:      []int64{1, 3},
+		UpdatedAt:          time.Now().UTC(),
 	}
 
 	if err := SaveUserInfo(original); err != nil {
@@ -57,7 +58,7 @@ func TestUserInfoSQLitePersistence(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to load user info from sqlite: %v", err)
 	}
-	if loaded.Username != original.Username || loaded.AccessToken != original.AccessToken || loaded.RefreshToken != original.RefreshToken {
+	if loaded.Username != original.Username || loaded.AccessToken != original.AccessToken || loaded.RefreshToken != original.RefreshToken || loaded.AliangSessionToken != original.AliangSessionToken {
 		t.Fatalf("loaded user info mismatch: got %#v want %#v", loaded, original)
 	}
 

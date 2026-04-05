@@ -65,6 +65,14 @@ func (ub *URLBuilder) GetRedeemURL() (string, error) {
 	return ub.getAndValidateURL(ub.cfg.GetRedeemURL())
 }
 
+func (ub *URLBuilder) GetUserAPIKeysURL() (string, error) {
+	return ub.getAndValidateURL(ub.cfg.GetUserAPIKeysURL())
+}
+
+func (ub *URLBuilder) GetAvailableGroupsURL() (string, error) {
+	return ub.getAndValidateURL(ub.cfg.GetAvailableGroupsURL())
+}
+
 // GetInboundsURL 获取 Inbounds URL
 func (ub *URLBuilder) GetInboundsURL() (string, error) {
 	return ub.getAndValidateURL(ub.cfg.GetInboundsURL())

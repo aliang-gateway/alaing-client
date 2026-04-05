@@ -20,7 +20,7 @@
             "type": "aliang",
             "core_server": "ai-gateway.aliang.one:443"
         },
-        "api_server": "https://sub2api.liang.home"
+        "api_server": "https://www.aliang.one"
     },
     "customer": {
         "proxy": {

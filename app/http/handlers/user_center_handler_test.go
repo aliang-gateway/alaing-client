@@ -57,6 +57,25 @@ func TestUserCenterHandler_ProfileAndUsage_UnauthenticatedEnvelope(t *testing.T)
 	if usageData["error"] != "session_missing" {
 		t.Fatalf("expected usage session_missing error, got %#v", usageData["error"])
 	}
+
+	apiKeysReq := httptest.NewRequest(http.MethodGet, "/api/user-center/api-keys", nil)
+	apiKeysRec := httptest.NewRecorder()
+	h.HandleGetAPIKeys(apiKeysRec, apiKeysReq)
+	if apiKeysRec.Code != http.StatusOK {
+		t.Fatalf("api keys status=%d body=%s", apiKeysRec.Code, apiKeysRec.Body.String())
+	}
+
+	var apiKeysResp map[string]interface{}
+	if err := json.Unmarshal(apiKeysRec.Body.Bytes(), &apiKeysResp); err != nil {
+		t.Fatalf("decode api keys response failed: %v", err)
+	}
+	apiKeysData, _ := apiKeysResp["data"].(map[string]interface{})
+	if apiKeysData["status"] != "unauthenticated" {
+		t.Fatalf("expected api keys unauthenticated status, got %#v", apiKeysData["status"])
+	}
+	if apiKeysData["error"] != "session_missing" {
+		t.Fatalf("expected api keys session_missing error, got %#v", apiKeysData["error"])
+	}
 }
 
 func TestUserCenterHandler_UpdateAndRedeem_Validation(t *testing.T) {

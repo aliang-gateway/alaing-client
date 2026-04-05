@@ -33,6 +33,7 @@ type Handlers struct {
 	Chat          *handlers.ChatHandler
 	UserCenter    *handlers.UserCenterHandler
 	Dashboard     *handlers.DashboardHandler
+	QuickSetup    *handlers.QuickSetupHandler
 
 	statsCollector     *statistic.StatsCollector
 	httpStatsCollector *statistic.HTTPStatsCollector
@@ -80,6 +81,7 @@ func newHandlers(runService *services.RunService) *Handlers {
 		Chat:               handlers.NewChatHandler(),
 		UserCenter:         handlers.NewUserCenterHandler(),
 		Dashboard:          handlers.NewDashboardHandler(),
+		QuickSetup:         handlers.NewQuickSetupHandler(),
 		statsCollector:     statsCollector,
 		httpStatsCollector: httpStatsCollector,
 	}
@@ -203,12 +205,16 @@ func RegisterRoutes(h *Handlers, mux *http.ServeMux) {
 	register("/api/user-center/profile", h.UserCenter.HandleProfile, http.MethodGet, http.MethodPut)
 	register("/api/user-center/usage/summary", h.UserCenter.HandleGetUsageSummary, http.MethodGet)
 	register("/api/user-center/usage/progress", h.UserCenter.HandleGetUsageProgress, http.MethodGet)
+	register("/api/user-center/api-keys", h.UserCenter.HandleGetAPIKeys, http.MethodGet)
 	register("/api/user-center/redeem", h.UserCenter.HandleRedeemCode, http.MethodPost)
 	register("/api/dashboard/stats", h.Dashboard.HandleGetStats, http.MethodGet)
 	register("/api/dashboard/trend", h.Dashboard.HandleGetTrend, http.MethodGet)
 	register("/api/dashboard/models", h.Dashboard.HandleGetModels, http.MethodGet)
 	register("/api/dashboard/usage", h.Dashboard.HandleGetUsageRecords, http.MethodGet)
 	register("/api/health", h.Dashboard.HandleGetHealth, http.MethodGet)
+	register("/api/quick-setup/catalog", h.QuickSetup.HandleCatalog, http.MethodGet)
+	register("/api/quick-setup/render", h.QuickSetup.HandleRender, http.MethodPost)
+	register("/api/quick-setup/apply", h.QuickSetup.HandleApply, http.MethodPost)
 
 	registerDocsRoutes(mux, catalog)
 }

@@ -55,6 +55,7 @@ func isConfigurationAPI(path string) bool {
 		"/api/user-center/profile",
 		"/api/user-center/usage/summary",
 		"/api/user-center/usage/progress",
+		"/api/user-center/api-keys",
 		"/api/user-center/redeem",
 		"/api/dashboard/stats",
 		"/api/dashboard/trend",
@@ -67,6 +68,9 @@ func isConfigurationAPI(path string) bool {
 		"/api/software-config/list",
 		"/api/software-config/cloud/push",
 		"/api/software-config/cloud/pull",
+		"/api/quick-setup/catalog",
+		"/api/quick-setup/render",
+		"/api/quick-setup/apply",
 		"/api/logs", // Logs access (for diagnosis)
 		"/api/run/status",
 		"/api/run/tun/status",

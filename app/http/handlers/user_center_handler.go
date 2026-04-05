@@ -58,6 +58,16 @@ func (h *UserCenterHandler) HandleGetUsageProgress(w http.ResponseWriter, r *htt
 	common.Success(w, result)
 }
 
+func (h *UserCenterHandler) HandleGetAPIKeys(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		common.Error(w, http.StatusMethodNotAllowed, "Method not allowed", nil)
+		return
+	}
+
+	result := h.userCenterService.GetAPIKeys()
+	common.Success(w, result)
+}
+
 func (h *UserCenterHandler) HandleRedeemCode(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		common.Error(w, http.StatusMethodNotAllowed, "Method not allowed", nil)
