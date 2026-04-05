@@ -123,6 +123,11 @@ func LoginWithPassword(email, password, turnstileToken string) (*UserInfo, error
 	userInfo.TokenType = response.Data.TokenType
 	userInfo.ExpiresIn = response.Data.ExpiresIn
 	userInfo.UpdatedAt = time.Now()
+	if aliangSessionToken, sessionErr := loginAliangWebsiteSession(strings.TrimSpace(email), password); sessionErr == nil {
+		userInfo.AliangSessionToken = aliangSessionToken
+	} else {
+		logger.Warn(fmt.Sprintf("Aliang website session sync skipped: %v", sessionErr))
+	}
 
 	if err := SaveUserInfo(userInfo); err != nil {
 		logger.Warn(fmt.Sprintf("Failed to save user info locally: %v", err))
@@ -165,6 +170,7 @@ func RestoreSession() (*UserInfo, error) {
 	latestProfile.RefreshToken = localUserInfo.RefreshToken
 	latestProfile.TokenType = localUserInfo.TokenType
 	latestProfile.ExpiresIn = localUserInfo.ExpiresIn
+	latestProfile.AliangSessionToken = localUserInfo.AliangSessionToken
 	latestProfile.UpdatedAt = time.Now()
 
 	if err := SaveUserInfo(latestProfile); err != nil {
@@ -252,6 +258,10 @@ func RefreshSession(refreshToken string) (*UserInfo, error) {
 	userInfo.RefreshToken = response.Data.RefreshToken
 	userInfo.TokenType = response.Data.TokenType
 	userInfo.ExpiresIn = response.Data.ExpiresIn
+	current := GetCurrentUserInfo()
+	if current != nil {
+		userInfo.AliangSessionToken = current.AliangSessionToken
+	}
 	userInfo.UpdatedAt = time.Now()
 
 	if err := SaveUserInfo(userInfo); err != nil {
@@ -392,4 +402,85 @@ func StopTokenRefresh() {
 // GetTokenRefresher 获取Token刷新器实例
 func GetTokenRefresher() *TokenRefresher {
 	return tokenRefresher
+}
+
+func loginAliangWebsiteSession(email string, password string) (string, error) {
+	email = strings.TrimSpace(email)
+	if email == "" || strings.TrimSpace(password) == "" {
+		return "", fmt.Errorf("email and password are required for aliang session sync")
+	}
+
+	requestBody := map[string]string{
+		"email":    email,
+		"password": password,
+	}
+	jsonData, err := json.Marshal(requestBody)
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal aliang login request: %w", err)
+	}
+
+	req, err := http.NewRequest(http.MethodPost, "https://api.aliang.one/api/auth/login", bytes.NewBuffer(jsonData))
+	if err != nil {
+		return "", fmt.Errorf("failed to create aliang login request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json")
+
+	client := &http.Client{Timeout: apiTimeout}
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("failed to send aliang login request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", fmt.Errorf("failed to read aliang login response: %w", err)
+	}
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return "", fmt.Errorf("aliang login returned status %d: %s", resp.StatusCode, string(body))
+	}
+
+	token := extractAliangSessionToken(body)
+	if strings.TrimSpace(token) == "" {
+		return "", fmt.Errorf("aliang login response missing session_token")
+	}
+
+	return strings.TrimSpace(token), nil
+}
+
+func extractAliangSessionToken(body []byte) string {
+	type loginEnvelope struct {
+		SessionToken string `json:"session_token"`
+		AccessToken  string `json:"access_token"`
+		Data         struct {
+			SessionToken string `json:"session_token"`
+			AccessToken  string `json:"access_token"`
+			Data         struct {
+				SessionToken string `json:"session_token"`
+				AccessToken  string `json:"access_token"`
+			} `json:"data"`
+		} `json:"data"`
+	}
+
+	var envelope loginEnvelope
+	if err := json.Unmarshal(body, &envelope); err != nil {
+		return ""
+	}
+
+	candidates := []string{
+		envelope.SessionToken,
+		envelope.AccessToken,
+		envelope.Data.SessionToken,
+		envelope.Data.AccessToken,
+		envelope.Data.Data.SessionToken,
+		envelope.Data.Data.AccessToken,
+	}
+	for _, candidate := range candidates {
+		if strings.TrimSpace(candidate) != "" {
+			return strings.TrimSpace(candidate)
+		}
+	}
+	return ""
 }

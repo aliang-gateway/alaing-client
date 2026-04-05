@@ -60,6 +60,54 @@ type RedeemResult struct {
 	Data json.RawMessage `json:"data"`
 }
 
+type APIKeyGroup struct {
+	ID                    int64   `json:"id"`
+	Name                  string  `json:"name"`
+	Description           string  `json:"description"`
+	Platform              string  `json:"platform"`
+	RateMultiplier        float64 `json:"rate_multiplier"`
+	ClaudeCodeOnly        bool    `json:"claude_code_only"`
+	AllowMessagesDispatch bool    `json:"allow_messages_dispatch"`
+}
+
+type userAPIKeyGroupListEnvelope struct {
+	Data    []APIKeyGroup `json:"data"`
+	Message string        `json:"message"`
+}
+
+type UserAPIKey struct {
+	ID              int64        `json:"id"`
+	Key             string       `json:"key"`
+	Name            string       `json:"name"`
+	GroupID         *int64       `json:"group_id,omitempty"`
+	Status          string       `json:"status"`
+	Provider        string       `json:"provider"`
+	Masked          bool         `json:"masked"`
+	SecretAvailable bool         `json:"secret_available"`
+	Group           *APIKeyGroup `json:"group,omitempty"`
+}
+
+type userAPIKeyListItem struct {
+	ID      int64        `json:"id"`
+	Key     string       `json:"key"`
+	Name    string       `json:"name"`
+	GroupID *int64       `json:"group_id"`
+	Status  string       `json:"status"`
+	Group   *APIKeyGroup `json:"group,omitempty"`
+}
+
+type userAPIKeyListEnvelope struct {
+	Code    int    `json:"code"`
+	Message string `json:"message"`
+	Data    struct {
+		Items    []userAPIKeyListItem `json:"items"`
+		Total    int                  `json:"total"`
+		Page     int                  `json:"page"`
+		PageSize int                  `json:"page_size"`
+		Pages    int                  `json:"pages"`
+	} `json:"data"`
+}
+
 func resolveAccessToken() (string, error) {
 	current := GetCurrentUserInfo()
 	if current == nil {
@@ -88,6 +136,8 @@ func callAuthenticatedAPI(method, endpoint, accessToken string, body any) ([]byt
 	}
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", accessToken))
 	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json")
+	applyEndpointSpecificHeaders(req)
 
 	client := &http.Client{Timeout: apiTimeout}
 	resp, err := client.Do(req)
@@ -102,18 +152,38 @@ func callAuthenticatedAPI(method, endpoint, accessToken string, body any) ([]byt
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("api returned status %d: %s", resp.StatusCode, string(responseBody))
+		return nil, fmt.Errorf("api %s returned status %d: %s", endpoint, resp.StatusCode, string(responseBody))
 	}
 
 	return responseBody, nil
 }
 
 func callUserCenterAPI(method, endpoint string, body any) ([]byte, error) {
-	accessToken, err := resolveAccessToken()
+	authToken, err := resolveAuthTokenForEndpoint(endpoint)
 	if err != nil {
 		return nil, err
 	}
-	return callAuthenticatedAPI(method, endpoint, accessToken, body)
+	return callAuthenticatedAPI(method, endpoint, authToken, body)
+}
+
+func resolveAuthTokenForEndpoint(endpoint string) (string, error) {
+	current := GetCurrentUserInfo()
+	if current == nil {
+		return "", fmt.Errorf("no user session")
+	}
+
+	token := strings.TrimSpace(current.AccessToken)
+	if token == "" {
+		token = strings.TrimSpace(current.AliangSessionToken)
+	}
+	if token == "" {
+		return "", fmt.Errorf("missing access token")
+	}
+	return token, nil
+}
+
+func applyEndpointSpecificHeaders(req *http.Request) {
+	// no-op: kept for forward compatibility
 }
 
 func GetUserProfileWithToken(accessToken string) (*UserProfile, error) {
@@ -251,6 +321,166 @@ func GetUserUsageProgress() (*UserUsageProgress, error) {
 	}
 
 	return &UserUsageProgress{Items: envelope.Data}, nil
+}
+
+func GetAvailableAPIKeyGroups() ([]APIKeyGroup, error) {
+	if _, err := resolveAccessToken(); err != nil {
+		return nil, err
+	}
+
+	urlBuilder, err := config.NewURLBuilder()
+	if err != nil {
+		return nil, err
+	}
+	groupsURL, err := urlBuilder.GetAvailableGroupsURL()
+	if err != nil {
+		return nil, err
+	}
+
+	body, err := callUserCenterAPI(http.MethodGet, groupsURL, nil)
+	if err != nil {
+		if isHTTP404Error(err) {
+			return []APIKeyGroup{}, nil
+		}
+		return nil, err
+	}
+
+	var envelope userAPIKeyGroupListEnvelope
+	if err := json.Unmarshal(body, &envelope); err != nil {
+		return nil, fmt.Errorf("failed to parse response: %w", err)
+	}
+
+	return envelope.Data, nil
+}
+
+func GetUserAPIKeys() ([]UserAPIKey, error) {
+	if _, err := resolveAccessToken(); err != nil {
+		return nil, err
+	}
+
+	urlBuilder, err := config.NewURLBuilder()
+	if err != nil {
+		return nil, err
+	}
+	keysURL, err := urlBuilder.GetUserAPIKeysURL()
+	if err != nil {
+		return nil, err
+	}
+
+	groupList, groupErr := GetAvailableAPIKeyGroups()
+	groupByID := make(map[int64]APIKeyGroup, len(groupList))
+	for _, group := range groupList {
+		groupByID[group.ID] = group
+	}
+
+	page := 1
+	perPage := 200
+	var items []UserAPIKey
+	for {
+		endpoint := fmt.Sprintf("%s?page=%d&page_size=%d&timezone=Asia%%2FShanghai", keysURL, page, perPage)
+		body, err := callUserCenterAPI(http.MethodGet, endpoint, nil)
+		if err != nil {
+			if isHTTP404Error(err) {
+				return nil, buildAPIKeysEndpointNotFoundError(endpoint)
+			}
+			return nil, err
+		}
+
+		var envelope userAPIKeyListEnvelope
+		if err := json.Unmarshal(body, &envelope); err != nil {
+			return nil, fmt.Errorf("failed to parse response: %w", err)
+		}
+
+		if envelope.Code != 0 && strings.TrimSpace(envelope.Message) != "" {
+			return nil, fmt.Errorf("api %s failed: %s", endpoint, strings.TrimSpace(envelope.Message))
+		}
+
+		for _, item := range envelope.Data.Items {
+			group := item.Group
+			if group == nil && item.GroupID != nil {
+				if matched, ok := groupByID[*item.GroupID]; ok {
+					copyGroup := matched
+					group = &copyGroup
+				}
+			}
+
+			keyValue := strings.TrimSpace(item.Key)
+			provider := ""
+			if group != nil {
+				provider = strings.ToLower(strings.TrimSpace(group.Platform))
+			}
+			if provider == "" {
+				provider = inferProviderFromAPIKeyMetadata(item.Name, keyValue)
+			}
+			items = append(items, UserAPIKey{
+				ID:              item.ID,
+				Key:             keyValue,
+				Name:            strings.TrimSpace(item.Name),
+				GroupID:         item.GroupID,
+				Status:          strings.TrimSpace(item.Status),
+				Provider:        provider,
+				Masked:          looksMaskedAPIKey(keyValue),
+				SecretAvailable: keyValue != "" && !looksMaskedAPIKey(keyValue),
+				Group:           group,
+			})
+		}
+
+		if envelope.Data.Pages <= 1 || page >= envelope.Data.Pages || len(envelope.Data.Items) == 0 {
+			break
+		}
+		page++
+	}
+
+	if len(items) == 0 && groupErr != nil {
+		return nil, groupErr
+	}
+
+	return items, nil
+}
+
+func looksMaskedAPIKey(value string) bool {
+	trimmed := strings.TrimSpace(value)
+	if trimmed == "" {
+		return false
+	}
+	return strings.Contains(trimmed, "***") || strings.Contains(trimmed, "…") || strings.Contains(trimmed, "...")
+}
+
+func isHTTP404Error(err error) bool {
+	if err == nil {
+		return false
+	}
+	return strings.Contains(strings.ToLower(err.Error()), "status 404")
+}
+
+func inferProviderFromAPIKeyMetadata(name string, key string) string {
+	combined := strings.ToLower(strings.TrimSpace(name + " " + key))
+	switch {
+	case strings.Contains(combined, "anthropic"), strings.Contains(combined, "claude"):
+		return "anthropic"
+	case strings.Contains(combined, "openai"), strings.Contains(combined, "gpt"), strings.Contains(combined, "codex"):
+		return "openai"
+	default:
+		return ""
+	}
+}
+
+func buildAPIKeysEndpointNotFoundError(endpoint string) error {
+	configuredBaseURL := ""
+	if cfg := config.GetGlobalConfig(); cfg != nil {
+		configuredBaseURL = strings.TrimSpace(cfg.APIBaseURL())
+	}
+
+	var detail strings.Builder
+	detail.WriteString("quick setup could not load API keys because the configured account backend does not expose the expected API key endpoint")
+	if configuredBaseURL != "" {
+		detail.WriteString(fmt.Sprintf(" (core.api_server=%s)", configuredBaseURL))
+	}
+	if strings.TrimSpace(endpoint) != "" {
+		detail.WriteString(fmt.Sprintf("; requested %s", endpoint))
+	}
+	detail.WriteString("; update core.api_server to your real account backend host")
+	return fmt.Errorf("%s", detail.String())
 }
 
 func RedeemCode(code string) (*RedeemResult, error) {

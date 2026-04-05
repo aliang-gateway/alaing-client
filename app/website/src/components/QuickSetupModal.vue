@@ -6,315 +6,293 @@
     aria-modal="true"
     aria-label="Quick Setup"
   >
-    <div class="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" @click="emit('close')"></div>
+    <div class="absolute inset-0 bg-slate-900/45 backdrop-blur-sm" @click="emit('close')"></div>
 
     <div
-      class="relative z-10 w-full max-w-5xl h-[680px] bg-white dark:bg-slate-900 shadow-2xl rounded-xl flex overflow-hidden border border-slate-200 dark:border-slate-800"
+      class="relative z-10 flex h-[720px] w-full max-w-6xl overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-slate-800 dark:bg-slate-900"
     >
-      <aside class="w-64 border-r border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30 flex flex-col">
-        <div class="p-6 border-b border-slate-100 dark:border-slate-800">
-          <h3 class="text-sm font-bold text-slate-400 uppercase tracking-widest">Software</h3>
+      <!-- Left sidebar -->
+      <aside class="flex w-72 shrink-0 flex-col border-r border-slate-100 bg-slate-50/80 dark:border-slate-800 dark:bg-slate-800/30">
+        <div class="border-b border-slate-100 px-6 py-5 dark:border-slate-800">
+          <p class="text-[11px] font-bold uppercase tracking-[0.28em] text-slate-400">Quick Setup</p>
+          <h3 class="mt-2 text-lg font-semibold text-slate-900 dark:text-white">Preset Templates</h3>
+          <p class="mt-1 text-xs leading-5 text-slate-500 dark:text-slate-400">
+            Choose a client, then we generate provider-aware config files from your account API keys.
+          </p>
         </div>
 
-        <nav class="flex-1 px-4 py-3 space-y-2 overflow-y-auto custom-scrollbar">
+        <div class="flex-1 space-y-2 overflow-y-auto px-4 py-4 custom-scrollbar">
           <button
-            v-for="software in softwares"
-            :key="software"
+            v-for="software in allSoftwares"
+            :key="software.code"
             type="button"
             :class="[
-              'w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm transition-colors border',
-              software === selectedSoftware
-                ? 'bg-white dark:bg-slate-800 border-primary/20 text-primary font-bold shadow-sm'
-                : 'border-transparent text-slate-600 dark:text-slate-400 hover:bg-white dark:hover:bg-slate-800 font-medium',
+              'relative w-full rounded-xl border px-4 py-3 text-left transition-all',
+              software.code === selectedSoftware
+                ? 'border-primary/30 bg-white shadow-sm dark:border-primary/30 dark:bg-slate-900'
+                : 'border-transparent bg-transparent hover:border-slate-200 hover:bg-white dark:hover:border-slate-700 dark:hover:bg-slate-900/60',
             ]"
-            @click="selectSoftware(software)"
+            @click="selectSoftware(software.code)"
           >
-            <span
-              :class="[
-                'size-2 rounded-full',
-                software === selectedSoftware ? 'bg-primary' : 'bg-slate-300 dark:bg-slate-600',
-              ]"
-            ></span>
-            {{ softwareLabel(software) }}
-          </button>
-
-          <button
-            type="button"
-            class="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm border border-dashed border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-800"
-            @click="toggleAddSoftwareForm"
-          >
-            <span class="material-symbols-outlined text-base">add</span>
-            新增软件
-          </button>
-
-          <div v-if="showAddSoftware" class="p-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 space-y-2">
-            <input
-              ref="newSoftwareInput"
-              v-model="newSoftwareName"
-              class="w-full px-3 py-2 text-sm bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded"
-              type="text"
-              placeholder="输入软件名"
-              @keydown.enter.prevent="addSoftware"
-            />
             <button
+              v-if="software.isCustom"
               type="button"
-              class="w-full py-2 text-xs font-bold bg-primary text-white rounded hover:bg-primary/90"
-              @click="addSoftware"
+              class="absolute right-2 top-2 inline-flex size-5 items-center justify-center rounded-full text-slate-400 transition hover:bg-rose-50 hover:text-rose-500"
+              @click.stop="removeCustomSoftware(software.code)"
             >
-              添加
+              <span class="material-symbols-outlined text-sm">close</span>
             </button>
-          </div>
-        </nav>
+            <div class="flex items-start justify-between gap-3">
+              <div class="min-w-0">
+                <p class="text-sm font-semibold text-slate-900 dark:text-white">{{ software.name }}</p>
+                <p
+                  class="mt-1 truncate text-[11px] leading-5 text-slate-500 dark:text-slate-400"
+                  :title="software.description"
+                >
+                  {{ software.description }}
+                </p>
+                <div class="mt-1.5 flex items-center gap-1.5" v-if="software.isCustom">
+                  <span class="inline-flex items-center rounded-md bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">Custom</span>
+                </div>
+              </div>
+              <span
+                :class="[
+                  'mt-0.5 inline-flex size-2.5 rounded-full',
+                  software.code === selectedSoftware ? 'bg-primary' : 'bg-slate-300 dark:bg-slate-600',
+                ]"
+              ></span>
+            </div>
+          </button>
 
-        <div class="p-6 mt-auto border-t border-slate-100 dark:border-slate-800">
           <button
             type="button"
-            class="w-full py-2.5 bg-primary text-white text-xs font-bold rounded-lg hover:bg-primary/90 transition-all flex items-center justify-center gap-2 shadow-lg shadow-primary/20 disabled:opacity-60"
-            :disabled="syncing"
-            @click="syncAllToCloud"
+            class="w-full rounded-xl border border-dashed border-slate-300 px-4 py-3 text-left text-sm text-slate-500 transition hover:border-primary/40 hover:text-primary dark:border-slate-700 dark:text-slate-400 dark:hover:border-primary/40 dark:hover:text-primary"
+            @click="showAddSoftware = true"
           >
-            <span class="material-symbols-outlined text-sm">cloud_upload</span>
-            {{ syncing ? 'Syncing...' : 'Sync All to Cloud' }}
+            + Add Software
           </button>
+
+          <div v-if="showAddSoftware" class="space-y-2 rounded-xl border border-primary/20 bg-white p-3 dark:bg-slate-900">
+            <input
+              v-model="newSoftwareName"
+              placeholder="Software name"
+              class="h-9 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm text-slate-700 outline-none transition focus:border-primary dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+            />
+            <input
+              v-model="newSoftwareDesc"
+              placeholder="Description (optional)"
+              class="h-9 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm text-slate-700 outline-none transition focus:border-primary dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+            />
+            <div class="flex gap-2">
+              <button
+                type="button"
+                class="flex-1 rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-primary/90"
+                @click="confirmAddSoftware"
+              >
+                Add
+              </button>
+              <button
+                type="button"
+                class="flex-1 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300"
+                @click="showAddSoftware = false"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
         </div>
       </aside>
 
-      <div class="flex-1 flex flex-col bg-white dark:bg-slate-900 overflow-hidden">
-        <header class="h-16 border-b border-slate-100 dark:border-slate-800 px-8 flex items-center justify-between shrink-0">
-          <div class="flex items-center gap-3">
-            <span class="text-slate-900 dark:text-white font-bold">{{ softwareLabel(selectedSoftware) }} Configurations</span>
-            <span class="px-2 py-0.5 bg-primary/10 text-primary text-[10px] font-bold rounded uppercase">
-              {{ configs.length }} items
-            </span>
+      <!-- Right panel -->
+      <div class="flex min-w-0 flex-1 flex-col">
+        <header class="flex h-16 shrink-0 items-center justify-between border-b border-slate-100 px-6 dark:border-slate-800">
+          <div class="min-w-0">
+            <p class="truncate text-base font-semibold text-slate-900 dark:text-white">
+              {{ selectedSoftwareDef?.name || 'Quick Setup' }}
+            </p>
+            <p class="text-[11px] text-slate-500 dark:text-slate-400">
+              {{ selectedSoftwareDef?.files?.length || 0 }} file(s) per variant
+            </p>
           </div>
-          <button
-            type="button"
-            aria-label="Close quick setup"
-            class="size-8 flex items-center justify-center text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
-            @click="emit('close')"
-          >
-            <span class="material-symbols-outlined">close</span>
-          </button>
+          <div class="flex items-center gap-2">
+            <button
+              type="button"
+              aria-label="Close quick setup"
+              class="inline-flex size-9 items-center justify-center rounded-full text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+              @click="emit('close')"
+            >
+              <span class="material-symbols-outlined">close</span>
+            </button>
+          </div>
         </header>
 
-        <div class="flex-1 overflow-y-auto p-8 custom-scrollbar space-y-8">
-          <section>
-            <div class="flex items-center justify-between mb-4">
-              <h4 class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Config Items</h4>
-              <div class="flex items-center gap-2">
+        <div class="flex-1 overflow-y-auto px-6 py-6 custom-scrollbar">
+          <div v-if="loadingCatalog" class="rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-5 py-6 text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-400">
+            Loading quick setup presets and your API keys…
+          </div>
+
+          <div
+            v-else-if="catalogStatus === 'unauthenticated'"
+            class="rounded-2xl border border-amber-200 bg-amber-50 px-5 py-6 dark:border-amber-900/40 dark:bg-amber-950/20"
+          >
+            <p class="text-sm font-semibold text-amber-800 dark:text-amber-200">Sign in required</p>
+            <p class="mt-2 text-sm leading-6 text-amber-700 dark:text-amber-300">
+              Quick Setup needs your authenticated session so the backend can load your API keys and build the preset files locally.
+            </p>
+          </div>
+
+          <div
+            v-else-if="catalogStatus === 'failed'"
+            class="rounded-2xl border border-rose-200 bg-rose-50 px-5 py-6 dark:border-rose-900/40 dark:bg-rose-950/20"
+          >
+            <p class="text-sm font-semibold text-rose-800 dark:text-rose-200">Failed to load quick setup</p>
+            <p class="mt-2 text-sm leading-6 text-rose-700 dark:text-rose-300">{{ catalogMessage || 'Please try again.' }}</p>
+          </div>
+
+          <template v-else>
+            <!-- Key selector -->
+            <div class="mb-4">
+              <p class="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-400">API Key</p>
+              <div class="mt-2 flex items-center gap-3">
+                <select
+                  v-model="selectedKeyId"
+                  class="flex-1 h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none transition focus:border-primary dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+                >
+                  <option value="" disabled>Select an API key...</option>
+                  <option v-for="key in apiKeys" :key="key.id" :value="key.id" :disabled="!isKeyCompatible(key)">
+                    {{ key.name }} · {{ key.group?.name || 'No group' }} ({{ key.provider }}){{ isKeyCompatible(key) ? '' : ' — incompatible' }}
+                  </option>
+                </select>
                 <button
                   type="button"
-                  class="px-3 py-1.5 text-xs font-bold border border-slate-200 dark:border-slate-700 rounded hover:bg-white dark:hover:bg-slate-800 transition-colors"
-                  @click="createNewConfig()"
+                  class="inline-flex h-10 items-center justify-center rounded-xl border border-slate-200 px-4 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+                  :disabled="!selectedKey?.secret_available"
+                  @click="copySelectedKey"
                 >
-                  新增配置项
+                  Copy Key
                 </button>
-                <button
-                  type="button"
-                  class="px-3 py-1.5 text-xs font-bold border border-slate-200 dark:border-slate-700 rounded hover:bg-white dark:hover:bg-slate-800 transition-colors"
-                  @click="loadConfigs()"
-                >
-                  Refresh
-                </button>
+              </div>
+              <div v-if="selectedKey" class="mt-2 flex items-center gap-2 text-[11px] text-slate-500 dark:text-slate-400">
+                <span>{{ selectedKey.group?.name || 'No group' }}</span>
+                <span>·</span>
+                <span class="font-mono">{{ maskKey(selectedKey.key) }}</span>
               </div>
             </div>
 
-            <div
-              :class="[
-                'space-y-3 custom-scrollbar pr-1',
-                editorExpanded
-                  ? 'overflow-visible'
-                  : 'max-h-[300px] overflow-y-auto',
-              ]"
-            >
-              <div v-for="item in configs" :key="item.uuid" class="space-y-3">
-                <div
-                  role="button"
-                  tabindex="0"
+            <!-- Config editor -->
+            <div v-if="currentVariant || selectedSoftwareDef?.isCustom" class="mt-6">
+              <!-- Notes -->
+              <div v-if="currentVariant.notes?.length" class="mb-4 rounded-2xl border border-sky-200 bg-sky-50/70 px-4 py-3 dark:border-sky-900/40 dark:bg-sky-950/20">
+                <p class="text-[11px] font-semibold uppercase tracking-wide text-sky-700 dark:text-sky-300">Notes</p>
+                <p
+                  v-for="(note, index) in currentVariant.notes"
+                  :key="`note-${index}`"
+                  class="mt-2 text-sm leading-6 text-sky-700 dark:text-sky-300"
+                >
+                  {{ note }}
+                </p>
+              </div>
+
+              <!-- File tabs -->
+              <div class="flex flex-wrap gap-2">
+                <button
+                  v-for="file in editableFiles"
+                  :key="file.code"
+                  type="button"
                   :class="[
-                    'w-full p-4 rounded-xl flex items-center justify-between transition-all text-left',
-                    selectedConfig?.uuid === item.uuid
-                      ? 'border border-primary/20 bg-primary/5'
-                      : 'border border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/20',
+                    'inline-flex min-h-9 items-center justify-center rounded-full border px-3 text-[11px] font-semibold transition',
+                    file.code === selectedFileCode
+                      ? 'border-primary/30 bg-primary/10 text-primary'
+                      : 'border-slate-200 text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800',
                   ]"
-                  @click="toggleConfigEditor(item)"
-                  @keydown.enter.prevent="toggleConfigEditor(item)"
+                  @click="selectedFileCode = file.code"
                 >
-                  <div>
-                    <div class="flex items-center gap-2">
-                      <p class="text-sm font-bold text-slate-800 dark:text-white">{{ item.name }}</p>
-                      <span
-                        v-if="String(item.uuid || '').startsWith('draft-')"
-                        class="px-2 py-0.5 text-[10px] font-bold rounded uppercase bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300"
-                      >
-                        Draft
-                      </span>
-                    </div>
-                    <p class="text-xs text-slate-500 mt-1">Version: {{ item.version || 'v1' }}</p>
-                    <p class="text-[11px] text-slate-400 mt-0.5 truncate max-w-[340px]" :title="item.file_path">{{ item.file_path }}</p>
-                  </div>
-                  <div class="flex items-center gap-2">
-                    <span
-                      :class="[
-                        'px-2 py-0.5 text-[10px] font-bold rounded uppercase',
-                        item.in_use
-                          ? 'bg-primary/10 text-primary'
-                          : 'bg-slate-200 text-slate-500 dark:bg-slate-700 dark:text-slate-300',
-                      ]"
-                    >
-                      {{ item.in_use ? 'In Use' : 'Saved' }}
-                    </span>
+                  {{ file.label }}
+                  <button
+                    v-if="selectedSoftwareDef?.isCustom"
+                    type="button"
+                    class="ml-1 inline-flex size-4 items-center justify-center rounded-full text-slate-400 hover:text-rose-500"
+                    @click.stop="removeFile(file.code)"
+                  >
+                    <span class="material-symbols-outlined text-xs">close</span>
+                  </button>
+                </button>
+                <button
+                  v-if="selectedSoftwareDef?.isCustom"
+                  type="button"
+                  class="inline-flex min-h-9 items-center justify-center rounded-full border border-dashed border-slate-300 px-3 text-[11px] text-slate-500 transition hover:border-primary/40 hover:text-primary dark:border-slate-700 dark:text-slate-400"
+                  @click="addNewFile"
+                >
+                  + Add File
+                </button>
+              </div>
+
+              <!-- Editor -->
+              <div v-if="currentFile" class="mt-4 space-y-4">
+                <div>
+                  <label class="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-slate-500">Target Path</label>
+                  <input
+                    :value="currentFile.path"
+                    type="text"
+                    class="h-10 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm text-slate-700 outline-none transition focus:border-primary dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+                    @input="updateCurrentFile('path', $event.target.value)"
+                  />
+                </div>
+
+                <div>
+                  <label class="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-slate-500">Version</label>
+                  <input
+                    :value="currentFile.version || ''"
+                    type="text"
+                    placeholder="e.g. v1, 2025-04"
+                    class="h-10 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm text-slate-700 outline-none transition focus:border-primary dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+                    @input="updateCurrentFile('version', $event.target.value)"
+                  />
+                </div>
+
+                <div>
+                  <div class="mb-1 flex items-center justify-between gap-3">
+                    <label class="block text-[11px] font-semibold uppercase tracking-wide text-slate-500">Content</label>
                     <button
                       type="button"
-                      v-if="!String(item.uuid || '').startsWith('draft-')"
-                      class="px-2 py-0.5 text-[10px] font-bold rounded uppercase bg-blue-100 text-blue-700 hover:bg-blue-200"
-                      @click.stop="applyConfigItem(item)"
+                      class="inline-flex min-h-8 items-center justify-center rounded-lg border border-slate-200 px-3 text-[11px] font-semibold text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+                      @click="copyFile(currentFile)"
                     >
-                      应用
-                    </button>
-                    <button
-                      type="button"
-                      class="px-2 py-0.5 text-[10px] font-bold rounded uppercase bg-emerald-100 text-emerald-700 hover:bg-emerald-200"
-                      @click.stop="editConfigItem(item)"
-                    >
-                      编辑
+                      Copy File
                     </button>
                   </div>
+                  <textarea
+                    :value="currentFile.content"
+                    class="code-editor h-[320px] w-full rounded-2xl border border-slate-200 bg-slate-950 px-4 py-3 text-[12px] leading-6 text-slate-100 outline-none transition focus:border-primary dark:border-slate-700"
+                    spellcheck="false"
+                    @input="updateCurrentFile('content', $event.target.value)"
+                  ></textarea>
                 </div>
               </div>
 
-              <div
-                v-if="!configs.length"
-                class="p-4 rounded-xl border border-dashed border-slate-200 dark:border-slate-700 text-sm text-slate-500"
-              >
-                No configuration yet for {{ softwareLabel(selectedSoftware) }}.
+              <!-- Apply -->
+              <div class="mt-4 flex justify-end">
+                <button
+                  type="button"
+                  class="inline-flex min-h-10 items-center justify-center rounded-lg border border-slate-200 px-3 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+                  :disabled="applying || !editableFiles.length"
+                  @click="applyCurrentVariant"
+                >
+                  {{ applying ? 'Applying...' : 'Apply Files' }}
+                </button>
               </div>
             </div>
-          </section>
 
-          <transition name="slide-up-panel">
-            <section
-              v-if="editorExpanded"
-              class="border-t border-slate-100 dark:border-slate-800 pt-6"
-            >
-              <div class="flex items-center justify-between mb-6">
-                <div class="flex items-center gap-2">
-                  <h4 class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Selected Config</h4>
-                  <span
-                    v-if="isDraftSelected"
-                    class="px-2 py-0.5 text-[10px] font-bold rounded uppercase bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300"
-                  >
-                    Draft
-                  </span>
-                </div>
-                <span class="text-[10px] text-slate-400">{{ selectedConfig?.uuid || 'N/A' }}</span>
-              </div>
-
-              <div class="grid grid-cols-2 gap-6">
-                <div class="space-y-1.5 col-span-1">
-                  <label class="text-xs font-bold text-slate-500 ml-1" for="quickSetupConfigName">Config Name</label>
-                  <input
-                    id="quickSetupConfigName"
-                    v-model="form.name"
-                    class="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:ring-primary focus:border-primary"
-                    type="text"
-                  />
-                </div>
-                <div class="space-y-1.5 col-span-1">
-                  <label class="text-xs font-bold text-slate-500 ml-1" for="quickSetupVersion">Version</label>
-                  <input
-                    id="quickSetupVersion"
-                    v-model="form.version"
-                    class="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:ring-primary focus:border-primary"
-                    type="text"
-                  />
-                </div>
-                <div class="space-y-1.5 col-span-1">
-                  <label class="text-xs font-bold text-slate-500 ml-1" for="quickSetupFormat">Format</label>
-                  <select
-                    id="quickSetupFormat"
-                    v-model="form.format"
-                    class="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:ring-primary focus:border-primary"
-                  >
-                    <option value="json">json</option>
-                    <option value="yaml">yaml</option>
-                  </select>
-                </div>
-                <div class="space-y-1.5 col-span-2">
-                  <label class="text-xs font-bold text-slate-500 ml-1" for="quickSetupFilePath">Local Disk Path</label>
-                  <input
-                    id="quickSetupFilePath"
-                    v-model="form.filePath"
-                    class="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:ring-primary focus:border-primary"
-                    type="text"
-                  />
-                </div>
-                <div class="space-y-1.5 col-span-2">
-                  <label class="text-xs font-bold text-slate-500 ml-1" for="quickSetupContent">Content</label>
-                  <div class="border border-slate-200 dark:border-slate-700 rounded-lg overflow-hidden">
-                    <CodeMirror
-                      id="quickSetupContent"
-                      v-model="form.content"
-                      class="text-sm"
-                      :extensions="editorExtensions"
-                      :style="{ minHeight: '220px' }"
-                      :basic-setup="basicSetup"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              <div class="flex items-center justify-between mt-6">
-                <p class="text-xs text-slate-500">{{ statusMessage }}</p>
-                <div class="flex justify-end gap-3">
-                  <button
-                    type="button"
-                    class="px-4 py-2 text-sm font-bold text-slate-500 hover:text-slate-700 transition-colors"
-                    @click="collapseEditor"
-                  >
-                    取消编辑
-                  </button>
-                  <button
-                    type="button"
-                    class="px-4 py-2 text-sm font-bold text-slate-600 hover:text-slate-800 transition-colors"
-                    @click="saveConfig"
-                  >
-                    保存
-                  </button>
-                  <button
-                    type="button"
-                    class="px-6 py-2 bg-primary text-white text-sm font-bold rounded-lg hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all disabled:opacity-60"
-                    :disabled="applying"
-                    @click="applyConfig"
-                  >
-                    {{ applying ? '应用中...' : '应用' }}
-                  </button>
-                </div>
-              </div>
-
-              <div class="mt-5 grid grid-cols-1 md:grid-cols-2 gap-3">
-                <input
-                  v-model="cloud.cloudUrl"
-                  class="px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:ring-primary focus:border-primary"
-                  type="text"
-                  placeholder="Cloud sync URL (e.g. https://example.com/configs)"
-                />
-                <input
-                  v-model="cloud.authToken"
-                  class="px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:ring-primary focus:border-primary"
-                  type="text"
-                  placeholder="Cloud auth token (optional)"
-                />
-              </div>
-            </section>
-          </transition>
-
-          <section v-show="!editorExpanded" class="border-t border-slate-100 dark:border-slate-800 pt-6">
-            <div class="rounded-lg border border-dashed border-slate-200 dark:border-slate-700 p-4 text-xs text-slate-500">
-              点击配置项上的“编辑”按钮，从底部展开编辑窗口。
+            <div v-else class="mt-6 rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-5 py-6 text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-400">
+              <template v-if="rendering">Rendering configuration…</template>
+              <template v-else-if="!compatibleKeys.length && !selectedSoftwareDef?.isCustom">No compatible API keys found for this client.</template>
+              <template v-else>Select an API key above to generate the configuration.</template>
             </div>
-          </section>
 
+            <div v-if="statusMessage" class="mt-6 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600 dark:border-slate-800 dark:bg-slate-900/50 dark:text-slate-300">
+              {{ statusMessage }}
+            </div>
+          </template>
         </div>
       </div>
     </div>
@@ -322,12 +300,8 @@
 </template>
 
 <script setup>
-import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
-import { Codemirror as CodeMirror } from 'vue-codemirror';
-import { json } from '@codemirror/lang-json';
-import { yaml } from '@codemirror/lang-yaml';
-import { oneDark } from '@codemirror/theme-one-dark';
-import YAML from 'yaml';
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
+import { applyQuickSetup, getQuickSetupCatalog, renderQuickSetup } from '../services/quickSetupApi';
 
 const props = defineProps({
   open: {
@@ -335,478 +309,244 @@ const props = defineProps({
     default: false,
   },
 });
-
 const emit = defineEmits(['close']);
-
-const softwares = ref(['opencode', 'claude', 'cursor', 'openai']);
-const selectedSoftware = ref('opencode');
-const configs = ref([]);
-const selectedConfig = ref(null);
-const statusMessage = ref('Select software and configuration item.');
+const loadingCatalog = ref(false);
+const rendering = ref(false);
 const applying = ref(false);
-const syncing = ref(false);
-const editorExpanded = ref(false);
-const dataLoaded = ref(false);
+const catalogStatus = ref('idle');
+const catalogMessage = ref('');
+const statusMessage = ref('');
+const softwares = ref([]);
+const apiKeys = ref([]);
+const selectedSoftware = ref('');
+const selectedKeyId = ref('');
+const currentVariant = ref(null);
+const selectedFileCode = ref('');
+const editableFiles = ref([]);
+const customSoftwares = ref([]);
 const showAddSoftware = ref(false);
 const newSoftwareName = ref('');
-const newSoftwareInput = ref(null);
-const cloud = reactive({
-  cloudUrl: '',
-  authToken: '',
+const newSoftwareDesc = ref('');
+let fileCounter = 0;
+const allSoftwares = computed(() => [
+  ...softwares.value,
+  ...customSoftwares.value,
+]);
+const selectedSoftwareDef = computed(() => allSoftwares.value.find((item) => item.code === selectedSoftware.value) || null);
+const compatibleKeys = computed(() => {
+  const supportedProviders = new Set(selectedSoftwareDef.value?.supported_providers || []);
+  return apiKeys.value.filter((key) => supportedProviders.size === 0 || supportedProviders.has(key.provider));
 });
-
-const form = reactive({
-  uuid: '',
-  name: '',
-  filePath: '',
-  version: 'v1',
-  content: '{}',
-  format: 'json',
+function isKeyCompatible(key) {
+  const supportedProviders = new Set(selectedSoftwareDef.value?.supported_providers || []);
+  return supportedProviders.size === 0 || supportedProviders.has(key.provider);
+}
+const selectedKey = computed(() => {
+  if (!selectedKeyId.value) return null;
+  return apiKeys.value.find((k) => k.id === selectedKeyId.value) || null;
 });
-
-const basicSetup = {
-  lineNumbers: true,
-  foldGutter: true,
-  highlightActiveLineGutter: true,
-  highlightActiveLine: true,
-};
-
-const editorExtensions = computed(() => {
-  const modeExtension = form.format === 'yaml' ? yaml() : json();
-  return [modeExtension, oneDark];
+const currentFile = computed(() => {
+  return editableFiles.value.find((item) => item.code === selectedFileCode.value) || editableFiles.value[0] || null;
 });
-
-const hasValidContent = computed(() => {
-  const content = form.content || '';
-  if (form.format === 'yaml') {
-    try {
-      YAML.parse(content || '{}');
-      return true;
-    } catch {
-      return false;
-    }
-  }
-
+function maskKey(key) {
+  if (!key) return '';
+  if (key.length <= 12) return key;
+  return key.slice(0, 6) + '•••••••' + key.slice(-4);
+}
+async function loadCatalog() {
+  loadingCatalog.value = true;
+  statusMessage.value = '';
   try {
-    JSON.parse(content || '{}');
-    return true;
-  } catch {
-    return false;
+    const result = await getQuickSetupCatalog();
+    catalogStatus.value = result.status || 'idle';
+    catalogMessage.value = result.message || '';
+    if (result.status !== 'success' || !result.data) {
+      softwares.value = [];
+      apiKeys.value = [];
+      currentVariant.value = null;
+      editableFiles.value = [];
+      return;
+    }
+    softwares.value = Array.isArray(result.data.softwares) ? result.data.softwares : [];
+    apiKeys.value = Array.isArray(result.data.api_keys) ? result.data.api_keys : [];
+    if (!selectedSoftware.value || !softwares.value.some((item) => item.code === selectedSoftware.value)) {
+      selectedSoftware.value = softwares.value[0]?.code || '';
+    }
+  } catch (error) {
+    catalogStatus.value = 'failed';
+    catalogMessage.value = error instanceof Error ? error.message : 'Failed to load quick setup catalog.';
+    statusMessage.value = catalogMessage.value;
+  } finally {
+    loadingCatalog.value = false;
   }
-});
-
-const isDraftSelected = computed(() => String(selectedConfig.value?.uuid || '').startsWith('draft-'));
-
-function buildDraftConfig(software) {
-  return {
-    uuid: `draft-${Date.now()}`,
-    software,
-    name: `${softwareLabel(software)} Config ${configs.value.filter((item) => !String(item?.uuid || '').startsWith('draft-')).length + 1}`,
-    file_path: defaultPathForSoftware(software),
-    version: 'v1',
-    format: 'json',
-    content: '{}',
-    in_use: false,
+}
+async function renderSelectedKey() {
+  if (!selectedSoftware.value || !selectedKeyId.value) {
+    currentVariant.value = null;
+    editableFiles.value = [];
+    return;
+  }
+  rendering.value = true;
+  try {
+    const result = await renderQuickSetup(selectedSoftware.value, [selectedKeyId.value]);
+    const variantList = Array.isArray(result?.variants) ? result.variants : [];
+    if (variantList.length > 0) {
+      currentVariant.value = variantList[0];
+      editableFiles.value = (variantList[0].files || []).map((f) => ({ ...f }));
+      selectedFileCode.value = editableFiles.value[0]?.code || '';
+    } else {
+      currentVariant.value = null;
+      editableFiles.value = [];
+    }
+  } catch (error) {
+    statusMessage.value = error instanceof Error ? error.message : 'Failed to render.';
+    currentVariant.value = null;
+    editableFiles.value = [];
+  } finally {
+    rendering.value = false;
+  }
+}
+function selectSoftware(code) {
+  if (selectedSoftware.value === code) {
+    return;
+  }
+  selectedSoftware.value = code;
+}
+function confirmAddSoftware() {
+  const name = newSoftwareName.value.trim();
+  if (!name) return;
+  const code = 'custom-' + name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+  customSoftwares.value.push({
+    code,
+    name,
+    description: newSoftwareDesc.value.trim() || 'Custom software configuration.',
+    supported_providers: [],
+    files: [],
+    isCustom: true,
+  });
+  showAddSoftware.value = false;
+  newSoftwareName.value = '';
+  newSoftwareDesc.value = '';
+  selectedSoftware.value = code;
+}
+function removeCustomSoftware(code) {
+  customSoftwares.value = customSoftwares.value.filter((s) => s.code !== code);
+  if (selectedSoftware.value === code) {
+    selectedSoftware.value = softwares.value[0]?.code || '';
+  }
+}
+function addNewFile() {
+  fileCounter++;
+  const newFile = {
+    code: `custom-file-${fileCounter}`,
+    label: `file-${fileCounter}`,
+    path: '~/path/to/config',
+    format: 'text',
+    kind: 'file',
+    content: '',
+    version: '',
+  };
+  editableFiles.value.push(newFile);
+  selectedFileCode.value = newFile.code;
+}
+function removeFile(code) {
+  const idx = editableFiles.value.findIndex((f) => f.code === code);
+  if (idx < 0) return;
+  editableFiles.value.splice(idx, 1);
+  if (selectedFileCode.value === code) {
+    selectedFileCode.value = editableFiles.value[0]?.code || ''
+  }
+}
+function updateCurrentFile(field, value) {
+  const index = editableFiles.value.findIndex((item) => item.code === selectedFileCode.value);
+  if (index < 0) {
+    return;
+  }
+  editableFiles.value[index] = {
+    ...editableFiles.value[index],
+    [field]: value,
   };
 }
-
-function removeDraftConfigs() {
-  configs.value = configs.value.filter((item) => !String(item?.uuid || '').startsWith('draft-'));
-}
-
-function prettyFormatContent(content, format) {
-  const source = (content || '').trim();
-  if (!source) {
-    return format === 'yaml' ? '' : '{}';
-  }
-
-  if (format === 'yaml') {
-    try {
-      const parsed = YAML.parse(source);
-      return YAML.stringify(parsed ?? {}).trim();
-    } catch {
-      return source;
-    }
-  }
-
+async function copyText(value, successText) {
   try {
-    return JSON.stringify(JSON.parse(source), null, 2);
-  } catch {
-    return source;
-  }
-}
-
-function softwareLabel(software) {
-  return software.charAt(0).toUpperCase() + software.slice(1);
-}
-
-async function apiCall(endpoint, options = {}) {
-  const response = await fetch(`/api${endpoint}`, {
-    headers: {
-      'Content-Type': 'application/json',
-      ...(options.headers || {}),
-    },
-    ...options,
-  });
-  const payload = await response.json().catch(() => ({}));
-  if (!response.ok || payload.code !== 0) {
-    throw new Error(payload?.msg || 'Request failed');
-  }
-  return payload.data;
-}
-
-function normalizeSoftwareName(value) {
-  return value.trim().toLowerCase();
-}
-
-function mergeSoftwareOptions(names = []) {
-  const merged = new Set(softwares.value);
-  names
-    .map((name) => normalizeSoftwareName(String(name || '')))
-    .filter(Boolean)
-    .forEach((name) => merged.add(name));
-  softwares.value = Array.from(merged);
-}
-
-function applyConfigToForm(item) {
-  const itemFormat = item?.format === 'yaml' ? 'yaml' : 'json';
-  form.uuid = item?.uuid || '';
-  form.name = item?.name || '';
-  form.filePath = item?.file_path || defaultPathForSoftware(item?.software || selectedSoftware.value);
-  form.version = item?.version || 'v1';
-  form.format = itemFormat;
-  form.content = prettyFormatContent(item?.content || '{}', itemFormat);
-}
-
-function defaultPathForSoftware(software) {
-  return `~/.config/${software}/config.json`;
-}
-
-function resetFormForSoftware(software) {
-  form.uuid = '';
-  form.name = `${softwareLabel(software)} Default`;
-  form.filePath = defaultPathForSoftware(software);
-  form.version = 'v1';
-  form.content = '{}';
-  form.format = 'json';
-}
-
-function createNewConfig() {
-  removeDraftConfigs();
-  const draft = buildDraftConfig(selectedSoftware.value);
-  configs.value = [draft, ...configs.value];
-  selectedConfig.value = draft;
-  applyConfigToForm(draft);
-  form.uuid = '';
-  editorExpanded.value = true;
-  dataLoaded.value = true;
-  statusMessage.value = '新配置项已创建，正在编辑草稿。';
-}
-
-function toggleAddSoftwareForm() {
-  showAddSoftware.value = !showAddSoftware.value;
-  if (showAddSoftware.value) {
-    statusMessage.value = '请输入软件名，保存后会写入本地数据库。';
-  }
-}
-
-async function addSoftware() {
-  const normalized = normalizeSoftwareName(newSoftwareName.value);
-  if (!normalized) {
-    statusMessage.value = '请输入软件名。';
-    return;
-  }
-
-  if (softwares.value.includes(normalized)) {
-    newSoftwareName.value = '';
-    showAddSoftware.value = false;
-    await selectSoftware(normalized);
-    if (!configs.value.length) {
-      createNewConfig();
-    }
-    statusMessage.value = `软件已存在：${softwareLabel(normalized)}`;
-    return;
-  }
-
-  try {
-    const data = await apiCall('/software-config/save', {
-      method: 'POST',
-      body: JSON.stringify({
-        software: normalized,
-        name: `${softwareLabel(normalized)} Default`,
-        file_path: defaultPathForSoftware(normalized),
-        version: 'v1',
-        format: 'json',
-        content: '{}',
-      }),
-    });
-    mergeSoftwareOptions([normalized, data?.software]);
-    newSoftwareName.value = '';
-    showAddSoftware.value = false;
-    await selectSoftware(normalized);
-    if (data?.uuid) {
-      const created = configs.value.find((item) => item.uuid === data.uuid);
-      if (created) {
-        editConfigItem(created);
-      }
-    }
-    statusMessage.value = `已新增软件并写入本地数据库：${softwareLabel(normalized)}`;
+    await navigator.clipboard.writeText(value);
+    statusMessage.value = successText;
   } catch (error) {
-    statusMessage.value = `新增软件失败: ${error.message}`;
+    statusMessage.value = error instanceof Error ? error.message : 'Copy failed.';
   }
 }
-
-async function loadSoftwareOptions() {
-  const data = await apiCall('/software-config/list', {
-    method: 'GET',
-  });
-  const items = data.items || [];
-  mergeSoftwareOptions(items.map((item) => item.software));
-}
-
-async function loadConfigs(software = selectedSoftware.value) {
-  const targetSoftware = normalizeSoftwareName(software);
-  const previousSelectedUUID = selectedConfig.value?.uuid || '';
-  const data = await apiCall(`/software-config/list?software=${encodeURIComponent(targetSoftware)}`, {
-    method: 'GET',
-  });
-  const serverItems = data.items || [];
-  const localDrafts = configs.value.filter((item) => String(item?.uuid || '').startsWith('draft-'));
-  configs.value = [...localDrafts, ...serverItems];
-  if (serverItems.length > 0) {
-    const preferred = serverItems.find((item) => item.uuid === previousSelectedUUID) || serverItems[0];
-    selectedConfig.value = preferred;
-    applyConfigToForm(preferred);
-  } else if (!localDrafts.length) {
-    selectedConfig.value = null;
-    resetFormForSoftware(targetSoftware);
-  }
-}
-
-async function selectSoftware(software) {
-  selectedSoftware.value = normalizeSoftwareName(software);
-  if (!props.open) {
+async function copySelectedKey() {
+  if (!selectedKey.value?.secret_available) {
+    statusMessage.value = 'This API key is masked by the backend response and cannot be copied directly.';
     return;
   }
-  try {
-    removeDraftConfigs();
-    await loadConfigs(selectedSoftware.value);
-    editorExpanded.value = false;
-    statusMessage.value = 'Ready.';
-  } catch (error) {
-    statusMessage.value = `Load failed: ${error.message}`;
-    resetFormForSoftware(selectedSoftware.value);
-    editorExpanded.value = false;
-  }
+  await copyText(selectedKey.value.key, `Copied API key: ${selectedKey.value.name}`);
 }
-
-function selectConfig(item) {
-  selectedConfig.value = item;
-  applyConfigToForm(item);
-}
-
-function collapseEditor() {
-  editorExpanded.value = false;
-  statusMessage.value = '编辑已收起。';
-}
-
-function toggleConfigEditor(item) {
-  const isSameItem = selectedConfig.value?.uuid === item?.uuid;
-  if (editorExpanded.value && isSameItem) {
-    collapseEditor();
+async function copyFile(file) {
+  if (!file) {
     return;
   }
-  selectConfig(item);
-  editorExpanded.value = true;
-  statusMessage.value = `正在编辑 ${item?.name || '配置项'}。`;
+  await copyText(file.content || '', `Copied ${file.label}`);
 }
-
-function editConfigItem(item) {
-  selectedConfig.value = item;
-  applyConfigToForm(item);
-  editorExpanded.value = true;
-}
-
-async function saveConfig() {
-  if (!form.name || !form.filePath) {
-    statusMessage.value = 'Config name and local disk path are required.';
+async function applyCurrentVariant() {
+  if (!selectedSoftware.value || !editableFiles.value.length) {
     return;
   }
-  if (!hasValidContent.value) {
-    statusMessage.value = `Content must be valid ${form.format.toUpperCase()}.`;
-    return;
-  }
-
-  try {
-    const data = await apiCall('/software-config/save', {
-      method: 'POST',
-      body: JSON.stringify({
-        uuid: form.uuid,
-        software: selectedSoftware.value,
-        name: form.name,
-        file_path: form.filePath,
-        version: form.version,
-        in_use: !!selectedConfig.value?.in_use,
-        format: form.format,
-        content: form.content,
-      }),
-    });
-    form.uuid = data.uuid;
-    removeDraftConfigs();
-    statusMessage.value = 'Config saved to local database.';
-    await loadConfigs();
-    const saved = configs.value.find((item) => item.uuid === data.uuid);
-    if (saved) {
-      editConfigItem(saved);
-    } else {
-      editorExpanded.value = true;
-    }
-  } catch (error) {
-    statusMessage.value = `Save failed: ${error.message}`;
-  }
-}
-
-async function applyConfig() {
-  if (!form.name || !form.filePath) {
-    statusMessage.value = 'Config name and local disk path are required.';
-    return;
-  }
-  if (!hasValidContent.value) {
-    statusMessage.value = `Content must be valid ${form.format.toUpperCase()}.`;
-    return;
-  }
-
   applying.value = true;
   try {
-    await apiCall('/software-config/activate', {
-      method: 'POST',
-      body: JSON.stringify({
-        uuid: form.uuid,
-        software: selectedSoftware.value,
-        name: form.name,
-        file_path: form.filePath,
-        version: form.version,
-        format: form.format,
-        content: form.content,
-      }),
-    });
-    statusMessage.value = 'Config applied.';
-    await loadConfigs();
+    const result = await applyQuickSetup(selectedSoftware.value, editableFiles.value);
+    const writtenCount = Array.isArray(result?.written) ? result.written.length : 0;
+    statusMessage.value = writtenCount > 0
+      ? `Applied ${writtenCount} file(s) for ${selectedSoftwareDef.value?.name || selectedSoftware.value}.`
+      : 'No file was written. Review the generated paths and try again.';
   } catch (error) {
-    statusMessage.value = `Apply failed: ${error.message}`;
+    statusMessage.value = error instanceof Error ? error.message : 'Failed to apply files.';
   } finally {
     applying.value = false;
   }
 }
-
-async function applyConfigItem(item) {
-  applying.value = true;
-  try {
-    await apiCall('/software-config/activate', {
-      method: 'POST',
-      body: JSON.stringify({
-        uuid: item.uuid,
-        software: item.software,
-        name: item.name,
-        file_path: item.file_path,
-        version: item.version,
-        format: item.format,
-        content: item.content,
-      }),
-    });
-    statusMessage.value = `${item.name} applied.`;
-    await loadConfigs();
-  } catch (error) {
-    statusMessage.value = `Apply failed: ${error.message}`;
-  } finally {
-    applying.value = false;
+function onModalKeydown(event) {
+  if (event.key === 'Escape' && props.open) {
+    event.stopImmediatePropagation();
+    emit('close');
   }
 }
-
-async function syncAllToCloud() {
-  if (!cloud.cloudUrl.trim()) {
-    statusMessage.value = 'Cloud URL is required for sync.';
-    return;
-  }
-  syncing.value = true;
-  try {
-    const data = await apiCall('/software-config/cloud/push', {
-      method: 'POST',
-      body: JSON.stringify({
-        cloud_url: cloud.cloudUrl,
-        auth_token: cloud.authToken,
-      }),
-    });
-    statusMessage.value = `Synced ${data.synced_count} configs at ${data.last_synced_at}.`;
-  } catch (error) {
-    statusMessage.value = `Cloud sync failed: ${error.message}`;
-  } finally {
-    syncing.value = false;
-  }
-}
-
 watch(
   () => props.open,
   async (value) => {
     if (!value) {
-      editorExpanded.value = false;
       return;
     }
-    try {
-      await loadSoftwareOptions();
-      await loadConfigs();
-      dataLoaded.value = true;
-      statusMessage.value = 'Ready.';
-    } catch (error) {
-      statusMessage.value = `Load failed: ${error.message}`;
-      resetFormForSoftware(selectedSoftware.value);
-    }
+    await loadCatalog();
   },
   { immediate: true },
 );
-
-watch(showAddSoftware, async (value) => {
-  if (!value) {
+// Software switch -> auto-select first compatible key
+watch(selectedSoftware, () => {
+  currentVariant.value = null;
+  editableFiles.value = [];
+  const keys = compatibleKeys.value;
+  if (keys.length === 0) {
+    selectedKeyId.value = '';
     return;
   }
-  await nextTick();
-  newSoftwareInput.value?.focus?.();
+  const preferOpenAI = selectedSoftwareDef.value?.code === 'opencode';
+  const preferred = preferOpenAI
+    ? keys.find((k) => k.provider === 'openai') || keys[0]
+    : keys[0];
+  selectedKeyId.value = preferred.id;
 });
-
-function onModalKeydown(e) {
-  if (e.key === 'Escape' && props.open) {
-    e.stopImmediatePropagation();
-    emit('close');
+// Key switch -> render config
+watch(selectedKeyId, () => {
+  if (selectedSoftwareDef.value?.isCustom) {
+    return;
   }
-}
-
+  renderSelectedKey();
+});
 onMounted(() => {
   window.addEventListener('keydown', onModalKeydown, true);
 });
-
 onUnmounted(() => {
-  window.removeEventListener('keydown', onModalKeydown, true);
-});
-
+  window.removeEventListener('keydown', onModalKeydown, true)
+  });
 </script>
-
-<style scoped>
-.slide-up-panel-enter-active,
-.slide-up-panel-leave-active {
-  transition: all 0.25s ease;
-}
-
-.slide-up-panel-enter-from,
-.slide-up-panel-leave-to {
-  opacity: 0;
-  transform: translateY(16px);
-  max-height: 0;
-}
-
-.slide-up-panel-enter-to,
-.slide-up-panel-leave-from {
-  opacity: 1;
-  transform: translateY(0);
-  max-height: 1400px;
-}
-</style>
