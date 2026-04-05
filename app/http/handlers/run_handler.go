@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"net/http"
+	"strings"
 
 	"aliang.one/nursorgate/app/http/common"
 	"aliang.one/nursorgate/app/http/services"
@@ -38,6 +39,13 @@ func (rh *RunHandler) HandleRunStatus(w http.ResponseWriter, r *http.Request) {
 	common.Success(w, result)
 }
 
+// HandleAliangLinkStatus handles GET /api/run/aliang/status
+func (rh *RunHandler) HandleAliangLinkStatus(w http.ResponseWriter, r *http.Request) {
+	probe := shouldProbeLinkStatus(r)
+	result := rh.runService.GetAliangLinkStatus(r.Context(), probe)
+	common.Success(w, result)
+}
+
 // HandleRunWintunInstall handles POST /api/run/wintun/install
 func (rh *RunHandler) HandleRunWintunInstall(w http.ResponseWriter, r *http.Request) {
 	result := services.StartWintunDependencyInstall()
@@ -69,4 +77,9 @@ func (rh *RunHandler) HandleRunSwift(w http.ResponseWriter, r *http.Request) {
 
 	result := rh.runService.SwitchMode(req.TargetMode)
 	common.Success(w, result)
+}
+
+func shouldProbeLinkStatus(r *http.Request) bool {
+	value := strings.TrimSpace(strings.ToLower(r.URL.Query().Get("probe")))
+	return value == "1" || value == "true" || value == "yes"
 }

@@ -48,6 +48,9 @@ aliang-test
 dashboard-current-state.png
 tmp*
 aliang
+!outbound/proxy/aliang/
+!outbound/proxy/aliang/status.go
+!outbound/proxy/aliang/status_test.go
 .sisyphus/*
 .agents/
 .serena/

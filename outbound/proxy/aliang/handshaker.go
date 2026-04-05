@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"aliang.one/nursorgate/common/logger"
-	"aliang.one/nursorgate/processor/cert/server"
+	clientcert "aliang.one/nursorgate/processor/cert/client"
 )
 
 // AliangServerConnector establishes mTLS connections to the cursor server
@@ -27,19 +27,11 @@ func NewAliangServerConnector(config *AliangConfig) *AliangServerConnector {
 // Uses hardcoded client certificates for authentication
 func (csc *AliangServerConnector) Dial(ctx context.Context, network, address string) (net.Conn, error) {
 	logger.Debug("[cursor_h2] Starting mTLS handshake with", address)
-
-	// Get the outbound certificate (uses hardcoded embedded certs from processor/cert/server)
-	// This includes the client certificate and CA certificate
-	outboundCert := server.GetOutboundCert(true, address)
-	if outboundCert == nil {
-		logger.Error("[cursor_h2] Failed to load outbound certificate for", address)
-		return nil, NewErrorf(ErrTLSHandshakeFailed, "failed to load outbound certificate")
-	}
-
-	tlsConfig := outboundCert.GetTLSConfig()
-	if tlsConfig == nil {
-		logger.Error("[cursor_h2] Failed to get TLS config for", address)
-		return nil, NewErrorf(ErrTLSHandshakeFailed, "failed to get TLS config")
+	serverName := normalizeServerName(address)
+	tlsConfig, err := clientcert.GetMTLSClientTLSConfig(true, serverName)
+	if err != nil {
+		logger.Error("[cursor_h2] Failed to build outbound TLS config for", address, err)
+		return nil, NewErrorWithCause(ErrTLSHandshakeFailed, "failed to load outbound TLS config", err)
 	}
 
 	// Use config timeout or default
@@ -76,4 +68,12 @@ func (csc *AliangServerConnector) Dial(ctx context.Context, network, address str
 
 	logger.Debug("[cursor_h2] mTLS handshake successful with", address)
 	return tlsConn, nil
+}
+
+func normalizeServerName(address string) string {
+	host, _, err := net.SplitHostPort(address)
+	if err == nil && host != "" {
+		return host
+	}
+	return address
 }

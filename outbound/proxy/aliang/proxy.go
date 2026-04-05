@@ -4,6 +4,7 @@ import (
 	"context"
 	"net"
 	"sync"
+	"time"
 
 	"aliang.one/nursorgate/inbound/tun/metadata"
 	"aliang.one/nursorgate/outbound/proxy"
@@ -17,6 +18,7 @@ type Aliang struct {
 	config    *AliangConfig
 	connector *AliangServerConnector
 	connPool  *ConnectionPool
+	status    *linkStatusTracker
 	mu        sync.RWMutex
 	closed    bool
 }
@@ -39,6 +41,7 @@ func NewAliang(config *AliangConfig) (*Aliang, error) {
 		config:    config,
 		connector: NewAliangServerConnector(config),
 		connPool:  NewConnectionPool(config.ConnectionPool),
+		status:    newLinkStatusTracker(config.Addr, 0),
 		closed:    false,
 	}, nil
 }
@@ -58,14 +61,19 @@ func (c *Aliang) DialContext(ctx context.Context, metadata *metadata.Metadata) (
 	// Try to get connection from pool
 	pooledConn := c.connPool.Get(address)
 	if pooledConn != nil && pooledConn.Conn != nil {
+		c.status.markReused()
 		return pooledConn.Conn, nil
 	}
 
 	// Establish new mTLS connection to cursor server
+	c.status.markConnecting()
+	startedAt := time.Now()
 	conn, err := c.connector.Dial(ctx, "tcp", c.config.Addr)
 	if err != nil {
+		c.status.markFailure(describeProbeFailure(c.config.Addr, err))
 		return nil, err
 	}
+	c.status.markSuccess(time.Since(startedAt))
 
 	// Store connection in pool for reuse
 	pooledConn = &PooledConn{
@@ -114,5 +122,41 @@ func (c *Aliang) GetStats() map[string]interface{} {
 		"proto":           "cursor_h2",
 		"closed":          c.closed,
 		"connection_pool": c.connPool.Stats(),
+		"link_status":     c.status.snapshotMap(),
 	}
+}
+
+// LinkStatusSnapshot returns the latest observed mTLS link status without forcing a new probe.
+func (c *Aliang) LinkStatusSnapshot() map[string]interface{} {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	if c.closed {
+		return unavailableLinkStatus(c.config.Addr, NewErrorf(ErrInvalidConfig, "proxy is closed"))
+	}
+	return c.status.snapshotMap()
+}
+
+// ProbeLink actively performs a new mTLS dial to measure reachability and latency.
+func (c *Aliang) ProbeLink(ctx context.Context) map[string]interface{} {
+	c.mu.RLock()
+	if c.closed {
+		c.mu.RUnlock()
+		return unavailableLinkStatus(c.config.Addr, NewErrorf(ErrInvalidConfig, "proxy is closed"))
+	}
+	serverAddr := c.config.Addr
+	c.mu.RUnlock()
+
+	c.status.markConnecting()
+	startedAt := time.Now()
+
+	conn, err := c.connector.Dial(ctx, "tcp", serverAddr)
+	if err != nil {
+		c.status.markFailure(describeProbeFailure(serverAddr, err))
+		return c.status.snapshotMap()
+	}
+	_ = conn.Close()
+
+	c.status.markSuccess(time.Since(startedAt))
+	return c.status.snapshotMap()
 }

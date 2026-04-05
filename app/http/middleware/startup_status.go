@@ -21,7 +21,7 @@ func StartupStatusMiddleware(next http.Handler) http.Handler {
 		}
 
 		// Status query API is always allowed
-		if path == "/api/run/status" {
+		if path == "/api/run/status" || path == "/api/run/aliang/status" {
 			next.ServeHTTP(w, r)
 			return
 		}
@@ -73,6 +73,7 @@ func isConfigurationAPI(path string) bool {
 		"/api/quick-setup/apply",
 		"/api/logs", // Logs access (for diagnosis)
 		"/api/run/status",
+		"/api/run/aliang/status",
 		"/api/run/tun/status",
 		"/api/run/wintun/install",
 		"/api/run/wintun/status",

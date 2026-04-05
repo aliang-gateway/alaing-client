@@ -1,6 +1,7 @@
 package services
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -15,6 +16,7 @@ import (
 	httpServer "aliang.one/nursorgate/inbound/http"
 	tun "aliang.one/nursorgate/inbound/tun/engine"
 	runner2 "aliang.one/nursorgate/inbound/tun/runner"
+	"aliang.one/nursorgate/outbound"
 	"aliang.one/nursorgate/processor/config"
 	"aliang.one/nursorgate/processor/routing"
 	"aliang.one/nursorgate/processor/runtime"
@@ -28,6 +30,7 @@ var (
 	httpStopRunner            = httpServer.StopHttpProxy
 	tunStopRunner             = tun.Stop
 	runModeStoreFactory       = func() runModeSnapshotStore { return storage.NewSoftwareConfigStore() }
+	aliangLinkStatusResolver  = resolveAliangLinkStatus
 	sharedRunServiceMu        sync.Mutex
 	sharedRunService          *RunService
 )
@@ -41,6 +44,11 @@ const (
 type runModeSnapshotStore interface {
 	SaveEffectiveConfigSnapshot(snapshot models.SoftwareEffectiveConfigSnapshot) error
 	GetLatestEffectiveConfigSnapshotBySoftwareAndName(software string, configName string) (*models.SoftwareEffectiveConfigSnapshot, error)
+}
+
+type aliangLinkStatusProvider interface {
+	LinkStatusSnapshot() map[string]interface{}
+	ProbeLink(ctx context.Context) map[string]interface{}
 }
 
 // RunService handles run/mode operations
@@ -279,6 +287,11 @@ func (rs *RunService) GetStatus() map[string]interface{} {
 	}
 
 	return response
+}
+
+// GetAliangLinkStatus returns the current mTLS link status for the aliang outbound.
+func (rs *RunService) GetAliangLinkStatus(ctx context.Context, probe bool) map[string]interface{} {
+	return aliangLinkStatusResolver(ctx, probe)
 }
 
 func GetTUNStartupStatus() map[string]interface{} {
@@ -640,4 +653,31 @@ func (rs *RunService) handleTUNStartResultLocked(res map[string]string) map[stri
 		result[k] = v
 	}
 	return result
+}
+
+func resolveAliangLinkStatus(ctx context.Context, probe bool) map[string]interface{} {
+	registry := outbound.GetRegistry()
+	aliangProxy, err := registry.GetAliang()
+	if err != nil {
+		return map[string]interface{}{
+			"state":      "disconnected",
+			"latency_ms": int64(0),
+			"last_error": err.Error(),
+		}
+	}
+
+	reporter, ok := aliangProxy.(aliangLinkStatusProvider)
+	if !ok {
+		return map[string]interface{}{
+			"server_addr": aliangProxy.Addr(),
+			"state":       "unknown",
+			"latency_ms":  int64(0),
+			"last_error":  "aliang outbound does not expose link status",
+		}
+	}
+
+	if probe {
+		return reporter.ProbeLink(ctx)
+	}
+	return reporter.LinkStatusSnapshot()
 }

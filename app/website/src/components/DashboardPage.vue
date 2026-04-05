@@ -213,6 +213,9 @@
                     <p class="font-semibold" :class="serverStateTextClass">{{ serverStateLabel }}</p>
                   </div>
                 </div>
+                <p class="mt-2 text-[10px] text-slate-400" :title="serverLinkDetailText">
+                  {{ serverLinkDetailText }}
+                </p>
               </div>
             </div>
           </div>
@@ -220,7 +223,7 @@
           <button
             type="button"
             class="px-4 py-1.5 bg-primary/10 text-primary text-xs font-bold rounded-lg hover:bg-primary/20 transition-colors"
-            @click="loadDashboardUsageData"
+            @click="refreshDashboardView"
           >
             Refresh Dashboard
           </button>
@@ -793,11 +796,13 @@ import { useAuthStore } from '../stores/auth';
 import { getUserCenterProfile } from '../services/userCenterApi';
 import { extractUsagePagination, extractUsageRecords } from '../utils/dashboardData';
 import {
+  getDashboardHealth,
   getDashboardModels,
   getDashboardStats,
   getDashboardTrend,
   getDashboardUsageRecords
 } from '../services/dashboardApi';
+import { getAliangLinkStatus } from '../services/runApi';
 
 const { certStatus, loading: certLoading, startPolling: startCertPolling, stopPolling: stopCertPolling } = useCertStatus();
 const { currentPage, showSettings } = useNavigation();
@@ -843,15 +848,22 @@ const usageTotal = ref(0);
 const usageTotalPages = ref(1);
 const usageMaxPages = 20;
 const appliedRequestFilter = ref('all');
-const serverLinkOnline = ref(false);
+const serverLinkState = ref('unknown');
 const serverLinkPending = ref(false);
 const serverLinkLatencyMs = ref(null);
 const serverLinkLastCheckedAt = ref(0);
+const serverLinkLastConnectedAt = ref(0);
+const serverLinkHighLatencyThresholdMs = ref(null);
+const serverLinkConsecutiveFailures = ref(0);
+const serverLinkError = ref('');
+const serverLinkServerAddr = ref('');
 const serverHealthScore = ref(null);
 let tunStartLogTimer = null;
 let tunStartStatusTimer = null;
 let tunStartBackendTimer = null;
 let serverLinkTimer = null;
+
+const serverLinkOnline = computed(() => ['connected', 'degraded'].includes(serverLinkState.value));
 
 const accountSubtitle = computed(() => {
   if (!isAuthenticated.value) {
@@ -973,52 +985,80 @@ const serverLinkBadgeText = computed(() => {
   if (serverLinkPending.value) {
     return 'Checking';
   }
-  if (runSyncError.value) {
-    return 'Degraded';
+  if (serverLinkState.value === 'degraded') {
+    return 'High Latency';
   }
-  return serverLinkOnline.value ? 'Connected' : 'Offline';
+  if (serverLinkState.value === 'connected') {
+    return 'Connected';
+  }
+  if (serverLinkState.value === 'disconnected') {
+    return 'Offline';
+  }
+  return 'Unknown';
 });
 
 const serverLinkBadgeClass = computed(() => {
   if (serverLinkPending.value) {
     return 'bg-sky-100 text-sky-700 dark:bg-sky-500/15 dark:text-sky-300';
   }
-  if (runSyncError.value) {
+  if (serverLinkState.value === 'degraded') {
     return 'bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300';
   }
-  return serverLinkOnline.value
-    ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300'
-    : 'bg-red-100 text-red-700 dark:bg-red-500/15 dark:text-red-300';
+  if (serverLinkState.value === 'connected') {
+    return 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300';
+  }
+  if (serverLinkState.value === 'disconnected') {
+    return 'bg-red-100 text-red-700 dark:bg-red-500/15 dark:text-red-300';
+  }
+  return 'bg-slate-100 text-slate-600 dark:bg-slate-700/40 dark:text-slate-300';
 });
 
 const serverLinkIcon = computed(() => {
   if (serverLinkPending.value) {
     return 'network_ping';
   }
-  if (runSyncError.value) {
+  if (serverLinkState.value === 'degraded') {
     return 'warning';
   }
-  return serverLinkOnline.value ? 'cloud_done' : 'cloud_off';
+  if (serverLinkState.value === 'connected') {
+    return 'cloud_done';
+  }
+  if (serverLinkState.value === 'disconnected') {
+    return 'cloud_off';
+  }
+  return 'help';
 });
 
 const serverLinkIconClass = computed(() => {
   if (serverLinkPending.value) {
     return 'text-sky-600 dark:text-sky-300';
   }
-  if (runSyncError.value) {
+  if (serverLinkState.value === 'degraded') {
     return 'text-amber-600 dark:text-amber-300';
   }
-  return serverLinkOnline.value ? 'text-emerald-600 dark:text-emerald-300' : 'text-red-600 dark:text-red-300';
+  if (serverLinkState.value === 'connected') {
+    return 'text-emerald-600 dark:text-emerald-300';
+  }
+  if (serverLinkState.value === 'disconnected') {
+    return 'text-red-600 dark:text-red-300';
+  }
+  return 'text-slate-500 dark:text-slate-300';
 });
 
 const serverLinkIconWrapClass = computed(() => {
   if (serverLinkPending.value) {
     return 'bg-sky-100 dark:bg-sky-500/10';
   }
-  if (runSyncError.value) {
+  if (serverLinkState.value === 'degraded') {
     return 'bg-amber-100 dark:bg-amber-500/10';
   }
-  return serverLinkOnline.value ? 'bg-emerald-100 dark:bg-emerald-500/10' : 'bg-red-100 dark:bg-red-500/10';
+  if (serverLinkState.value === 'connected') {
+    return 'bg-emerald-100 dark:bg-emerald-500/10';
+  }
+  if (serverLinkState.value === 'disconnected') {
+    return 'bg-red-100 dark:bg-red-500/10';
+  }
+  return 'bg-slate-100 dark:bg-slate-700/40';
 });
 
 const serverLatencyLabel = computed(() => {
@@ -1039,13 +1079,19 @@ const serverLatencyLabel = computed(() => {
 });
 
 const serverStateLabel = computed(() => {
-  if (runSyncError.value) {
-    return 'Sync issue';
+  if (serverLinkPending.value || serverLinkState.value === 'connecting') {
+    return 'Probing';
   }
-  if (runIsRunning.value) {
+  if (serverLinkState.value === 'degraded') {
+    return 'High latency';
+  }
+  if (runIsRunning.value && serverLinkOnline.value) {
     return 'Serving';
   }
-  if (!serverLinkOnline.value) {
+  if (serverLinkState.value === 'connected') {
+    return 'Linked';
+  }
+  if (serverLinkState.value === 'disconnected') {
     return 'No link';
   }
   if (startupStatus.value === 'READY' || startupStatus.value === 'CONFIGURED') {
@@ -1055,13 +1101,19 @@ const serverStateLabel = computed(() => {
 });
 
 const serverStateTextClass = computed(() => {
-  if (runSyncError.value) {
+  if (serverLinkPending.value || serverLinkState.value === 'connecting') {
+    return 'text-sky-600 dark:text-sky-300';
+  }
+  if (serverLinkState.value === 'degraded') {
     return 'text-amber-600 dark:text-amber-300';
   }
-  if (runIsRunning.value) {
+  if (runIsRunning.value && serverLinkOnline.value) {
     return 'text-emerald-600 dark:text-emerald-300';
   }
-  if (!serverLinkOnline.value) {
+  if (serverLinkState.value === 'connected') {
+    return 'text-emerald-600 dark:text-emerald-300';
+  }
+  if (serverLinkState.value === 'disconnected') {
     return 'text-red-600 dark:text-red-300';
   }
   return 'text-slate-700 dark:text-slate-100';
@@ -1069,45 +1121,105 @@ const serverStateTextClass = computed(() => {
 
 async function sampleServerLink() {
   serverLinkPending.value = true;
-  const startedAt = performance.now();
 
   try {
-    // Check basic connectivity with run status endpoint
-    const response = await fetch('/api/run/status', {
-      method: 'GET',
-      cache: 'no-store'
-    });
-    const payload = await response.json().catch(() => ({}));
-    if (!response.ok || payload?.code !== 0) {
-      throw new Error(payload?.msg || payload?.message || `HTTP ${response.status}`);
-    }
-    serverLinkOnline.value = true;
-    serverLinkLatencyMs.value = performance.now() - startedAt;
-    serverLinkLastCheckedAt.value = Date.now();
+    const [linkEnvelope, healthEnvelope] = await Promise.allSettled([
+      getAliangLinkStatus({ probe: true }),
+      getDashboardHealth()
+    ]);
 
-    // Fetch health score from the backend service
-    try {
-      const healthResponse = await fetch('/api/health', {
-        method: 'GET',
-        cache: 'no-store'
-      });
-      const healthPayload = await healthResponse.json().catch(() => ({}));
-      if (healthResponse.ok && healthPayload?.code === 0 && healthPayload?.data) {
-        serverHealthScore.value = healthPayload.data.health_score ?? null;
-      } else {
-        serverHealthScore.value = null;
-      }
-    } catch {
+    if (linkEnvelope.status === 'fulfilled') {
+      const linkData = linkEnvelope.value?.data || {};
+      serverLinkState.value = typeof linkData.state === 'string' ? linkData.state : 'unknown';
+      serverLinkLatencyMs.value = typeof linkData.latency_ms === 'number' ? linkData.latency_ms : null;
+      serverLinkLastCheckedAt.value = Number(linkData.last_checked_at || 0);
+      serverLinkLastConnectedAt.value = Number(linkData.last_connected_at || 0);
+      serverLinkConsecutiveFailures.value = Number(linkData.consecutive_failures || 0);
+      serverLinkHighLatencyThresholdMs.value = Number(linkData.high_latency_threshold || 0) || null;
+      serverLinkError.value = typeof linkData.last_error === 'string' ? linkData.last_error : '';
+      serverLinkServerAddr.value = typeof linkData.server_addr === 'string' ? linkData.server_addr : '';
+    } else {
+      serverLinkState.value = 'disconnected';
+      serverLinkLatencyMs.value = null;
+      serverLinkLastCheckedAt.value = Date.now();
+      serverLinkLastConnectedAt.value = 0;
+      serverLinkConsecutiveFailures.value = 0;
+      serverLinkHighLatencyThresholdMs.value = null;
+      serverLinkError.value = linkEnvelope.reason instanceof Error ? linkEnvelope.reason.message : 'mTLS link probe failed';
+      serverLinkServerAddr.value = '';
+    }
+
+    if (healthEnvelope.status === 'fulfilled') {
+      serverHealthScore.value = healthEnvelope.value?.data?.health_score ?? null;
+    } else {
       serverHealthScore.value = null;
     }
-  } catch (_) {
-    serverLinkOnline.value = false;
+  } catch {
+    serverLinkState.value = 'disconnected';
     serverLinkLatencyMs.value = null;
+    serverLinkError.value = 'mTLS link probe failed';
     serverHealthScore.value = null;
     serverLinkLastCheckedAt.value = Date.now();
   } finally {
     serverLinkPending.value = false;
   }
+}
+
+async function refreshDashboardView() {
+  await Promise.allSettled([
+    sampleServerLink(),
+    loadDashboardUsageData(),
+    syncAccountBalance(),
+    refreshRunState()
+  ]);
+}
+
+const serverLinkDetailText = computed(() => {
+  if (serverLinkPending.value) {
+    return `Probing mTLS handshake to ${serverLinkServerAddr.value || 'gateway'}...`;
+  }
+  if (serverLinkError.value) {
+    return `Last error: ${serverLinkError.value}`;
+  }
+  if (serverLinkState.value === 'degraded' && typeof serverLinkHighLatencyThresholdMs.value === 'number') {
+    return `Handshake latency is above ${serverLinkHighLatencyThresholdMs.value} ms for ${serverLinkServerAddr.value || 'the configured gateway'}.`;
+  }
+  if (serverLinkState.value === 'connected' || serverLinkState.value === 'degraded') {
+    return `Latest handshake with ${serverLinkServerAddr.value || 'the configured gateway'} completed successfully.`;
+  }
+  if (serverLinkLastConnectedAt.value > 0) {
+    return `mTLS link is currently offline. Last successful handshake was ${formatRelativeTimestamp(serverLinkLastConnectedAt.value)}.`;
+  }
+  return 'No successful mTLS handshake has been recorded yet.';
+});
+
+function formatRelativeTimestamp(timestamp) {
+  const value = Number(timestamp);
+  if (!Number.isFinite(value) || value <= 0) {
+    return 'recently';
+  }
+
+  const diff = Date.now() - value;
+  const seconds = Math.max(0, Math.round(diff / 1000));
+  if (seconds < 5) {
+    return 'just now';
+  }
+  if (seconds < 60) {
+    return `${seconds}s ago`;
+  }
+
+  const minutes = Math.round(seconds / 60);
+  if (minutes < 60) {
+    return `${minutes}m ago`;
+  }
+
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) {
+    return `${hours}h ago`;
+  }
+
+  const days = Math.round(hours / 24);
+  return `${days}d ago`;
 }
 
 async function syncAccountBalance() {
@@ -1797,6 +1909,7 @@ watch(isAuthenticated, async (authenticated) => {
     isLoginModalOpen.value = false;
     loginPassword.value = '';
     await Promise.allSettled([
+      sampleServerLink(),
       syncAccountBalance(),
       loadDashboardUsageData(),
       refreshRunState()
@@ -1805,6 +1918,7 @@ watch(isAuthenticated, async (authenticated) => {
   }
   accountBalance.value = null;
   await Promise.allSettled([
+    sampleServerLink(),
     loadDashboardUsageData(),
     refreshRunState()
   ]);

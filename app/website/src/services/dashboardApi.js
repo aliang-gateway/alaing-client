@@ -63,3 +63,7 @@ export async function getDashboardUsageRecords({
 
   return request(`/api/dashboard/usage?${query.toString()}`);
 }
+
+export async function getDashboardHealth() {
+  return request('/api/health');
+}

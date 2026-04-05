@@ -132,6 +132,7 @@ func RegisterRoutes(h *Handlers, mux *http.ServeMux) {
 	register("/api/run/start", h.Run.HandleRunStart, http.MethodPost)
 	register("/api/run/stop", h.Run.HandleRunStop, http.MethodPost)
 	register("/api/run/status", h.Run.HandleRunStatus, http.MethodGet)
+	register("/api/run/aliang/status", h.Run.HandleAliangLinkStatus, http.MethodGet)
 	register("/api/run/wintun/install", h.Run.HandleRunWintunInstall, http.MethodPost)
 	register("/api/run/wintun/status", h.Run.HandleRunWintunStatus, http.MethodGet)
 	register("/api/run/tun/status", h.Run.HandleRunTUNStatus, http.MethodGet)

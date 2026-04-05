@@ -1,6 +1,7 @@
 package services
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"testing"
@@ -83,6 +84,7 @@ func resetRunServiceHooksForTest() {
 	httpStopRunner = func() {}
 	tunStopRunner = func() {}
 	runModeStoreFactory = func() runModeSnapshotStore { return storage.NewSoftwareConfigStore() }
+	aliangLinkStatusResolver = resolveAliangLinkStatus
 	setSharedWintunDependencyControllerForTest(nil)
 }
 
@@ -482,5 +484,40 @@ func TestRunServiceNewRunServiceRestoresPersistedMode(t *testing.T) {
 	runService := NewRunService()
 	if got := runService.GetCurrentMode(); got != string(models.ModeTUN) {
 		t.Fatalf("restored current mode mismatch: got=%q want=%q", got, models.ModeTUN)
+	}
+}
+
+func TestRunServiceGetAliangLinkStatus(t *testing.T) {
+	defer resetRunServiceHooksForTest()
+
+	calls := make([]bool, 0, 2)
+	aliangLinkStatusResolver = func(ctx context.Context, probe bool) map[string]interface{} {
+		calls = append(calls, probe)
+		return map[string]interface{}{
+			"state":      "connected",
+			"latency_ms": int64(123),
+		}
+	}
+
+	runService := NewRunService()
+
+	snapshot := runService.GetAliangLinkStatus(context.Background(), false)
+	if got := snapshot["state"]; got != "connected" {
+		t.Fatalf("unexpected snapshot state: %#v", got)
+	}
+
+	probed := runService.GetAliangLinkStatus(context.Background(), true)
+	if got := probed["latency_ms"]; got != int64(123) {
+		t.Fatalf("unexpected probed latency: %#v", got)
+	}
+
+	if len(calls) != 2 {
+		t.Fatalf("expected 2 resolver calls, got %d", len(calls))
+	}
+	if calls[0] {
+		t.Fatalf("expected first resolver call to be snapshot mode")
+	}
+	if !calls[1] {
+		t.Fatalf("expected second resolver call to be probe mode")
 	}
 }
