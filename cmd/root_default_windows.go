@@ -27,6 +27,10 @@ func runDefaultRoot(cmd *cobra.Command, args []string) error {
 	return runCommandLineDefaultRoot(cmd, args)
 }
 
+func runCommandLineDefaultRoot(cmd *cobra.Command, args []string) error {
+	return runStart(cmd, args)
+}
+
 func hasWindowsConsoleInvocation() bool {
 	if consoleWindow, _, _ := procGetConsoleWindow.Call(); consoleWindow != 0 {
 		return true

@@ -1,6 +1,7 @@
 package installer
 
 import (
+	"crypto/sha1"
 	"crypto/sha256"
 	"crypto/x509"
 	"encoding/hex"
@@ -115,6 +116,147 @@ func parseCertificateInfo(certBytes []byte) (CertInfo, error) {
 		NotAfter:    cert.NotAfter.Format("2006-01-02"),
 		Fingerprint: fingerprint,
 	}, nil
+}
+
+// extractCertThumbprint computes the SHA1 thumbprint used by Windows certificate stores.
+func extractCertThumbprint(certBytes []byte) (string, error) {
+	block, _ := pem.Decode(certBytes)
+	if block == nil {
+		return "", fmt.Errorf("failed to decode certificate PEM")
+	}
+
+	parsedCert, err := x509.ParseCertificate(block.Bytes)
+	if err != nil {
+		return "", fmt.Errorf("failed to parse certificate: %w", err)
+	}
+
+	thumbprint := sha1.Sum(parsedCert.Raw)
+	return strings.ToUpper(hex.EncodeToString(thumbprint[:])), nil
+}
+
+func escapePowerShellSingleQuoted(value string) string {
+	return strings.ReplaceAll(value, "'", "''")
+}
+
+type windowsStoreTarget struct {
+	StoreName string
+	Location  string
+	PSPath    string
+}
+
+func isWindowsDaemonRuntime() bool {
+	return strings.TrimSpace(os.Getenv("ALIANG_DATA_DIR")) != "" ||
+		strings.TrimSpace(os.Getenv("ALIANG_SOCKET_PATH")) != ""
+}
+
+func getWindowsStoreTargets(certType string) []windowsStoreTarget {
+	var targets []windowsStoreTarget
+	switch certType {
+	case cert.CertTypeMtlsClient:
+		targets = []windowsStoreTarget{
+			{StoreName: "My", Location: "CurrentUser", PSPath: "Cert:\\CurrentUser\\My"},
+			{StoreName: "My", Location: "LocalMachine", PSPath: "Cert:\\LocalMachine\\My"},
+		}
+	default:
+		targets = []windowsStoreTarget{
+			{StoreName: "Root", Location: "CurrentUser", PSPath: "Cert:\\CurrentUser\\Root"},
+			{StoreName: "Root", Location: "LocalMachine", PSPath: "Cert:\\LocalMachine\\Root"},
+		}
+	}
+
+	// When running as a Windows service (for example LocalSystem), CurrentUser points
+	// at the service account profile. Prefer LocalMachine first in that context.
+	if isWindowsDaemonRuntime() && len(targets) > 1 {
+		targets[0], targets[1] = targets[1], targets[0]
+	}
+
+	return targets
+}
+
+func buildWindowsStoreScript(target windowsStoreTarget, openFlags string, body string) string {
+	return fmt.Sprintf(`
+$store = New-Object System.Security.Cryptography.X509Certificates.X509Store('%s', '%s')
+$store.Open([System.Security.Cryptography.X509Certificates.OpenFlags]::%s)
+try {
+%s
+} finally {
+    $store.Close()
+}
+`, target.StoreName, target.Location, openFlags, body)
+}
+
+func runWindowsPowerShell(script string) ([]byte, error) {
+	cmd := newPlatformCommand("powershell", "-NoProfile", "-NonInteractive", "-Command", script)
+	return cmd.CombinedOutput()
+}
+
+func runWindowsCommand(name string, args ...string) ([]byte, error) {
+	cmd := newPlatformCommand(name, args...)
+	return cmd.CombinedOutput()
+}
+
+func installWindowsCertWithX509Store(target windowsStoreTarget, certPath string) ([]byte, error) {
+	psCmd := fmt.Sprintf(`
+$cert = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2('%s')
+%s
+`, escapePowerShellSingleQuoted(certPath), buildWindowsStoreScript(target, "ReadWrite", "    $store.Add($cert)"))
+
+	return runWindowsPowerShell(psCmd)
+}
+
+func installWindowsCertWithImportCertificate(target windowsStoreTarget, certPath string) ([]byte, error) {
+	psCmd := fmt.Sprintf(
+		"Import-Certificate -FilePath '%s' -CertStoreLocation '%s' -ErrorAction Stop | Out-Null",
+		escapePowerShellSingleQuoted(certPath),
+		escapePowerShellSingleQuoted(target.PSPath),
+	)
+
+	return runWindowsPowerShell(psCmd)
+}
+
+func installWindowsCertWithCertutil(target windowsStoreTarget, certPath string) ([]byte, error) {
+	args := []string{}
+	if target.Location == "CurrentUser" {
+		args = append(args, "-user")
+	}
+	args = append(args, "-addstore", target.StoreName, certPath)
+
+	return runWindowsCommand("certutil", args...)
+}
+
+func findWindowsInstalledStore(certType string, certBytes []byte) (windowsStoreTarget, bool, error) {
+	thumbprint, thumbprintErr := extractCertThumbprint(certBytes)
+	commonName, commonNameErr := extractCertCommonName(certBytes)
+	if thumbprintErr != nil && commonNameErr != nil {
+		return windowsStoreTarget{}, false, fmt.Errorf("failed to extract certificate identity: thumbprint=%v commonName=%v", thumbprintErr, commonNameErr)
+	}
+
+	for _, target := range getWindowsStoreTargets(certType) {
+		var body string
+		if thumbprintErr == nil {
+			body = fmt.Sprintf(`
+    $match = $store.Certificates | Where-Object { $_.Thumbprint -eq '%s' } | Select-Object -First 1
+    if ($match) { Write-Output 'FOUND' }
+`, escapePowerShellSingleQuoted(thumbprint))
+		} else {
+			body = fmt.Sprintf(`
+    $match = $store.Certificates | Where-Object { $_.Subject -like '*%s*' } | Select-Object -First 1
+    if ($match) { Write-Output 'FOUND' }
+`, escapePowerShellSingleQuoted(commonName))
+		}
+
+		output, err := runWindowsPowerShell(buildWindowsStoreScript(target, "ReadOnly", body))
+		if err != nil {
+			logger.Warn(fmt.Sprintf("Failed to inspect Windows certificate store %s: %v, output: %s", target.PSPath, err, string(output)))
+			continue
+		}
+
+		if strings.Contains(string(output), "FOUND") {
+			return target, true, nil
+		}
+	}
+
+	return windowsStoreTarget{}, false, nil
 }
 
 // ============= macOS (Darwin) Implementation =============
@@ -506,30 +648,17 @@ type WindowsInstaller struct{}
 
 // IsInstalled checks if certificate is installed in Windows certificate store
 func (w *WindowsInstaller) IsInstalled(certType string, certBytes []byte) (bool, error) {
-	// Extract the real certificate Common Name from the certificate itself
-	commonName, err := extractCertCommonName(certBytes)
+	target, found, err := findWindowsInstalledStore(certType, certBytes)
 	if err != nil {
-		logger.Warn(fmt.Sprintf("Failed to extract cert CN from bytes, falling back to hardcoded name: %v", err))
-		// Fallback to hardcoded name if extraction fails
-		commonName = getCertCommonName(certType)
+		return false, err
 	}
 
-	logger.Info(fmt.Sprintf("Checking if certificate %s (CN: %s) is installed in Windows certificate store", certType, commonName))
-
-	psCmd := fmt.Sprintf(
-		"Get-ChildItem Cert:\\\\CurrentUser\\\\Root | Where-Object {$_.Subject -like '*%s*'} | Select-Object -First 1",
-		commonName,
-	)
-
-	cmd := newPlatformCommand("powershell", "-Command", psCmd)
-	output, err := cmd.Output()
-
-	if len(output) > 0 {
-		logger.Info(fmt.Sprintf("Certificate %s found in Windows certificate store", commonName))
+	if found {
+		logger.Info(fmt.Sprintf("Certificate %s found in Windows certificate store %s", certType, target.PSPath))
 		return true, nil
 	}
 
-	logger.Info(fmt.Sprintf("Certificate %s not found in Windows certificate store", commonName))
+	logger.Info(fmt.Sprintf("Certificate %s not found in Windows certificate stores", certType))
 	return false, nil
 }
 
@@ -539,55 +668,92 @@ func (w *WindowsInstaller) Install(certType string, certPath string) error {
 
 	// Convert path to Windows format
 	certPath = strings.ReplaceAll(certPath, "/", "\\")
-
-	psCmd := fmt.Sprintf(
-		"Import-Certificate -FilePath '%s' -CertStoreLocation Cert:\\CurrentUser\\Root -ErrorAction Stop",
-		certPath,
-	)
-
-	cmd := newPlatformCommand("powershell", "-Command", psCmd)
-	output, err := cmd.CombinedOutput()
-
-	if err != nil {
-		logger.Error(fmt.Sprintf("Failed to install certificate: %v, output: %s", err, string(output)))
-		return fmt.Errorf("certificate installation failed: %w", err)
+	targets := getWindowsStoreTargets(certType)
+	failures := make([]string, 0, len(targets))
+	strategies := []struct {
+		name string
+		run  func(windowsStoreTarget, string) ([]byte, error)
+	}{
+		{name: "x509store", run: installWindowsCertWithX509Store},
+		{name: "import-certificate", run: installWindowsCertWithImportCertificate},
+		{name: "certutil", run: installWindowsCertWithCertutil},
 	}
 
-	logger.Info("Certificate installed successfully to Windows certificate store")
-	return nil
+	for _, target := range targets {
+		for _, strategy := range strategies {
+			output, err := strategy.run(target, certPath)
+			if err == nil {
+				logger.Info(fmt.Sprintf("Certificate installed successfully to Windows certificate store %s via %s", target.PSPath, strategy.name))
+				return nil
+			}
+
+			trimmedOutput := strings.TrimSpace(string(output))
+			logger.Warn(fmt.Sprintf("Failed to install certificate %s to %s via %s: %v, output: %s", certType, target.PSPath, strategy.name, err, trimmedOutput))
+			if trimmedOutput == "" {
+				trimmedOutput = err.Error()
+			}
+			failures = append(failures, fmt.Sprintf("%s via %s: %s", target.PSPath, strategy.name, trimmedOutput))
+		}
+	}
+
+	return fmt.Errorf("certificate installation failed in all Windows stores: %s", strings.Join(failures, "; "))
 }
 
 // Remove deletes certificate from Windows certificate store
 func (w *WindowsInstaller) Remove(certType string, certBytes []byte) error {
-	// Extract the real certificate Common Name from the certificate itself
-	commonName, err := extractCertCommonName(certBytes)
-	if err != nil {
-		logger.Warn(fmt.Sprintf("Failed to extract cert CN from bytes, falling back to config: %v", err))
-		// Fallback to configuration if extraction fails
+	thumbprint, thumbprintErr := extractCertThumbprint(certBytes)
+	commonName, commonNameErr := extractCertCommonName(certBytes)
+	if thumbprintErr != nil && commonNameErr != nil {
+		logger.Warn(fmt.Sprintf("Failed to extract certificate identity for removal, falling back to config CN: thumbprint=%v commonName=%v", thumbprintErr, commonNameErr))
 		config := cert.GetCertConfig(certType)
 		if config != nil {
 			commonName = config.CN
-		} else {
-			commonName = certType
+			commonNameErr = nil
 		}
 	}
 
-	logger.Info(fmt.Sprintf("Removing certificate %s (CN: %s) from Windows certificate store", certType, commonName))
+	logger.Info(fmt.Sprintf("Removing certificate %s from Windows certificate stores", certType))
 
-	psCmd := fmt.Sprintf(
-		"$cert = Get-ChildItem Cert:\\CurrentUser\\Root | Where-Object {$_.Subject -like '*%s*'} | Select-Object -First 1; if ($cert) { Remove-Item -Path \"Cert:\\CurrentUser\\Root\\$($cert.Thumbprint)\" -Force }",
-		commonName,
-	)
+	removedAny := false
+	for _, target := range getWindowsStoreTargets(certType) {
+		var body string
+		if thumbprintErr == nil {
+			body = fmt.Sprintf(`
+    $matches = @($store.Certificates | Where-Object { $_.Thumbprint -eq '%s' })
+    foreach ($match in $matches) {
+        $store.Remove($match)
+    }
+    Write-Output $matches.Count
+`, escapePowerShellSingleQuoted(thumbprint))
+		} else if commonNameErr == nil {
+			body = fmt.Sprintf(`
+    $matches = @($store.Certificates | Where-Object { $_.Subject -like '*%s*' })
+    foreach ($match in $matches) {
+        $store.Remove($match)
+    }
+    Write-Output $matches.Count
+`, escapePowerShellSingleQuoted(commonName))
+		} else {
+			continue
+		}
 
-	cmd := newPlatformCommand("powershell", "-Command", psCmd)
-	output, err := cmd.CombinedOutput()
+		output, err := runWindowsPowerShell(buildWindowsStoreScript(target, "ReadWrite", body))
+		if err != nil {
+			logger.Warn(fmt.Sprintf("Failed to remove certificate %s from %s: %v, output: %s", certType, target.PSPath, err, strings.TrimSpace(string(output))))
+			continue
+		}
 
-	if err != nil {
-		logger.Error(fmt.Sprintf("Failed to remove certificate: %v, output: %s", err, string(output)))
-		return fmt.Errorf("certificate removal failed: %w", err)
+		if strings.TrimSpace(string(output)) != "0" {
+			removedAny = true
+		}
 	}
 
-	logger.Info("Certificate removed successfully from Windows certificate store")
+	if removedAny {
+		logger.Info("Certificate removed successfully from Windows certificate store")
+		return nil
+	}
+
+	logger.Info("Certificate was not present in Windows certificate stores")
 	return nil
 }
 
@@ -597,19 +763,30 @@ func (w *WindowsInstaller) GetCertInfo(certType string, certBytes []byte) (CertI
 	if err != nil {
 		return info, err
 	}
-	info.InstallPath = "Cert:\\CurrentUser\\Root"
+
+	target, found, err := findWindowsInstalledStore(certType, certBytes)
+	if err == nil && found {
+		info.InstallPath = target.PSPath
+	} else {
+		info.InstallPath = w.GetInstallPath(certType)
+	}
+
 	return info, nil
 }
 
 // GetInstallPath returns the Windows installation path
 func (w *WindowsInstaller) GetInstallPath(certType string) string {
-	return "Cert:\\CurrentUser\\Root"
+	return getWindowsStoreTargets(certType)[0].PSPath
 }
 
 // IsTrusted checks if a certificate is trusted on Windows (equivalent to IsInstalled for Root store)
 func (w *WindowsInstaller) IsTrusted(certType string, certBytes []byte) (bool, error) {
-	// On Windows, certificates in Root store are automatically trusted
-	// So IsTrusted is equivalent to IsInstalled
+	if certType == cert.CertTypeMtlsClient {
+		// Personal client certificates are installable, but they are not root-trusted CAs.
+		return false, nil
+	}
+
+	// On Windows, certificates in Root store are automatically trusted.
 	return w.IsInstalled(certType, certBytes)
 }
 
@@ -621,7 +798,11 @@ func (w *WindowsInstaller) GetTrustStatus(certType string, certBytes []byte) (st
 		return "not_found", nil
 	}
 
-	// On Windows, being in Root store means it's trusted
+	if certType == cert.CertTypeMtlsClient {
+		return "installed_not_trusted", nil
+	}
+
+	// On Windows, being in Root store means it's trusted.
 	return "system_trusted", nil
 }
 
