@@ -32,21 +32,13 @@ func GetCurrentAuthorizationHeader() string {
 }
 
 func resolveUserInfoForAuthorizationHeader() *UserInfo {
-	current := GetCurrentUserInfo()
+	current := GetCurrentUserInfoWithAccessTokenOrLoad()
 	if current != nil && strings.TrimSpace(current.AccessToken) != "" {
-		return current
+		if inMemory := GetCurrentUserInfo(); inMemory == nil {
+			logger.Debug("Authorization header resolved from persisted user info")
+		}
 	}
-
-	loaded, err := LoadUserInfo()
-	if err != nil {
-		return current
-	}
-	if loaded == nil || strings.TrimSpace(loaded.AccessToken) == "" {
-		return current
-	}
-
-	logger.Debug("Authorization header resolved from persisted user info")
-	return loaded
+	return current
 }
 
 // SetAccessToken 设置accessToken，如果变更则触发POST（线程安全 + 单请求）

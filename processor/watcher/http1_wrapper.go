@@ -1,8 +1,10 @@
 package tls
 
 import (
+	"bufio"
 	"bytes"
 	"fmt"
+	"net/http"
 	"strings"
 
 	"aliang.one/nursorgate/common/logger"
@@ -10,89 +12,84 @@ import (
 	user "aliang.one/nursorgate/processor/auth"
 )
 
-func getHeaderCaseInsensitive(headers map[string]string, target string) (string, bool) {
-	for key, value := range headers {
-		if strings.EqualFold(key, target) {
-			return value, true
-		}
-	}
-	return "", false
-}
-
-func (w *WatcherWrapConn) parseHttp1Headers(data []byte) map[string]string {
-	headers := make(map[string]string)
-	lines := bytes.Split(data, []byte("\r\n"))
-	for _, line := range lines {
-		if len(line) == 0 {
-			continue
-		}
-		parts := bytes.SplitN(line, []byte(": "), 2)
-		if len(parts) == 2 {
-			headers[string(parts[0])] = string(parts[1])
-		}
-	}
-	return headers
-}
-
-func (w *WatcherWrapConn) processH1ReqHeaders() ([]byte, error) {
-	dataOrigin := w.reqBuf.Bytes()
-	headersEndIdx := bytes.Index(dataOrigin, []byte("\r\n\r\n"))
-	if headersEndIdx == -1 {
-		return dataOrigin, nil // 请求头还没接收完整
-	}
-
-	headersData := dataOrigin[:headersEndIdx+4]
-	bodyData := dataOrigin[headersEndIdx+4:]
-
-	w.http1ReqContent = string(dataOrigin)
-
-	// 解析 headers
-	headers := w.parseHttp1Headers(headersData)
-
-	// 获取首行（request line）
-	lines := bytes.SplitN(headersData, []byte("\r\n"), 2)
-	if len(lines) < 2 {
-		return dataOrigin, fmt.Errorf("invalid HTTP/1 request: missing request line")
-	}
-	requestLine := string(lines[0]) // 比如：GET /abc HTTP/1.1
-
-	// 注入登录态 Authorization header，替代历史 inner-token 机制
-	if authHeader := strings.TrimSpace(user.GetCurrentAuthorizationHeader()); authHeader != "" {
-		headers["authorization-inner"] = authHeader
-	}
-	if _, ok := getHeaderCaseInsensitive(headers, "authorization-inner"); !ok {
-		host, _ := getHeaderCaseInsensitive(headers, "Host")
-		logger.Warn(fmt.Sprintf(
-			"WatcherWrapConn: missing authorization-inner after HTTP/1 header rewrite request=%q host=%q",
-			requestLine,
-			host,
-		))
-	} else if !version.IsProdBuild() {
-		host, _ := getHeaderCaseInsensitive(headers, "Host")
-		logger.Info(fmt.Sprintf(
-			"WatcherWrapConn: added authorization-inner for HTTP/1 request=%q host=%q",
-			requestLine,
-			host,
-		))
-	}
-
-	// 重建 HTTP/1 请求头字符串
+func serializeHTTPRequestHead(req *http.Request) ([]byte, error) {
 	var rebuilt bytes.Buffer
-	rebuilt.WriteString(requestLine + "\r\n")
-	for k, v := range headers {
-		rebuilt.WriteString(fmt.Sprintf("%s: %s\r\n", k, v))
+
+	requestURI := req.RequestURI
+	if requestURI == "" && req.URL != nil {
+		requestURI = req.URL.RequestURI()
 	}
-	rebuilt.WriteString("\r\n") // headers 结束
-	rebuilt.Write(bodyData)     // 添加 body（如果有）
-	logger.Debug(fmt.Sprintf("new http1 content is : %s", rebuilt.String()))
+	if requestURI == "" {
+		return nil, fmt.Errorf("invalid HTTP/1 request: empty request URI")
+	}
+
+	if _, err := fmt.Fprintf(&rebuilt, "%s %s %s\r\n", req.Method, requestURI, req.Proto); err != nil {
+		return nil, err
+	}
+
+	headers := req.Header.Clone()
+	headers.Del("Host")
+	if req.Host != "" {
+		if _, err := fmt.Fprintf(&rebuilt, "Host: %s\r\n", req.Host); err != nil {
+			return nil, err
+		}
+	}
+	if err := headers.Write(&rebuilt); err != nil {
+		return nil, err
+	}
+	if _, err := rebuilt.WriteString("\r\n"); err != nil {
+		return nil, err
+	}
 
 	return rebuilt.Bytes(), nil
 }
 
-func deleteHeaderCaseInsensitive(headers map[string]string, target string) {
-	for key := range headers {
-		if strings.EqualFold(key, target) {
-			delete(headers, key)
-		}
+func (w *WatcherWrapConn) processH1ReqHeaders() ([]byte, bool, error) {
+	dataOrigin := append([]byte(nil), w.reqBuf.Bytes()...)
+	headersEndIdx := bytes.Index(dataOrigin, []byte("\r\n\r\n"))
+	if headersEndIdx == -1 {
+		return nil, false, nil
 	}
+
+	headersData := dataOrigin[:headersEndIdx+4]
+	bodyData := dataOrigin[headersEndIdx+4:]
+	w.http1ReqContent = string(dataOrigin)
+
+	req, err := http.ReadRequest(bufio.NewReader(bytes.NewReader(headersData)))
+	if err != nil {
+		return nil, false, fmt.Errorf("invalid HTTP/1 request: %w", err)
+	}
+
+	if authHeader := strings.TrimSpace(user.GetCurrentAuthorizationHeader()); authHeader != "" {
+		req.Header.Set("Authorization-Inner", authHeader)
+	}
+
+	requestLine := fmt.Sprintf("%s %s %s", req.Method, req.RequestURI, req.Proto)
+	if req.Header.Get("Authorization-Inner") == "" {
+		logger.Warn(fmt.Sprintf(
+			"WatcherWrapConn: missing authorization-inner after HTTP/1 header rewrite request=%q host=%q",
+			requestLine,
+			req.Host,
+		))
+	} else if !version.IsProdBuild() {
+		logger.Info(fmt.Sprintf(
+			"WatcherWrapConn: added authorization-inner for HTTP/1 request=%q host=%q",
+			requestLine,
+			req.Host,
+		))
+	}
+
+	headBytes, err := serializeHTTPRequestHead(req)
+	if err != nil {
+		return nil, false, err
+	}
+
+	var rebuilt bytes.Buffer
+	rebuilt.Write(headBytes)
+	rebuilt.Write(bodyData)
+	w.http1HeaderDone = true
+	w.reqBuf.Reset()
+
+	logger.Debug(fmt.Sprintf("new http1 content is : %s", rebuilt.String()))
+	return rebuilt.Bytes(), true, nil
 }

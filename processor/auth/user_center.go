@@ -109,7 +109,7 @@ type userAPIKeyListEnvelope struct {
 }
 
 func resolveAccessToken() (string, error) {
-	current := GetCurrentUserInfo()
+	current := GetCurrentUserInfoOrLoad()
 	if current == nil {
 		return "", fmt.Errorf("no user session")
 	}
@@ -167,7 +167,7 @@ func callUserCenterAPI(method, endpoint string, body any) ([]byte, error) {
 }
 
 func resolveAuthTokenForEndpoint(endpoint string) (string, error) {
-	current := GetCurrentUserInfo()
+	current := GetCurrentUserInfoOrLoad()
 	if current == nil {
 		return "", fmt.Errorf("no user session")
 	}

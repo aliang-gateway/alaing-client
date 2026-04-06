@@ -3,6 +3,7 @@ package user
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -150,6 +151,9 @@ func RestoreSession() (*UserInfo, error) {
 	if refreshErr == nil {
 		return refreshedInfo, nil
 	}
+	if errors.Is(refreshErr, ErrRefreshTokenInvalid) {
+		return nil, refreshErr
+	}
 
 	if strings.TrimSpace(localUserInfo.AccessToken) == "" {
 		startTokenRefresh()
@@ -186,7 +190,7 @@ func RestoreSession() (*UserInfo, error) {
 func RefreshSession(refreshToken string) (*UserInfo, error) {
 	token := strings.TrimSpace(refreshToken)
 	if token == "" {
-		current := GetCurrentUserInfo()
+		current := GetCurrentUserInfoOrLoad()
 		if current != nil {
 			token = strings.TrimSpace(current.RefreshToken)
 		}
@@ -233,6 +237,10 @@ func RefreshSession(refreshToken string) (*UserInfo, error) {
 	}
 
 	if resp.StatusCode != http.StatusOK {
+		if invalidTokenErr := classifyRefreshSessionFailure(resp.StatusCode, body); invalidTokenErr != nil {
+			clearLocalSessionAfterInvalidRefreshToken()
+			return nil, fmt.Errorf("saved session expired: %w", invalidTokenErr)
+		}
 		return nil, fmt.Errorf("api returned status %d: %s", resp.StatusCode, string(body))
 	}
 
@@ -258,7 +266,7 @@ func RefreshSession(refreshToken string) (*UserInfo, error) {
 	userInfo.RefreshToken = response.Data.RefreshToken
 	userInfo.TokenType = response.Data.TokenType
 	userInfo.ExpiresIn = response.Data.ExpiresIn
-	current := GetCurrentUserInfo()
+	current := GetCurrentUserInfoOrLoad()
 	if current != nil {
 		userInfo.AliangSessionToken = current.AliangSessionToken
 	}
@@ -277,7 +285,7 @@ func RefreshSession(refreshToken string) (*UserInfo, error) {
 func LogoutSession(refreshToken string) error {
 	token := strings.TrimSpace(refreshToken)
 	if token == "" {
-		current := GetCurrentUserInfo()
+		current := GetCurrentUserInfoOrLoad()
 		if current != nil {
 			token = strings.TrimSpace(current.RefreshToken)
 		}

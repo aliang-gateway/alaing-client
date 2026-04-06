@@ -1,6 +1,7 @@
 package services
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -90,6 +91,14 @@ func (s *AuthService) Login(email, password, turnstileToken string) map[string]i
 func (s *AuthService) RestoreSession() map[string]interface{} {
 	userInfo, err := auth.RestoreSession()
 	if err != nil {
+		if errors.Is(err, auth.ErrRefreshTokenInvalid) {
+			clearStartupStateAfterLogout()
+			return map[string]interface{}{
+				"status": "no_session",
+				"error":  "session_expired",
+				"msg":    "Saved session expired. Please log in again.",
+			}
+		}
 		return map[string]interface{}{
 			"status": "no_session",
 			"msg":    "No local auth session available",
@@ -108,6 +117,14 @@ func (s *AuthService) RestoreSession() map[string]interface{} {
 func (s *AuthService) RefreshSession(refreshToken string) map[string]interface{} {
 	userInfo, err := auth.RefreshSession(refreshToken)
 	if err != nil {
+		if errors.Is(err, auth.ErrRefreshTokenInvalid) {
+			clearStartupStateAfterLogout()
+			return map[string]interface{}{
+				"status": "failed",
+				"error":  "session_expired",
+				"msg":    "Session expired. Please log in again.",
+			}
+		}
 		logger.Error(fmt.Sprintf("Session refresh failed: %v", err))
 		return map[string]interface{}{
 			"status": "failed",
@@ -127,7 +144,7 @@ func (s *AuthService) RefreshSession(refreshToken string) map[string]interface{}
 
 // GetUserInfo 获取当前用户信息
 func (s *AuthService) GetUserInfo() map[string]interface{} {
-	userInfo := auth.GetCurrentUserInfo()
+	userInfo := auth.GetCurrentUserInfoOrLoad()
 	if userInfo == nil {
 		return map[string]interface{}{
 			"status": "no_user",
