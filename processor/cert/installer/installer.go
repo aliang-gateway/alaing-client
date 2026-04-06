@@ -259,6 +259,50 @@ func findWindowsInstalledStore(certType string, certBytes []byte) (windowsStoreT
 	return windowsStoreTarget{}, false, nil
 }
 
+func countWindowsInstalledCopies(certType string, certBytes []byte) (int, error) {
+	thumbprint, thumbprintErr := extractCertThumbprint(certBytes)
+	commonName, commonNameErr := extractCertCommonName(certBytes)
+	if thumbprintErr != nil && commonNameErr != nil {
+		return 0, fmt.Errorf("failed to extract certificate identity: thumbprint=%v commonName=%v", thumbprintErr, commonNameErr)
+	}
+
+	total := 0
+	for _, target := range getWindowsStoreTargets(certType) {
+		var body string
+		if thumbprintErr == nil {
+			body = fmt.Sprintf(`
+    $matches = @($store.Certificates | Where-Object { $_.Thumbprint -eq '%s' })
+    Write-Output $matches.Count
+`, escapePowerShellSingleQuoted(thumbprint))
+		} else {
+			body = fmt.Sprintf(`
+    $matches = @($store.Certificates | Where-Object { $_.Subject -like '*%s*' })
+    Write-Output $matches.Count
+`, escapePowerShellSingleQuoted(commonName))
+		}
+
+		output, err := runWindowsPowerShell(buildWindowsStoreScript(target, "ReadOnly", body))
+		if err != nil {
+			logger.Warn(fmt.Sprintf("Failed to count Windows certificates in %s: %v, output: %s", target.PSPath, err, strings.TrimSpace(string(output))))
+			continue
+		}
+
+		countText := strings.TrimSpace(string(output))
+		if countText == "" {
+			continue
+		}
+
+		var count int
+		if _, scanErr := fmt.Sscanf(countText, "%d", &count); scanErr != nil {
+			logger.Warn(fmt.Sprintf("Failed to parse Windows certificate count from %s output %q: %v", target.PSPath, countText, scanErr))
+			continue
+		}
+		total += count
+	}
+
+	return total, nil
+}
+
 // ============= macOS (Darwin) Implementation =============
 
 type DarwinInstaller struct{}
@@ -762,6 +806,10 @@ func (w *WindowsInstaller) GetCertInfo(certType string, certBytes []byte) (CertI
 	info, err := parseCertificateInfo(certBytes)
 	if err != nil {
 		return info, err
+	}
+
+	if count, err := countWindowsInstalledCopies(certType, certBytes); err == nil {
+		info.InstalledCount = count
 	}
 
 	target, found, err := findWindowsInstalledStore(certType, certBytes)

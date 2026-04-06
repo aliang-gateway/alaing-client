@@ -6,8 +6,18 @@ import (
 	"strings"
 
 	"aliang.one/nursorgate/common/logger"
+	"aliang.one/nursorgate/common/version"
 	user "aliang.one/nursorgate/processor/auth"
 )
+
+func getHeaderCaseInsensitive(headers map[string]string, target string) (string, bool) {
+	for key, value := range headers {
+		if strings.EqualFold(key, target) {
+			return value, true
+		}
+	}
+	return "", false
+}
 
 func (w *WatcherWrapConn) parseHttp1Headers(data []byte) map[string]string {
 	headers := make(map[string]string)
@@ -49,6 +59,21 @@ func (w *WatcherWrapConn) processH1ReqHeaders() ([]byte, error) {
 	// 注入登录态 Authorization header，替代历史 inner-token 机制
 	if authHeader := strings.TrimSpace(user.GetCurrentAuthorizationHeader()); authHeader != "" {
 		headers["authorization-inner"] = authHeader
+	}
+	if _, ok := getHeaderCaseInsensitive(headers, "authorization-inner"); !ok {
+		host, _ := getHeaderCaseInsensitive(headers, "Host")
+		logger.Warn(fmt.Sprintf(
+			"WatcherWrapConn: missing authorization-inner after HTTP/1 header rewrite request=%q host=%q",
+			requestLine,
+			host,
+		))
+	} else if !version.IsProdBuild() {
+		host, _ := getHeaderCaseInsensitive(headers, "Host")
+		logger.Info(fmt.Sprintf(
+			"WatcherWrapConn: added authorization-inner for HTTP/1 request=%q host=%q",
+			requestLine,
+			host,
+		))
 	}
 
 	// 重建 HTTP/1 请求头字符串

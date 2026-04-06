@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"aliang.one/nursorgate/common/logger"
+	"aliang.one/nursorgate/common/version"
 	user "aliang.one/nursorgate/processor/auth"
 	"golang.org/x/net/http2/hpack"
 )
@@ -118,6 +119,35 @@ type http2Stream struct {
 	RespEndStream bool // 标记响应体是否已结束 (收到 END_STREAM)
 }
 
+func getHTTP2HeaderFieldValue(fields []hpack.HeaderField, target string) (string, bool) {
+	for _, field := range fields {
+		if strings.EqualFold(strings.TrimSpace(field.Name), target) {
+			return field.Value, true
+		}
+	}
+	return "", false
+}
+
+func summarizeHTTP2Request(fields []hpack.HeaderField) string {
+	method, _ := getHTTP2HeaderFieldValue(fields, ":method")
+	path, _ := getHTTP2HeaderFieldValue(fields, ":path")
+	authority, ok := getHTTP2HeaderFieldValue(fields, ":authority")
+	if !ok || strings.TrimSpace(authority) == "" {
+		authority, _ = getHTTP2HeaderFieldValue(fields, "host")
+	}
+	return fmt.Sprintf("method=%q authority=%q path=%q", method, authority, path)
+}
+
+func prependBytesToBuffer(buf *bytes.Buffer, prefix []byte) {
+	if len(prefix) == 0 {
+		return
+	}
+	existing := append([]byte{}, buf.Bytes()...)
+	buf.Reset()
+	buf.Write(prefix)
+	buf.Write(existing)
+}
+
 func (w *WatcherWrapConn) processHttp2RequestFrame(preBuff *bytes.Buffer) error {
 	for {
 		frame, ok := w.tryExtractFrameFromBuf(&w.reqBuf, true)
@@ -133,6 +163,7 @@ func (w *WatcherWrapConn) processHttp2RequestFrame(preBuff *bytes.Buffer) error 
 		cacheFrame := []byte{}
 		switch ftype {
 		case frameTypeHeaders:
+			logger.Debug(fmt.Sprintf("WatcherWrapConn: observed HTTP/2 HEADERS stream=%d flags=0x%x", streamID, flags))
 			cacheFrame = append(cacheFrame, frame...)
 			_, priorityPayload, _ := extraceHeaderBlockPriority(frame, flags)
 
@@ -144,11 +175,14 @@ func (w *WatcherWrapConn) processHttp2RequestFrame(preBuff *bytes.Buffer) error 
 			headerBlock := append([]byte{}, frameHeaderPayload...)
 
 			if flags&flagEndHeaders == 0 {
+				sawEndHeaders := false
 				// Continue collecting CONTINUATION frames
 				for {
 					continueFrame, ok := w.tryExtractFrameFromBuf(&w.reqBuf, false)
 					if !ok {
-						break
+						prependBytesToBuffer(&w.reqBuf, cacheFrame)
+						logger.Debug(fmt.Sprintf("WatcherWrapConn: waiting for more HTTP/2 CONTINUATION frames stream=%d buffered=%d", streamID, w.reqBuf.Len()))
+						return nil
 					}
 					ctype := continueFrame[3]
 					cflags := continueFrame[4]
@@ -168,8 +202,13 @@ func (w *WatcherWrapConn) processHttp2RequestFrame(preBuff *bytes.Buffer) error 
 					}
 					headerBlock = append(headerBlock, frameHeaderPayload...)
 					if cflags&flagEndHeaders != 0 {
+						sawEndHeaders = true
 						break
 					}
+				}
+				if !sawEndHeaders {
+					preBuff.Write(cacheFrame)
+					continue
 				}
 			}
 			newHeaderFrames, err := w.rebuildReqHeadersWithInjectedField(
@@ -397,6 +436,21 @@ func (w *WatcherWrapConn) rebuildReqHeadersWithInjectedField(
 	headerFields = filteredFields
 	if normalizedInjectKey != "" && strings.TrimSpace(valueToInject) != "" {
 		headerFields = append(headerFields, hpack.HeaderField{Name: normalizedInjectKey, Value: valueToInject})
+	}
+	if normalizedInjectKey == "authorization-inner" {
+		if _, ok := getHTTP2HeaderFieldValue(headerFields, normalizedInjectKey); !ok {
+			logger.Warn(fmt.Sprintf(
+				"WatcherWrapConn: missing authorization-inner after HTTP/2 header rewrite stream=%d %s",
+				streamID,
+				summarizeHTTP2Request(headerFields),
+			))
+		} else if !version.IsProdBuild() {
+			logger.Info(fmt.Sprintf(
+				"WatcherWrapConn: added authorization-inner for HTTP/2 stream=%d %s",
+				streamID,
+				summarizeHTTP2Request(headerFields),
+			))
+		}
 	}
 	// w.streams[streamID].RespHeaders = headers
 	// logger.Debug(fmt.Sprintf("HTTP/2 Request Headers for Stream %d: %+v", streamID, headers))

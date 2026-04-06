@@ -335,6 +335,11 @@ func ResetAuthPersistenceForTest() {
 	currentUserInfo = nil
 	userInfoMutex.Unlock()
 
+	if authSessionDB != nil {
+		if sqlDB, err := authSessionDB.DB(); err == nil {
+			_ = sqlDB.Close()
+		}
+	}
 	authSessionDB = nil
 	authSessionDBErr = nil
 	authSessionDBOnce = sync.Once{}

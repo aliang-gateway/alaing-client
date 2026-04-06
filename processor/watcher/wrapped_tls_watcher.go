@@ -155,9 +155,12 @@ func (w *WatcherWrapConn) Read(p []byte) (int, error) {
 			if originH2Content != endH2Content {
 
 			}
-			if w.reqBuf.Available() == 0 {
+			if w.reqBuf.Len() == 0 {
+				// if w.reqBuf.Available() == 0 {
 				// 释放一下控件
 				w.reqBuf.Reset()
+			} else {
+				logger.Debug(fmt.Sprintf("WatcherWrapConn: retaining %d buffered request bytes awaiting more HTTP/2 data", w.reqBuf.Len()))
 			}
 			return copied, nil
 			// return n, nil
