@@ -28,6 +28,30 @@ var caCertPool *x509.CertPool
 var certCache = sync.Map{}
 var mu sync.RWMutex
 
+func buildHostLeafTemplate(host string) x509.Certificate {
+	template := x509.Certificate{
+		SerialNumber: big.NewInt(rand.Int63n(1 << 62)),
+		Subject: pkix.Name{
+			CommonName: host,
+		},
+		// Backdate slightly to avoid transient validation failures from small clock skew.
+		NotBefore:             time.Now().Add(-5 * time.Minute),
+		NotAfter:              time.Now().Add(365 * 24 * time.Hour),
+		KeyUsage:              x509.KeyUsageDigitalSignature | x509.KeyUsageKeyEncipherment,
+		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+		IsCA:                  false,
+		BasicConstraintsValid: true,
+	}
+
+	if ip := net.ParseIP(host); ip != nil {
+		template.IPAddresses = append(template.IPAddresses, ip)
+		return template
+	}
+
+	template.DNSNames = []string{host}
+	return template
+}
+
 // LoadMitmCACertificate loads the MITM CA certificate from filesystem
 func LoadMitmCACertificate() (*tls.Certificate, error) {
 	mu.RLock()
@@ -164,24 +188,7 @@ func creatCertForHost(host string) (tls.Certificate, error) {
 		return tls.Certificate{}, err
 	}
 
-	// Create certificate template
-	template := x509.Certificate{
-		SerialNumber: big.NewInt(rand.Int63n(1 << 62)),
-		Subject: pkix.Name{
-			CommonName: host,
-		},
-		NotBefore:             time.Now(),
-		NotAfter:              time.Now().Add(365 * 24 * time.Hour),
-		KeyUsage:              x509.KeyUsageDigitalSignature | x509.KeyUsageKeyEncipherment,
-		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
-		DNSNames:              []string{host},
-		IsCA:                  true,
-		BasicConstraintsValid: true,
-	}
-
-	if net.ParseIP(host) != nil {
-		template.IPAddresses = append(template.IPAddresses, net.ParseIP(host))
-	}
+	template := buildHostLeafTemplate(host)
 
 	// Parse CA certificate
 	// caCert.Certificate[0] is already DER-encoded bytes (not PEM),
@@ -194,6 +201,9 @@ func creatCertForHost(host string) (tls.Certificate, error) {
 	ca, err := x509.ParseCertificate(caCert.Certificate[0])
 	if err != nil {
 		return tls.Certificate{}, fmt.Errorf("failed to parse CA certificate: %w", err)
+	}
+	if len(ca.SubjectKeyId) > 0 {
+		template.AuthorityKeyId = append([]byte(nil), ca.SubjectKeyId...)
 	}
 
 	// Sign the certificate

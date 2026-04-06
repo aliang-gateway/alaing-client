@@ -189,7 +189,7 @@ jobs:
           COMMIT="$(git rev-parse --short HEAD)"
           go build \
             -trimpath \
-            -ldflags="-s -w ${{ matrix.extra_ldflags }} -X aliang.one/nursorgate/common/version.Version=${VERSION} -X aliang.one/nursorgate/common/version.GitCommit=${COMMIT}" \
+            -ldflags="-s -w ${{ matrix.extra_ldflags }} -X aliang.one/nursorgate/common/version.Version=${VERSION} -X aliang.one/nursorgate/common/version.GitCommit=${COMMIT} -X aliang.one/nursorgate/common/version.BuildMode=prod" \
             -o "dist/${BINARY_NAME}${{ matrix.binary_ext }}" \
             ./cmd/aliang
 

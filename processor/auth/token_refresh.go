@@ -130,7 +130,7 @@ func (tr *TokenRefresher) refreshLoop() {
 
 // refreshUserInfo 刷新用户信息
 func (tr *TokenRefresher) refreshUserInfo() error {
-	currentInfo := GetCurrentUserInfo()
+	currentInfo := GetCurrentUserInfoOrLoad()
 	if currentInfo == nil {
 		return fmt.Errorf("no user info to refresh")
 	}

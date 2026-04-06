@@ -3,6 +3,8 @@ package user
 import (
 	"strings"
 	"sync"
+
+	"aliang.one/nursorgate/common/logger"
 )
 
 var (
@@ -11,7 +13,7 @@ var (
 )
 
 func GetCurrentAuthorizationHeader() string {
-	current := GetCurrentUserInfo()
+	current := resolveUserInfoForAuthorizationHeader()
 	if current == nil {
 		return ""
 	}
@@ -27,6 +29,16 @@ func GetCurrentAuthorizationHeader() string {
 	}
 
 	return tokenType + " " + accessToken
+}
+
+func resolveUserInfoForAuthorizationHeader() *UserInfo {
+	current := GetCurrentUserInfoWithAccessTokenOrLoad()
+	if current != nil && strings.TrimSpace(current.AccessToken) != "" {
+		if inMemory := GetCurrentUserInfo(); inMemory == nil {
+			logger.Debug("Authorization header resolved from persisted user info")
+		}
+	}
+	return current
 }
 
 // SetAccessToken 设置accessToken，如果变更则触发POST（线程安全 + 单请求）

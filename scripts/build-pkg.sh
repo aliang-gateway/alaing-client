@@ -49,9 +49,9 @@ cd "$PROJECT_DIR"
 
 # On macOS, CGO is required for systray (Cocoa/Objective-C)
 if [ "$(uname)" = "Darwin" ]; then
-	go build -ldflags="-s -w" -o "$SCRIPT_DIR/aliang" ./cmd/aliang/main.go
+	go build -ldflags="-s -w -X aliang.one/nursorgate/common/version.BuildMode=prod" -o "$SCRIPT_DIR/aliang" ./cmd/aliang/main.go
 else
-	CGO_ENABLED=0 go build -ldflags="-s -w" -o "$SCRIPT_DIR/aliang" ./cmd/aliang/main.go
+	CGO_ENABLED=0 go build -ldflags="-s -w -X aliang.one/nursorgate/common/version.BuildMode=prod" -o "$SCRIPT_DIR/aliang" ./cmd/aliang/main.go
 fi
 
 # Step 2: Copy binary to app bundle (Shell entry point)

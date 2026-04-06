@@ -22,7 +22,6 @@ type StartupState struct {
 	mu           sync.RWMutex
 	status       StartupStatus
 	fetchSuccess bool
-	userInfo     *authuser.UserInfo
 	timestamp    time.Time
 }
 
@@ -72,23 +71,19 @@ func (s *StartupState) GetFetchSuccess() bool {
 	return s.fetchSuccess
 }
 
-// SetUserInfo sets the current user information
+// SetUserInfo syncs the startup view of authentication with the shared auth
+// in-memory state. StartupState does not keep a second in-memory copy.
 func (s *StartupState) SetUserInfo(userInfo *authuser.UserInfo) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.userInfo = userInfo
+	authuser.SetCurrentUserInfo(userInfo)
+	s.timestamp = time.Now()
 }
 
-// GetUserInfo returns the current user information
+// GetUserInfo returns the shared auth state, preferring memory and falling
+// back to persisted auth state only when memory is empty.
 func (s *StartupState) GetUserInfo() *authuser.UserInfo {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	if s.userInfo == nil {
-		return nil
-	}
-	// Return a copy to prevent external modification
-	userInfoCopy := *s.userInfo
-	return &userInfoCopy
+	return authuser.GetCurrentUserInfoOrLoad()
 }
 
 // GetTimestamp returns when the state was last updated
@@ -103,6 +98,7 @@ func (s *StartupState) GetTimestamp() time.Time {
 // ResetGlobalStartupStateForTest resets the global startup state singleton for testing
 // This allows tests to run in isolation without state pollution
 func ResetGlobalStartupStateForTest() {
+	authuser.SetCurrentUserInfo(nil)
 	// Reset the singleton by setting it to nil
 	// The next call to GetStartupState() will reinitialize it
 	globalStartupState = nil

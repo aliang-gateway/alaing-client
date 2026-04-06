@@ -1,8 +1,10 @@
 package runtime
 
 import (
+	"path/filepath"
 	"sync"
 	"testing"
+	"time"
 
 	authuser "aliang.one/nursorgate/processor/auth"
 )
@@ -58,6 +60,54 @@ func TestStartupState_GetUserInfo_ReturnsCopy(t *testing.T) {
 	}
 	if gotAgain.Concurrency != 3 {
 		t.Fatalf("concurrency mutated in state: got %d, want %d", gotAgain.Concurrency, 3)
+	}
+}
+
+func TestStartupState_SetUserInfo_SyncsSharedAuthState(t *testing.T) {
+	ResetGlobalStartupStateForTest()
+	state := GetStartupState()
+
+	state.SetUserInfo(&authuser.UserInfo{
+		Username: "shared-user",
+		Status:   "active",
+	})
+
+	got := authuser.GetCurrentUserInfo()
+	if got == nil {
+		t.Fatal("GetCurrentUserInfo() returned nil")
+	}
+	if got.Username != "shared-user" {
+		t.Fatalf("username = %q, want %q", got.Username, "shared-user")
+	}
+}
+
+func TestStartupState_GetUserInfo_FallsBackToPersistedAuthState(t *testing.T) {
+	baseDir := t.TempDir()
+	t.Setenv("HOME", filepath.Join(baseDir, "home"))
+	t.Setenv("ALIANG_CACHE_DIR", filepath.Join(baseDir, "cache"))
+	authuser.ResetAuthPersistenceForTest()
+	t.Cleanup(authuser.ResetAuthPersistenceForTest)
+
+	ResetGlobalStartupStateForTest()
+	state := GetStartupState()
+
+	if err := authuser.SaveUserInfo(&authuser.UserInfo{
+		AccessToken:  "persisted-access-token",
+		RefreshToken: "persisted-refresh-token",
+		Username:     "persisted-user",
+		UpdatedAt:    time.Now(),
+	}); err != nil {
+		t.Fatalf("SaveUserInfo() error = %v", err)
+	}
+
+	authuser.SetCurrentUserInfo(nil)
+
+	got := state.GetUserInfo()
+	if got == nil {
+		t.Fatal("GetUserInfo() returned nil")
+	}
+	if got.Username != "persisted-user" {
+		t.Fatalf("username = %q, want %q", got.Username, "persisted-user")
 	}
 }
 
