@@ -46,6 +46,7 @@ type Metadata struct {
 	MidPort  uint16     `json:"dialerPort"`
 	DstPort  uint16     `json:"destinationPort"`
 	HostName string     `json:"hostName"`
+	AppProto string     `json:"appProto,omitempty"`
 	DNSInfo  *DNSInfo   `json:"dnsInfo"`
 	Route    string     `json:"route"` // Final routing decision for this connection
 }

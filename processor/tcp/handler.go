@@ -21,6 +21,7 @@ import (
 	"aliang.one/nursorgate/processor/rules"
 	"aliang.one/nursorgate/processor/statistic"
 	watcher "aliang.one/nursorgate/processor/watcher"
+	"golang.org/x/net/http2"
 )
 
 var reverseLookupAddr = func(ctx context.Context, addr string) ([]string, error) {
@@ -31,6 +32,12 @@ const (
 	applicationPrefetchInitialTimeout = 200 * time.Millisecond
 	applicationPrefetchRetryTimeout   = 50 * time.Millisecond
 	applicationPrefetchMaxBytes       = 8192
+)
+
+const (
+	AppProtoUnknown = "unknown"
+	AppProtoHTTP1   = "http1"
+	AppProtoHTTP2   = "http2"
 )
 
 const (
@@ -152,13 +159,43 @@ func logAliangGateProxy(metadata *M.Metadata, routeSource string) {
 	}
 
 	logger.Info(fmt.Sprintf(
-		"[AliangGate] proxying server_name=%s route_source=%s dst=%s:%d final_route=%s",
+		"[AliangGate] proxying server_name=%s route_source=%s app_proto=%s dst=%s:%d final_route=%s",
 		metadata.HostName,
 		routeSource,
+		metadata.AppProto,
 		destIP,
 		metadata.DstPort,
 		metadata.Route,
 	))
+}
+
+func detectApplicationProtocol(prefetched []byte) string {
+	if len(prefetched) == 0 {
+		return AppProtoUnknown
+	}
+
+	if len(prefetched) >= len(http2.ClientPreface) && string(prefetched[:len(http2.ClientPreface)]) == http2.ClientPreface {
+		return AppProtoHTTP2
+	}
+
+	httpMethods := [][]byte{
+		[]byte("GET "),
+		[]byte("POST "),
+		[]byte("PUT "),
+		[]byte("HEAD "),
+		[]byte("PATCH "),
+		[]byte("DELETE "),
+		[]byte("OPTIONS "),
+		[]byte("CONNECT "),
+		[]byte("TRACE "),
+	}
+	for _, method := range httpMethods {
+		if len(prefetched) >= len(method) && bytes.Equal(prefetched[:len(method)], method) {
+			return AppProtoHTTP1
+		}
+	}
+
+	return AppProtoUnknown
 }
 
 // Handle processes a single TCP connection.
@@ -457,6 +494,16 @@ func (h *TCPConnectionHandler) resolveTLSRoute(
 			return nil, nil, err
 		}
 
+		prefetchedData, sniffErr := prefetchApplicationData(ctx, mitmed, applicationPrefetchMaxBytes)
+		if sniffErr != nil {
+			logger.Debug(fmt.Sprintf("aliang protocol prefetch failed: %v", sniffErr))
+		}
+		metadata.AppProto = detectApplicationProtocol(prefetchedData)
+		if metadata.AppProto == "" {
+			metadata.AppProto = AppProtoUnknown
+		}
+		bufferedMitmed := wrapBufferedConn(mitmed, prefetchedData)
+
 		remote, err := h.dialByRoute(ctx, metadata, route)
 		if err != nil {
 			return nil, nil, err
@@ -464,7 +511,7 @@ func (h *TCPConnectionHandler) resolveTLSRoute(
 
 		logAliangGateProxy(metadata, "tls")
 
-		return remote, h.wrapAliangHTTPConn(mitmed), nil
+		return remote, h.wrapAliangHTTPConn(bufferedMitmed), nil
 	}
 
 	remote, err := h.dialByRoute(ctx, metadata, route)
