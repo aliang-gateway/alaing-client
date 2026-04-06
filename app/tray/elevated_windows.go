@@ -45,7 +45,7 @@ func startServiceWithElevation(name string) error {
 	if err != nil {
 		return err
 	}
-	if exitCode != 0 {
+	if !isAcceptableWindowsServiceStartExitCode(exitCode) {
 		return fmt.Errorf("elevated service start exited with code %d", exitCode)
 	}
 	return nil

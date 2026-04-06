@@ -93,19 +93,30 @@ func (a *CompanionApp) connectAndStartHTTP() {
 	serviceName := setup.GetServiceName()
 	writeWindowsCompanionTrace("connectAndStartHTTP service=%s", serviceName)
 
-	status, err := setup.GetServiceStatus(serviceName, true)
-	if err != nil || !status.IsRunning {
-		logger.Info("Windows service not running, starting it...")
-		if err := startServiceWithElevation(serviceName); err != nil {
-			logger.Error("Failed to start Windows service", "error", err)
-			a.failStartup("background service start failed", fmt.Sprintf("后台服务启动失败：%v", err))
+	if a.waitForIPC(1500 * time.Millisecond) {
+		logger.Info("Connected to existing Windows service via IPC")
+	} else {
+		status, err := setup.GetServiceStatus(serviceName, true)
+		if err != nil {
+			logger.Warn("Failed to query Windows service status before startup", "error", err)
+		}
+
+		serviceRunning := err == nil && status != nil && (status.IsRunning || status.Status == "start_pending")
+		if !serviceRunning {
+			logger.Info("Windows service not running, starting it...")
+			if err := startServiceWithElevation(serviceName); err != nil {
+				logger.Error("Failed to start Windows service", "error", err)
+				a.failStartup("background service start failed", fmt.Sprintf("后台服务启动失败：%v", err))
+				return
+			}
+		} else {
+			logger.Info("Windows service already running, waiting for IPC...")
+		}
+
+		if !a.waitForIPC(15 * time.Second) {
+			a.failStartup("background service startup timed out", "后台服务启动超时，未能建立 IPC 连接。")
 			return
 		}
-	}
-
-	if !a.waitForIPC(15 * time.Second) {
-		a.failStartup("background service startup timed out", "后台服务启动超时，未能建立 IPC 连接。")
-		return
 	}
 
 	resp, err := a.ipcClient.Send(ipc.ActionStartHTTP, nil)
