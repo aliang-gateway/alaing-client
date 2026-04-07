@@ -42,8 +42,7 @@ func runTray(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	if !acquired {
-		logger.Info("Aliang is already running, opening dashboard...")
-		openDashboardInBrowser()
+		logger.Info("Aliang is already running, exiting duplicate launch request.")
 		return nil
 	}
 	defer guard.Close()

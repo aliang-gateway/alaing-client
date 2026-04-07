@@ -13,6 +13,7 @@ import (
 	"aliang.one/nursorgate/common/logger"
 	"aliang.one/nursorgate/common/version"
 	"aliang.one/nursorgate/internal/ipc"
+	"aliang.one/nursorgate/internal/singleinstance"
 	"aliang.one/nursorgate/processor/setup"
 	"github.com/getlantern/systray"
 	"golang.org/x/sys/windows"
@@ -76,7 +77,7 @@ func (a *CompanionApp) onReady() {
 	mVersion.Disable()
 
 	systray.AddSeparator()
-	a.mQuit = systray.AddMenuItem("Quit Aliang", "Quit the companion without stopping the background Windows service")
+	a.mQuit = systray.AddMenuItem("Quit Aliang", "Stop the background proxy and quit the companion")
 
 	go func() {
 		a.connectAndStartHTTP()
@@ -172,8 +173,9 @@ func (a *CompanionApp) handleMenuEvents() {
 		case <-a.mOpenDashboard.ClickedCh:
 			a.openDashboard()
 		case <-a.mQuit.ClickedCh:
-			a.quit()
-			return
+			if a.quit() {
+				return
+			}
 		case <-a.done:
 			return
 		}
@@ -344,8 +346,13 @@ func (a *CompanionApp) openDashboard() {
 	}
 }
 
-func (a *CompanionApp) quit() {
+func (a *CompanionApp) quit() bool {
 	logger.Info("Quitting Windows tray companion...")
+
+	if !a.stopProxyForQuit() {
+		showWindowsCompanionMessage("Aliang", "无法确认代理已经停止，已取消退出。请稍后重试。")
+		return false
+	}
 
 	select {
 	case <-a.done:
@@ -358,9 +365,50 @@ func (a *CompanionApp) quit() {
 
 	systray.Quit()
 	os.Exit(0)
+	return true
+}
+
+func (a *CompanionApp) stopProxyForQuit() bool {
+	logger.Info("Ensuring background proxy is stopped before quit...")
+
+	result, err := a.ipcClient.Send(ipc.ActionStopProxy, nil)
+	if err != nil {
+		logger.Error("Failed to stop proxy during Windows companion quit", "error", err)
+		return false
+	}
+
+	if !result.OK {
+		if strings.Contains(strings.ToLower(result.Error), "not_running") {
+			logger.Info("Background proxy was already stopped before quit")
+			return true
+		}
+
+		logger.Error("Background service rejected proxy stop during quit", "error", result.Error)
+		return false
+	}
+
+	data, _ := result.Data.(map[string]interface{})
+	if isAcceptableQuitProxyStopResult(data) {
+		logger.Info(fmt.Sprintf("Windows companion quit proxy stop result: %s", trayResultMessage(data)))
+		return true
+	}
+
+	logger.Error("Background proxy stop returned an unexpected result during quit", "result", result.Data)
+	return false
 }
 
 func RunCompanion() {
+	guard, acquired, err := singleinstance.Acquire()
+	if err != nil {
+		logger.Error("Failed to acquire Windows companion single-instance guard", "error", err)
+		return
+	}
+	if !acquired {
+		logger.Info("Aliang companion is already running, exiting duplicate launch request.")
+		return
+	}
+	defer guard.Close()
+
 	app := NewCompanionApp()
 	systray.Run(app.onReady, app.onExit)
 }

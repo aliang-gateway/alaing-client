@@ -99,35 +99,25 @@ func RelayHTTP1(ctx context.Context, clientConn, remoteConn net.Conn) (*HTTP1Rel
 		}
 	}
 
-	respErrCh := make(chan error, 1)
-	go func() {
-		buf := make([]byte, 32*1024)
-		writer := &httpRelayCountingWriter{
-			writer:      clientConn,
-			capture:     responseCapture,
-			onFirstData: markFirstResponse,
-			written:     &stats.ServerToClientByte,
-		}
-		_, err := io.CopyBuffer(writer, remoteConn, buf)
-		if err != nil && !errors.Is(err, io.EOF) {
-			respErrCh <- err
-			return
-		}
-		respErrCh <- nil
-	}()
-
 	clientReader := bufio.NewReader(clientConn)
+	remoteReader := bufio.NewReader(remoteConn)
 	requestWriter := &httpRelayCountingWriter{
 		writer:  remoteConn,
 		capture: requestCapture,
 		written: &stats.ClientToServerByte,
 	}
+	responseWriter := &httpRelayCountingWriter{
+		writer:      clientConn,
+		capture:     responseCapture,
+		onFirstData: markFirstResponse,
+		written:     &stats.ServerToClientByte,
+	}
 
-	var reqErr error
+	var relayErr error
 	for {
 		select {
 		case <-ctx.Done():
-			reqErr = ctx.Err()
+			relayErr = ctx.Err()
 			goto done
 		default:
 		}
@@ -137,39 +127,52 @@ func RelayHTTP1(ctx context.Context, clientConn, remoteConn net.Conn) (*HTTP1Rel
 			if errors.Is(err, io.EOF) {
 				break
 			}
-			reqErr = err
+			relayErr = err
 			break
 		}
 
 		injectHTTP1AuthorizationHeader(req)
 
 		if err := req.Write(requestWriter); err != nil {
-			reqErr = err
+			relayErr = err
+			break
+		}
+
+		resp, err := http.ReadResponse(remoteReader, req)
+		if err != nil {
+			if isNetTimeout(err) {
+				if writeErr := writeHTTP1GatewayTimeout(responseWriter, req); writeErr != nil {
+					relayErr = fmt.Errorf("http1 relay timeout while writing local gateway timeout: %w", writeErr)
+				} else {
+					relayErr = err
+				}
+			} else {
+				relayErr = err
+			}
+			break
+		}
+
+		if err := resp.Write(responseWriter); err != nil {
+			relayErr = err
+			break
+		}
+
+		if shouldCloseHTTP1Relay(req, resp) {
 			break
 		}
 	}
 
 done:
-	if reqErr == nil {
-		closeHTTPWrite(remoteConn)
-	}
-	closeHTTPRead(clientConn)
-
-	respErr := <-respErrCh
 	closeHTTPWrite(clientConn)
+	closeHTTPRead(clientConn)
+	closeHTTPWrite(remoteConn)
 	closeHTTPRead(remoteConn)
 
 	stats.CompletedAt = time.Now()
 	stats.RequestPayload = requestCapture.Bytes()
 	stats.ResponsePayload = responseCapture.Bytes()
 
-	if reqErr != nil {
-		return stats, reqErr
-	}
-	if respErr != nil {
-		return stats, respErr
-	}
-	return stats, nil
+	return stats, relayErr
 }
 
 func injectHTTP1AuthorizationHeader(req *http.Request) {
@@ -195,6 +198,46 @@ func injectHTTP1AuthorizationHeader(req *http.Request) {
 			req.Host,
 		))
 	}
+}
+
+func shouldCloseHTTP1Relay(req *http.Request, resp *http.Response) bool {
+	if req == nil || resp == nil {
+		return true
+	}
+	if req.Close || resp.Close {
+		return true
+	}
+	if strings.EqualFold(req.Header.Get("Connection"), "close") {
+		return true
+	}
+	if strings.EqualFold(resp.Header.Get("Connection"), "close") {
+		return true
+	}
+	return false
+}
+
+func writeHTTP1GatewayTimeout(w io.Writer, req *http.Request) error {
+	body := "gateway timeout"
+	resp := &http.Response{
+		Status:        "504 Gateway Timeout",
+		StatusCode:    http.StatusGatewayTimeout,
+		Proto:         "HTTP/1.1",
+		ProtoMajor:    1,
+		ProtoMinor:    1,
+		Header:        make(http.Header),
+		Body:          io.NopCloser(strings.NewReader(body)),
+		ContentLength: int64(len(body)),
+		Close:         true,
+		Request:       req,
+	}
+	resp.Header.Set("Content-Type", "text/plain; charset=utf-8")
+	resp.Header.Set("Connection", "close")
+	return resp.Write(w)
+}
+
+func isNetTimeout(err error) bool {
+	var netErr net.Error
+	return errors.As(err, &netErr) && netErr.Timeout()
 }
 
 func closeHTTPWrite(conn net.Conn) {

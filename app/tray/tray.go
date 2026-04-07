@@ -154,8 +154,9 @@ func (t *TrayApp) handleMenuEvents() {
 			t.openDashboard()
 
 		case <-t.mQuit.ClickedCh:
-			t.quit()
-			return
+			if t.quit() {
+				return
+			}
 		}
 	}
 }
@@ -279,11 +280,11 @@ func (t *TrayApp) openDashboard() {
 }
 
 // quit exits the application
-func (t *TrayApp) quit() {
+func (t *TrayApp) quit() bool {
 	logger.Info("Quitting application from tray...")
 
-	if t.isRunning {
-		t.stopProxy()
+	if !t.stopProxyForQuit() {
+		return false
 	}
 
 	select {
@@ -298,6 +299,25 @@ func (t *TrayApp) quit() {
 
 	systray.Quit()
 	os.Exit(0)
+	return true
+}
+
+func (t *TrayApp) stopProxyForQuit() bool {
+	if t.runService == nil {
+		return true
+	}
+
+	logger.Info("Ensuring proxy is stopped before quit...")
+	result := t.runService.StopService()
+	if isAcceptableQuitProxyStopResult(result) {
+		logger.Info(fmt.Sprintf("Tray quit proxy stop result: %s", trayResultMessage(result)))
+		t.syncProxyState()
+		return true
+	}
+
+	logger.Error(fmt.Sprintf("Failed to stop proxy during quit: %s", trayResultMessage(result)))
+	t.syncProxyState()
+	return false
 }
 
 func (t *TrayApp) ensureDashboardServer() {
@@ -409,6 +429,19 @@ func trayResultMessage(result map[string]interface{}) string {
 		}
 	}
 	return "unknown result"
+}
+
+func isAcceptableQuitProxyStopResult(result map[string]interface{}) bool {
+	if result == nil {
+		return false
+	}
+
+	status := trayResultString(result, "status")
+	if status == "success" {
+		return true
+	}
+
+	return status == "failed" && trayResultString(result, "error") == "not_running"
 }
 
 // Run starts the system tray application
