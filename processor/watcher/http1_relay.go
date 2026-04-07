@@ -87,6 +87,87 @@ func (w *httpRelayCountingWriter) Write(p []byte) (int, error) {
 	return n, err
 }
 
+type httpRequestResult struct {
+	req *http.Request
+	err error
+}
+
+type http1RemoteStream struct {
+	reader *io.PipeReader
+	writer *io.PipeWriter
+	events chan error
+}
+
+func startHTTP1RemoteStream(
+	remoteConn net.Conn,
+	capture *httpRelayCaptureBuffer,
+	onFirstData func(),
+	written *int64,
+) *http1RemoteStream {
+	pipeReader, pipeWriter := io.Pipe()
+	stream := &http1RemoteStream{
+		reader: pipeReader,
+		writer: pipeWriter,
+		events: make(chan error, 1),
+	}
+
+	go func() {
+		defer close(stream.events)
+
+		buf := make([]byte, 32*1024)
+		localOnFirstData := onFirstData
+		for {
+			n, err := remoteConn.Read(buf)
+			if n > 0 {
+				if localOnFirstData != nil {
+					localOnFirstData()
+					localOnFirstData = nil
+				}
+				if capture != nil {
+					capture.Write(buf[:n])
+				}
+				if written != nil {
+					atomic.AddInt64(written, int64(n))
+				}
+				if _, writeErr := pipeWriter.Write(buf[:n]); writeErr != nil {
+					stream.events <- writeErr
+					_ = pipeWriter.CloseWithError(writeErr)
+					return
+				}
+			}
+			if err != nil {
+				stream.events <- err
+				_ = pipeWriter.CloseWithError(err)
+				return
+			}
+		}
+	}()
+
+	return stream
+}
+
+func (s *http1RemoteStream) Reader() io.Reader {
+	if s == nil {
+		return nil
+	}
+	return s.reader
+}
+
+func (s *http1RemoteStream) Events() <-chan error {
+	if s == nil {
+		return nil
+	}
+	return s.events
+}
+
+func (s *http1RemoteStream) Close() {
+	if s == nil {
+		return
+	}
+	_ = s.reader.Close()
+	_ = s.writer.Close()
+}
+
 func RelayHTTP1(ctx context.Context, clientConn, remoteConn net.Conn) (*HTTP1RelayStats, error) {
 	stats := &HTTP1RelayStats{StartedAt: time.Now()}
 	requestCapture := newHTTPRelayCaptureBuffer(httpRelayCaptureLimit)
@@ -100,65 +181,74 @@ func RelayHTTP1(ctx context.Context, clientConn, remoteConn net.Conn) (*HTTP1Rel
 	}
 
 	clientReader := bufio.NewReader(clientConn)
-	remoteReader := bufio.NewReader(remoteConn)
 	requestWriter := &httpRelayCountingWriter{
 		writer:  remoteConn,
 		capture: requestCapture,
 		written: &stats.ClientToServerByte,
 	}
 	responseWriter := &httpRelayCountingWriter{
-		writer:      clientConn,
-		capture:     responseCapture,
-		onFirstData: markFirstResponse,
-		written:     &stats.ServerToClientByte,
+		writer: clientConn,
 	}
+
+	remoteStream := startHTTP1RemoteStream(remoteConn, responseCapture, markFirstResponse, &stats.ServerToClientByte)
+	defer remoteStream.Close()
+	remoteReader := bufio.NewReader(remoteStream.Reader())
 
 	var relayErr error
 	for {
+		reqCh := make(chan httpRequestResult, 1)
+		go func() {
+			req, err := http.ReadRequest(clientReader)
+			reqCh <- httpRequestResult{req: req, err: err}
+		}()
+
 		select {
 		case <-ctx.Done():
 			relayErr = ctx.Err()
 			goto done
-		default:
-		}
-
-		req, err := http.ReadRequest(clientReader)
-		if err != nil {
-			if errors.Is(err, io.EOF) {
-				break
+		case remoteErr, ok := <-remoteStream.Events():
+			if ok {
+				relayErr = normalizeIdleRemoteClose(remoteErr)
 			}
-			relayErr = err
-			break
-		}
+			goto done
+		case reqRes := <-reqCh:
+			if reqRes.err != nil {
+				if errors.Is(reqRes.err, io.EOF) {
+					goto done
+				}
+				relayErr = reqRes.err
+				goto done
+			}
 
-		injectHTTP1AuthorizationHeader(req)
+			injectHTTP1AuthorizationHeader(reqRes.req)
 
-		if err := req.Write(requestWriter); err != nil {
-			relayErr = err
-			break
-		}
+			if err := reqRes.req.Write(requestWriter); err != nil {
+				relayErr = err
+				goto done
+			}
 
-		resp, err := http.ReadResponse(remoteReader, req)
-		if err != nil {
-			if isNetTimeout(err) {
-				if writeErr := writeHTTP1GatewayTimeout(responseWriter, req); writeErr != nil {
-					relayErr = fmt.Errorf("http1 relay timeout while writing local gateway timeout: %w", writeErr)
+			resp, err := http.ReadResponse(remoteReader, reqRes.req)
+			if err != nil {
+				if isNetTimeout(err) {
+					if writeErr := writeHTTP1GatewayTimeout(responseWriter, reqRes.req); writeErr != nil {
+						relayErr = fmt.Errorf("http1 relay timeout while writing local gateway timeout: %w", writeErr)
+					} else {
+						relayErr = err
+					}
 				} else {
 					relayErr = err
 				}
-			} else {
-				relayErr = err
+				goto done
 			}
-			break
-		}
 
-		if err := resp.Write(responseWriter); err != nil {
-			relayErr = err
-			break
-		}
+			if err := resp.Write(responseWriter); err != nil {
+				relayErr = err
+				goto done
+			}
 
-		if shouldCloseHTTP1Relay(req, resp) {
-			break
+			if shouldCloseHTTP1Relay(reqRes.req, resp) {
+				goto done
+			}
 		}
 	}
 
@@ -172,7 +262,14 @@ done:
 	stats.RequestPayload = requestCapture.Bytes()
 	stats.ResponsePayload = responseCapture.Bytes()
 
-	return stats, relayErr
+	return stats, normalizeIdleRemoteClose(relayErr)
+}
+
+func normalizeIdleRemoteClose(err error) error {
+	if err == nil || errors.Is(err, io.EOF) || errors.Is(err, net.ErrClosed) {
+		return nil
+	}
+	return err
 }
 
 func injectHTTP1AuthorizationHeader(req *http.Request) {
