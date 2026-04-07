@@ -41,14 +41,12 @@ func syncStartupStateForAuthenticatedUser(userInfo *auth.UserInfo) {
 		return
 	}
 	startupState := runtime.GetStartupState()
-	startupState.SetUserInfo(userInfo)
 	startupState.SetFetchSuccess(true)
 	startupState.SetStatus(runtime.READY)
 }
 
 func clearStartupStateAfterLogout() {
 	startupState := runtime.GetStartupState()
-	startupState.SetUserInfo(nil)
 	startupState.SetFetchSuccess(false)
 	startupState.SetStatus(runtime.UNCONFIGURED)
 }

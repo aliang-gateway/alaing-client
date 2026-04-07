@@ -27,61 +27,7 @@ func TestStartupState_ResetGlobalStartupStateForTest_ResetsFields(t *testing.T) 
 	}
 }
 
-func TestStartupState_GetUserInfo_ReturnsCopy(t *testing.T) {
-	ResetGlobalStartupStateForTest()
-	state := GetStartupState()
-
-	original := &authuser.UserInfo{
-		Username:    "alice",
-		Status:      "active",
-		Concurrency: 3,
-	}
-	state.SetUserInfo(original)
-
-	copyInfo := state.GetUserInfo()
-	if copyInfo == nil {
-		t.Fatal("GetUserInfo() returned nil")
-	}
-
-	copyInfo.Username = "mutated"
-	copyInfo.Status = "changed"
-	copyInfo.Concurrency = 999
-
-	gotAgain := state.GetUserInfo()
-	if gotAgain == nil {
-		t.Fatal("GetUserInfo() returned nil on second read")
-	}
-
-	if gotAgain.Username != "alice" {
-		t.Fatalf("username mutated in state: got %q, want %q", gotAgain.Username, "alice")
-	}
-	if gotAgain.Status != "active" {
-		t.Fatalf("status mutated in state: got %q, want %q", gotAgain.Status, "active")
-	}
-	if gotAgain.Concurrency != 3 {
-		t.Fatalf("concurrency mutated in state: got %d, want %d", gotAgain.Concurrency, 3)
-	}
-}
-
-func TestStartupState_SetUserInfo_SyncsSharedAuthState(t *testing.T) {
-	ResetGlobalStartupStateForTest()
-	state := GetStartupState()
-
-	state.SetUserInfo(&authuser.UserInfo{
-		Username: "shared-user",
-		Status:   "active",
-	})
-
-	got := authuser.GetCurrentUserInfo()
-	if got == nil {
-		t.Fatal("GetCurrentUserInfo() returned nil")
-	}
-	if got.Username != "shared-user" {
-		t.Fatalf("username = %q, want %q", got.Username, "shared-user")
-	}
-}
-
-func TestStartupState_GetUserInfo_FallsBackToPersistedAuthState(t *testing.T) {
+func TestAuthUserInfo_RemainsSingleSourceOfTruthOutsideStartupState(t *testing.T) {
 	baseDir := t.TempDir()
 	t.Setenv("HOME", filepath.Join(baseDir, "home"))
 	t.Setenv("ALIANG_CACHE_DIR", filepath.Join(baseDir, "cache"))
@@ -89,7 +35,6 @@ func TestStartupState_GetUserInfo_FallsBackToPersistedAuthState(t *testing.T) {
 	t.Cleanup(authuser.ResetAuthPersistenceForTest)
 
 	ResetGlobalStartupStateForTest()
-	state := GetStartupState()
 
 	if err := authuser.SaveUserInfo(&authuser.UserInfo{
 		AccessToken:  "persisted-access-token",
@@ -102,9 +47,9 @@ func TestStartupState_GetUserInfo_FallsBackToPersistedAuthState(t *testing.T) {
 
 	authuser.SetCurrentUserInfo(nil)
 
-	got := state.GetUserInfo()
+	got := authuser.GetCurrentUserInfoOrLoad()
 	if got == nil {
-		t.Fatal("GetUserInfo() returned nil")
+		t.Fatal("GetCurrentUserInfoOrLoad() returned nil")
 	}
 	if got.Username != "persisted-user" {
 		t.Fatalf("username = %q, want %q", got.Username, "persisted-user")

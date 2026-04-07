@@ -42,7 +42,7 @@ func TestAuthServiceRestoreSession_ReturnsSessionExpiredWhenRefreshTokenInvalid(
 
 	config.SetGlobalConfig(&config.Config{Core: &config.CoreConfig{APIServer: server.URL}})
 	config.SetHasLocalUserInfo(true)
-	runtime.GetStartupState().SetUserInfo(&auth.UserInfo{Username: "stale-user"})
+	auth.SetCurrentUserInfo(&auth.UserInfo{Username: "stale-user"})
 	runtime.GetStartupState().SetFetchSuccess(true)
 	runtime.GetStartupState().SetStatus(runtime.READY)
 
@@ -67,7 +67,7 @@ func TestAuthServiceRestoreSession_ReturnsSessionExpiredWhenRefreshTokenInvalid(
 	if got := runtime.GetStartupState().GetStatus(); got != runtime.UNCONFIGURED {
 		t.Fatalf("startup status = %s, want %s", got, runtime.UNCONFIGURED)
 	}
-	if got := runtime.GetStartupState().GetUserInfo(); got != nil {
-		t.Fatalf("startup user info = %#v, want nil", got)
+	if got := auth.GetCurrentUserInfo(); got != nil {
+		t.Fatalf("current user info = %#v, want nil", got)
 	}
 }

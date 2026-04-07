@@ -27,7 +27,7 @@ func (h *StartupHandler) HandleStartupStatus(w http.ResponseWriter, r *http.Requ
 	startupState := runtime.GetStartupState()
 	status := startupState.GetStatus()
 	fetchSuccess := startupState.GetFetchSuccess()
-	userInfo := startupState.GetUserInfo()
+	userInfo := authuser.GetCurrentUserInfoOrLoad()
 
 	// Build response data
 	response := map[string]interface{}{
@@ -67,7 +67,7 @@ func (h *StartupHandler) HandleStartupDetail(w http.ResponseWriter, r *http.Requ
 	startupState := runtime.GetStartupState()
 	status := startupState.GetStatus()
 	fetchSuccess := startupState.GetFetchSuccess()
-	userInfo := startupState.GetUserInfo()
+	userInfo := authuser.GetCurrentUserInfoOrLoad()
 
 	hasLocalUserInfo, checkErr := authuser.HasPersistedUserInfo()
 	if checkErr != nil {

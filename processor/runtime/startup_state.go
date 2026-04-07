@@ -71,21 +71,6 @@ func (s *StartupState) GetFetchSuccess() bool {
 	return s.fetchSuccess
 }
 
-// SetUserInfo syncs the startup view of authentication with the shared auth
-// in-memory state. StartupState does not keep a second in-memory copy.
-func (s *StartupState) SetUserInfo(userInfo *authuser.UserInfo) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	authuser.SetCurrentUserInfo(userInfo)
-	s.timestamp = time.Now()
-}
-
-// GetUserInfo returns the shared auth state, preferring memory and falling
-// back to persisted auth state only when memory is empty.
-func (s *StartupState) GetUserInfo() *authuser.UserInfo {
-	return authuser.GetCurrentUserInfoOrLoad()
-}
-
 // GetTimestamp returns when the state was last updated
 func (s *StartupState) GetTimestamp() time.Time {
 	s.mu.RLock()
