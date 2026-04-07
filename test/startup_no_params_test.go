@@ -33,8 +33,6 @@ func TestStartupStateInitialization(t *testing.T) {
 		"startup status should be UNCONFIGURED when no parameters provided")
 	assert.False(t, state.GetFetchSuccess(),
 		"fetch success should be false on no-parameter startup")
-	assert.Nil(t, state.GetUserInfo(),
-		"user info should be nil when no local user exists")
 
 	t.Log("✓ Startup state correctly initialized to UNCONFIGURED")
 }

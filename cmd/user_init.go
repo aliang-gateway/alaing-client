@@ -27,7 +27,6 @@ func InitializeUser(token string) error {
 			logger.Info(fmt.Sprintf("User activated successfully: %s (status: %s)", userInfo.Username, userInfo.Status))
 			// 标记为有本地用户信息（激活成功后会自动保存到本地）
 			config.SetHasLocalUserInfo(true)
-			startupState.SetUserInfo(userInfo)
 
 			// 登录成功即视为可启动
 			startupState.SetFetchSuccess(true)
@@ -51,7 +50,6 @@ func InitializeUser(token string) error {
 				logger.Info(fmt.Sprintf("Local user info loaded successfully: %s (status: %s)", userInfo.Username, userInfo.Status))
 				// 标记为有本地用户信息
 				config.SetHasLocalUserInfo(true)
-				startupState.SetUserInfo(userInfo)
 				logger.Debug("Local user info loaded")
 			}
 		} else {

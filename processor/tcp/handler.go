@@ -256,6 +256,30 @@ func (h *TCPConnectionHandler) Handle(ctx context.Context, originConn net.Conn, 
 	trackedRemote := statistic.NewTCPTracker(remoteConn, metadata, h.statsManager)
 	defer trackedRemote.Close()
 
+	if metadata != nil && metadata.Route == "RouteToALiang" && metadata.AppProto == AppProtoHTTP1 {
+		http1RelayStats, relayErr := watcher.RelayHTTP1(ctx, newOriginConn, trackedRemote)
+		if relayErr == nil {
+			statistic.GetDefaultHTTPStatsCollector().RecordConnection(
+				metadata,
+				http1RelayStats.RequestPayload,
+				http1RelayStats.ResponsePayload,
+				http1RelayStats.ClientToServerByte,
+				http1RelayStats.ServerToClientByte,
+				http1RelayStats.StartedAt,
+				http1RelayStats.FirstResponseAt,
+				http1RelayStats.CompletedAt,
+			)
+		}
+
+		if relayErr == nil && metadata.DNSInfo != nil && metadata.DNSInfo.ShouldCache {
+			engine := rules.GetEngine()
+			if engine != nil {
+				engine.StoreBinding(metadata)
+			}
+		}
+		return relayErr
+	}
+
 	// Relay data bidirectionally
 	relayStats, err := h.relayManager.Relay(ctx, newOriginConn, trackedRemote, metadata)
 	if err == nil {
@@ -304,6 +328,7 @@ func (h *TCPConnectionHandler) handleNonTLS(
 
 	host, bindingSource, isHTTP := extractHTTPRoutingHost(bufferedData)
 	if isHTTP {
+		metadata.AppProto = AppProtoHTTP1
 		if host != "" {
 			ttl := M.DefaultHTTPTTL
 			if bindingSource == M.BindingSourceCONNECT {
@@ -319,7 +344,7 @@ func (h *TCPConnectionHandler) handleNonTLS(
 			return nil, newOriginConn, dialErr
 		}
 		if route == RouteToALiang {
-			return remote, h.wrapAliangHTTPConn(newOriginConn), nil
+			return remote, h.wrapAliangHTTPConnByProto(newOriginConn, metadata.AppProto), nil
 		}
 		return remote, newOriginConn, nil
 	}
@@ -413,7 +438,6 @@ func (h *TCPConnectionHandler) handleTLS(
 			return nil, nil, nil
 		}
 	}
-
 	// Wrap the connection with buffered SNI data for protocols that need it
 	wrapped = &WrappedConn{
 		Conn: originConn,
@@ -511,7 +535,7 @@ func (h *TCPConnectionHandler) resolveTLSRoute(
 
 		logAliangGateProxy(metadata, "tls")
 
-		return remote, h.wrapAliangHTTPConn(bufferedMitmed), nil
+		return remote, h.wrapAliangHTTPConnByProto(bufferedMitmed, metadata.AppProto), nil
 	}
 
 	remote, err := h.dialByRoute(ctx, metadata, route)
@@ -526,6 +550,16 @@ func (h *TCPConnectionHandler) wrapAliangHTTPConn(conn net.Conn) net.Conn {
 		return nil
 	}
 	return watcher.NewWatcherWrapConn(conn)
+}
+
+func (h *TCPConnectionHandler) wrapAliangHTTPConnByProto(conn net.Conn, appProto string) net.Conn {
+	if conn == nil {
+		return nil
+	}
+	if appProto == AppProtoHTTP1 {
+		return conn
+	}
+	return h.wrapAliangHTTPConn(conn)
 }
 
 func (h *TCPConnectionHandler) dialViaSocksOrDirect(ctx context.Context, metadata *M.Metadata) (net.Conn, error) {
