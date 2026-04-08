@@ -15,25 +15,26 @@ var isDev = true
 
 // Handlers holds all HTTP handler instances
 type Handlers struct {
-	Logger        *handlers.LogHandler
-	ProxyRegistry *handlers.ProxyRegistryHandler
-	SoftwareCfg   *handlers.SoftwareConfigHandler
-	Token         *handlers.TokenHandler
-	Run           *handlers.RunHandler
-	SystemService *handlers.SystemServiceHandler
-	LogStream     *handlers.LogStreamHandler
-	Rules         *handlers.RulesHandler
-	DNSCache      *handlers.DNSCacheHandler
-	Cert          *handlers.CertHandler
-	Auth          *handlers.AuthHandler
-	Startup       *handlers.StartupHandler
-	Config        *handlers.ConfigHandler
-	TrafficStats  *handlers.TrafficStatsHandler
-	HTTPStats     *handlers.HTTPStatsHandler
-	Chat          *handlers.ChatHandler
-	UserCenter    *handlers.UserCenterHandler
-	Dashboard     *handlers.DashboardHandler
-	QuickSetup    *handlers.QuickSetupHandler
+	Logger         *handlers.LogHandler
+	ProxyRegistry  *handlers.ProxyRegistryHandler
+	SoftwareCfg    *handlers.SoftwareConfigHandler
+	Token          *handlers.TokenHandler
+	Run            *handlers.RunHandler
+	SystemService  *handlers.SystemServiceHandler
+	LogStream      *handlers.LogStreamHandler
+	SoftwareUpdate *handlers.SoftwareUpdateHandler
+	Rules          *handlers.RulesHandler
+	DNSCache       *handlers.DNSCacheHandler
+	Cert           *handlers.CertHandler
+	Auth           *handlers.AuthHandler
+	Startup        *handlers.StartupHandler
+	Config         *handlers.ConfigHandler
+	TrafficStats   *handlers.TrafficStatsHandler
+	HTTPStats      *handlers.HTTPStatsHandler
+	Chat           *handlers.ChatHandler
+	UserCenter     *handlers.UserCenterHandler
+	Dashboard      *handlers.DashboardHandler
+	QuickSetup     *handlers.QuickSetupHandler
 
 	statsCollector     *statistic.StatsCollector
 	httpStatsCollector *statistic.HTTPStatsCollector
@@ -58,6 +59,7 @@ func newHandlers(runService *services.RunService) *Handlers {
 	tokenService := services.NewTokenService()
 	softwareCfgService := services.NewSoftwareConfigService()
 	certService := services.NewCertService()
+	softwareUpdateService := services.GetSharedSoftwareUpdateService()
 	proxyRepository := repositories.NewProxyRepository()
 	statsCollector := statistic.NewStatsCollector()
 	httpStatsCollector := statistic.GetDefaultHTTPStatsCollector()
@@ -70,6 +72,7 @@ func newHandlers(runService *services.RunService) *Handlers {
 		Run:                handlers.NewRunHandler(runService),
 		SystemService:      handlers.NewSystemServiceHandler(services.NewSystemServiceService()),
 		LogStream:          handlers.NewLogStreamHandler(),
+		SoftwareUpdate:     handlers.NewSoftwareUpdateHandler(softwareUpdateService),
 		Rules:              handlers.NewRulesHandler(),
 		DNSCache:           handlers.NewDNSCacheHandler(),
 		Cert:               handlers.NewCertHandler(certService),
@@ -137,6 +140,8 @@ func RegisterRoutes(h *Handlers, mux *http.ServeMux) {
 	register("/api/run/wintun/status", h.Run.HandleRunWintunStatus, http.MethodGet)
 	register("/api/run/tun/status", h.Run.HandleRunTUNStatus, http.MethodGet)
 	register("/api/run/swift", h.Run.HandleRunSwift, http.MethodPost)
+	register("/api/software-update/status", h.SoftwareUpdate.HandleStatus, http.MethodGet)
+	register("/api/software-update/dismiss", h.SoftwareUpdate.HandleDismiss, http.MethodPost)
 
 	// Core service lifecycle routes
 

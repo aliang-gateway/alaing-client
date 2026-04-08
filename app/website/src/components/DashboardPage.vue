@@ -170,7 +170,12 @@
         >
           Top Up Funds
         </button>
-        <p class="text-[10px] text-slate-400 mt-2 text-center italic">{{ accountBalanceHint }}</p>
+        <p
+          class="mt-2 text-center text-[10px] italic transition-colors"
+          :class="accountBalanceHintClass"
+        >
+          {{ accountBalanceHint }}
+        </p>
       </div>
     </aside>
     <main class="flex-1 min-w-0 flex flex-col h-full bg-background-light dark:bg-background-dark overflow-hidden">
@@ -792,6 +797,7 @@ import { computed, ref, onMounted, onUnmounted, watch } from 'vue';
 import { useCertStatus } from '../composables/useCertStatus';
 import { useNavigation } from '../composables/useNavigation';
 import { useRunStatus } from '../composables/useRunStatus';
+import { useSoftwareUpdate } from '../composables/useSoftwareUpdate';
 import { useAuthStore } from '../stores/auth';
 import { getUserCenterProfile } from '../services/userCenterApi';
 import { extractUsagePagination, extractUsageRecords } from '../utils/dashboardData';
@@ -820,6 +826,13 @@ const {
   startPolling: startRunStatusPolling,
   stopPolling: stopRunStatusPolling
 } = useRunStatus();
+const {
+  softwareUpdateStatus,
+  blockingSoftwareUpdate,
+  applySoftwareUpdateStatus,
+  refreshSoftwareUpdateStatus,
+  openSoftwareUpdateModal
+} = useSoftwareUpdate();
 
 const emit = defineEmits(['openQuickSetup', 'openCertModal', 'startCertReinstall']);
 
@@ -856,7 +869,6 @@ const serverLinkLastConnectedAt = ref(0);
 const serverLinkHighLatencyThresholdMs = ref(null);
 const serverLinkConsecutiveFailures = ref(0);
 const serverLinkError = ref('');
-const serverLinkServerAddr = ref('');
 const serverHealthScore = ref(null);
 let tunStartLogTimer = null;
 let tunStartStatusTimer = null;
@@ -901,10 +913,35 @@ const accountBalanceText = computed(() => {
 });
 
 const accountBalanceHint = computed(() => {
-  if (!isAuthenticated.value) {
-    return 'Log in to sync your current balance.';
+  const currentVersion = softwareUpdateStatus.value.current_version || '--';
+  const latestVersion = softwareUpdateStatus.value.latest_version || '';
+
+  if (softwareUpdateStatus.value.needs_update) {
+    if (softwareUpdateStatus.value.force_update) {
+      return latestVersion
+        ? `Version ${currentVersion} • Required update to ${latestVersion}`
+        : `Version ${currentVersion} • Required update available`;
+    }
+    return latestVersion
+      ? `Version ${currentVersion} • Update ${latestVersion} available`
+      : `Version ${currentVersion} • Update available`;
   }
-  return accountBalance.value === null ? 'Syncing balance...' : 'Click to top up your account.';
+
+  if (!softwareUpdateStatus.value.current_version) {
+    return 'Checking version...';
+  }
+
+  return `Version ${currentVersion}`;
+});
+
+const accountBalanceHintClass = computed(() => {
+  if (softwareUpdateStatus.value.force_update) {
+    return 'text-red-500';
+  }
+  if (softwareUpdateStatus.value.needs_update) {
+    return 'text-amber-500';
+  }
+  return 'text-slate-400';
 });
 
 const totalRequestCount = computed(() => Number(dashboardStats.value?.total_requests || 0));
@@ -1137,7 +1174,6 @@ async function sampleServerLink() {
       serverLinkConsecutiveFailures.value = Number(linkData.consecutive_failures || 0);
       serverLinkHighLatencyThresholdMs.value = Number(linkData.high_latency_threshold || 0) || null;
       serverLinkError.value = typeof linkData.last_error === 'string' ? linkData.last_error : '';
-      serverLinkServerAddr.value = typeof linkData.server_addr === 'string' ? linkData.server_addr : '';
     } else {
       serverLinkState.value = 'disconnected';
       serverLinkLatencyMs.value = null;
@@ -1146,7 +1182,6 @@ async function sampleServerLink() {
       serverLinkConsecutiveFailures.value = 0;
       serverLinkHighLatencyThresholdMs.value = null;
       serverLinkError.value = linkEnvelope.reason instanceof Error ? linkEnvelope.reason.message : 'mTLS link probe failed';
-      serverLinkServerAddr.value = '';
     }
 
     if (healthEnvelope.status === 'fulfilled') {
@@ -1176,16 +1211,16 @@ async function refreshDashboardView() {
 
 const serverLinkDetailText = computed(() => {
   if (serverLinkPending.value) {
-    return `Probing mTLS handshake to ${serverLinkServerAddr.value || 'gateway'}...`;
+    return 'Probing mTLS handshake...';
   }
   if (serverLinkError.value) {
     return `Last error: ${serverLinkError.value}`;
   }
   if (serverLinkState.value === 'degraded' && typeof serverLinkHighLatencyThresholdMs.value === 'number') {
-    return `Handshake latency is above ${serverLinkHighLatencyThresholdMs.value} ms for ${serverLinkServerAddr.value || 'the configured gateway'}.`;
+    return `Handshake latency is above ${serverLinkHighLatencyThresholdMs.value} ms.`;
   }
   if (serverLinkState.value === 'connected' || serverLinkState.value === 'degraded') {
-    return `Latest handshake with ${serverLinkServerAddr.value || 'the configured gateway'} completed successfully.`;
+    return 'Latest handshake completed successfully.';
   }
   if (serverLinkLastConnectedAt.value > 0) {
     return `mTLS link is currently offline. Last successful handshake was ${formatRelativeTimestamp(serverLinkLastConnectedAt.value)}.`;
@@ -1505,6 +1540,9 @@ const proxyStatusTitle = computed(() => {
 const proxyStatusSubtitle = computed(() => {
   if (runActionMessage.value) return runActionMessage.value;
   if (runSyncError.value) return `Sync failed: ${runSyncError.value}`;
+  if (blockingSoftwareUpdate.value) {
+    return `Disabled: a mandatory update (${softwareUpdateStatus.value.latest_version || 'latest version'}) must be installed before proxy startup is allowed.`;
+  }
   if (!isAuthenticated.value) {
     return 'Disabled: login required before proxy operations can start.';
   }
@@ -1527,6 +1565,9 @@ const powerButtonBusyText = computed(() => (runIsRunning.value ? 'Stopping proxy
 
 const canStartProxy = computed(() => {
   if (!isAuthenticated.value) {
+    return false;
+  }
+  if (blockingSoftwareUpdate.value) {
     return false;
   }
   return startupStatus.value === 'READY' || startupStatus.value === 'CONFIGURED';
@@ -1804,6 +1845,10 @@ async function toggleProxyPower() {
     }
     const data = payload?.data || {};
     if (data?.status === 'failed') {
+      if (data?.error === 'force_update_required' || data?.update_status?.blocking_proxy_start) {
+        applySoftwareUpdateStatus(data?.update_status, { openModalIfNeeded: true });
+        openSoftwareUpdateModal();
+      }
       throw new Error(data?.msg || `Failed to ${actionText} proxy`);
     }
 
@@ -1878,6 +1923,7 @@ const certBadgeClass = computed(() => {
 onMounted(() => {
   startCertPolling();
   startRunStatusPolling();
+  refreshSoftwareUpdateStatus().catch(() => {});
   sampleServerLink();
   serverLinkTimer = window.setInterval(sampleServerLink, 15000);
   syncAccountBalance();

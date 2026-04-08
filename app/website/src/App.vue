@@ -9,6 +9,7 @@
       </div>
     </div>
     <template v-else>
+    <SoftwareUpdateNotice />
     <DashboardPage
       @open-quick-setup="isQuickSetupOpen = true"
       @open-cert-modal="isCertModalOpen = true"
@@ -30,6 +31,7 @@ import DashboardPage from './components/DashboardPage.vue';
 import SettingsPage from './components/SettingsPage.vue';
 import CertManagementModal from './components/CertManagementModal.vue';
 import QuickSetupModal from './components/QuickSetupModal.vue';
+import SoftwareUpdateNotice from './components/SoftwareUpdateNotice.vue';
 import { useAuthStore } from './stores/auth';
 import { getUserCenterProfile } from './services/userCenterApi';
 import { clearChatIdentityProfileCache } from './utils/chatIdentityCache';

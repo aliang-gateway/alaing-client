@@ -77,7 +77,13 @@ func openSoftwareConfigDB(dbPath string) (*gorm.DB, error) {
 		return nil, fmt.Errorf("failed to open sqlite database: %w", err)
 	}
 
-	if err := db.AutoMigrate(&models.SoftwareConfig{}, &models.SoftwareConfigOperationLog{}, &models.SoftwareEffectiveConfigSnapshot{}); err != nil {
+	if err := db.AutoMigrate(
+		&models.SoftwareConfig{},
+		&models.SoftwareConfigOperationLog{},
+		&models.SoftwareEffectiveConfigSnapshot{},
+		&models.SoftwareVersionUpdateSnapshot{},
+		&models.SoftwareVersionUpdateDismissal{},
+	); err != nil {
 		return nil, fmt.Errorf("failed to migrate software_configs table: %w", err)
 	}
 

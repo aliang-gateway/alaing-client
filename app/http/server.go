@@ -136,6 +136,8 @@ func registerAllRoutes() {
 		routes.StartHTTPStatsCollector(handlers)
 	}
 
+	services.StartSoftwareUpdateChecker()
+
 	// Register static file server for web dashboard
 	registerStaticFiles()
 }
