@@ -14,27 +14,9 @@ import (
 	"gopkg.in/natefinch/lumberjack.v2"
 )
 
-// LogLevel is kept for backward compatibility
-type LogLevel int
-
-const (
-	DEBUG_COMPAT LogLevel = iota
-	INFO_COMPAT
-	WARN_COMPAT
-	ERROR_COMPAT
-)
-
 var (
-	// For backward compatibility with global functions
-	currentLevel = WARN_COMPAT
-
-	logger       *log.Logger
-	logFile      *os.File
-	logFilePath  string
 	errorCache   = make(map[string]*errorInfo)
 	errorCacheMu sync.RWMutex
-	errorWindow  = 5 * time.Minute
-	maxErrorCnt  = 10
 	cleanupTick  *time.Ticker
 	cleanupDone  chan bool
 )
@@ -131,7 +113,12 @@ func (ml *mainLogger) Error(v ...interface{}) {
 	// Error deduplication and Sentry
 	errHash := ml.generateErrorHash(v...)
 	if ml.shouldSendError(errHash) && ml.config.EnableSentry {
-		sentry.CaptureMessage(fmt.Sprint(v...))
+		msg := fmt.Sprint(v...)
+		sentry.WithScope(func(scope *sentry.Scope) {
+			scope.SetTag("source", "mainLogger")
+			scope.SetExtra("raw_args", fmt.Sprintf("%v", v))
+			sentry.CaptureMessage(msg)
+		})
 		go sentry.Flush(2 * time.Second)
 	}
 }
@@ -154,39 +141,44 @@ func (ml *mainLogger) Panic(v ...interface{}) {
 	panic(msg)
 }
 
-// Context variants
+// Context variants — currently context is not utilized, kept for interface compatibility
 func (ml *mainLogger) DebugContext(ctx context.Context, v ...interface{}) {
 	ml.Debug(v...)
 }
 
+// Context variants — currently context is not utilized, kept for interface compatibility
 func (ml *mainLogger) InfoContext(ctx context.Context, v ...interface{}) {
 	ml.Info(v...)
 }
 
+// Context variants — currently context is not utilized, kept for interface compatibility
 func (ml *mainLogger) WarnContext(ctx context.Context, v ...interface{}) {
 	ml.Warn(v...)
 }
 
+// Context variants — currently context is not utilized, kept for interface compatibility
 func (ml *mainLogger) ErrorContext(ctx context.Context, v ...interface{}) {
 	ml.Error(v...)
 }
 
+// Context variants — currently context is not utilized, kept for interface compatibility
 func (ml *mainLogger) TraceContext(ctx context.Context, v ...interface{}) {
 	ml.Trace(v...)
 }
 
+// Context variants — currently context is not utilized, kept for interface compatibility
 func (ml *mainLogger) FatalContext(ctx context.Context, v ...interface{}) {
 	ml.Fatal(v...)
 }
 
+// Context variants — currently context is not utilized, kept for interface compatibility
 func (ml *mainLogger) PanicContext(ctx context.Context, v ...interface{}) {
 	ml.Panic(v...)
 }
 
-// WithContext returns a logger with context (for tracing)
+// WithContext returns a logger with context.
+// NOTE: context is currently not utilized; this is kept for interface compatibility.
 func (ml *mainLogger) WithContext(ctx context.Context) Logger {
-	// In a full implementation, extract trace ID from context
-	// For now, just return self
 	return ml
 }
 
@@ -238,34 +230,8 @@ func (ml *mainLogger) shouldSendError(hash string) bool {
 	return true
 }
 
-// Backward compatibility functions
-// 设置日志等级
-func SetLogLevel(level LogLevel) {
-	currentLevel = level
-}
-
 func init() {
-	err := Init()
-	if err != nil {
-		fmt.Println("init failure")
-	}
-	err2 := InitHttp()
-	if err2 != nil {
-		fmt.Println("init http failure")
-	}
-}
-
-// 初始化日志系统
-func Init() error {
-	if LogSilent == "true" {
-		logger = log.New(io.Discard, "", log.LstdFlags|log.Lshortfile)
-	} else {
-		logger = log.New(os.Stdout, "", log.LstdFlags|log.Lshortfile)
-	}
-
 	startCleanupRoutineOnce()
-
-	return nil
 }
 
 var cleanupOnce sync.Once
@@ -280,9 +246,6 @@ func Shutdown() {
 	if cleanupTick != nil {
 		cleanupTick.Stop()
 		close(cleanupDone)
-	}
-	if logFile != nil {
-		logFile.Close()
 	}
 }
 
@@ -314,34 +277,20 @@ func cleanupExpiredErrors() {
 	}
 }
 
-func logf(level LogLevel, prefix string, v ...interface{}) {
-	if level < currentLevel {
-		return
-	}
-	err := logger.Output(3, fmt.Sprintf("[%s] %s\n", prefix, fmt.Sprint(v...)))
-	if err != nil {
-		return
-	}
-}
-
 // Backward compatible global logging functions
 func Debug(v ...interface{}) {
-	logf(DEBUG_COMPAT, "DEBUG", v...)
 	GetMainLogger().Debug(v...)
 }
 
 func Info(v ...interface{}) {
-	logf(INFO_COMPAT, "INFO", v...)
 	GetMainLogger().Info(v...)
 }
 
 func Warn(v ...interface{}) {
-	logf(WARN_COMPAT, "WARN", v...)
 	GetMainLogger().Warn(v...)
 }
 
 func Error(v ...interface{}) {
-	logf(ERROR_COMPAT, "ERROR", v...)
 	GetMainLogger().Error(v...)
 }
 

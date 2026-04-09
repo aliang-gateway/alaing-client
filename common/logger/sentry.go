@@ -1,7 +1,8 @@
 package logger
 
 import (
-	"log"
+	"fmt"
+	"os"
 	"sync"
 
 	"github.com/getsentry/sentry-go"
@@ -26,7 +27,7 @@ func InitSentry() {
 			TracesSampleRate: 0.1,
 		})
 		if err != nil {
-			log.Printf("sentry.Init: %s", err)
+			fmt.Fprintf(os.Stderr, "sentry.Init: %s\n", err)
 			// Don't fail fatally - logging should continue without Sentry
 		}
 	})

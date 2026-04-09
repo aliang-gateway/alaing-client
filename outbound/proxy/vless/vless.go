@@ -367,7 +367,7 @@ func (v *VLESS) establishNewConnection(ctx context.Context, metadata *M.Metadata
 		conn = tls.Client(conn, tlsConfig)
 	}
 
-	fmt.Printf("DEBUG: 连接建立成功\n")
+	logger.Debug("连接建立成功")
 	return conn, nil
 }
 

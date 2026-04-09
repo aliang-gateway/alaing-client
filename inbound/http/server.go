@@ -5,7 +5,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"log"
 	"net"
 	"net/http"
 	"strings"
@@ -46,7 +45,7 @@ func StartMitmHttp() {
 		httpMutex.Lock()
 		isHttpRunning = false
 		httpMutex.Unlock()
-		log.Fatalf("Failed to listen on 127.0.0.1:56432: %v", err)
+		logger.GetMainLogger().Fatal(fmt.Sprintf("Failed to listen on 127.0.0.1:56432: %v", err))
 	}
 
 	httpMutex.Lock()

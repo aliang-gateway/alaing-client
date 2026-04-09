@@ -100,12 +100,16 @@ func GetLogConfig() *LogConfig {
 	return globalLogConfig
 }
 
-// SetLogConfig updates the global configuration
+// SetLogConfig updates the global configuration and propagates changes to existing loggers
 func SetLogConfig(config *LogConfig) {
 	globalLogConfigMu.Lock()
 	defer globalLogConfigMu.Unlock()
 	if config != nil {
 		globalLogConfig = config
+		// Propagate config to existing mainLogger instance if already created
+		if ml, ok := mainLoggerInstance.(*mainLogger); ok && ml != nil {
+			ml.config = config
+		}
 	}
 }
 

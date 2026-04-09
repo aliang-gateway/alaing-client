@@ -5,6 +5,8 @@ import (
 	"regexp"
 	"runtime"
 	"strconv"
+
+	"aliang.one/nursorgate/common/logger"
 )
 
 const defaultAliangTunName = "AliangGate"
@@ -29,7 +31,7 @@ func getAvailableUtunDevice() string {
 	cmd := GetRunCommand("ifconfig")
 	output, err := cmd.Output()
 	if err != nil {
-		fmt.Printf("Error running ifconfig: %v\n", err)
+		logger.Error(fmt.Sprintf("Error running ifconfig: %v", err))
 		return "utun99"
 	}
 
@@ -51,7 +53,7 @@ func getAvailableUtunDevice() string {
 		}
 	}
 
-	fmt.Println("Warning: All utun0-99 devices are in use. Returning utun999.")
+	logger.Warn("All utun0-99 devices are in use. Returning utun999.")
 	return "utun999"
 }
 

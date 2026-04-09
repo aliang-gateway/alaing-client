@@ -3,14 +3,15 @@ package handlers
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"os"
 	"strings"
 	"time"
 
 	"aliang.one/nursorgate/app/http/common"
+	"aliang.one/nursorgate/common/logger"
 )
 
 type ChatHandler struct{}
@@ -107,7 +108,7 @@ func (h *ChatHandler) HandleCompletions(w http.ResponseWriter, r *http.Request) 
 
 	bodyBytes, err := json.Marshal(payload)
 	if err != nil {
-		log.Printf("[chat] marshal payload failed: %v", err)
+		logger.Error(fmt.Sprintf("[chat] marshal payload failed: %v", err))
 		common.ErrorInternalServer(w, "Failed to build chat payload", nil)
 		return
 	}
@@ -115,7 +116,7 @@ func (h *ChatHandler) HandleCompletions(w http.ResponseWriter, r *http.Request) 
 	httpClient := &http.Client{Timeout: 45 * time.Second}
 	upstreamReq, err := http.NewRequest(http.MethodPost, "https://api.openai.com/v1/chat/completions", bytes.NewReader(bodyBytes))
 	if err != nil {
-		log.Printf("[chat] build upstream request failed: %v", err)
+		logger.Error(fmt.Sprintf("[chat] build upstream request failed: %v", err))
 		common.ErrorInternalServer(w, "Failed to build upstream request", nil)
 		return
 	}
@@ -124,7 +125,7 @@ func (h *ChatHandler) HandleCompletions(w http.ResponseWriter, r *http.Request) 
 
 	upstreamResp, err := httpClient.Do(upstreamReq)
 	if err != nil {
-		log.Printf("[chat] call AI service failed: %v", err)
+		logger.Error(fmt.Sprintf("[chat] call AI service failed: %v", err))
 		common.ErrorInternalServer(w, "Failed to call AI service", nil)
 		return
 	}
@@ -132,20 +133,20 @@ func (h *ChatHandler) HandleCompletions(w http.ResponseWriter, r *http.Request) 
 
 	respBody, err := io.ReadAll(upstreamResp.Body)
 	if err != nil {
-		log.Printf("[chat] read AI response failed: %v", err)
+		logger.Error(fmt.Sprintf("[chat] read AI response failed: %v", err))
 		common.ErrorInternalServer(w, "Failed to read AI response", nil)
 		return
 	}
 
 	if upstreamResp.StatusCode < 200 || upstreamResp.StatusCode >= 300 {
-		log.Printf("[chat] AI service returned status=%d body=%s", upstreamResp.StatusCode, string(respBody))
+		logger.Error(fmt.Sprintf("[chat] AI service returned status=%d body=%s", upstreamResp.StatusCode, string(respBody)))
 		common.ErrorInternalServer(w, "AI service returned error", nil)
 		return
 	}
 
 	var parsed openAIResponse
 	if err := json.Unmarshal(respBody, &parsed); err != nil {
-		log.Printf("[chat] parse AI response failed: %v body=%s", err, string(respBody))
+		logger.Error(fmt.Sprintf("[chat] parse AI response failed: %v body=%s", err, string(respBody)))
 		common.ErrorInternalServer(w, "Invalid AI response payload", nil)
 		return
 	}

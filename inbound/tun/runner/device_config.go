@@ -323,11 +323,11 @@ func configureWindowsTunRoute() error {
 
 	if defaultGateway == "" {
 		newErr := fmt.Errorf("无法找到默认网关，请检查网络连接")
-		logger.Error(fmt.Printf("%v", newErr))
+		logger.Error(newErr)
 		return newErr
 	}
 
-	logger.Info(fmt.Printf("找到默认网关: %s", defaultGateway))
+	logger.Info(fmt.Sprintf("找到默认网关: %s", defaultGateway))
 
 	if !setup.IsRoot() {
 		UpdateStartupProgress("starting", "requesting_permission", 88, "Requesting Windows administrator permission to configure TUN routes.", "", true)
@@ -341,7 +341,7 @@ func configureWindowsTunRoute() error {
 
 	for _, cmd := range commands {
 		if err := runWindowsPrivilegedCommand(cmd[0], cmd[1:]...); err != nil {
-			logger.Error(fmt.Printf("删除路由失败: %v", err))
+			logger.Error(fmt.Sprintf("删除路由失败: %v", err))
 		}
 	}
 
@@ -355,7 +355,7 @@ func configureWindowsTunRoute() error {
 	for _, cmd := range commands {
 		if err := runWindowsPrivilegedCommand(cmd[0], cmd[1:]...); err != nil {
 			err = fmt.Errorf("添加路由失败: %w", err)
-			logger.Error(fmt.Printf("%v", err))
+			logger.Error(err)
 			return err
 		}
 	}

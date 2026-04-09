@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"net"
 	"net/http"
 	"net/netip"
@@ -24,7 +23,7 @@ import (
 func HandleHttpConnection(conn net.Conn, reader *bufio.Reader, req *http.Request) {
 	defer conn.Close()
 
-	log.Printf("Received non-CONNECT request: %s %s", req.Method, req.URL.String())
+	logger.Info(fmt.Sprintf("Received non-CONNECT request: %s %s", req.Method, req.URL.String()))
 
 	// Extract metadata from HTTP request for transparent proxy handling
 	metadata, err := extractMetadataFromHTTP(req, conn)
