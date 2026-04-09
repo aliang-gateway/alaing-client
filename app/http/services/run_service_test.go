@@ -84,6 +84,9 @@ func resetRunServiceHooksForTest() {
 	tunStopRunner = func() {}
 	runModeStoreFactory = func() runModeSnapshotStore { return storage.NewSoftwareConfigStore() }
 	aliangLinkStatusResolver = resolveAliangLinkStatus
+	softwareUpdateStatusResolver = func() models.SoftwareVersionUpdateFrontendStatus {
+		return models.SoftwareVersionUpdateFrontendStatus{}
+	}
 	setSharedWintunDependencyControllerForTest(nil)
 }
 
@@ -398,6 +401,34 @@ func TestRunServiceStartServiceBlocksMissingWintun(t *testing.T) {
 	}
 	if errCode, ok := result["error"].(string); !ok || errCode != "wintun_installing" {
 		t.Fatalf("expected error=wintun_installing, got %#v", result["error"])
+	}
+}
+
+func TestRunServiceStartServiceBlocksForcedSoftwareUpdate(t *testing.T) {
+	defer resetRunServiceHooksForTest()
+	seedActiveIngressSnapshot(t, string(models.ModeHTTP))
+	runtime.ResetGlobalStartupStateForTest()
+	runtime.GetStartupState().SetStatus(runtime.READY)
+	softwareUpdateStatusResolver = func() models.SoftwareVersionUpdateFrontendStatus {
+		return models.SoftwareVersionUpdateFrontendStatus{
+			NeedsUpdate:        true,
+			ForceUpdate:        true,
+			LatestVersion:      "v2.0.0",
+			BlockingProxyStart: true,
+		}
+	}
+
+	runService := NewRunService()
+	result := runService.StartService()
+
+	if status, ok := result["status"].(string); !ok || status != "failed" {
+		t.Fatalf("expected status=failed, got %#v", result["status"])
+	}
+	if errCode, ok := result["error"].(string); !ok || errCode != "force_update_required" {
+		t.Fatalf("expected error=force_update_required, got %#v", result["error"])
+	}
+	if runService.IsRunning() {
+		t.Fatal("expected service to remain stopped when forced update blocks startup")
 	}
 }
 

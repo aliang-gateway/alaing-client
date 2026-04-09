@@ -18,7 +18,7 @@
         },
         "aliangServer": {
             "type": "aliang",
-            "core_server": "ai-gateway.aliang.one:443"
+            "core_server": "15.nat0.cn:16749"
         },
         "api_server": "https://www.aliang.one"
     },
@@ -48,6 +48,12 @@
             "enble": true,
             "exclude": [
               "gemini.google.com"
+            ]
+          },
+          "vscode":{
+            "enble": true,
+            "exclude": [
+              "*.githubcopilot.com"
             ]
           }
         },

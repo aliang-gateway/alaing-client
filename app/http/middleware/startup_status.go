@@ -74,6 +74,8 @@ func isConfigurationAPI(path string) bool {
 		"/api/logs", // Logs access (for diagnosis)
 		"/api/run/status",
 		"/api/run/aliang/status",
+		"/api/software-update/status",
+		"/api/software-update/dismiss",
 		"/api/run/tun/status",
 		"/api/run/wintun/install",
 		"/api/run/wintun/status",

@@ -23,16 +23,19 @@ import (
 )
 
 var (
-	activeIngressModeResolver = activeIngressModeFromSnapshot
-	applyIngressModeUpdater   = applyIngressModeToSnapshot
-	tunStartRunner            = defaultStartTUN
-	httpStartRunner           = httpServer.StartMitmHttp
-	httpStopRunner            = httpServer.StopHttpProxy
-	tunStopRunner             = tun.Stop
-	runModeStoreFactory       = func() runModeSnapshotStore { return storage.NewSoftwareConfigStore() }
-	aliangLinkStatusResolver  = resolveAliangLinkStatus
-	sharedRunServiceMu        sync.Mutex
-	sharedRunService          *RunService
+	activeIngressModeResolver    = activeIngressModeFromSnapshot
+	applyIngressModeUpdater      = applyIngressModeToSnapshot
+	tunStartRunner               = defaultStartTUN
+	httpStartRunner              = httpServer.StartMitmHttp
+	httpStopRunner               = httpServer.StopHttpProxy
+	tunStopRunner                = tun.Stop
+	runModeStoreFactory          = func() runModeSnapshotStore { return storage.NewSoftwareConfigStore() }
+	aliangLinkStatusResolver     = resolveAliangLinkStatus
+	softwareUpdateStatusResolver = func() models.SoftwareVersionUpdateFrontendStatus {
+		return GetSharedSoftwareUpdateService().GetFrontendStatus()
+	}
+	sharedRunServiceMu sync.Mutex
+	sharedRunService   *RunService
 )
 
 const (
@@ -127,6 +130,16 @@ func (rs *RunService) StartService() map[string]interface{} {
 			"error":  "activation_required",
 			"status": "failed",
 			"msg":    "系统尚未准备好启动代理，请先完成登录或配置恢复。",
+		}
+	}
+
+	updateStatus := softwareUpdateStatusResolver()
+	if updateStatus.BlockingProxyStart {
+		return map[string]interface{}{
+			"error":         "force_update_required",
+			"status":        "failed",
+			"msg":           fmt.Sprintf("发现强制更新版本 %s，请先完成升级后再启动代理服务。", updateStatus.LatestVersion),
+			"update_status": updateStatus,
 		}
 	}
 
