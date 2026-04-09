@@ -167,15 +167,13 @@ func callUserCenterAPI(method, endpoint string, body any) ([]byte, error) {
 }
 
 func resolveAuthTokenForEndpoint(endpoint string) (string, error) {
+	_ = endpoint
 	current := GetCurrentUserInfoOrLoad()
 	if current == nil {
 		return "", fmt.Errorf("no user session")
 	}
 
 	token := strings.TrimSpace(current.AccessToken)
-	if token == "" {
-		token = strings.TrimSpace(current.AliangSessionToken)
-	}
 	if token == "" {
 		return "", fmt.Errorf("missing access token")
 	}

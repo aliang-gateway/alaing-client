@@ -17,22 +17,21 @@ import (
 
 // UserInfo is the locally persisted Sub2API session snapshot.
 type UserInfo struct {
-	AccessToken        string    `json:"access_token"`
-	RefreshToken       string    `json:"refresh_token"`
-	TokenType          string    `json:"token_type,omitempty"`
-	ExpiresIn          int       `json:"expires_in,omitempty"`
-	AliangSessionToken string    `json:"aliang_session_token,omitempty"`
-	ID                 int64     `json:"id,omitempty"`
-	Email              string    `json:"email,omitempty"`
-	Username           string    `json:"username,omitempty"`
-	Role               string    `json:"role,omitempty"`
-	Balance            float64   `json:"balance,omitempty"`
-	Concurrency        int       `json:"concurrency,omitempty"`
-	Status             string    `json:"status,omitempty"`
-	AllowedGroups      []int64   `json:"allowed_groups,omitempty"`
-	CreatedAt          string    `json:"created_at,omitempty"`
-	ProfileUpdated     string    `json:"profile_updated_at,omitempty"`
-	UpdatedAt          time.Time `json:"updated_at"`
+	AccessToken    string    `json:"access_token"`
+	RefreshToken   string    `json:"refresh_token"`
+	TokenType      string    `json:"token_type,omitempty"`
+	ExpiresIn      int       `json:"expires_in,omitempty"`
+	ID             int64     `json:"id,omitempty"`
+	Email          string    `json:"email,omitempty"`
+	Username       string    `json:"username,omitempty"`
+	Role           string    `json:"role,omitempty"`
+	Balance        float64   `json:"balance,omitempty"`
+	Concurrency    int       `json:"concurrency,omitempty"`
+	Status         string    `json:"status,omitempty"`
+	AllowedGroups  []int64   `json:"allowed_groups,omitempty"`
+	CreatedAt      string    `json:"created_at,omitempty"`
+	ProfileUpdated string    `json:"profile_updated_at,omitempty"`
+	UpdatedAt      time.Time `json:"updated_at"`
 }
 
 var (
@@ -49,13 +48,12 @@ const (
 )
 
 type authTokenRecord struct {
-	ID                 uint      `gorm:"primaryKey"`
-	AccessToken        string    `gorm:"type:text;not null"`
-	RefreshToken       string    `gorm:"type:text"`
-	TokenType          string    `gorm:"type:varchar(32)"`
-	ExpiresIn          int       `gorm:"not null;default:0"`
-	AliangSessionToken string    `gorm:"column:aliang_session_token;type:text"`
-	UpdatedAt          time.Time `gorm:"autoUpdateTime"`
+	ID           uint      `gorm:"primaryKey"`
+	AccessToken  string    `gorm:"type:text;not null"`
+	RefreshToken string    `gorm:"type:text"`
+	TokenType    string    `gorm:"type:varchar(32)"`
+	ExpiresIn    int       `gorm:"not null;default:0"`
+	UpdatedAt    time.Time `gorm:"autoUpdateTime"`
 }
 
 func (authTokenRecord) TableName() string {
@@ -210,13 +208,12 @@ func saveUserInfoWithDB(db *gorm.DB, info *UserInfo) error {
 	}
 
 	token := authTokenRecord{
-		ID:                 authTokenRecordID,
-		AccessToken:        info.AccessToken,
-		RefreshToken:       info.RefreshToken,
-		TokenType:          info.TokenType,
-		ExpiresIn:          info.ExpiresIn,
-		AliangSessionToken: info.AliangSessionToken,
-		UpdatedAt:          info.UpdatedAt,
+		ID:           authTokenRecordID,
+		AccessToken:  info.AccessToken,
+		RefreshToken: info.RefreshToken,
+		TokenType:    info.TokenType,
+		ExpiresIn:    info.ExpiresIn,
+		UpdatedAt:    info.UpdatedAt,
 	}
 
 	profile := authProfileRecord{
@@ -269,22 +266,21 @@ func loadUserInfoFromSQLite() (*UserInfo, error) {
 	}
 
 	info := &UserInfo{
-		AccessToken:        token.AccessToken,
-		RefreshToken:       token.RefreshToken,
-		TokenType:          token.TokenType,
-		ExpiresIn:          token.ExpiresIn,
-		AliangSessionToken: token.AliangSessionToken,
-		ID:                 profile.UserID,
-		Email:              profile.Email,
-		Username:           profile.Username,
-		Role:               profile.Role,
-		Balance:            profile.Balance,
-		Concurrency:        profile.Concurrency,
-		Status:             profile.Status,
-		AllowedGroups:      allowedGroups,
-		CreatedAt:          profile.RemoteCreatedAt,
-		ProfileUpdated:     profile.RemoteUpdatedAt,
-		UpdatedAt:          token.UpdatedAt,
+		AccessToken:    token.AccessToken,
+		RefreshToken:   token.RefreshToken,
+		TokenType:      token.TokenType,
+		ExpiresIn:      token.ExpiresIn,
+		ID:             profile.UserID,
+		Email:          profile.Email,
+		Username:       profile.Username,
+		Role:           profile.Role,
+		Balance:        profile.Balance,
+		Concurrency:    profile.Concurrency,
+		Status:         profile.Status,
+		AllowedGroups:  allowedGroups,
+		CreatedAt:      profile.RemoteCreatedAt,
+		ProfileUpdated: profile.RemoteUpdatedAt,
+		UpdatedAt:      token.UpdatedAt,
 	}
 
 	if info.UpdatedAt.IsZero() {
