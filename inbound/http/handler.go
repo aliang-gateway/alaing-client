@@ -11,6 +11,7 @@ import (
 	"net"
 	"net/http"
 	"net/netip"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -30,7 +31,7 @@ func HandleHttpConnection(conn net.Conn, reader *bufio.Reader, req *http.Request
 	if err != nil {
 		logger.Error(fmt.Sprintf("Failed to extract metadata from HTTP request: %v", err))
 		respWriter := NewCustomResponseWriter(conn)
-		respWriter.WriteHeader(http.StatusBadGateway)
+		respWriter.WriteHeader(http.StatusBadRequest)
 		respWriter.Write([]byte(fmt.Sprintf("Failed to process request: %v", err)))
 		respWriter.Flush()
 		return
@@ -75,55 +76,6 @@ func extractMetadataFromHTTP(req *http.Request, conn net.Conn) (*M.Metadata, err
 		Network: M.TCP,
 	}
 
-	// Extract host and port from HTTP request
-	host := req.Header.Get("Host")
-	if host == "" {
-		host = req.URL.Host
-	}
-
-	if host == "" {
-		return nil, fmt.Errorf("cannot determine host from HTTP request")
-	}
-
-	// Parse host:port
-	var hostOnly string
-	var port uint16 = 80 // Default HTTP port
-
-	if strings.Contains(host, ":") {
-		parts := strings.Split(host, ":")
-		hostOnly = parts[0]
-		portNum, err := strconv.ParseUint(parts[1], 10, 16)
-		if err == nil {
-			port = uint16(portNum)
-		}
-	} else {
-		hostOnly = host
-	}
-
-	// Set hostname with HTTP binding source
-	if hostOnly != "" {
-		metadata.SetHostName(hostOnly, M.BindingSourceHTTP, 10*time.Minute)
-	}
-	metadata.DstPort = port
-
-	// Try to parse host as IP
-	if ip := net.ParseIP(hostOnly); ip != nil {
-		if addr, err := convertNetIPToNetipAddr(ip); err == nil {
-			metadata.DstIP = addr
-		}
-	} else {
-		// Try to resolve hostname
-		ips, err := net.LookupIP(hostOnly)
-		if err != nil {
-			logger.Debug(fmt.Sprintf("DNS resolution failed for %s: %v (will retry at tunnel time)", hostOnly, err))
-		} else if len(ips) > 0 {
-			if addr, err := convertNetIPToNetipAddr(ips[0]); err == nil {
-				metadata.DstIP = addr
-				logger.Debug(fmt.Sprintf("Resolved %s to %s", hostOnly, metadata.DstIP.String()))
-			}
-		}
-	}
-
 	// Extract source
 	if remoteAddr, ok := conn.RemoteAddr().(*net.TCPAddr); ok {
 		if addr, err := convertNetIPToNetipAddr(remoteAddr.IP); err == nil {
@@ -136,11 +88,98 @@ func extractMetadataFromHTTP(req *http.Request, conn net.Conn) (*M.Metadata, err
 	if localAddr, ok := conn.LocalAddr().(*net.TCPAddr); ok {
 		if addr, err := convertNetIPToNetipAddr(localAddr.IP); err == nil {
 			metadata.MidIP = addr
+			metadata.DstIP = addr
 		}
 		metadata.MidPort = uint16(localAddr.Port)
+		metadata.DstPort = uint16(localAddr.Port)
+	}
+
+	// Extract host and port from HTTP request. We only reject requests that
+	// explicitly target a non-loopback host; missing host falls back to the
+	// local listener address so the request can continue through routing.
+	host := strings.TrimSpace(req.Host)
+	if host == "" {
+		host = strings.TrimSpace(req.URL.Host)
+	}
+	if host == "" {
+		return metadata, nil
+	}
+
+	hostOnly, port, err := parseHTTPHostPort(host, metadata.DstPort)
+	if err != nil {
+		return nil, fmt.Errorf("invalid host %q: %w", host, err)
+	}
+
+	if !isLoopbackHost(hostOnly) {
+		return nil, fmt.Errorf("explicit host %q is not a local loopback address", host)
+	}
+
+	if hostOnly != "" {
+		metadata.SetHostName(hostOnly, M.BindingSourceHTTP, 10*time.Minute)
+	}
+	if port != 0 {
+		metadata.DstPort = port
+	}
+
+	if ip := net.ParseIP(hostOnly); ip != nil {
+		if addr, err := convertNetIPToNetipAddr(ip); err == nil {
+			metadata.DstIP = addr
+		}
+	} else if strings.EqualFold(hostOnly, "localhost") && metadata.MidIP.IsValid() {
+		metadata.DstIP = metadata.MidIP
 	}
 
 	return metadata, nil
+}
+
+func parseHTTPHostPort(rawHost string, fallbackPort uint16) (string, uint16, error) {
+	rawHost = strings.TrimSpace(rawHost)
+	if rawHost == "" {
+		return "", fallbackPort, nil
+	}
+
+	if strings.Contains(rawHost, "://") {
+		if parsedURL, err := url.Parse(rawHost); err == nil && parsedURL.Host != "" {
+			rawHost = parsedURL.Host
+		}
+	}
+
+	if host, portStr, err := net.SplitHostPort(rawHost); err == nil {
+		port, parseErr := strconv.ParseUint(portStr, 10, 16)
+		if parseErr != nil {
+			return "", 0, parseErr
+		}
+		return strings.Trim(host, "[]"), uint16(port), nil
+	}
+
+	trimmedHost := strings.Trim(rawHost, "[]")
+	if ip := net.ParseIP(trimmedHost); ip != nil {
+		return trimmedHost, fallbackPort, nil
+	}
+
+	if host, portStr, ok := strings.Cut(rawHost, ":"); ok && !strings.Contains(host, ":") {
+		port, parseErr := strconv.ParseUint(portStr, 10, 16)
+		if parseErr != nil {
+			return "", 0, parseErr
+		}
+		return strings.Trim(host, "[]"), uint16(port), nil
+	}
+
+	return trimmedHost, fallbackPort, nil
+}
+
+func isLoopbackHost(host string) bool {
+	host = strings.Trim(strings.ToLower(strings.TrimSpace(host)), "[]")
+	if host == "" {
+		return false
+	}
+	if host == "localhost" {
+		return true
+	}
+	if ip := net.ParseIP(host); ip != nil {
+		return ip.IsLoopback()
+	}
+	return false
 }
 
 // convertNetIPToNetipAddr converts net.IP to netip.Addr
