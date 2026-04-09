@@ -6,12 +6,18 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"sync"
 
 	"aliang.one/nursorgate/common/logger"
 	"aliang.one/nursorgate/processor/config"
 )
 
 var ErrRefreshTokenInvalid = errors.New("refresh token invalid")
+
+var (
+	authExpirationHandlerMu sync.RWMutex
+	authExpirationHandler   func()
+)
 
 type authAPIErrorEnvelope struct {
 	Code    int    `json:"code"`
@@ -48,4 +54,27 @@ func clearLocalSessionAfterInvalidRefreshToken() {
 
 	config.SetHasLocalUserInfo(false)
 	logger.Info("Local auth session cleared after invalid refresh token")
+	notifyAuthExpirationHandler()
+	logger.Warn("Authentication expired - proxy service should be stopped")
+}
+
+func SetAuthExpirationHandler(handler func()) {
+	authExpirationHandlerMu.Lock()
+	defer authExpirationHandlerMu.Unlock()
+	authExpirationHandler = handler
+}
+
+func notifyAuthExpirationHandler() {
+	authExpirationHandlerMu.RLock()
+	handler := authExpirationHandler
+	authExpirationHandlerMu.RUnlock()
+
+	if handler != nil {
+		handler()
+	}
+}
+
+func stopProxyDueToAuthExpiration() {
+	logger.Info("Stopping proxy service due to authentication expiration")
+	logger.Warn("Proxy service should be stopped due to authentication expiration - checking HasLocalUserInfo() status")
 }

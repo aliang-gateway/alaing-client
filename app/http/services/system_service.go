@@ -344,15 +344,17 @@ func buildManagedSystemServiceEnvironment(configPath string) (map[string]string,
 
 	env := map[string]string{}
 	if runtimeDataDir != "" {
+		env["ALIANG_DATA_DIR"] = runtimeDataDir
 		env["ALIANG_CACHE_DIR"] = runtimeDataDir
+		env["ALIANG_LOG_DIR"] = setup.CoreLogDir()
 
 		sourceDir := filepath.Dir(configPath)
 		if err := ensureManagedCertificateAssets(sourceDir, runtimeDataDir); err != nil {
 			return nil, err
 		}
 	}
-	if runtime.GOOS == "windows" {
-		env["ALIANG_SOCKET_PATH"] = setup.CoreSocketPath()
+	if socketPath := strings.TrimSpace(setup.CoreSocketPath()); socketPath != "" {
+		env["ALIANG_SOCKET_PATH"] = socketPath
 	}
 
 	return env, nil

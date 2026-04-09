@@ -135,10 +135,34 @@ func (tr *TokenRefresher) refreshUserInfo() error {
 		return fmt.Errorf("no user info to refresh")
 	}
 
-	_, err := RefreshSession(currentInfo.RefreshToken)
-	if err != nil {
-		return fmt.Errorf("failed to refresh session: %w", err)
+	// 检查 access token 是否即将过期（提前5分钟刷新）
+	if tr.isTokenExpired(currentInfo) {
+		logger.Info("Access token expired or expiring soon, refreshing session")
+		_, err := RefreshSession(currentInfo.RefreshToken)
+		if err != nil {
+			return fmt.Errorf("failed to refresh session: %w", err)
+		}
+	} else {
+		// Token 仍然有效，只更新用户信息
+		_, err := RefreshSession(currentInfo.RefreshToken)
+		if err != nil {
+			return fmt.Errorf("failed to refresh session: %w", err)
+		}
 	}
 
 	return nil
+}
+
+// isTokenExpired 检查 access token 是否过期或即将过期
+func (tr *TokenRefresher) isTokenExpired(info *UserInfo) bool {
+	if info == nil || info.ExpiresIn <= 0 {
+		return true
+	}
+
+	// 计算过期时间：更新时间 + 过期秒数 - 5分钟缓冲
+	expireTime := info.UpdatedAt.Add(time.Duration(info.ExpiresIn) * time.Second)
+	bufferTime := 5 * time.Minute // 提前5分钟刷新
+	expireTime = expireTime.Add(-bufferTime)
+
+	return time.Now().After(expireTime)
 }

@@ -66,7 +66,7 @@ func InitializeUser(token string) error {
 // loadLocalUserInfo 加载本地用户信息
 // 返回error仅指加载失败，不指fetch失败（fetch失败允许系统继续启动）
 func loadLocalUserInfo() error {
-	_, err := auth.LoadUserInfo()
+	_, err := auth.RestoreSession()
 	if err != nil {
 		return err
 	}

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 
 	httpServer "aliang.one/nursorgate/app/http"
@@ -42,6 +43,8 @@ func runCore(cmd *cobra.Command, args []string) error {
 }
 
 func runCoreWithContext(ctx context.Context) error {
+	ensureCoreRuntimeEnvironment()
+
 	logger.Info("========================================")
 	logger.Info("Starting Aliang Core Daemon")
 	logger.Info("========================================")
@@ -92,6 +95,21 @@ func runCoreWithContext(ctx context.Context) error {
 
 	logger.Info("Core daemon stopped successfully")
 	return nil
+}
+
+func ensureCoreRuntimeEnvironment() {
+	if strings.TrimSpace(os.Getenv("ALIANG_DATA_DIR")) == "" {
+		_ = os.Setenv("ALIANG_DATA_DIR", setup.CoreDataDir())
+	}
+	if strings.TrimSpace(os.Getenv("ALIANG_CACHE_DIR")) == "" {
+		_ = os.Setenv("ALIANG_CACHE_DIR", setup.CoreDataDir())
+	}
+	if strings.TrimSpace(os.Getenv("ALIANG_LOG_DIR")) == "" {
+		_ = os.Setenv("ALIANG_LOG_DIR", setup.CoreLogDir())
+	}
+	if socketPath := strings.TrimSpace(setup.CoreSocketPath()); socketPath != "" && strings.TrimSpace(os.Getenv("ALIANG_SOCKET_PATH")) == "" {
+		_ = os.Setenv("ALIANG_SOCKET_PATH", socketPath)
+	}
 }
 
 // initializeCoreSubsystems initializes core subsystems without starting HTTP server.

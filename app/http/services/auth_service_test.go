@@ -3,6 +3,7 @@ package services
 import (
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
 	"testing"
 	"time"
@@ -13,20 +14,31 @@ import (
 )
 
 func TestAuthServiceRestoreSession_ReturnsSessionExpiredWhenRefreshTokenInvalid(t *testing.T) {
-	baseDir := t.TempDir()
+	baseDir, err := os.MkdirTemp("", "aliang-auth-service-*")
+	if err != nil {
+		t.Fatalf("MkdirTemp() error = %v", err)
+	}
 	t.Setenv("HOME", filepath.Join(baseDir, "home"))
 	t.Setenv("ALIANG_CACHE_DIR", filepath.Join(baseDir, "cache"))
+
+	defer resetRunServiceHooksForTest()
+	defer ResetSharedRunServiceForTest()
+	defer auth.StopTokenRefresh()
+	defer auth.ResetAuthPersistenceForTest()
+	defer config.ResetGlobalConfigForTest()
+	defer runtime.ResetGlobalStartupStateForTest()
+	defer os.RemoveAll(baseDir)
 
 	auth.ResetAuthPersistenceForTest()
 	auth.StopTokenRefresh()
 	config.ResetGlobalConfigForTest()
 	runtime.ResetGlobalStartupStateForTest()
-	t.Cleanup(func() {
-		auth.StopTokenRefresh()
-		auth.ResetAuthPersistenceForTest()
-		config.ResetGlobalConfigForTest()
-		runtime.ResetGlobalStartupStateForTest()
-	})
+	ResetSharedRunServiceForTest()
+
+	stoppedProxy := false
+	httpStopRunner = func() {
+		stoppedProxy = true
+	}
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/api/v1/auth/refresh" {
@@ -45,6 +57,9 @@ func TestAuthServiceRestoreSession_ReturnsSessionExpiredWhenRefreshTokenInvalid(
 	auth.SetCurrentUserInfo(&auth.UserInfo{Username: "stale-user"})
 	runtime.GetStartupState().SetFetchSuccess(true)
 	runtime.GetStartupState().SetStatus(runtime.READY)
+	runService := GetSharedRunService()
+	runService.SetCurrentMode("http")
+	runService.SetRunning(true)
 
 	if err := auth.SaveUserInfo(&auth.UserInfo{
 		AccessToken:  "stale-access-token",
@@ -69,5 +84,11 @@ func TestAuthServiceRestoreSession_ReturnsSessionExpiredWhenRefreshTokenInvalid(
 	}
 	if got := auth.GetCurrentUserInfo(); got != nil {
 		t.Fatalf("current user info = %#v, want nil", got)
+	}
+	if !stoppedProxy {
+		t.Fatal("expected running proxy service to be stopped after session expiration")
+	}
+	if runService.IsRunning() {
+		t.Fatal("expected shared run service to be marked stopped after session expiration")
 	}
 }
