@@ -11,7 +11,7 @@
             <div class="flex h-8 w-8 items-center justify-center rounded bg-primary text-white">
               <span class="material-symbols-outlined text-xl">shield_with_heart</span>
             </div>
-            <span class="text-lg font-bold tracking-tight">ALiang Gateway</span>
+            <span class="text-lg font-bold tracking-tight">{{ t('settings_title') }}</span>
           </div>
           <nav class="hidden items-center gap-8 md:flex">
             <a
@@ -20,7 +20,7 @@
               href="javascript:void(0)"
               @click="showPage('settings')"
             >
-              Settings
+              {{ t('settings_tabSettings') }}
             </a>
             <a
               class="py-5 text-sm font-medium"
@@ -28,7 +28,7 @@
               href="javascript:void(0)"
               @click="showPage('user')"
             >
-              User Center
+              {{ t('settings_tabUserCenter') }}
             </a>
             <a
               class="py-5 text-sm font-medium"
@@ -36,7 +36,7 @@
               href="javascript:void(0)"
               @click="showPage('log')"
             >
-              Logs
+              {{ t('settings_tabLogs') }}
             </a>
           </nav>
           <div class="flex items-center gap-4">
@@ -71,7 +71,7 @@
               {{ pageTitle }} <span class="font-medium text-primary">{{ pageAccent }}</span>
             </h1>
           </div>
-          <div class="rounded bg-primary/10 px-3 py-1 text-xs font-bold text-primary">LIVE</div>
+          <div class="rounded bg-primary/10 px-3 py-1 text-xs font-bold text-primary">{{ t('settings_live') }}</div>
         </div>
 
         <div class="mb-6 grid grid-cols-3 gap-2 md:hidden">
@@ -81,7 +81,7 @@
             :class="currentPage === 'settings' ? 'border-primary bg-primary text-white' : 'border-slate-200 bg-white text-slate-700 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100'"
             @click="showPage('settings')"
           >
-            Settings
+            {{ t('settings_tabSettings') }}
           </button>
           <button
             type="button"
@@ -89,7 +89,7 @@
             :class="currentPage === 'user' ? 'border-primary bg-primary text-white' : 'border-slate-200 bg-white text-slate-700 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100'"
             @click="showPage('user')"
           >
-            User
+            {{ t('settings_pageUser') }}
           </button>
           <button
             type="button"
@@ -97,7 +97,7 @@
             :class="currentPage === 'log' ? 'border-primary bg-primary text-white' : 'border-slate-200 bg-white text-slate-700 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100'"
             @click="showPage('log')"
           >
-            Logs
+            {{ t('settings_tabLogs') }}
           </button>
         </div>
 
@@ -116,9 +116,9 @@
               class="rounded-2xl border border-dashed border-slate-300 bg-white px-6 py-8 text-center shadow-sm dark:border-slate-700 dark:bg-slate-900"
             >
               <div class="mx-auto max-w-2xl space-y-3">
-                <h2 class="text-xl font-bold text-slate-900 dark:text-white">Login required for settings changes</h2>
+                <h2 class="text-xl font-bold text-slate-900 dark:text-white">{{ t('settings_loginRequiredSettings') }}</h2>
                 <p class="text-sm text-slate-500 dark:text-slate-300">
-                  Customer config editing stays blocked until a backend auth session is restored or you log in with the account card on this page.
+                  {{ t('settings_loginRequiredSettingsDesc') }}
                 </p>
               </div>
             </div>
@@ -150,9 +150,9 @@
             class="rounded-2xl border border-dashed border-slate-300 bg-white px-6 py-8 text-center shadow-sm dark:border-slate-700 dark:bg-slate-900"
           >
             <div class="mx-auto max-w-2xl space-y-3">
-              <h2 class="text-xl font-bold text-slate-900 dark:text-white">Login required for log access</h2>
+              <h2 class="text-xl font-bold text-slate-900 dark:text-white">{{ t('settings_loginRequiredLogs') }}</h2>
               <p class="text-sm text-slate-500 dark:text-slate-300">
-                Logs remain hidden until you log in. The login form stays available in the account card when you switch back to the Settings tab.
+                {{ t('settings_loginRequiredLogsDesc') }}
               </p>
             </div>
           </div>
@@ -162,11 +162,11 @@
 
       <footer class="border-t border-slate-100 py-6 dark:border-slate-800">
         <div class="mx-auto flex max-w-7xl items-center justify-between px-4 text-[10px] font-medium text-slate-400 sm:px-6 lg:px-8">
-          <div>© 2024 ALiang Gateway. All rights reserved.</div>
+          <div>{{ t('settings_copyright') }}</div>
           <div class="flex gap-4 uppercase tracking-tighter">
-            <a class="hover:text-primary" href="javascript:void(0)">Docs</a>
-            <a class="hover:text-primary" href="javascript:void(0)">Privacy</a>
-            <a class="hover:text-primary" href="javascript:void(0)">Github</a>
+            <a class="hover:text-primary" href="javascript:void(0)">{{ t('settings_docs') }}</a>
+            <a class="hover:text-primary" href="javascript:void(0)">{{ t('settings_privacy') }}</a>
+            <a class="hover:text-primary" href="javascript:void(0)">{{ t('settings_github') }}</a>
           </div>
         </div>
       </footer>
@@ -194,6 +194,7 @@ import LogsSettings from './settings/LogsSettings.vue';
 import SystemSettings from './settings/SystemSettings.vue';
 import { useNavigation } from '../composables/useNavigation';
 import { useAuthStore } from '../stores/auth';
+import { useI18n } from '../i18n';
 
 function createDefaultCustomerConfig() {
   return {
@@ -305,6 +306,7 @@ export default {
   setup() {
     const { currentPage, showPage, showDashboard } = useNavigation();
     const { isAuthenticated, userDisplayName, planLabel, authNotice } = useAuthStore();
+    const { t } = useI18n();
     return {
       currentPage,
       showPage,
@@ -312,7 +314,8 @@ export default {
       isAuthenticated,
       userDisplayName,
       planLabel,
-      authNotice
+      authNotice,
+      t
     };
   },
   data() {
@@ -333,21 +336,21 @@ export default {
     },
     pageTitle() {
       if (this.currentPage === 'user') {
-        return 'User';
+        return this.t('settings_pageUser');
       }
       if (this.currentPage === 'log') {
-        return 'Log';
+        return this.t('settings_pageLog');
       }
-      return 'Configuration';
+      return this.t('settings_pageConfiguration');
     },
     pageAccent() {
       if (this.currentPage === 'user') {
-        return 'Center';
+        return this.t('settings_pageCenter');
       }
       if (this.currentPage === 'log') {
-        return 'Viewer';
+        return this.t('settings_pageViewer');
       }
-      return 'Center';
+      return this.t('settings_pageCenter');
     },
     userAvatarText() {
       const normalized = String(this.userDisplayName || '').trim();
@@ -418,7 +421,7 @@ export default {
 
       try {
         const res = await fetch('/api/config/customer');
-        if (!res.ok) throw new Error('Failed to load customer configuration.');
+        if (!res.ok) throw new Error(this.t('settings_configLoadFailed'));
         const json = await res.json();
         const data = json?.data || json;
         this.customerConfig = normalizeCustomerConfig(data?.customer);
@@ -428,7 +431,7 @@ export default {
       } catch (error) {
         this.customerConfig = createDefaultCustomerConfig();
         this.customerConfigVersion = '';
-        this.customerConfigError = error instanceof Error ? error.message : 'Failed to load customer configuration.';
+        this.customerConfigError = error instanceof Error ? error.message : this.t('settings_configLoadFailed');
       } finally {
         this.isLoadingCustomerConfig = false;
       }
@@ -454,16 +457,16 @@ export default {
         });
         if (!res.ok) {
           const errJson = await res.json().catch(() => ({}));
-          throw new Error(errJson?.msg || 'Failed to save customer configuration.');
+          throw new Error(errJson?.msg || this.t('settings_configSaveFailed'));
         }
         const json = await res.json();
         const data = json?.data || json;
         this.customerConfig = normalizeCustomerConfig(data?.customer || normalizedConfig);
         this.customerConfigVersion = typeof data?.version === 'string' ? data.version : this.customerConfigVersion;
         this.customerConfigError = '';
-        this.customerConfigSuccess = 'Customer configuration saved successfully.';
+        this.customerConfigSuccess = this.t('settings_configSaved');
       } catch (error) {
-        this.customerConfigError = error instanceof Error ? error.message : 'Failed to save customer configuration.';
+        this.customerConfigError = error instanceof Error ? error.message : this.t('settings_configSaveFailed');
         throw error;
       } finally {
         this.isSavingCustomerConfig = false;

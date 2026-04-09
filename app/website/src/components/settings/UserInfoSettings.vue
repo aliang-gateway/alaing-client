@@ -5,9 +5,9 @@
         <div>
           <h3 class="flex items-center gap-2 font-bold">
             <span class="material-symbols-outlined text-primary">person</span>
-            User Information
+            {{ t('user_title') }}
           </h3>
-          <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">Manage your profile, redeem access, and review package usage from one place.</p>
+          <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">{{ t('user_description') }}</p>
         </div>
         <button
           v-if="isAuthenticated"
@@ -16,7 +16,7 @@
           :disabled="isRefreshing"
           @click="refreshAll"
         >
-          {{ isRefreshing ? 'Refreshing...' : 'Refresh' }}
+          {{ isRefreshing ? t('user_refreshing') : t('user_refresh') }}
         </button>
       </div>
 
@@ -34,9 +34,9 @@
               <span class="material-symbols-outlined text-2xl text-primary">lock</span>
             </div>
             <div>
-              <p class="text-sm font-semibold text-slate-900 dark:text-white">Sign in to continue</p>
+              <p class="text-sm font-semibold text-slate-900 dark:text-white">{{ t('user_signInTitle') }}</p>
               <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                Log in to view usage, update profile, and redeem codes.
+                {{ t('user_signInDesc') }}
               </p>
             </div>
           </div>
@@ -44,7 +44,7 @@
 
         <div class="space-y-3">
           <div>
-            <label class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">Email</label>
+            <label class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">{{ t('user_email') }}</label>
             <div class="relative">
               <span class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400">
                 <span class="material-symbols-outlined text-[18px]">mail</span>
@@ -60,7 +60,7 @@
             </div>
           </div>
           <div>
-            <label class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">Password</label>
+            <label class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">{{ t('user_password') }}</label>
             <div class="relative">
               <span class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400">
                 <span class="material-symbols-outlined text-[18px]">key</span>
@@ -70,7 +70,7 @@
                 type="password"
                 autocomplete="current-password"
                 class="h-10 w-full rounded-lg border border-slate-200 bg-white pl-9 pr-3 text-sm text-slate-700 outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/10 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:focus:ring-primary/20"
-                placeholder="Enter your password"
+                :placeholder="t('user_passwordPh')"
                 :disabled="loginPending"
               />
             </div>
@@ -88,11 +88,11 @@
           :disabled="loginPending"
         >
           <span v-if="loginPending" class="inline-block size-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
-          {{ loginPending ? 'Signing in...' : 'Sign In' }}
+          {{ loginPending ? t('user_signingIn') : t('user_signIn') }}
         </button>
 
         <p class="text-center text-[11px] text-slate-400">
-          Required for proxy operations, quick chat, and configuration editing.
+          {{ t('user_loginHint') }}
         </p>
       </form>
 
@@ -105,23 +105,23 @@
           <article class="rounded-xl border border-slate-200 bg-slate-50/80 p-3 dark:border-slate-800 dark:bg-slate-900/50">
             <div class="flex items-start justify-between gap-3">
               <div>
-                <p class="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Subscriptions</p>
+                <p class="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{{ t('user_subscriptions') }}</p>
                 <p class="mt-1.5 text-xl font-bold text-slate-900 dark:text-white">{{ activeSubscriptionsText }}</p>
               </div>
               <span class="material-symbols-outlined text-[20px] text-primary">stacked_bar_chart</span>
             </div>
-            <p class="mt-1.5 text-[11px] leading-5 text-slate-500 dark:text-slate-400">Active package count returned by the user-center summary API.</p>
+            <p class="mt-1.5 text-[11px] leading-5 text-slate-500 dark:text-slate-400">{{ t('user_subscriptionsDesc') }}</p>
           </article>
 
           <article class="rounded-xl border border-slate-200 bg-slate-50/80 p-3 dark:border-slate-800 dark:bg-slate-900/50">
             <div class="flex items-start justify-between gap-3">
               <div>
-                <p class="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Usage cost</p>
+                <p class="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{{ t('user_usageCost') }}</p>
                 <p id="userBalance" class="mt-1.5 text-xl font-bold text-primary">{{ totalUsageText }}</p>
               </div>
               <span class="material-symbols-outlined text-[20px] text-primary">payments</span>
             </div>
-            <p class="mt-1.5 text-[11px] leading-5 text-slate-500 dark:text-slate-400">Aggregated spend from the backend usage summary.</p>
+            <p class="mt-1.5 text-[11px] leading-5 text-slate-500 dark:text-slate-400">{{ t('user_usageCostDesc') }}</p>
           </article>
         </div>
 
@@ -129,27 +129,27 @@
           <div class="rounded-xl border border-slate-200 bg-white p-3.5 dark:border-slate-800 dark:bg-background-dark lg:col-span-2">
             <div class="flex items-center justify-between gap-3">
               <div>
-                <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Account overview</p>
-                <p class="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">Your authenticated profile snapshot from <span class="font-mono">/api/user-center/profile</span>.</p>
+                <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">{{ t('user_accountOverview') }}</p>
+                <p class="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">{{ t('user_accountOverviewDesc') }}</p>
               </div>
               <span class="rounded bg-primary/10 px-2 py-1 text-[11px] font-bold uppercase tracking-wide text-primary">{{ profileStatusText }}</span>
             </div>
 
             <div class="mt-3 grid gap-2 sm:grid-cols-2">
               <div class="rounded-lg bg-slate-50 px-3 py-2 dark:bg-slate-900/50">
-                <p class="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Email</p>
+                <p class="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{{ t('user_email') }}</p>
                 <p class="mt-0.5 text-sm font-medium text-slate-900 dark:text-white break-all">{{ profile.email || '-' }}</p>
               </div>
               <div class="rounded-lg bg-slate-50 px-3 py-2 dark:bg-slate-900/50">
-                <p class="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Role</p>
+                <p class="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{{ t('user_role') }}</p>
                 <p class="mt-0.5 text-sm font-medium text-slate-900 dark:text-white">{{ profile.role || '-' }}</p>
               </div>
               <div class="rounded-lg bg-slate-50 px-3 py-2 dark:bg-slate-900/50">
-                <p class="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Concurrency</p>
+                <p class="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{{ t('user_concurrency') }}</p>
                 <p class="mt-0.5 text-sm font-medium text-slate-900 dark:text-white">{{ concurrencyText }}</p>
               </div>
               <div class="rounded-lg bg-slate-50 px-3 py-2 dark:bg-slate-900/50">
-                <p class="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Allowed groups</p>
+                <p class="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{{ t('user_allowedGroups') }}</p>
                 <p class="mt-0.5 text-sm font-medium text-slate-900 dark:text-white">{{ allowedGroupsText }}</p>
               </div>
             </div>
@@ -159,19 +159,19 @@
             <div class="flex items-start gap-3">
               <span class="material-symbols-outlined text-[20px] text-primary">badge</span>
               <div>
-                <p class="text-sm font-semibold text-slate-900 dark:text-white">Update display username</p>
-                <p class="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">Changes update both the profile panel and the shared settings header label.</p>
+                <p class="text-sm font-semibold text-slate-900 dark:text-white">{{ t('user_updateUsername') }}</p>
+                <p class="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">{{ t('user_updateUsernameDesc') }}</p>
               </div>
             </div>
 
             <form class="mt-3 space-y-2.5" @submit.prevent="submitProfileUpdate">
               <div>
-                <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">Username</label>
+                <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">{{ t('user_username') }}</label>
                 <input
                   v-model.trim="usernameDraft"
                   type="text"
                   class="h-9 w-full rounded border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none transition focus:border-primary dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
-                  placeholder="Enter a username"
+                  :placeholder="t('user_usernamePh')"
                   :disabled="profileSaving"
                 />
               </div>
@@ -181,7 +181,7 @@
                 class="inline-flex min-h-10 w-full items-center justify-center rounded bg-primary px-4 py-2 text-sm font-semibold text-white transition hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
                 :disabled="profileSaving"
               >
-                {{ profileSaving ? 'Saving profile...' : 'Save profile' }}
+                {{ profileSaving ? t('user_savingProfile') : t('user_saveProfile') }}
               </button>
             </form>
           </div>
@@ -191,17 +191,17 @@
           <div class="rounded-xl border border-slate-200 bg-white p-3.5 dark:border-slate-800 dark:bg-background-dark lg:col-span-2">
             <div class="mb-2.5 flex items-center justify-between gap-3">
               <div>
-                <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Package usage progress</p>
-                <p class="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">Progress rows come from <span class="font-mono">/api/user-center/usage/progress</span>.</p>
+                <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">{{ t('user_packageProgress') }}</p>
+                <p class="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">{{ t('user_packageProgressDesc') }}</p>
               </div>
-              <span class="rounded bg-slate-100 px-2 py-1 text-[11px] font-semibold text-slate-500 dark:bg-slate-800 dark:text-slate-300">{{ progressItems.length }} item(s)</span>
+              <span class="rounded bg-slate-100 px-2 py-1 text-[11px] font-semibold text-slate-500 dark:bg-slate-800 dark:text-slate-300">{{ t('user_itemsCount', { count: progressItems.length }) }}</span>
             </div>
 
             <div v-if="isRefreshing && !hasLoaded" class="rounded-lg border border-dashed border-slate-300 bg-slate-50 px-4 py-5 text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-400">
-              Loading user-center data…
+              {{ t('user_loadingData') }}
             </div>
             <div v-else-if="!progressItems.length" class="rounded-lg border border-dashed border-slate-300 bg-slate-50 px-4 py-5 text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-400">
-              No usage progress data is available for this account yet.
+              {{ t('user_noProgressData') }}
             </div>
             <div v-else class="space-y-2.5">
               <article
@@ -231,19 +231,19 @@
             <div class="flex items-start gap-3">
               <span class="material-symbols-outlined text-[20px] text-primary">redeem</span>
               <div>
-                <p class="text-sm font-semibold text-slate-900 dark:text-white">Redeem a package code</p>
-                <p class="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">Submit a valid code to unlock new entitlements, then refresh usage automatically.</p>
+                <p class="text-sm font-semibold text-slate-900 dark:text-white">{{ t('user_redeemCode') }}</p>
+                <p class="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">{{ t('user_redeemCodeDesc') }}</p>
               </div>
             </div>
 
             <form class="mt-3 space-y-2.5" @submit.prevent="submitRedeemCode">
               <div>
-                <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">Redeem code</label>
+                <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">{{ t('user_redeemCodeLabel') }}</label>
                 <input
                   v-model.trim="redeemCode"
                   type="text"
                   class="h-9 w-full rounded border border-slate-200 bg-white px-3 text-sm uppercase text-slate-700 outline-none transition focus:border-primary dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
-                  placeholder="Enter your code"
+                  :placeholder="t('user_redeemCodePh')"
                   :disabled="redeemPending"
                 />
               </div>
@@ -253,7 +253,7 @@
                 class="inline-flex min-h-10 w-full items-center justify-center rounded border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:text-slate-100 dark:hover:bg-slate-800"
                 :disabled="redeemPending"
               >
-                {{ redeemPending ? 'Redeeming...' : 'Redeem code' }}
+                {{ redeemPending ? t('user_redeeming') : t('user_redeemBtn') }}
               </button>
             </form>
           </div>
@@ -267,7 +267,7 @@
             :disabled="logoutPending"
             @click="handleLogout"
           >
-            {{ logoutPending ? 'Logging out...' : 'Log Out' }}
+            {{ logoutPending ? t('user_loggingOut') : t('user_logOut') }}
           </button>
         </div>
       </template>
@@ -290,6 +290,7 @@
 <script setup>
 import { computed, onMounted, reactive, ref, watch } from 'vue';
 import { useAuthStore } from '../../stores/auth';
+import { useI18n } from '../../i18n';
 import {
   getUserCenterProfile,
   getUserCenterUsageProgress,
@@ -297,6 +298,8 @@ import {
   redeemUserCenterCode,
   updateUserCenterProfile
 } from '../../services/userCenterApi';
+
+const { t } = useI18n();
 
 const email = ref('');
 const password = ref('');
@@ -348,7 +351,7 @@ const activeSubscriptionsText = computed(() => String(Number(usageSummary.active
 
 const totalUsageText = computed(() => formatCurrency(usageSummary.totalUsedUsd));
 
-const profileStatusText = computed(() => profile.status || 'Active session');
+const profileStatusText = computed(() => profile.status || t('user_activeSession'));
 
 const concurrencyText = computed(() => {
   const value = Number(profile.concurrency || 0);
@@ -408,13 +411,13 @@ async function refreshAll() {
     }
 
     if (profileEnvelope.status !== 'success') {
-      throw new Error(profileEnvelope.message || 'Failed to load profile.');
+      throw new Error(profileEnvelope.message || t('user_loadProfileFailed'));
     }
     if (usageSummaryEnvelope.status !== 'success') {
-      throw new Error(usageSummaryEnvelope.message || 'Failed to load usage summary.');
+      throw new Error(usageSummaryEnvelope.message || t('user_loadUsageFailed'));
     }
     if (usageProgressEnvelope.status !== 'success') {
-      throw new Error(usageProgressEnvelope.message || 'Failed to load usage progress.');
+      throw new Error(usageProgressEnvelope.message || t('user_loadProgressFailed'));
     }
 
     applyProfile(profileEnvelope.data);
@@ -423,7 +426,7 @@ async function refreshAll() {
     usernameDraft.value = profile.username || user.value?.username || '';
     hasLoaded.value = true;
   } catch (error) {
-    loadError.value = error instanceof Error ? error.message : 'Failed to load user-center data.';
+    loadError.value = error instanceof Error ? error.message : t('user_loadFailed');
   }
   finally {
     isRefreshing.value = false;
@@ -435,7 +438,7 @@ async function submitProfileUpdate() {
 
   if (!usernameDraft.value.trim()) {
     profileFeedback.kind = 'error';
-    profileFeedback.text = 'Username cannot be empty.';
+    profileFeedback.text = t('user_usernameEmpty');
     return;
   }
 
@@ -445,22 +448,22 @@ async function submitProfileUpdate() {
     const envelope = await updateUserCenterProfile(usernameDraft.value.trim());
     if (envelope.status === 'unauthenticated') {
       profileFeedback.kind = 'error';
-      profileFeedback.text = envelope.message || 'Your session expired. Please log in again.';
+      profileFeedback.text = envelope.message || t('user_sessionExpired');
       await restoreAuthSession();
       return;
     }
     if (envelope.status !== 'success') {
-      throw new Error(envelope.message || 'Failed to update profile.');
+      throw new Error(envelope.message || t('user_profileUpdateFailed'));
     }
 
     applyProfile(envelope.data);
     usernameDraft.value = profile.username || '';
-    mergeAuthUser({ username: profile.username }, envelope.message || 'Profile updated successfully.');
+    mergeAuthUser({ username: profile.username }, envelope.message || t('user_profileUpdated'));
     profileFeedback.kind = 'success';
-    profileFeedback.text = envelope.message || 'Profile updated successfully.';
+    profileFeedback.text = envelope.message || t('user_profileUpdated');
   } catch (error) {
     profileFeedback.kind = 'error';
-    profileFeedback.text = error instanceof Error ? error.message : 'Failed to update profile.';
+    profileFeedback.text = error instanceof Error ? error.message : t('user_profileUpdateFailed');
   } finally {
     profileSaving.value = false;
   }
@@ -471,7 +474,7 @@ async function submitRedeemCode() {
 
   if (!redeemCode.value.trim()) {
     redeemFeedback.kind = 'error';
-    redeemFeedback.text = 'Redeem code cannot be empty.';
+    redeemFeedback.text = t('user_redeemCodeEmpty');
     return;
   }
 
@@ -481,12 +484,12 @@ async function submitRedeemCode() {
     const envelope = await redeemUserCenterCode(redeemCode.value.trim());
     if (envelope.status === 'unauthenticated') {
       redeemFeedback.kind = 'error';
-      redeemFeedback.text = envelope.message || 'Your session expired. Please log in again.';
+      redeemFeedback.text = envelope.message || t('user_sessionExpired');
       await restoreAuthSession();
       return;
     }
     if (envelope.status !== 'success') {
-      throw new Error(envelope.message || 'Failed to redeem code.');
+      throw new Error(envelope.message || t('user_redeemFailed'));
     }
 
     redeemFeedback.kind = 'success';
@@ -495,7 +498,7 @@ async function submitRedeemCode() {
     await refreshAll();
   } catch (error) {
     redeemFeedback.kind = 'error';
-    redeemFeedback.text = error instanceof Error ? error.message : 'Failed to redeem code.';
+    redeemFeedback.text = error instanceof Error ? error.message : t('user_redeemFailed');
   } finally {
     redeemPending.value = false;
   }
@@ -547,7 +550,7 @@ function normalizeProgressItem(item, index) {
     ['group_name'],
     ['name'],
     ['title']
-  ]) || `Usage item ${index + 1}`;
+  ]) || t('user_usageItem', { index: index + 1 });
 
   const baseDescription = firstNestedString(raw, [
     ['subscription', 'group', 'description'],
@@ -580,7 +583,7 @@ function normalizeProgressItem(item, index) {
   return [{
     key: progressItemIdentifier(raw, index),
     title: baseName,
-    subtitle: baseDescription || 'Usage progress from your active package.',
+    subtitle: baseDescription || t('user_usageProgress'),
     current,
     total,
     percent,
@@ -603,19 +606,21 @@ function normalizeScopedProgressItem(raw, progress, subscription, group, baseNam
     : (current / total) * 100;
 
   const expiresInDays = pickNumber(progress, ['expires_in_days']);
+  const scopeKey = `user_${scope}`;
+  const scopeLabel = t(scopeKey);
   const windowDescription = firstNestedString(scoped, [['resets_at']])
-    ? `${capitalize(scope)} limit resets ${formatShortDate(scoped.resets_at)}`
-    : `${capitalize(scope)} package usage`;
+    ? t('user_scopeLimitResets', { scope: scopeLabel, date: formatShortDate(scoped.resets_at) })
+    : t('user_scopeUsage', { scope: scopeLabel });
   const packageDescription = buildPackageDescription(group, progress, subscription);
-  const expiresDescription = expiresInDays > 0 ? `Expires in ${expiresInDays} day${expiresInDays === 1 ? '' : 's'}` : '';
+  const expiresDescription = expiresInDays > 0 ? t('user_expiresInDays', { count: expiresInDays }) : '';
   const subtitle = [baseDescription || packageDescription, windowDescription, expiresDescription]
     .filter(Boolean)
     .join(' • ');
 
   return {
     key: `${progressItemIdentifier(raw, index)}-${scope}`,
-    title: `${baseName} · ${capitalize(scope)}`,
-    subtitle: subtitle || 'Usage progress from your active package.',
+    title: `${baseName} \u00b7 ${scopeLabel}`,
+    subtitle: subtitle || t('user_usageProgress'),
     current,
     total,
     percent,
@@ -647,13 +652,13 @@ function normalizeDurationProgressItem(raw, progress, subscription, group, baseN
   const expiresInDays = pickNumber(progress, ['expires_in_days']);
   const packageDescription = buildPackageDescription(group, progress, subscription);
   const expiryDescription = expiresInDays > 0
-    ? `Expires in ${expiresInDays} day${expiresInDays === 1 ? '' : 's'}`
-    : `Expires ${formatShortDate(expiresAt)}`;
+    ? t('user_expiresInDays', { count: expiresInDays })
+    : t('user_expiresOn', { date: formatShortDate(expiresAt) });
 
   return {
     key: `${progressItemIdentifier(raw, index)}-duration`,
     title: baseName,
-    subtitle: [baseDescription || packageDescription, expiryDescription].filter(Boolean).join(' • ') || 'Active package duration',
+    subtitle: [baseDescription || packageDescription, expiryDescription].filter(Boolean).join(' \u2022 ') || t('user_activePackageDuration'),
     current: elapsedDays,
     total: totalDays,
     percent,
@@ -678,25 +683,25 @@ function progressItemKey(item, index) {
 }
 
 function progressItemTitle(item, index) {
-  return item?.title || `Usage item ${index + 1}`;
+  return item?.title || t('user_usageItem', { index: index + 1 });
 }
 
 function progressItemSubtitle(item) {
-  return item?.subtitle || 'Usage progress from your active package.';
+  return item?.subtitle || t('user_usageProgress');
 }
 
 function progressItemCurrentLabel(item) {
   if (!item) {
-    return 'Current: -';
+    return t('user_currentEmpty');
   }
-  return `Current: ${formatProgressValue(item.current, item.unit)}`;
+  return t('user_currentLabel', { value: formatProgressValue(item.current, item.unit) });
 }
 
 function progressItemTotalLabel(item) {
   if (!item || !Number.isFinite(item.total) || item.total <= 0) {
-    return 'Total: -';
+    return t('user_totalEmpty');
   }
-  return `Total: ${formatProgressValue(item.total, item.unit)}`;
+  return t('user_totalLabel', { value: formatProgressValue(item.total, item.unit) });
 }
 
 function clampPercent(percent) {
@@ -738,13 +743,13 @@ function formatRedeemSuccessMessage(data) {
     const code = pickString(data, ['code', 'redeem_code']);
     const detail = pickString(data, ['message', 'status', 'result']);
     if (code && detail) {
-      return `Redeem successful for ${code}: ${detail}`;
+      return t('user_redeemSuccessFor', { code, detail });
     }
     if (detail) {
-      return `Redeem successful: ${detail}`;
+      return t('user_redeemSuccessDetail', { detail });
     }
   }
-  return 'Redeem successful.';
+  return t('user_redeemSuccess');
 }
 
 function findUnauthenticatedMessage(envelopes) {

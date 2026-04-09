@@ -3,16 +3,16 @@
     <div class="flex flex-col gap-3 rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-background-dark">
       <div class="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
         <div>
-          <h2 class="text-xl font-bold text-slate-900 dark:text-white">Customer Configuration</h2>
+          <h2 class="text-xl font-bold text-slate-900 dark:text-white">{{ t('rules_title') }}</h2>
           <p class="text-sm text-slate-500">
-            Manage the customer-facing proxy, AI rules, and proxy rules stored by the customer config API.
+            {{ t('rules_description') }}
           </p>
         </div>
         <div class="flex flex-col items-start gap-2 md:items-end">
           <span class="rounded bg-primary/10 px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-primary">
-            {{ loading ? 'Loading' : 'Customer only' }}
+            {{ loading ? t('rules_loading') : t('rules_customerOnly') }}
           </span>
-          <span v-if="version" class="text-[11px] text-slate-400">Version {{ version }}</span>
+          <span v-if="version" class="text-[11px] text-slate-400">{{ t('rules_version', { version }) }}</span>
         </div>
       </div>
 
@@ -25,7 +25,7 @@
       </div>
 
       <div v-if="loading" class="rounded-lg border border-dashed border-slate-300 bg-slate-50 px-4 py-8 text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-400">
-        Loading customer configuration…
+        {{ t('rules_loadingConfig') }}
       </div>
 
       <form v-else class="space-y-6" @submit.prevent="handleSubmit">
@@ -39,8 +39,8 @@
             <div class="flex items-center gap-2">
               <span class="material-symbols-outlined text-primary">vpn_key</span>
               <div>
-                <h3 class="font-semibold text-slate-900 dark:text-white">Customer Proxy</h3>
-                <p class="text-xs text-slate-500">Only `customer.proxy` fields are editable here.</p>
+                <h3 class="font-semibold text-slate-900 dark:text-white">{{ t('rules_customerProxy') }}</h3>
+                <p class="text-xs text-slate-500">{{ t('rules_proxyDesc') }}</p>
               </div>
             </div>
 
@@ -50,7 +50,7 @@
                 ? 'border-primary/20 bg-white text-slate-700 dark:border-primary/30 dark:bg-slate-900 dark:text-slate-200'
                 : 'border-slate-200 bg-white/70 text-slate-500 dark:border-slate-700 dark:bg-slate-900/80 dark:text-slate-300'"
             >
-              <span>Enable customer proxy</span>
+              <span>{{ t('rules_enableProxy') }}</span>
               <span class="relative">
                 <input v-model="form.proxy.enable" class="peer sr-only" type="checkbox" />
                 <span class="relative block h-6 w-11 rounded-full bg-slate-300 transition-colors after:absolute after:left-0.5 after:top-0.5 after:h-5 after:w-5 after:rounded-full after:bg-white after:transition-transform after:content-[''] peer-checked:bg-primary peer-checked:after:translate-x-5 peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-primary dark:bg-slate-700"></span>
@@ -60,7 +60,7 @@
 
           <div class="grid gap-4 md:grid-cols-[180px_minmax(0,1fr)]">
             <label class="space-y-2">
-              <span class="text-xs font-semibold uppercase tracking-wide text-slate-500">Proxy type</span>
+              <span class="text-xs font-semibold uppercase tracking-wide text-slate-500">{{ t('rules_proxyType') }}</span>
               <select
                 v-model="form.proxy.type"
                 :disabled="!form.proxy.enable"
@@ -72,7 +72,7 @@
             </label>
 
             <label class="space-y-2">
-              <span class="text-xs font-semibold uppercase tracking-wide text-slate-500">Server</span>
+              <span class="text-xs font-semibold uppercase tracking-wide text-slate-500">{{ t('rules_server') }}</span>
               <input
                 v-model.trim="form.proxy.server"
                 :disabled="!form.proxy.enable"
@@ -91,13 +91,13 @@
           <div class="mb-4 flex items-center gap-2">
             <span class="material-symbols-outlined text-primary">robot_2</span>
             <div>
-              <h3 class="font-semibold text-slate-900 dark:text-white">AI Rules</h3>
-              <p class="text-xs text-slate-500">Choose which backend AI-rule providers are enabled and list included domains, separated by new lines, commas, or semicolons.</p>
+              <h3 class="font-semibold text-slate-900 dark:text-white">{{ t('rules_aiRules') }}</h3>
+              <p class="text-xs text-slate-500">{{ t('rules_aiRulesDesc') }}</p>
             </div>
           </div>
 
           <div v-if="!providerOrder.length" class="rounded-lg border border-dashed border-slate-300 bg-white px-4 py-6 text-sm text-slate-500 dark:border-slate-700 dark:bg-background-dark dark:text-slate-400">
-            No AI rule providers were returned by the backend yet.
+            {{ t('rules_noProviders') }}
           </div>
 
           <div v-else class="grid gap-4 xl:grid-cols-2">
@@ -119,7 +119,7 @@
               </div>
 
               <label v-if="isDev" class="space-y-2">
-                <span class="text-xs font-semibold uppercase tracking-wide text-slate-500">Include domains</span>
+                <span class="text-xs font-semibold uppercase tracking-wide text-slate-500">{{ t('rules_includeDomains') }}</span>
                 <textarea
                   :value="_providerIncludeTexts[provider]"
                   class="min-h-28 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 font-mono text-sm text-slate-700 shadow-sm transition focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
@@ -136,13 +136,13 @@
           <div class="mb-4 flex items-center gap-2">
             <span class="material-symbols-outlined text-primary">rule_settings</span>
             <div>
-              <h3 class="font-semibold text-slate-900 dark:text-white">Proxy Rules</h3>
-              <p class="text-xs text-slate-500">Edit `customer.proxy_rules`, one rule per line.</p>
+              <h3 class="font-semibold text-slate-900 dark:text-white">{{ t('rules_proxyRules') }}</h3>
+              <p class="text-xs text-slate-500">{{ t('rules_proxyRulesDesc') }}</p>
             </div>
           </div>
 
           <label class="space-y-2">
-            <span class="text-xs font-semibold uppercase tracking-wide text-slate-500">Rules list</span>
+            <span class="text-xs font-semibold uppercase tracking-wide text-slate-500">{{ t('rules_rulesList') }}</span>
             <textarea
               :value="_proxyRulesText"
               class="min-h-40 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 font-mono text-sm text-slate-700 shadow-sm transition focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
@@ -154,7 +154,7 @@
 
         <div class="flex flex-col gap-3 rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-background-dark md:flex-row md:items-center md:justify-between">
           <div class="text-xs text-slate-500">
-            This form submits a payload shaped as <span class="font-mono text-slate-700 dark:text-slate-200">{ customer: ... }</span> with no core settings.
+            {{ t('rules_formHint') }}
           </div>
           <button
             id="rulesConfigSaveBtn"
@@ -163,7 +163,7 @@
             type="submit"
           >
             <span class="material-symbols-outlined text-sm">save</span>
-            {{ saving ? 'Saving…' : 'Save Configuration' }}
+            {{ saving ? t('rules_saving') : t('rules_saveConfig') }}
           </button>
         </div>
       </form>
@@ -180,7 +180,7 @@
             <span class="material-symbols-outlined">check_circle</span>
           </div>
           <div class="min-w-0 flex-1">
-            <h3 class="text-base font-semibold text-slate-900 dark:text-white">Configuration Saved</h3>
+            <h3 class="text-base font-semibold text-slate-900 dark:text-white">{{ t('rules_configSaved') }}</h3>
             <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">{{ successMessage }}</p>
           </div>
           <button
@@ -197,6 +197,8 @@
 </template>
 
 <script>
+import { useI18n } from '../../i18n';
+
 function defaultConfig() {
   return {
     proxy: {
@@ -278,16 +280,16 @@ function mergeProviderOrder(configuredKeys, presetProviders) {
 
 const SERVER_RE = /^(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}|\[[\da-fA-F:]+\]):(\d{1,5})$/;
 
-function isValidServer(value) {
+function isValidServer(value, t) {
   if (!value) return '';
   const match = value.match(SERVER_RE);
-  if (!match) return '格式必须为 IP:Port，例如 127.0.0.1:1080';
+  if (!match) return t('rules_serverError');
   const port = Number(match[2]);
-  if (port < 1 || port > 65535) return '端口号必须在 1-65535 之间';
+  if (port < 1 || port > 65535) return t('rules_serverPortRange');
   const ip = match[1];
   if (ip.startsWith('[')) return '';
   if (ip.split('.').every((o) => Number(o) >= 0 && Number(o) <= 255)) return '';
-  return 'IP 地址不合法';
+  return t('rules_serverIpInvalid');
 }
 
 function valueOrDefaultBoolean(value, defaultValue) {
@@ -296,6 +298,10 @@ function valueOrDefaultBoolean(value, defaultValue) {
 
 export default {
   name: 'RulesSettings',
+  setup() {
+    const { t } = useI18n();
+    return { t };
+  },
   props: {
     config: {
       type: Object,
@@ -350,7 +356,7 @@ export default {
     },
     serverError() {
       if (!this.form.proxy.enable) return '';
-      return isValidServer(this.form.proxy.server);
+      return isValidServer(this.form.proxy.server, this.t);
     },
     serverFieldClass() {
       if (!this.form.proxy.server) return 'border-slate-300 bg-white focus:border-primary focus:ring-primary/20 dark:border-slate-700 dark:bg-slate-900';

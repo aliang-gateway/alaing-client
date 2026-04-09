@@ -3,14 +3,14 @@
     <div class="rounded-xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-background-dark">
       <h3 class="mb-4 flex items-center gap-2 font-bold">
         <span class="material-symbols-outlined text-primary">settings</span>
-        System Settings
+        {{ t('sys_systemSettings') }}
       </h3>
 
       <div class="space-y-6">
         <div class="flex items-center justify-between">
           <div>
-            <p class="text-sm font-semibold">Run Mode</p>
-            <p class="text-[10px] text-slate-500">Toggle between TUN and HTTP</p>
+            <p class="text-sm font-semibold">{{ t('sys_runMode') }}</p>
+            <p class="text-[10px] text-slate-500">{{ t('sys_runModeDesc') }}</p>
           </div>
           <div class="flex rounded bg-slate-100 p-1 dark:bg-slate-800">
             <button
@@ -42,12 +42,35 @@
           </div>
         </div>
 
+        <div class="flex items-center justify-between">
+          <div>
+            <p class="text-sm font-semibold">{{ t('sys_language') }}</p>
+            <p class="text-[10px] text-slate-500">{{ t('sys_languageDesc') }}</p>
+          </div>
+          <div class="flex rounded bg-slate-100 p-1 dark:bg-slate-800">
+            <button
+              v-for="lang in languages"
+              :key="lang.value"
+              type="button"
+              :class="[
+                'rounded px-3 py-1 text-[10px] font-bold transition',
+                locale === lang.value
+                  ? 'bg-primary text-white shadow-sm'
+                  : 'text-slate-500 hover:bg-slate-200 dark:text-slate-300 dark:hover:bg-slate-700/70'
+              ]"
+              @click="setLocale(lang.value)"
+            >
+              {{ lang.label }}
+            </button>
+          </div>
+        </div>
+
         <div class="space-y-3 rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-900/50">
           <div class="flex flex-wrap items-center gap-2 text-[11px] text-slate-600 dark:text-slate-300">
-            <span class="rounded bg-slate-200 px-2 py-0.5 font-semibold dark:bg-slate-700">Backend: {{ backendMode.toUpperCase() }}</span>
-            <span class="rounded bg-slate-200 px-2 py-0.5 font-semibold dark:bg-slate-700">Selected: {{ selectedMode.toUpperCase() }}</span>
+            <span class="rounded bg-slate-200 px-2 py-0.5 font-semibold dark:bg-slate-700">{{ t('sys_backend') }}: {{ backendMode.toUpperCase() }}</span>
+            <span class="rounded bg-slate-200 px-2 py-0.5 font-semibold dark:bg-slate-700">{{ t('sys_selected') }}: {{ selectedMode.toUpperCase() }}</span>
             <span v-if="isRunning !== null" class="rounded bg-slate-200 px-2 py-0.5 font-semibold dark:bg-slate-700">
-              {{ isRunning ? 'Running' : 'Stopped' }}
+              {{ isRunning ? t('sys_running') : t('sys_stopped') }}
             </span>
           </div>
           <p v-if="modeStatus" class="text-[11px] text-slate-500 dark:text-slate-400">{{ modeStatus }}</p>
@@ -55,13 +78,13 @@
             v-if="showMissingWintunBanner"
             class="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200"
           >
-            {{ wintunDependency.message || 'Wintun dependency is missing. We will install it automatically before switching to TUN mode.' }}
+            {{ wintunDependency.message || t('sys_wintunMissing') }}
           </div>
           <div
             v-if="showInstallingWintunBanner"
             class="rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-[11px] text-sky-700 dark:border-sky-500/30 dark:bg-sky-500/10 dark:text-sky-200"
           >
-            {{ wintunDependency.message || 'Installing Wintun dependency in the background...' }}
+            {{ wintunDependency.message || t('sys_wintunInstalling') }}
           </div>
           <p v-if="modeError" class="text-[11px] text-red-500">{{ modeError }}</p>
           <p v-if="modeSuccess" class="text-[11px] text-emerald-600 dark:text-emerald-400">{{ modeSuccess }}</p>
@@ -73,7 +96,7 @@
               :disabled="loadingMode || switchingMode || wintunDependency.installing"
               @click="refreshModeState"
             >
-              {{ loadingMode ? 'Refreshing...' : 'Refresh State' }}
+              {{ loadingMode ? t('sys_refreshing') : t('sys_refreshState') }}
             </button>
           </div>
         </div>
@@ -87,10 +110,10 @@
             <div class="border-b border-slate-200 bg-slate-50/80 px-5 py-4 dark:border-slate-700 dark:bg-slate-800/60">
               <div class="flex items-start justify-between gap-4">
                 <div>
-                  <p class="text-xs font-bold uppercase tracking-[0.2em] text-amber-500">Switch To TUN</p>
-                  <h3 class="mt-1 text-lg font-semibold text-slate-900 dark:text-slate-100">Continue switching from HTTP to TUN?</h3>
+                  <p class="text-xs font-bold uppercase tracking-[0.2em] text-amber-500">{{ t('sys_switchToTun') }}</p>
+                  <h3 class="mt-1 text-lg font-semibold text-slate-900 dark:text-slate-100">{{ t('sys_continueTunSwitch') }}</h3>
                   <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">
-                    We will return to the dashboard and show the live TUN startup progress dialog while the backend applies the switch.
+                    {{ t('sys_tunSwitchDesc') }}
                   </p>
                 </div>
                 <button
@@ -105,7 +128,7 @@
 
             <div class="space-y-4 p-5">
               <div class="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">
-                If the system blocks TUN permissions, the startup dialog will keep the error logs visible so the user can decide what to do next.
+                {{ t('sys_tunPermissionWarning') }}
               </div>
 
               <div class="flex gap-3">
@@ -114,14 +137,14 @@
                   class="inline-flex h-11 flex-1 items-center justify-center rounded-lg border border-slate-200 px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:text-slate-100 dark:hover:bg-slate-800"
                   @click="cancelTunSwitchConfirm"
                 >
-                  Cancel
+                  {{ t('sys_cancel') }}
                 </button>
                 <button
                   type="button"
                   class="inline-flex h-11 flex-1 items-center justify-center rounded-lg bg-primary px-4 text-sm font-semibold text-white transition hover:bg-primary/90"
                   @click="confirmTunSwitch"
                 >
-                  Continue
+                  {{ t('sys_continue') }}
                 </button>
               </div>
             </div>
@@ -156,7 +179,7 @@
                         ? 'text-red-500 dark:text-red-300'
                         : 'text-primary'"
                     >
-                      {{ systemServiceConfirmAction === 'uninstall' ? 'Remove Service' : 'Register Service' }}
+                      {{ systemServiceConfirmAction === 'uninstall' ? t('sys_removeService') : t('sys_registerService') }}
                     </p>
                     <h3 class="mt-1 text-lg font-semibold text-slate-900 dark:text-slate-100">
                       {{ systemServiceConfirmTitle }}
@@ -188,7 +211,7 @@
               </div>
 
               <div class="rounded-2xl border border-slate-200 bg-slate-50/80 p-4 dark:border-slate-700 dark:bg-slate-800/45">
-                <p class="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">Operation Summary</p>
+                <p class="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">{{ t('sys_operationSummary') }}</p>
                 <div class="mt-3 space-y-2">
                   <div
                     v-for="item in systemServiceConfirmChecklist"
@@ -208,7 +231,7 @@
                   :disabled="serviceActionLoading"
                   @click="closeSystemServiceConfirm"
                 >
-                  Cancel
+                  {{ t('sys_cancel') }}
                 </button>
                 <button
                   type="button"
@@ -227,7 +250,7 @@
         </div>
 
         <div class="space-y-2">
-          <p class="text-sm font-semibold">Software Status</p>
+          <p class="text-sm font-semibold">{{ t('sys_softwareStatus') }}</p>
           <div class="rounded border-l-4 p-3" :class="serviceCardClass">
             <div class="flex items-start justify-between gap-3">
               <div>
@@ -239,7 +262,7 @@
                   v-if="showServicePrivilegeHint"
                   class="mt-2 text-[10px] font-semibold text-amber-700 dark:text-amber-300"
                 >
-                  需要管理员权限后才能注册成系统服务。
+                  {{ t('sys_adminRequired') }}
                 </p>
               </div>
               <span class="rounded-full px-2 py-0.5 text-[10px] font-bold" :class="serviceBadgeClass">
@@ -253,19 +276,19 @@
 
             <div v-if="systemServiceInfo.supported && systemServiceInfo.installed" class="mt-3 grid grid-cols-2 gap-2 rounded border border-slate-200 bg-white/70 p-3 text-[10px] text-slate-600 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-300">
               <div>
-                <p class="text-slate-400">Status</p>
+                <p class="text-slate-400">{{ t('sys_status') }}</p>
                 <p class="mt-1 font-semibold text-slate-700 dark:text-slate-100">{{ systemServiceInfo.status || 'unknown' }}</p>
               </div>
               <div>
-                <p class="text-slate-400">PID</p>
+                <p class="text-slate-400">{{ t('sys_pid') }}</p>
                 <p class="mt-1 font-semibold text-slate-700 dark:text-slate-100">{{ systemServiceInfo.pid || '-' }}</p>
               </div>
               <div>
-                <p class="text-slate-400">Platform</p>
+                <p class="text-slate-400">{{ t('sys_platform') }}</p>
                 <p class="mt-1 font-semibold text-slate-700 dark:text-slate-100">{{ friendlyPlatformLabel }}</p>
               </div>
               <div>
-                <p class="text-slate-400">Kind</p>
+                <p class="text-slate-400">{{ t('sys_kind') }}</p>
                 <p class="mt-1 font-semibold text-slate-700 dark:text-slate-100">{{ friendlyServiceLabel }}</p>
               </div>
             </div>
@@ -280,7 +303,7 @@
                 :disabled="serviceActionLoading || !systemServiceInfo.supported || systemServiceInfo.installed || showServicePrivilegeHint"
                 @click="openSystemServiceConfirm('install')"
               >
-                {{ serviceActionLoading && serviceAction === 'install' ? '注册中...' : '注册成系统服务' }}
+                {{ serviceActionLoading && serviceAction === 'install' ? t('sys_registering') : t('sys_registerServiceBtn') }}
               </button>
               <button
                 type="button"
@@ -288,7 +311,7 @@
                 :disabled="serviceActionLoading || !systemServiceInfo.supported || !systemServiceInfo.installed"
                 @click="openSystemServiceConfirm('uninstall')"
               >
-                {{ serviceActionLoading && serviceAction === 'uninstall' ? '卸载中...' : '卸载系统服务' }}
+                {{ serviceActionLoading && serviceAction === 'uninstall' ? t('sys_uninstalling') : t('sys_uninstallServiceBtn') }}
               </button>
             </div>
 
@@ -298,37 +321,37 @@
               :disabled="serviceActionLoading"
               @click="refreshSystemServiceStatus"
             >
-              刷新系统服务状态
+              {{ t('sys_refreshServiceStatus') }}
             </button>
           </div>
         </div>
 
         <div class="space-y-3">
           <div class="flex items-center justify-between">
-            <p class="text-sm font-semibold">Certificate CA</p>
+            <p class="text-sm font-semibold">{{ t('sys_certCa') }}</p>
             <span class="flex items-center gap-1 text-[10px] font-bold text-primary">
               <span class="material-symbols-outlined text-xs">verified_user</span>
-              Trusted
+              {{ t('sys_trusted') }}
             </span>
           </div>
           <div class="space-y-1 rounded border border-slate-100 p-2 font-mono text-[10px] text-slate-500 dark:border-slate-800">
-            <div><span class="text-slate-400">Subject:</span> Opencode Local CA</div>
-            <div><span class="text-slate-400">Validity:</span> 2024-2029 (Valid)</div>
-            <div class="truncate"><span class="text-slate-400">Finger:</span> 7A:9C:B5:E1:02...</div>
+            <div><span class="text-slate-400">{{ t('sys_subject') }}</span> Opencode Local CA</div>
+            <div><span class="text-slate-400">{{ t('sys_validity') }}</span> 2024-2029 (Valid)</div>
+            <div class="truncate"><span class="text-slate-400">{{ t('sys_finger') }}</span> 7A:9C:B5:E1:02...</div>
           </div>
           <div class="grid grid-cols-2 gap-2">
             <button type="button" class="flex items-center justify-center gap-1 rounded border border-slate-200 py-1.5 text-[10px] font-bold hover:bg-slate-50 dark:border-slate-800 dark:hover:bg-slate-800">
               <span class="material-symbols-outlined text-sm">download</span>
-              Export
+              {{ t('sys_export') }}
             </button>
             <button type="button" class="flex items-center justify-center gap-1 rounded border border-primary py-1.5 text-[10px] font-bold text-primary hover:bg-primary/5">
               <span class="material-symbols-outlined text-sm">install_desktop</span>
-              Install
+              {{ t('sys_install') }}
             </button>
           </div>
           <button type="button" class="flex w-full items-center justify-center gap-1 text-[10px] font-medium text-red-500">
             <span class="material-symbols-outlined text-sm">delete</span>
-            Remove Root Certificate
+            {{ t('sys_removeRootCert') }}
           </button>
         </div>
 
@@ -373,10 +396,12 @@
 import { nextTick } from 'vue';
 import { useNavigation } from '../../composables/useNavigation';
 import { useRunStatus } from '../../composables/useRunStatus';
+import { useI18n } from '../../i18n';
 
 export default {
   name: 'SystemSettings',
   setup() {
+    const { locale, t, setLocale } = useI18n();
     const { showDashboard } = useNavigation();
     const {
       runMode,
@@ -390,6 +415,13 @@ export default {
     } = useRunStatus();
 
     return {
+      locale,
+      t,
+      setLocale,
+      languages: [
+        { value: 'en', label: 'English' },
+        { value: 'zh', label: '\u4E2D\u6587' },
+      ],
       showDashboard,
       sharedRunMode: runMode,
       sharedRunIsRunning: runIsRunning,
@@ -453,7 +485,7 @@ export default {
     },
     modeStatus() {
       if (this.sharedRunSyncError) {
-        return `Sync failed: ${this.sharedRunSyncError}`;
+        return this.t('sys_syncFailed', { error: this.sharedRunSyncError });
       }
       return typeof this.sharedRunStatus === 'string' ? this.sharedRunStatus : '';
     },
@@ -488,33 +520,33 @@ export default {
     },
     systemServiceTitle() {
       if (!this.systemServiceInfo.supported) {
-        return '系统服务不受支持';
+        return this.t('sys_svcNotSupported');
       }
-      return this.systemServiceInfo.display_name || 'Aliang 系统服务';
+      return this.systemServiceInfo.display_name || this.t('sys_svcAliangDefault');
     },
     systemServiceDescription() {
       if (!this.systemServiceInfo.supported) {
-        return '当前平台在本版本中未提供可用的系统服务注册能力。';
+        return this.t('sys_svcDescNotSupported');
       }
       if (!this.systemServiceInfo.installed) {
-        return `将应用注册成 ${this.friendlyServiceLabel}，用于后台自启动和系统级代理准备。`;
+        return this.t('sys_svcDescNotInstalled', { label: this.friendlyServiceLabel });
       }
-      return this.systemServiceInfo.message || '系统服务已注册。卸载时会保留配置文件。';
+      return this.systemServiceInfo.message || this.t('sys_svcDescInstalled');
     },
     systemServiceBadge() {
       if (!this.systemServiceInfo.supported) {
-        return '不支持';
+        return this.t('sys_badgeNotSupported');
       }
       if (!this.systemServiceInfo.installed) {
-        return '未注册';
+        return this.t('sys_badgeNotRegistered');
       }
-      return this.systemServiceInfo.running ? '运行中' : '已注册';
+      return this.systemServiceInfo.running ? this.t('sys_badgeRunning') : this.t('sys_badgeRegistered');
     },
     friendlyPlatformLabel() {
       return this.systemServiceInfo.platform_label || this.systemServiceInfo.platform || '-';
     },
     friendlyServiceLabel() {
-      return this.systemServiceInfo.service_label || this.systemServiceInfo.service_kind || '系统服务';
+      return this.systemServiceInfo.service_label || this.systemServiceInfo.service_kind || this.t('sys_serviceLabelFallback');
     },
     serviceBadgeClass() {
       if (!this.systemServiceInfo.supported) {
@@ -540,40 +572,40 @@ export default {
     },
     systemServiceConfirmTitle() {
       return this.systemServiceConfirmAction === 'uninstall'
-        ? '确定要卸载当前系统服务吗？'
-        : `确定要注册 ${this.friendlyServiceLabel} 吗？`;
+        ? this.t('sys_confirmUninstallTitle')
+        : this.t('sys_confirmRegisterTitle', { label: this.friendlyServiceLabel });
     },
     systemServiceConfirmDescription() {
       if (this.systemServiceConfirmAction === 'uninstall') {
-        return '卸载后，Aliang 将不再随系统自动启动，后台代理准备能力也会被移除。';
+        return this.t('sys_confirmUninstallDesc');
       }
-      return `注册后会创建 ${this.friendlyServiceLabel}，用于后台自启动和系统级运行准备。`;
+      return this.t('sys_confirmRegisterDesc', { label: this.friendlyServiceLabel });
     },
     systemServiceConfirmHighlight() {
       if (this.systemServiceConfirmAction === 'uninstall') {
-        return '此操作会移除后台自启动能力，并删除托管的可执行文件；配置文件会保留。';
+        return this.t('sys_confirmUninstallHighlight');
       }
-      return '注册完成后，系统会在后台启动 Aliang；macOS 还会尝试配置菜单栏 companion。';
+      return this.t('sys_confirmRegisterHighlight');
     },
     systemServiceConfirmChecklist() {
       if (this.systemServiceConfirmAction === 'uninstall') {
         return [
-          `移除 ${this.friendlyServiceLabel} 的系统注册`,
-          '停止系统重启后的自动启动',
-          '删除托管的可执行文件，保留现有配置文件'
+          this.t('sys_confirmUninstallCheck1', { label: this.friendlyServiceLabel }),
+          this.t('sys_confirmUninstallCheck2'),
+          this.t('sys_confirmUninstallCheck3')
         ];
       }
       return [
-        `注册 ${this.friendlyServiceLabel} 到当前系统`,
-        '准备托管运行所需的受管配置与数据目录',
-        '允许后台自启动和本地控制面板协同工作'
+        this.t('sys_confirmRegisterCheck1', { label: this.friendlyServiceLabel }),
+        this.t('sys_confirmRegisterCheck2'),
+        this.t('sys_confirmRegisterCheck3')
       ];
     },
     systemServiceConfirmButtonLabel() {
       if (this.systemServiceConfirmAction === 'uninstall') {
-        return this.serviceActionLoading ? '卸载中...' : '确认卸载';
+        return this.serviceActionLoading ? this.t('sys_uninstallingBtn') : this.t('sys_confirmUninstallBtn');
       }
-      return this.serviceActionLoading ? '注册中...' : '确认注册';
+      return this.serviceActionLoading ? this.t('sys_registeringBtn') : this.t('sys_confirmRegisterBtn');
     }
   },
   mounted() {
@@ -605,10 +637,10 @@ export default {
     formatWintunInstallError(dependency, fallbackMessage) {
       const code = dependency && typeof dependency.error_code === 'string' ? dependency.error_code : '';
       if (code === 'uac_cancelled') {
-        return '已取消管理员授权，Wintun 未安装。';
+        return this.t('sys_wintunUacCancelled');
       }
       if (code === 'verification_failed') {
-        return 'Wintun 安装完成，但系统目录中未检测到可用 DLL。';
+        return this.t('sys_wintunVerifyFailed');
       }
       return fallbackMessage;
     },
@@ -631,27 +663,27 @@ export default {
         });
         this.systemServiceInfo = result && typeof result === 'object' ? result : this.systemServiceInfo;
       } catch (err) {
-        this.systemServiceError = err instanceof Error ? err.message : 'Failed to load system service status.';
+        this.systemServiceError = err instanceof Error ? err.message : this.t('sys_svcStatusFailed');
       }
     },
     async ensureWintunInstallProgressModal() {
       await this.dispatchTunProgressEvent('aliang:tun-progress-open', {
         phase: 'installing_dependency',
         installState: this.wintunDependency.state || 'queued',
-        title: 'Installing Wintun Dependency',
-        detail: 'Windows needs the Wintun driver before TUN mode can start.',
-        statusLabel: 'Installing dependency...',
-        statusHint: this.wintunDependency.message || 'Preparing the Wintun package and waiting for installation progress.'
+        title: this.t('sys_wintunInstallTitle'),
+        detail: this.t('sys_wintunInstallDetail'),
+        statusLabel: this.t('sys_wintunInstallStatusLabel'),
+        statusHint: this.wintunDependency.message || this.t('sys_wintunInstallStatusHint')
       });
     },
     async updateWintunInstallProgressModal() {
       await this.dispatchTunProgressEvent('aliang:tun-progress-update', {
         phase: 'installing_dependency',
         installState: this.wintunDependency.state || 'installing',
-        title: 'Installing Wintun Dependency',
-        detail: 'Windows needs the Wintun driver before TUN mode can start.',
-        statusLabel: `Installing dependency... ${Number(this.wintunDependency.progress_percent || 0)}%`,
-        statusHint: this.wintunDependency.message || 'Preparing the Wintun package and waiting for installation progress.'
+        title: this.t('sys_wintunInstallTitle'),
+        detail: this.t('sys_wintunInstallDetail'),
+        statusLabel: this.t('sys_wintunInstallStatusLabelProgress', { percent: Number(this.wintunDependency.progress_percent || 0) }),
+        statusHint: this.wintunDependency.message || this.t('sys_wintunInstallStatusHint')
       });
     },
     async selectMode(mode) {
@@ -706,7 +738,7 @@ export default {
           : null;
         this.selectedMode = this.pendingTunSwitchAfterInstall ? 'tun' : this.backendMode;
       } catch (err) {
-        this.modeError = err instanceof Error ? err.message : 'Failed to load run mode status.';
+        this.modeError = err instanceof Error ? err.message : this.t('sys_refreshModeFailed');
       } finally {
         this.loadingMode = false;
       }
@@ -745,11 +777,11 @@ export default {
           method: 'POST'
         });
         this.systemServiceInfo = result && typeof result === 'object' ? result : this.systemServiceInfo;
-        this.systemServiceMessage = this.systemServiceInfo.message || 'System service registered successfully.';
+        this.systemServiceMessage = this.systemServiceInfo.message || this.t('sys_svcRegistered');
         this.showSystemServiceConfirm = false;
         this.systemServiceConfirmAction = '';
       } catch (err) {
-        this.systemServiceError = err instanceof Error ? err.message : 'Failed to register system service.';
+        this.systemServiceError = err instanceof Error ? err.message : this.t('sys_svcRegisterFailed');
       } finally {
         this.serviceActionLoading = false;
         this.serviceAction = '';
@@ -764,11 +796,11 @@ export default {
           method: 'POST'
         });
         this.systemServiceInfo = result && typeof result === 'object' ? result : this.systemServiceInfo;
-        this.systemServiceMessage = this.systemServiceInfo.message || 'System service uninstalled successfully.';
+        this.systemServiceMessage = this.systemServiceInfo.message || this.t('sys_svcUninstalled');
         this.showSystemServiceConfirm = false;
         this.systemServiceConfirmAction = '';
       } catch (err) {
-        this.systemServiceError = err instanceof Error ? err.message : 'Failed to uninstall system service.';
+        this.systemServiceError = err instanceof Error ? err.message : this.t('sys_svcUninstallFailed');
       } finally {
         this.serviceActionLoading = false;
         this.serviceAction = '';
@@ -805,14 +837,14 @@ export default {
         if (this.wintunDependency.available) {
           const shouldContinue = this.pendingTunSwitchAfterInstall;
           this.pendingTunSwitchAfterInstall = false;
-          this.modeSuccess = this.wintunDependency.message || 'Wintun dependency is ready.';
+          this.modeSuccess = this.wintunDependency.message || this.t('sys_wintunDependencyReady');
           if (shouldContinue) {
             await this.continueTunSwitchAfterDependencyReady();
           } else {
             await this.dispatchTunProgressEvent('aliang:tun-progress-success', {
-              title: 'Wintun Ready',
-              detail: 'The Windows dependency is installed and TUN mode can now be enabled.',
-              statusLabel: 'Dependency ready',
+              title: this.t('sys_wintunReady'),
+              detail: this.t('sys_wintunReadyDetail'),
+              statusLabel: this.t('sys_wintunReadyLabel'),
               statusHint: this.modeSuccess,
               message: this.modeSuccess
             });
@@ -823,25 +855,25 @@ export default {
         this.pendingTunSwitchAfterInstall = false;
         this.modeError = this.formatWintunInstallError(
           this.wintunDependency,
-          this.wintunDependency.error || this.wintunDependency.message || 'Failed to install Wintun dependency.'
+          this.wintunDependency.error || this.wintunDependency.message || this.t('sys_wintunDependencyFailed')
         );
         await this.dispatchTunProgressEvent('aliang:tun-progress-error', {
-          title: 'Wintun Installation Failed',
-          detail: 'The Windows dependency could not be installed automatically.',
-          statusLabel: 'Dependency install failed',
-          statusHint: 'Check the error message below and retry after fixing permissions or network issues.',
+          title: this.t('sys_wintunInstallFailed'),
+          detail: this.t('sys_wintunInstallFailedDetail'),
+          statusLabel: this.t('sys_wintunInstallFailedLabel'),
+          statusHint: this.t('sys_wintunInstallFailedHint'),
           message: this.modeError
         });
       } catch (err) {
         this.modeError = this.formatWintunInstallError(
           null,
-          err instanceof Error ? err.message : 'Failed to refresh Wintun installation status.'
+          err instanceof Error ? err.message : this.t('sys_refreshWintunFailed')
         );
         await this.dispatchTunProgressEvent('aliang:tun-progress-error', {
-          title: 'Wintun Installation Failed',
-          detail: 'The Windows dependency could not be installed automatically.',
-          statusLabel: 'Dependency install failed',
-          statusHint: 'Check the error message below and retry after fixing permissions or network issues.',
+          title: this.t('sys_wintunInstallFailed'),
+          detail: this.t('sys_wintunInstallFailedDetail'),
+          statusLabel: this.t('sys_wintunInstallFailedLabel'),
+          statusHint: this.t('sys_wintunInstallFailedHint'),
           message: this.modeError
         });
       } finally {
@@ -861,15 +893,15 @@ export default {
         if (result?.available) {
           this.modeSuccess = typeof result?.message === 'string' && result.message
             ? result.message
-            : 'Wintun dependency is already installed.';
+            : this.t('sys_wintunAlreadyInstalled');
           if (this.pendingTunSwitchAfterInstall) {
             this.pendingTunSwitchAfterInstall = false;
             await this.continueTunSwitchAfterDependencyReady();
           } else {
             await this.dispatchTunProgressEvent('aliang:tun-progress-success', {
-              title: 'Wintun Ready',
-              detail: 'The Windows dependency is installed and TUN mode can now be enabled.',
-              statusLabel: 'Dependency ready',
+              title: this.t('sys_wintunReady'),
+              detail: this.t('sys_wintunReadyDetail'),
+              statusLabel: this.t('sys_wintunReadyLabel'),
               statusHint: this.modeSuccess,
               message: this.modeSuccess
             });
@@ -885,13 +917,13 @@ export default {
         this.pendingTunSwitchAfterInstall = false;
         this.modeError = this.formatWintunInstallError(
           null,
-          err instanceof Error ? err.message : 'Failed to start Wintun installation.'
+          err instanceof Error ? err.message : this.t('sys_wintunStartFailed')
         );
         await this.dispatchTunProgressEvent('aliang:tun-progress-error', {
-          title: 'Wintun Installation Failed',
-          detail: 'The Windows dependency could not be installed automatically.',
-          statusLabel: 'Dependency install failed',
-          statusHint: 'Check the error message below and retry after fixing permissions or network issues.',
+          title: this.t('sys_wintunInstallFailed'),
+          detail: this.t('sys_wintunInstallFailedDetail'),
+          statusLabel: this.t('sys_wintunInstallFailedLabel'),
+          statusHint: this.t('sys_wintunInstallFailedHint'),
           message: this.modeError
         });
       }
@@ -907,14 +939,14 @@ export default {
         });
         const status = typeof result?.status === 'string' ? result.status : '';
         if (status === 'failed') {
-          throw new Error(result?.msg || 'Mode switch failed');
+          throw new Error(result?.msg || this.t('sys_modeSwitchFailed'));
         }
         this.modeSuccess = typeof result?.message === 'string' && result.message
           ? result.message
-          : `Selected ${this.selectedMode.toUpperCase()} mode successfully. Proxy will stay stopped until you press Start.`;
+          : this.t('sys_modeSwitchSuccess', { mode: this.selectedMode.toUpperCase() });
         await this.refreshModeState({ preserveMessages: true });
       } catch (err) {
-        this.modeError = err instanceof Error ? err.message : 'Failed to switch mode.';
+        this.modeError = err instanceof Error ? err.message : this.t('sys_modeSwitchFailed');
       } finally {
         this.switchingMode = false;
       }

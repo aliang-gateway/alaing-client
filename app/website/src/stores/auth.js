@@ -1,5 +1,6 @@
 import { computed, reactive, readonly, toRefs } from 'vue';
 import { login as loginRequest, logout as logoutRequest, restoreSession as restoreSessionRequest } from '../services/authApi';
+import { useI18n } from '../i18n';
 
 const state = reactive({
   user: null,
@@ -74,6 +75,8 @@ export async function restoreAuthSession() {
     return state.isAuthenticated;
   }
 
+  const { t } = useI18n();
+
   state.restorePending = true;
   state.isReady = false;
   state.status = 'restoring';
@@ -83,14 +86,14 @@ export async function restoreAuthSession() {
   try {
     const result = await restoreSessionRequest();
     if (result.status === 'success' && result.data) {
-      applyAuthenticatedState(result.data, result.message || 'Session restored.');
+      applyAuthenticatedState(result.data, result.message || t('auth_sessionRestored'));
       return true;
     }
 
-    applyUnauthenticatedState(result.message || 'Please log in to continue.');
+    applyUnauthenticatedState(result.message || t('auth_pleaseLogin'));
     return false;
   } catch (error) {
-    applyUnauthenticatedState(error instanceof Error ? error.message : 'Please log in to continue.');
+    applyUnauthenticatedState(error instanceof Error ? error.message : t('auth_pleaseLogin'));
     return false;
   } finally {
     state.restorePending = false;
@@ -99,6 +102,8 @@ export async function restoreAuthSession() {
 }
 
 export async function loginWithPassword(credentials) {
+  const { t } = useI18n();
+
   state.loginPending = true;
   state.loginError = '';
   state.lastActionMessage = '';
@@ -106,17 +111,17 @@ export async function loginWithPassword(credentials) {
   try {
     const result = await loginRequest(credentials);
     if (result.status !== 'success' || !result.data) {
-      throw new Error(result.message || 'Login failed.');
+      throw new Error(result.message || t('auth_loginFailed'));
     }
 
-    applyAuthenticatedState(result.data, result.message || 'Login successful.');
+    applyAuthenticatedState(result.data, result.message || t('auth_loginSuccess'));
     state.isReady = true;
     return true;
   } catch (error) {
     state.user = null;
     state.isAuthenticated = false;
     state.status = 'unauthenticated';
-    state.loginError = error instanceof Error ? error.message : 'Login failed.';
+    state.loginError = error instanceof Error ? error.message : t('auth_loginFailed');
     state.lastActionMessage = '';
     state.isReady = true;
     return false;
@@ -130,13 +135,15 @@ export async function logoutUser() {
     return;
   }
 
+  const { t } = useI18n();
+
   state.logoutPending = true;
 
   try {
     const result = await logoutRequest();
-    applyUnauthenticatedState(result.message || 'Logged out successfully.');
+    applyUnauthenticatedState(result.message || t('auth_loggedOut'));
   } catch (error) {
-    applyUnauthenticatedState(error instanceof Error ? error.message : 'Logged out locally.');
+    applyUnauthenticatedState(error instanceof Error ? error.message : t('auth_loggedOutLocally'));
   } finally {
     state.logoutPending = false;
     state.isReady = true;
@@ -144,11 +151,13 @@ export async function logoutUser() {
 }
 
 export function useAuthStore() {
+  const { t } = useI18n();
+
   const userDisplayName = computed(() => {
     if (state.user?.username) {
       return state.user.username;
     }
-    return 'Guest';
+    return t('auth_guest');
   });
 
   const planLabel = computed(() => {
@@ -158,17 +167,17 @@ export function useAuthStore() {
     if (state.user?.email) {
       return state.user.email;
     }
-    return 'Login required';
+    return t('auth_loginRequired');
   });
 
   const authNotice = computed(() => {
     if (state.isAuthenticated) {
-      return state.lastActionMessage || 'Authenticated session is active.';
+      return state.lastActionMessage || t('auth_sessionActive');
     }
     if (state.restorePending) {
-      return 'Restoring your saved session...';
+      return t('auth_restoringSession');
     }
-    return state.loginError || state.restoreError || 'Log in to unlock proxy controls, quick chat, quick setup, and settings changes.';
+    return state.loginError || state.restoreError || t('auth_loginPrompt');
   });
 
   return {

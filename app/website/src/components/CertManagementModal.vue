@@ -9,12 +9,12 @@
     >
       <div class="px-6 py-4 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
         <div>
-          <h3 class="text-lg font-bold text-slate-900 dark:text-slate-100">Certificate Management</h3>
-          <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">管理代理证书的安装、下载与状态</p>
+          <h3 class="text-lg font-bold text-slate-900 dark:text-slate-100">{{ t('cert_title') }}</h3>
+          <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">{{ t('cert_subtitle') }}</p>
         </div>
         <button
           type="button"
-          aria-label="Close certificate modal"
+          :aria-label="t('cert_title')"
           class="size-9 rounded-full flex items-center justify-center text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"
           @click="close"
         >
@@ -25,9 +25,9 @@
       <div class="p-6 space-y-5">
         <div class="flex items-center gap-2 flex-wrap">
           <span class="px-2.5 py-1.5 bg-slate-100 dark:bg-slate-800 rounded-md text-xs font-medium text-slate-700 dark:text-slate-300">
-            本地证书
+            {{ t('cert_localCert') }}
           </span>
-          <span class="text-[11px] text-slate-400">自动刷新中</span>
+          <span class="text-[11px] text-slate-400">{{ t('cert_autoRefreshing') }}</span>
           <span
             class="inline-block size-3.5 border-2 border-slate-200 border-t-primary rounded-full animate-spin"
           ></span>
@@ -47,7 +47,7 @@
                   : 'bg-slate-100 text-slate-500 dark:bg-slate-500/20 dark:text-slate-400'"
               >
                 <span class="material-symbols-outlined text-[12px]">{{ certStatus.is_exported ? 'check_circle' : 'cancel' }}</span>
-                {{ certStatus.is_exported ? '已导出' : '未导出' }}
+                {{ certStatus.is_exported ? t('cert_exported') : t('cert_notExported') }}
               </span>
               <span
                 class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium"
@@ -56,7 +56,7 @@
                   : 'bg-slate-100 text-slate-500 dark:bg-slate-500/20 dark:text-slate-400'"
               >
                 <span class="material-symbols-outlined text-[12px]">{{ certStatus.is_installed ? 'check_circle' : 'cancel' }}</span>
-                {{ certStatus.is_installed ? '已安装' : '未安装' }}
+                {{ certStatus.is_installed ? t('cert_installed') : t('cert_notInstalled') }}
               </span>
               <span
                 class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium"
@@ -65,18 +65,18 @@
                   : 'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300'"
               >
                 <span class="material-symbols-outlined text-[12px]">{{ certStatus.is_trusted ? 'shield' : 'warning' }}</span>
-                {{ certStatus.is_trusted ? '已信任' : '未信任' }}
+                {{ certStatus.is_trusted ? t('cert_trusted') : t('cert_notTrusted') }}
               </span>
             </div>
             <div class="text-xs text-slate-500 dark:text-slate-400 space-y-0.5 mt-2">
-              <div><strong>主体:</strong> {{ certStatus.subject || '-' }}</div>
-              <div><strong>颁发者:</strong> {{ certStatus.issuer || '-' }}</div>
-              <div><strong>有效期:</strong> {{ certStatus.not_before || '-' }} ~ {{ certStatus.not_after || '-' }}</div>
-              <div><strong>指纹:</strong> <code class="break-all">{{ certStatus.fingerprint || '-' }}</code></div>
-              <div v-if="certStatus.install_path"><strong>安装路径:</strong> <code class="break-all">{{ certStatus.install_path }}</code></div>
+              <div><strong>{{ t('cert_subject') }}</strong> {{ certStatus.subject || '-' }}</div>
+              <div><strong>{{ t('cert_issuer') }}</strong> {{ certStatus.issuer || '-' }}</div>
+              <div><strong>{{ t('cert_validity') }}</strong> {{ certStatus.not_before || '-' }} ~ {{ certStatus.not_after || '-' }}</div>
+              <div><strong>{{ t('cert_fingerprint') }}</strong> <code class="break-all">{{ certStatus.fingerprint || '-' }}</code></div>
+              <div v-if="certStatus.install_path"><strong>{{ t('cert_installPath') }}</strong> <code class="break-all">{{ certStatus.install_path }}</code></div>
             </div>
           </div>
-          <div v-else class="text-sm text-slate-400">正在加载证书信息...</div>
+          <div v-else class="text-sm text-slate-400">{{ t('cert_loadingCertInfo') }}</div>
         </div>
 
         <!-- Action Buttons -->
@@ -88,7 +88,7 @@
             @click="installCert"
           >
             <span class="material-symbols-outlined text-[16px] leading-none text-slate-500">check_circle</span>
-            <span>安装到系统</span>
+            <span>{{ t('cert_installToSystem') }}</span>
           </button>
           <button
             type="button"
@@ -101,7 +101,7 @@
               class="inline-block size-3.5 border-2 border-slate-300 border-t-primary rounded-full animate-spin"
             ></span>
             <span class="material-symbols-outlined text-[16px] leading-none text-slate-500">download</span>
-            <span>下载 PEM</span>
+            <span>{{ t('cert_downloadPem') }}</span>
           </button>
           <button
             type="button"
@@ -110,7 +110,7 @@
             @click="removeCert"
           >
             <span class="material-symbols-outlined text-[16px] leading-none text-red-500">delete</span>
-            <span>移除证书</span>
+            <span>{{ t('cert_removeCert') }}</span>
           </button>
           <button
             type="button"
@@ -119,7 +119,7 @@
             @click="generateCert"
           >
             <span class="material-symbols-outlined text-[16px] leading-none text-amber-500">autorenew</span>
-            <span>重新生成证书</span>
+            <span>{{ t('cert_regenerateCert') }}</span>
           </button>
         </div>
 
@@ -128,13 +128,13 @@
           v-if="generateResult"
           class="p-4 rounded-lg bg-amber-50/70 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-700/40"
         >
-          <div class="text-sm font-semibold text-amber-700 dark:text-amber-300 mb-2">重新生成结果</div>
+          <div class="text-sm font-semibold text-amber-700 dark:text-amber-300 mb-2">{{ t('cert_generateResult') }}</div>
           <div class="text-xs text-slate-700 dark:text-slate-300 space-y-1">
-            <div v-if="generateResult.cn"><strong>CN:</strong> {{ generateResult.cn }}</div>
-            <div v-if="generateResult.issuer"><strong>Issuer:</strong> {{ generateResult.issuer }}</div>
-            <div><strong>Valid Years:</strong> {{ generateResult.valid_years ?? '-' }}</div>
-            <div v-if="generateResult.cert_path"><strong>Cert Path:</strong> <code class="break-all">{{ generateResult.cert_path }}</code></div>
-            <div v-if="generateResult.key_path"><strong>Key Path:</strong> <code class="break-all">{{ generateResult.key_path }}</code></div>
+            <div v-if="generateResult.cn"><strong>{{ t('cert_cn') }}</strong> {{ generateResult.cn }}</div>
+            <div v-if="generateResult.issuer"><strong>{{ t('cert_issuerLabel') }}</strong> {{ generateResult.issuer }}</div>
+            <div><strong>{{ t('cert_validYears') }}</strong> {{ generateResult.valid_years ?? '-' }}</div>
+            <div v-if="generateResult.cert_path"><strong>{{ t('cert_certPath') }}</strong> <code class="break-all">{{ generateResult.cert_path }}</code></div>
+            <div v-if="generateResult.key_path"><strong>{{ t('cert_keyPath') }}</strong> <code class="break-all">{{ generateResult.key_path }}</code></div>
           </div>
         </div>
 
@@ -142,8 +142,8 @@
         <div class="p-4 rounded-lg bg-sky-50/70 dark:bg-sky-900/10 border border-sky-200 dark:border-sky-700/40 space-y-3">
           <div class="flex items-center justify-between gap-3">
             <div>
-              <div class="text-sm font-semibold text-sky-700 dark:text-sky-300">重新安装</div>
-              <div class="text-xs text-slate-600 dark:text-slate-400">移除旧证书 → 重新生成 → 安装到系统</div>
+              <div class="text-sm font-semibold text-sky-700 dark:text-sky-300">{{ t('cert_reinstall') }}</div>
+              <div class="text-xs text-slate-600 dark:text-slate-400">{{ t('cert_reinstallDesc') }}</div>
             </div>
             <button
               type="button"
@@ -152,21 +152,21 @@
               @click="startReinstall"
             >
               <span class="material-symbols-outlined text-[16px] leading-none text-sky-500">restart_alt</span>
-              <span>重新安装</span>
+              <span>{{ t('cert_startReinstall') }}</span>
             </button>
           </div>
         </div>
 
         <!-- Operation Audit -->
         <div class="p-4 rounded-lg bg-slate-50/70 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700">
-          <div class="text-xs font-semibold text-slate-600 dark:text-slate-300 mb-2">最近一次证书操作</div>
+          <div class="text-xs font-semibold text-slate-600 dark:text-slate-300 mb-2">{{ t('cert_lastOperation') }}</div>
           <div v-if="lastAudit" class="text-xs text-slate-500 dark:text-slate-400 space-y-0.5">
-            <div><strong>操作:</strong> {{ lastAudit.operation }}</div>
-            <div><strong>结果:</strong> {{ lastAudit.ok ? '成功' : '失败' }}</div>
-            <div><strong>信息:</strong> {{ lastAudit.message }}</div>
-            <div><strong>时间:</strong> {{ lastAudit.time }}</div>
+            <div><strong>{{ t('cert_operation') }}</strong> {{ lastAudit.operation }}</div>
+            <div><strong>{{ t('cert_result') }}</strong> {{ lastAudit.ok ? t('cert_success') : t('cert_failed') }}</div>
+            <div><strong>{{ t('cert_info') }}</strong> {{ lastAudit.message }}</div>
+            <div><strong>{{ t('cert_time') }}</strong> {{ lastAudit.time }}</div>
           </div>
-          <div v-else class="text-xs text-slate-500 dark:text-slate-400">暂无记录</div>
+          <div v-else class="text-xs text-slate-500 dark:text-slate-400">{{ t('cert_noRecord') }}</div>
         </div>
 
         <!-- Feedback Message -->
@@ -182,7 +182,7 @@
       </div>
 
       <div class="px-6 pb-5">
-        <div class="text-center text-[11px] text-slate-400">Last refreshed: {{ lastRefreshed }}</div>
+        <div class="text-center text-[11px] text-slate-400">{{ t('cert_lastRefreshed', { time: lastRefreshed }) }}</div>
       </div>
     </div>
 
@@ -227,10 +227,13 @@
 <script setup>
 import { reactive, ref, onMounted, onUnmounted, watch } from 'vue';
 import { useCertStatus } from '../composables/useCertStatus';
+import { useI18n } from '../i18n';
 
 const API_BASE = '/api';
 const CERT_TYPE = 'mitm-ca';
 const AUDIT_KEY = 'cert-operation-audit-v1';
+
+const { t } = useI18n();
 
 const props = defineProps({
   modelValue: { type: Boolean, default: false }
@@ -288,7 +291,7 @@ async function apiCall(method, path, body) {
   if (body) opts.body = JSON.stringify(body);
   const res = await fetch(`${API_BASE}${path}`, opts);
   if (!res.ok) {
-    let msg = `请求失败 (${res.status})`;
+    let msg = t('cert_requestFailed', { status: res.status });
     try {
       const data = await res.json();
       msg = data?.data?.details?.error || data?.data?.error_msg || data?.msg || data?.message || msg;
@@ -310,7 +313,7 @@ async function downloadCertFile() {
   try {
     const res = await fetch(`${API_BASE}/cert/download?cert_type=${encodeURIComponent(CERT_TYPE)}`);
     if (!res.ok) {
-      let msg = '下载失败';
+      let msg = t('cert_downloadFailed');
       const ct = res.headers.get('content-type') || '';
       if (ct.includes('application/json')) {
         const err = await res.json();
@@ -327,11 +330,11 @@ async function downloadCertFile() {
     a.click();
     a.remove();
     URL.revokeObjectURL(url);
-    showFeedback('证书下载成功');
-    saveAudit('下载证书', true, `${CERT_TYPE}.pem`);
+    showFeedback(t('cert_downloadSuccess'));
+    saveAudit(t('cert_downloadPem'), true, `${CERT_TYPE}.pem`);
   } catch (err) {
-    showFeedback('下载失败: ' + err.message, 'error');
-    saveAudit('下载证书', false, err.message);
+    showFeedback(t('cert_downloadFailed') + ': ' + err.message, 'error');
+    saveAudit(t('cert_downloadPem'), false, err.message);
   } finally {
     downloading.value = false;
   }
@@ -341,46 +344,46 @@ async function installCert() {
   busy.value = true;
   try {
     await apiCall('POST', '/cert/install', { cert_type: CERT_TYPE });
-    showFeedback('证书安装成功');
-    saveAudit('安装到系统', true, CERT_TYPE);
+    showFeedback(t('cert_installSuccess'));
+    saveAudit(t('cert_installToSystem'), true, CERT_TYPE);
     await checkStatus();
   } catch (err) {
-    showFeedback('安装失败: ' + err.message, 'error');
-    saveAudit('安装到系统', false, err.message);
+    showFeedback(t('cert_installFailed') + ': ' + err.message, 'error');
+    saveAudit(t('cert_installToSystem'), false, err.message);
   } finally {
     busy.value = false;
   }
 }
 
 async function removeCert() {
-  if (!confirm('确定要移除证书吗？')) return;
+  if (!confirm(t('cert_confirmRemove'))) return;
   busy.value = true;
   try {
     await apiCall('POST', '/cert/remove', { cert_type: CERT_TYPE });
-    showFeedback('证书已移除');
-    saveAudit('移除证书', true, CERT_TYPE);
+    showFeedback(t('cert_removed'));
+    saveAudit(t('cert_removeCert'), true, CERT_TYPE);
     await checkStatus();
   } catch (err) {
-    showFeedback('移除失败: ' + err.message, 'error');
-    saveAudit('移除证书', false, err.message);
+    showFeedback(t('cert_removeFailed') + ': ' + err.message, 'error');
+    saveAudit(t('cert_removeCert'), false, err.message);
   } finally {
     busy.value = false;
   }
 }
 
 async function generateCert() {
-  if (!confirm('重新生成将覆盖当前证书文件，确定继续吗？')) return;
+  if (!confirm(t('cert_confirmRegenerate'))) return;
   busy.value = true;
   clearResults();
   try {
     const data = await apiCall('POST', '/cert/generate', { cert_type: CERT_TYPE });
     generateResult.value = data;
-    showFeedback('证书生成成功');
-    saveAudit('重新生成', true, CERT_TYPE);
+    showFeedback(t('cert_generated'));
+    saveAudit(t('cert_regenerateCert'), true, CERT_TYPE);
     await checkStatus();
   } catch (err) {
-    showFeedback('生成失败: ' + err.message, 'error');
-    saveAudit('重新生成', false, err.message);
+    showFeedback(t('cert_generateFailed') + ': ' + err.message, 'error');
+    saveAudit(t('cert_regenerateCert'), false, err.message);
   } finally {
     busy.value = false;
   }
@@ -421,15 +424,15 @@ async function startReinstall() {
   stopReinstallPoll();
 
   const steps = [
-    { label: '移除旧证书', state: 'pending', message: '' },
-    { label: '重新生成证书', state: 'pending', message: '' },
-    { label: '安装到系统', state: 'pending', message: '' },
-    { label: '验证安装结果', state: 'pending', message: '' }
+    { label: t('cert_stepRemoveOld'), state: 'pending', message: '' },
+    { label: t('cert_stepRegenerate'), state: 'pending', message: '' },
+    { label: t('cert_stepInstall'), state: 'pending', message: '' },
+    { label: t('cert_stepVerify'), state: 'pending', message: '' }
   ];
 
   progress.visible = true;
-  progress.title = '正在重新安装证书';
-  progress.detail = '本地证书';
+  progress.title = t('cert_reinstallProgress');
+  progress.detail = t('cert_localCert');
   progress.steps = steps;
 
   const finalStatus = { success: false };
@@ -444,55 +447,55 @@ async function startReinstall() {
   }, 1500);
 
   // Step 1: Remove old cert (ignore errors - cert may not exist)
-  setStepState(steps, 0, 'running', '正在移除...');
+  setStepState(steps, 0, 'running', t('cert_removing'));
   try {
     await apiCall('POST', '/cert/remove', { cert_type: CERT_TYPE });
-    setStepState(steps, 0, 'done', '已移除或不存在');
+    setStepState(steps, 0, 'done', t('cert_removedOrNotExist'));
   } catch (_) {
-    setStepState(steps, 0, 'done', '旧证书不存在，跳过');
+    setStepState(steps, 0, 'done', t('cert_oldCertNotExist'));
   }
 
   // Step 2: Generate new cert
-  setStepState(steps, 1, 'running', '正在生成...');
+  setStepState(steps, 1, 'running', t('cert_generating'));
   try {
     await apiCall('POST', '/cert/generate', { cert_type: CERT_TYPE });
-    setStepState(steps, 1, 'done', '生成成功');
+    setStepState(steps, 1, 'done', t('cert_generateSuccess'));
   } catch (err) {
     setStepState(steps, 1, 'error', err.message);
     finalStatus.success = false;
-    finishReinstall(steps, false, '生成证书失败');
+    finishReinstall(steps, false, t('cert_generateCertFailed'));
     return;
   }
 
   // Step 3: Install to system
-  setStepState(steps, 2, 'running', '正在安装...');
+  setStepState(steps, 2, 'running', t('cert_installing'));
   try {
     await apiCall('POST', '/cert/install', { cert_type: CERT_TYPE });
-    setStepState(steps, 2, 'done', '安装成功');
+    setStepState(steps, 2, 'done', t('cert_installSuccess2'));
   } catch (err) {
     setStepState(steps, 2, 'error', err.message);
     finalStatus.success = false;
-    finishReinstall(steps, false, '安装证书失败');
+    finishReinstall(steps, false, t('cert_installCertFailed'));
     return;
   }
 
   // Step 4: Verify
-  setStepState(steps, 3, 'running', '正在验证...');
+  setStepState(steps, 3, 'running', t('cert_verifying'));
   try {
     const status = await apiCall('GET', `/cert/status?cert_type=${encodeURIComponent(CERT_TYPE)}`);
     certStatus.value = status;
     invalidateCache();
     updateRefreshed();
     if (status.is_installed) {
-      setStepState(steps, 3, 'done', status.is_trusted ? '已安装并受信任' : '已安装');
-      finishReinstall(steps, true, '重新安装成功');
+      setStepState(steps, 3, 'done', status.is_trusted ? t('cert_installedAndTrusted') : t('cert_installed'));
+      finishReinstall(steps, true, t('cert_success'));
     } else {
-      setStepState(steps, 3, 'error', '证书未被检测为已安装');
-      finishReinstall(steps, false, '安装验证未通过');
+      setStepState(steps, 3, 'error', t('cert_installedNotDetected'));
+      finishReinstall(steps, false, t('cert_verifyFailed'));
     }
   } catch (err) {
     setStepState(steps, 3, 'error', err.message);
-    finishReinstall(steps, false, '验证失败: ' + err.message);
+    finishReinstall(steps, false, t('cert_verifyFailed') + ': ' + err.message);
   }
 }
 
@@ -503,8 +506,8 @@ function finishReinstall(steps, success, message) {
     setTimeout(() => {
       progress.visible = false;
       busy.value = false;
-      showFeedback('重新安装完成：' + message);
-      saveAudit('重新安装', true, message);
+      showFeedback(t('cert_reinstallComplete', { msg: message }));
+      saveAudit(t('cert_reinstall'), true, message);
       checkStatus();
     }, 800);
   } else {
@@ -514,14 +517,14 @@ function finishReinstall(steps, success, message) {
         steps[i].message = '';
       }
     }
-    progress.title = '重新安装失败';
-    progress.detail = '本地证书';
+    progress.title = t('cert_reinstallFailed');
+    progress.detail = t('cert_localCert');
 
     setTimeout(() => {
       progress.visible = false;
       busy.value = false;
-      showFeedback('重新安装失败：' + message, 'error');
-      saveAudit('重新安装', false, message);
+      showFeedback(t('cert_reinstallFailedMsg', { msg: message }), 'error');
+      saveAudit(t('cert_reinstall'), false, message);
       checkStatus();
     }, 2500);
   }

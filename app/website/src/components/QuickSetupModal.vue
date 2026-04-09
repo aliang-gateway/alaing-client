@@ -14,10 +14,10 @@
       <!-- Left sidebar -->
       <aside class="flex w-72 shrink-0 flex-col border-r border-slate-100 bg-slate-50/80 dark:border-slate-800 dark:bg-slate-800/30">
         <div class="border-b border-slate-100 px-6 py-5 dark:border-slate-800">
-          <p class="text-[11px] font-bold uppercase tracking-[0.28em] text-slate-400">Quick Setup</p>
-          <h3 class="mt-2 text-lg font-semibold text-slate-900 dark:text-white">Preset Templates</h3>
+          <p class="text-[11px] font-bold uppercase tracking-[0.28em] text-slate-400">{{ t('qs_title') }}</p>
+          <h3 class="mt-2 text-lg font-semibold text-slate-900 dark:text-white">{{ t('qs_presetTemplates') }}</h3>
           <p class="mt-1 text-xs leading-5 text-slate-500 dark:text-slate-400">
-            Choose a client, then we generate provider-aware config files from your account API keys.
+            {{ t('qs_description') }}
           </p>
         </div>
 
@@ -52,7 +52,7 @@
                   {{ software.description }}
                 </p>
                 <div class="mt-1.5 flex items-center gap-1.5" v-if="software.isCustom">
-                  <span class="inline-flex items-center rounded-md bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">Custom</span>
+                  <span class="inline-flex items-center rounded-md bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">{{ t('qs_customBadge') }}</span>
                 </div>
               </div>
               <span
@@ -69,18 +69,18 @@
             class="w-full rounded-xl border border-dashed border-slate-300 px-4 py-3 text-left text-sm text-slate-500 transition hover:border-primary/40 hover:text-primary dark:border-slate-700 dark:text-slate-400 dark:hover:border-primary/40 dark:hover:text-primary"
             @click="showAddSoftware = true"
           >
-            + Add Software
+            {{ t('qs_addSoftware') }}
           </button>
 
           <div v-if="showAddSoftware" class="space-y-2 rounded-xl border border-primary/20 bg-white p-3 dark:bg-slate-900">
             <input
               v-model="newSoftwareName"
-              placeholder="Software name"
+              :placeholder="t('qs_softwareNamePh')"
               class="h-9 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm text-slate-700 outline-none transition focus:border-primary dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
             />
             <input
               v-model="newSoftwareDesc"
-              placeholder="Description (optional)"
+              :placeholder="t('qs_descPh')"
               class="h-9 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm text-slate-700 outline-none transition focus:border-primary dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
             />
             <div class="flex gap-2">
@@ -89,14 +89,14 @@
                 class="flex-1 rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-primary/90"
                 @click="confirmAddSoftware"
               >
-                Add
+                {{ t('qs_add') }}
               </button>
               <button
                 type="button"
                 class="flex-1 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300"
                 @click="showAddSoftware = false"
               >
-                Cancel
+                {{ t('qs_cancel') }}
               </button>
             </div>
           </div>
@@ -108,10 +108,10 @@
         <header class="flex h-16 shrink-0 items-center justify-between border-b border-slate-100 px-6 dark:border-slate-800">
           <div class="min-w-0">
             <p class="truncate text-base font-semibold text-slate-900 dark:text-white">
-              {{ selectedSoftwareDef?.name || 'Quick Setup' }}
+              {{ selectedSoftwareDef?.name || t('qs_title') }}
             </p>
             <p class="text-[11px] text-slate-500 dark:text-slate-400">
-              {{ selectedSoftwareDef?.files?.length || 0 }} file(s) per variant
+              {{ t('qs_filesPerVariant', { count: selectedSoftwareDef?.files?.length || 0 }) }}
             </p>
           </div>
           <div class="flex items-center gap-2">
@@ -128,16 +128,16 @@
 
         <div class="flex-1 overflow-y-auto px-6 py-6 custom-scrollbar">
           <div v-if="loadingCatalog" class="rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-5 py-6 text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-400">
-            Loading quick setup presets and your API keys…
+            {{ t('qs_loading') }}
           </div>
 
           <div
             v-else-if="catalogStatus === 'unauthenticated'"
             class="rounded-2xl border border-amber-200 bg-amber-50 px-5 py-6 dark:border-amber-900/40 dark:bg-amber-950/20"
           >
-            <p class="text-sm font-semibold text-amber-800 dark:text-amber-200">Sign in required</p>
+            <p class="text-sm font-semibold text-amber-800 dark:text-amber-200">{{ t('qs_signInTitle') }}</p>
             <p class="mt-2 text-sm leading-6 text-amber-700 dark:text-amber-300">
-              Quick Setup needs your authenticated session so the backend can load your API keys and build the preset files locally.
+              {{ t('qs_signInDesc') }}
             </p>
           </div>
 
@@ -145,22 +145,22 @@
             v-else-if="catalogStatus === 'failed'"
             class="rounded-2xl border border-rose-200 bg-rose-50 px-5 py-6 dark:border-rose-900/40 dark:bg-rose-950/20"
           >
-            <p class="text-sm font-semibold text-rose-800 dark:text-rose-200">Failed to load quick setup</p>
-            <p class="mt-2 text-sm leading-6 text-rose-700 dark:text-rose-300">{{ catalogMessage || 'Please try again.' }}</p>
+            <p class="text-sm font-semibold text-rose-800 dark:text-rose-200">{{ t('qs_failedTitle') }}</p>
+            <p class="mt-2 text-sm leading-6 text-rose-700 dark:text-rose-300">{{ catalogMessage || t('qs_tryAgain') }}</p>
           </div>
 
           <template v-else>
             <!-- Key selector -->
             <div class="mb-4">
-              <p class="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-400">API Key</p>
+              <p class="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-400">{{ t('qs_apiKey') }}</p>
               <div class="mt-2 flex items-center gap-3">
                 <select
                   v-model="selectedKeyId"
                   class="flex-1 h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none transition focus:border-primary dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
                 >
-                  <option value="" disabled>Select an API key...</option>
+                  <option value="" disabled>{{ t('qs_selectKeyPh') }}</option>
                   <option v-for="key in apiKeys" :key="key.id" :value="key.id" :disabled="!isKeyCompatible(key)">
-                    {{ key.name }} · {{ key.group?.name || 'No group' }} ({{ key.provider }}){{ isKeyCompatible(key) ? '' : ' — incompatible' }}
+                    {{ key.name }} · {{ key.group?.name || t('qs_noGroup') }} ({{ key.provider }}){{ isKeyCompatible(key) ? '' : ' ' + t('qs_incompatible') }}
                   </option>
                 </select>
                 <button
@@ -169,11 +169,11 @@
                   :disabled="!selectedKey?.secret_available"
                   @click="copySelectedKey"
                 >
-                  Copy Key
+                  {{ t('qs_copyKey') }}
                 </button>
               </div>
               <div v-if="selectedKey" class="mt-2 flex items-center gap-2 text-[11px] text-slate-500 dark:text-slate-400">
-                <span>{{ selectedKey.group?.name || 'No group' }}</span>
+                <span>{{ selectedKey.group?.name || t('qs_noGroup') }}</span>
                 <span>·</span>
                 <span class="font-mono">{{ maskKey(selectedKey.key) }}</span>
               </div>
@@ -183,7 +183,7 @@
             <div v-if="currentVariant || selectedSoftwareDef?.isCustom" class="mt-6">
               <!-- Notes -->
               <div v-if="currentVariant.notes?.length" class="mb-4 rounded-2xl border border-sky-200 bg-sky-50/70 px-4 py-3 dark:border-sky-900/40 dark:bg-sky-950/20">
-                <p class="text-[11px] font-semibold uppercase tracking-wide text-sky-700 dark:text-sky-300">Notes</p>
+                <p class="text-[11px] font-semibold uppercase tracking-wide text-sky-700 dark:text-sky-300">{{ t('qs_notes') }}</p>
                 <p
                   v-for="(note, index) in currentVariant.notes"
                   :key="`note-${index}`"
@@ -223,14 +223,14 @@
                   class="inline-flex min-h-9 items-center justify-center rounded-full border border-dashed border-slate-300 px-3 text-[11px] text-slate-500 transition hover:border-primary/40 hover:text-primary dark:border-slate-700 dark:text-slate-400"
                   @click="addNewFile"
                 >
-                  + Add File
+                  {{ t('qs_addFile') }}
                 </button>
               </div>
 
               <!-- Editor -->
               <div v-if="currentFile" class="mt-4 space-y-4">
                 <div>
-                  <label class="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-slate-500">Target Path</label>
+                  <label class="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-slate-500">{{ t('qs_targetPath') }}</label>
                   <input
                     :value="currentFile.path"
                     type="text"
@@ -240,11 +240,11 @@
                 </div>
 
                 <div>
-                  <label class="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-slate-500">Version</label>
+                  <label class="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-slate-500">{{ t('qs_version') }}</label>
                   <input
                     :value="currentFile.version || ''"
                     type="text"
-                    placeholder="e.g. v1, 2025-04"
+                    :placeholder="t('qs_versionPh')"
                     class="h-10 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm text-slate-700 outline-none transition focus:border-primary dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                     @input="updateCurrentFile('version', $event.target.value)"
                   />
@@ -252,13 +252,13 @@
 
                 <div>
                   <div class="mb-1 flex items-center justify-between gap-3">
-                    <label class="block text-[11px] font-semibold uppercase tracking-wide text-slate-500">Content</label>
+                    <label class="block text-[11px] font-semibold uppercase tracking-wide text-slate-500">{{ t('qs_content') }}</label>
                     <button
                       type="button"
                       class="inline-flex min-h-8 items-center justify-center rounded-lg border border-slate-200 px-3 text-[11px] font-semibold text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
                       @click="copyFile(currentFile)"
                     >
-                      Copy File
+                      {{ t('qs_copyFile') }}
                     </button>
                   </div>
                   <textarea
@@ -278,15 +278,15 @@
                   :disabled="applying || !editableFiles.length"
                   @click="applyCurrentVariant"
                 >
-                  {{ applying ? 'Applying...' : 'Apply Files' }}
+                  {{ applying ? t('qs_applying') : t('qs_applyFiles') }}
                 </button>
               </div>
             </div>
 
             <div v-else class="mt-6 rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-5 py-6 text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-400">
-              <template v-if="rendering">Rendering configuration…</template>
-              <template v-else-if="!compatibleKeys.length && !selectedSoftwareDef?.isCustom">No compatible API keys found for this client.</template>
-              <template v-else>Select an API key above to generate the configuration.</template>
+              <template v-if="rendering">{{ t('qs_rendering') }}</template>
+              <template v-else-if="!compatibleKeys.length && !selectedSoftwareDef?.isCustom">{{ t('qs_noCompatibleKeys') }}</template>
+              <template v-else>{{ t('qs_selectKeyAbove') }}</template>
             </div>
 
             <div v-if="statusMessage" class="mt-6 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600 dark:border-slate-800 dark:bg-slate-900/50 dark:text-slate-300">
@@ -302,6 +302,9 @@
 <script setup>
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { applyQuickSetup, getQuickSetupCatalog, renderQuickSetup } from '../services/quickSetupApi';
+import { useI18n } from '../i18n';
+
+const { t } = useI18n();
 
 const props = defineProps({
   open: {
@@ -374,7 +377,7 @@ async function loadCatalog() {
     }
   } catch (error) {
     catalogStatus.value = 'failed';
-    catalogMessage.value = error instanceof Error ? error.message : 'Failed to load quick setup catalog.';
+    catalogMessage.value = error instanceof Error ? error.message : t('qs_failedCatalog');
     statusMessage.value = catalogMessage.value;
   } finally {
     loadingCatalog.value = false;
@@ -399,7 +402,7 @@ async function renderSelectedKey() {
       editableFiles.value = [];
     }
   } catch (error) {
-    statusMessage.value = error instanceof Error ? error.message : 'Failed to render.';
+    statusMessage.value = error instanceof Error ? error.message : t('qs_failedRender');
     currentVariant.value = null;
     editableFiles.value = [];
   } finally {
@@ -419,7 +422,7 @@ function confirmAddSoftware() {
   customSoftwares.value.push({
     code,
     name,
-    description: newSoftwareDesc.value.trim() || 'Custom software configuration.',
+    description: newSoftwareDesc.value.trim() || t('qs_customDesc'),
     supported_providers: [],
     files: [],
     isCustom: true,
@@ -472,21 +475,21 @@ async function copyText(value, successText) {
     await navigator.clipboard.writeText(value);
     statusMessage.value = successText;
   } catch (error) {
-    statusMessage.value = error instanceof Error ? error.message : 'Copy failed.';
+    statusMessage.value = error instanceof Error ? error.message : t('qs_copyFailed');
   }
 }
 async function copySelectedKey() {
   if (!selectedKey.value?.secret_available) {
-    statusMessage.value = 'This API key is masked by the backend response and cannot be copied directly.';
+    statusMessage.value = t('qs_keyMasked');
     return;
   }
-  await copyText(selectedKey.value.key, `Copied API key: ${selectedKey.value.name}`);
+  await copyText(selectedKey.value.key, t('qs_copiedKey', { name: selectedKey.value.name }));
 }
 async function copyFile(file) {
   if (!file) {
     return;
   }
-  await copyText(file.content || '', `Copied ${file.label}`);
+  await copyText(file.content || '', t('qs_copiedFile', { label: file.label }));
 }
 async function applyCurrentVariant() {
   if (!selectedSoftware.value || !editableFiles.value.length) {
@@ -497,10 +500,10 @@ async function applyCurrentVariant() {
     const result = await applyQuickSetup(selectedSoftware.value, editableFiles.value);
     const writtenCount = Array.isArray(result?.written) ? result.written.length : 0;
     statusMessage.value = writtenCount > 0
-      ? `Applied ${writtenCount} file(s) for ${selectedSoftwareDef.value?.name || selectedSoftware.value}.`
-      : 'No file was written. Review the generated paths and try again.';
+      ? t('qs_appliedFiles', { count: writtenCount, name: selectedSoftwareDef.value?.name || selectedSoftware.value })
+      : t('qs_noFilesWritten');
   } catch (error) {
-    statusMessage.value = error instanceof Error ? error.message : 'Failed to apply files.';
+    statusMessage.value = error instanceof Error ? error.message : t('qs_failedApply');
   } finally {
     applying.value = false;
   }

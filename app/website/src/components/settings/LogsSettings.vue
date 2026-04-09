@@ -3,11 +3,11 @@
     <div class="mt-4 flex flex-col gap-4">
       <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <div class="flex items-center gap-2">
-          <h2 class="text-xl font-bold text-slate-900 dark:text-white">Log Monitoring</h2>
+          <h2 class="text-xl font-bold text-slate-900 dark:text-white">{{ t('logs_title') }}</h2>
           <span class="rounded-full bg-primary/20 px-2 py-0.5 text-[10px] font-bold uppercase text-primary">
-            {{ isPolling ? 'Live' : 'Paused' }}
+            {{ isPolling ? t('logs_live') : t('logs_paused') }}
           </span>
-          <span class="text-xs text-slate-400">{{ filteredEntries.length }} entries</span>
+          <span class="text-xs text-slate-400">{{ t('logs_entries', { count: filteredEntries.length }) }}</span>
         </div>
         <div class="flex flex-wrap items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 p-2 dark:border-slate-700 dark:bg-slate-800/60">
           <select
@@ -15,16 +15,16 @@
             v-model="selectedLevel"
             class="rounded-md border-0 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-600 shadow-sm ring-1 ring-slate-200 focus:outline-none focus:ring-2 focus:ring-primary/40 dark:bg-slate-900 dark:text-slate-200 dark:ring-slate-600"
           >
-            <option value="all">Level: All</option>
-            <option value="trace">Level: Trace</option>
-            <option value="debug">Level: Debug</option>
-            <option value="info">Level: Info</option>
-            <option value="warn">Level: Warning</option>
-            <option value="error">Level: Error</option>
+            <option value="all">{{ t('logs_levelAll') }}</option>
+            <option value="trace">{{ t('logs_levelTrace') }}</option>
+            <option value="debug">{{ t('logs_levelDebug') }}</option>
+            <option value="info">{{ t('logs_levelInfo') }}</option>
+            <option value="warn">{{ t('logs_levelWarning') }}</option>
+            <option value="error">{{ t('logs_levelError') }}</option>
           </select>
           <label class="inline-flex items-center gap-2 rounded-md bg-white px-2.5 py-1.5 text-xs font-medium text-slate-600 shadow-sm ring-1 ring-slate-200 dark:bg-slate-900 dark:text-slate-200 dark:ring-slate-600">
             <input id="logAutoScroll" v-model="autoScroll" type="checkbox" class="rounded border-slate-300 text-primary focus:ring-primary/40" />
-            Auto-scroll
+            {{ t('logs_autoScroll') }}
           </label>
           <button
             id="logsClearBtn"
@@ -32,7 +32,7 @@
             class="rounded-md px-2.5 py-1.5 text-xs font-medium text-slate-500 transition hover:bg-slate-200 hover:text-slate-700 dark:hover:bg-slate-700 dark:hover:text-slate-100"
             @click="clearLogs"
           >
-            Clear
+            {{ t('logs_clear') }}
           </button>
           <button
             id="wsDisconnectBtn"
@@ -63,7 +63,7 @@
           {{ errorMessage }}
         </div>
         <div v-if="!filteredEntries.length" class="rounded-lg border border-dashed border-slate-700 bg-slate-900/60 px-4 py-6 text-sm text-slate-500">
-          No log data is available yet.
+          {{ t('logs_noData') }}
         </div>
         <div v-else id="logsOutput" class="space-y-1 whitespace-pre-wrap break-all">
           <div
@@ -95,6 +95,9 @@
 
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { useI18n } from '../../i18n';
+
+const { t } = useI18n();
 
 const entries = ref([]);
 const selectedLevel = ref('all');
@@ -130,7 +133,7 @@ async function loadLogs() {
     entries.value = nextEntries.map(normalizeLogEntry);
     await scrollToBottomIfNeeded();
   } catch (error) {
-    errorMessage.value = error instanceof Error ? error.message : 'Failed to load logs.';
+    errorMessage.value = error instanceof Error ? error.message : t('logs_loadFailed');
   } finally {
     isLoading.value = false;
   }
@@ -146,7 +149,7 @@ async function clearLogs() {
     }
     entries.value = [];
   } catch (error) {
-    errorMessage.value = error instanceof Error ? error.message : 'Failed to clear logs.';
+    errorMessage.value = error instanceof Error ? error.message : t('logs_clearFailed');
   }
 }
 

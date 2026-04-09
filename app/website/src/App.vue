@@ -5,7 +5,7 @@
       class="flex flex-1 items-center justify-center bg-slate-50 text-slate-600 dark:bg-slate-950 dark:text-slate-200"
     >
       <div class="rounded-xl border border-slate-200 bg-white px-6 py-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-        Restoring saved session...
+        {{ t('app_restoringSession') }}
       </div>
     </div>
     <template v-else>
@@ -27,6 +27,7 @@
 
 <script setup>
 import { ref, watch } from 'vue';
+import { useI18n } from './i18n';
 import DashboardPage from './components/DashboardPage.vue';
 import SettingsPage from './components/SettingsPage.vue';
 import CertManagementModal from './components/CertManagementModal.vue';
@@ -36,6 +37,7 @@ import { useAuthStore } from './stores/auth';
 import { getUserCenterProfile } from './services/userCenterApi';
 import { clearChatIdentityProfileCache } from './utils/chatIdentityCache';
 
+const { t } = useI18n();
 const isQuickSetupOpen = ref(false);
 const isCertModalOpen = ref(false);
 const certModalRef = ref(null);

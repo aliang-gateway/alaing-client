@@ -53,7 +53,7 @@
               class="shrink-0 rounded-md bg-white/80 px-2.5 py-1 text-[11px] font-semibold text-amber-700 transition hover:bg-white dark:bg-slate-900/70 dark:text-amber-200 dark:hover:bg-slate-900"
               @click.stop="openLoginModal"
             >
-              立即登录
+              {{ t('dash_loginNow') }}
             </button>
           </div>
         </div>
@@ -83,7 +83,7 @@
       </div>
       <div class="mx-6 p-4 bg-slate-50 dark:bg-slate-800/50 rounded border border-slate-100 dark:border-slate-700">
         <div class="flex justify-between items-start mb-3">
-          <p class="text-xs font-bold text-slate-500 uppercase">Network Status</p>
+          <p class="text-xs font-bold text-slate-500 uppercase">{{ t('dash_networkStatus') }}</p>
           <span
             v-if="certLoading"
             class="inline-block size-4 border-2 border-slate-200 border-t-slate-400 rounded-full animate-spin"
@@ -96,15 +96,15 @@
         </div>
           <div class="space-y-2">
             <div class="flex justify-between text-sm">
-              <span class="text-slate-500">Mode:</span>
+              <span class="text-slate-500">{{ t('dash_mode') }}</span>
               <span class="font-medium text-slate-700 dark:text-slate-200">{{ runModeLabel }}</span>
             </div>
           <div class="flex justify-between text-sm">
-            <span class="text-slate-500">Protocol:</span>
+            <span class="text-slate-500">{{ t('dash_protocol') }}</span>
             <span class="font-medium text-slate-700 dark:text-slate-200">SOCKS5</span>
           </div>
           <div class="flex justify-between text-sm">
-            <span class="text-slate-500">Certificate:</span>
+            <span class="text-slate-500">{{ t('dash_certificate') }}</span>
             <span class="font-medium" :class="certBadgeClass">{{ certBadgeText }}</span>
           </div>
         </div>
@@ -114,19 +114,19 @@
             class="px-3 py-1.5 text-xs font-bold border border-slate-200 dark:border-slate-600 rounded hover:bg-white dark:hover:bg-slate-700 transition-colors"
             @click="openCertModal"
           >
-            Details
+            {{ t('dash_details') }}
           </button>
           <button
             type="button"
             class="px-3 py-1.5 text-xs font-bold bg-primary/10 text-primary rounded hover:bg-primary/20 transition-colors"
             @click="handleReinstall"
           >
-            Re-install
+            {{ t('dash_reinstall') }}
           </button>
         </div>
       </div>
       <div class="mt-8 px-6 space-y-3">
-        <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Quick Tools</p>
+        <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">{{ t('dash_quickTools') }}</p>
         <div class="group relative">
           <button
             type="button"
@@ -136,7 +136,7 @@
             :class="!isAuthenticated ? 'cursor-not-allowed opacity-60 hover:border-slate-200 dark:hover:border-slate-700' : ''"
           >
             <span class="material-symbols-outlined text-slate-400 text-lg">bolt</span>
-            Quick Setup
+            {{ t('dash_quickSetup') }}
           </button>
         </div>
         <!-- <button
@@ -155,12 +155,12 @@
           @click="handleShowSettings"
         >
           <span class="material-symbols-outlined text-slate-400 text-lg">settings</span>
-          More Settings
+          {{ t('dash_moreSettings') }}
         </button>
       </div>
       <div class="mt-auto p-6 border-t border-slate-100 dark:border-slate-800 bg-slate-50/30 dark:bg-slate-800/10">
         <div class="flex justify-between items-center mb-3">
-          <span class="text-xs font-bold text-slate-500 uppercase tracking-wider">Account Balance</span>
+          <span class="text-xs font-bold text-slate-500 uppercase tracking-wider">{{ t('dash_accountBalance') }}</span>
           <span class="text-lg font-bold text-slate-900 dark:text-white">{{ accountBalanceText }}</span>
         </div>
         <button
@@ -168,7 +168,7 @@
           class="w-full py-2 bg-slate-900 dark:bg-primary text-white text-xs font-bold rounded hover:opacity-90 transition-opacity"
           @click="handleTopUp"
         >
-          Top Up Funds
+          {{ t('dash_topUpFunds') }}
         </button>
         <p
           class="mt-2 text-center text-[10px] italic transition-colors"
@@ -199,22 +199,22 @@
               </div>
               <div class="min-w-[210px]">
                 <div class="flex items-center gap-2">
-                  <p class="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-400">Server Link</p>
+                  <p class="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-400">{{ t('dash_serverLink') }}</p>
                   <span class="rounded-full px-2 py-0.5 text-[10px] font-bold" :class="serverLinkBadgeClass">
                     {{ serverLinkBadgeText }}
                   </span>
                 </div>
                 <div class="mt-1 grid grid-cols-3 gap-2 text-[11px]">
                   <div>
-                    <p class="text-slate-400">Score/Latency</p>
+                    <p class="text-slate-400">{{ t('dash_scoreLatency') }}</p>
                     <p class="font-semibold text-slate-700 dark:text-slate-100">{{ serverLatencyLabel }}</p>
                   </div>
                   <div>
-                    <p class="text-slate-400">Mode</p>
+                    <p class="text-slate-400">{{ t('dash_mode') }}</p>
                     <p class="font-semibold text-slate-700 dark:text-slate-100">{{ runModeLabel }}</p>
                   </div>
                   <div>
-                    <p class="text-slate-400">State</p>
+                    <p class="text-slate-400">{{ t('dash_state') }}</p>
                     <p class="font-semibold" :class="serverStateTextClass">{{ serverStateLabel }}</p>
                   </div>
                 </div>
@@ -230,7 +230,7 @@
             class="px-4 py-1.5 bg-primary/10 text-primary text-xs font-bold rounded-lg hover:bg-primary/20 transition-colors"
             @click="refreshDashboardView"
           >
-            Refresh Dashboard
+            {{ t('dash_refreshDashboard') }}
           </button>
         </div>
       </header>
@@ -240,7 +240,7 @@
             class="bg-white dark:bg-slate-900 p-6 rounded border border-slate-200 dark:border-slate-800 shadow-sm"
           >
             <div class="flex justify-between items-center mb-6">
-              <h3 class="font-bold text-slate-700 dark:text-slate-300">Model Usage Distribution</h3>
+              <h3 class="font-bold text-slate-700 dark:text-slate-300">{{ t('dash_modelUsageDistribution') }}</h3>
               <button type="button" class="text-slate-400 hover:text-primary">
                 <span class="material-symbols-outlined">more_horiz</span>
               </button>
@@ -249,10 +249,10 @@
               {{ dashboardError }}
             </div>
             <div v-else-if="dashboardLoading" class="rounded-lg border border-dashed border-slate-300 bg-slate-50 px-4 py-10 text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-400">
-              Loading model usage distribution...
+              {{ t('dash_loadingModelUsage') }}
             </div>
             <div v-else-if="!modelDistribution.length" class="rounded-lg border border-dashed border-slate-300 bg-slate-50 px-4 py-10 text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-400">
-              No model usage data is available yet.
+              {{ t('dash_noModelData') }}
             </div>
             <div v-else class="flex items-center gap-8">
               <div class="relative size-40 flex items-center justify-center">
@@ -274,7 +274,7 @@
                 </svg>
                 <div class="absolute inset-0 flex flex-col items-center justify-center">
                   <span class="text-2xl font-bold">{{ formatCount(totalRequestCount) }}</span>
-                  <span class="text-[10px] text-slate-400 uppercase">Requests</span>
+                  <span class="text-[10px] text-slate-400 uppercase">{{ t('dash_requests') }}</span>
                 </div>
               </div>
               <div class="flex-1 space-y-2">
@@ -296,21 +296,20 @@
             class="bg-white dark:bg-slate-900 p-6 rounded border border-slate-200 dark:border-slate-800 shadow-sm"
           >
             <div class="flex justify-between items-center mb-6">
-              <h3 class="font-bold text-slate-700 dark:text-slate-300">Usage Trend</h3>
+              <h3 class="font-bold text-slate-700 dark:text-slate-300">{{ t('dash_usageTrend') }}</h3>
               <div class="flex gap-2">
                 <span class="px-2 py-0.5 bg-primary/10 text-primary text-[10px] font-bold rounded">LIVE</span>
                 <span
                   class="px-2 py-0.5 bg-slate-100 dark:bg-slate-800 text-slate-500 text-[10px] font-bold rounded"
                 >
-                  Requests
-                </span>
+                  {{ t('dash_requests') }}                </span>
               </div>
             </div>
             <div v-if="dashboardLoading" class="rounded-lg border border-dashed border-slate-300 bg-slate-50 px-4 py-10 text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-400">
-              Loading usage trend...
+              {{ t('dash_loadingTrend') }}
             </div>
             <div v-else-if="!trendPoints.length" class="rounded-lg border border-dashed border-slate-300 bg-slate-50 px-4 py-10 text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-400">
-              No trend data is available yet.
+              {{ t('dash_noTrendData') }}
             </div>
             <div v-else class="h-40 w-full relative">
               <svg class="w-full h-full" preserveAspectRatio="none" viewBox="0 0 100 40">
@@ -372,9 +371,9 @@
         <div class="bg-white dark:bg-slate-900 rounded border border-slate-200 dark:border-slate-800 shadow-sm">
           <div class="p-6 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center">
             <div class="flex items-center gap-3">
-              <h3 class="font-bold text-slate-700 dark:text-slate-300">Recent Usage Records</h3>
+              <h3 class="font-bold text-slate-700 dark:text-slate-300">{{ t('dash_recentUsageRecords') }}</h3>
               <span class="bg-slate-100 dark:bg-slate-800 text-slate-500 px-2 py-0.5 rounded text-xs font-medium">
-                10 / page, max 20 pages
+                {{ t('dash_paginationInfo') }}
               </span>
             </div>
             <div class="flex items-center gap-4">
@@ -385,11 +384,11 @@
                 @click="refreshUsageRecords"
               >
                 <span class="material-symbols-outlined text-sm">refresh</span>
-                Refresh
+                {{ t('dash_refresh') }}
               </button>
               <button type="button" class="text-xs font-bold text-primary flex items-center gap-1 hover:underline" @click="exportUsageRecords">
                 <span class="material-symbols-outlined text-sm">download</span>
-                Export Data
+                {{ t('dash_exportData') }}
               </button>
             </div>
           </div>
@@ -400,15 +399,15 @@
                 class="h-9 rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 text-xs text-slate-600 dark:text-slate-300"
                 @change="applyUsageFilters"
               >
-                <option value="all">过滤：全部</option>
-                <option value="chat">过滤：Chat</option>
-                <option value="stream">过滤：流式</option>
-                <option value="image">过滤：Image</option>
+                <option value="all">{{ t('dash_filterAll') }}</option>
+                <option value="chat">{{ t('dash_filterChat') }}</option>
+                <option value="stream">{{ t('dash_filterStream') }}</option>
+                <option value="image">{{ t('dash_filterImage') }}</option>
               </select>
               <input
                 v-model="pathSearch"
                 type="text"
-                placeholder="按 endpoint / model / key 搜索"
+                :placeholder="t('dash_searchPlaceholder')"
                 class="h-9 min-w-[260px] flex-1 rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 text-xs text-slate-700 dark:text-slate-300 placeholder:text-slate-400"
                 @keydown.enter.prevent="applyUsageFilters"
               />
@@ -418,7 +417,7 @@
                 :disabled="dashboardLoading"
                 @click="applyUsageFilters"
               >
-                Apply Filters
+                {{ t('dash_applyFilters') }}
               </button>
               <button
                 type="button"
@@ -426,7 +425,7 @@
                 :disabled="dashboardLoading || (requestFilter === 'all' && !pathSearch.trim())"
                 @click="resetUsageFilters"
               >
-                Reset
+                {{ t('dash_reset') }}
               </button>
             </div>
           </div>
@@ -436,17 +435,17 @@
                 class="bg-slate-50 dark:bg-slate-800/50 text-slate-400 text-[10px] font-bold uppercase tracking-wider"
               >
                 <tr>
-                  <th class="px-6 py-3">Type</th>
-                  <th class="px-6 py-3">Model</th>
-                  <th class="px-6 py-3">Endpoint</th>
-                  <th class="px-6 py-3">API Key</th>
-                  <th class="px-6 py-3">Group</th>
-                  <th class="px-6 py-3 text-right">Input Tokens</th>
-                  <th class="px-6 py-3 text-right">Output Tokens</th>
-                  <th class="px-6 py-3 text-right">Total Tokens</th>
-                  <th class="px-6 py-3 text-right">Actual Cost</th>
-                  <th class="px-6 py-3 text-right">Duration</th>
-                  <th class="px-6 py-3 text-right">Timestamp</th>
+                  <th class="px-6 py-3">{{ t('dash_type') }}</th>
+                  <th class="px-6 py-3">{{ t('dash_model') }}</th>
+                  <th class="px-6 py-3">{{ t('dash_endpoint') }}</th>
+                  <th class="px-6 py-3">{{ t('dash_apiKey') }}</th>
+                  <th class="px-6 py-3">{{ t('dash_group') }}</th>
+                  <th class="px-6 py-3 text-right">{{ t('dash_inputTokens') }}</th>
+                  <th class="px-6 py-3 text-right">{{ t('dash_outputTokens') }}</th>
+                  <th class="px-6 py-3 text-right">{{ t('dash_totalTokens') }}</th>
+                  <th class="px-6 py-3 text-right">{{ t('dash_actualCost') }}</th>
+                  <th class="px-6 py-3 text-right">{{ t('dash_duration') }}</th>
+                  <th class="px-6 py-3 text-right">{{ t('dash_timestamp') }}</th>
                 </tr>
               </thead>
               <tbody class="divide-y divide-slate-100 dark:divide-slate-800 text-sm">
@@ -468,7 +467,7 @@
                   <td class="px-6 py-4 text-right text-slate-400 tabular-nums">{{ formatDateTime(item.createdAt) }}</td>
                 </tr>
                 <tr v-if="filteredRequestRows.length === 0">
-                  <td colspan="11" class="px-6 py-6 text-center text-xs text-slate-400">没有匹配的使用记录</td>
+                  <td colspan="11" class="px-6 py-6 text-center text-xs text-slate-400">{{ t('dash_noMatchingRecords') }}</td>
                 </tr>
               </tbody>
             </table>
@@ -477,7 +476,7 @@
             class="p-4 bg-slate-50 dark:bg-slate-800/50 flex flex-col gap-3 border-t border-slate-100 dark:border-slate-800 sm:flex-row sm:items-center sm:justify-between"
           >
             <p class="text-xs text-slate-500 dark:text-slate-400">
-              Showing {{ filteredRequestRows.length }} of {{ formatCount(usageTotal) }} records on page {{ usagePage }}.
+              {{ t('dash_showingRecords', { shown: filteredRequestRows.length, total: formatCount(usageTotal), page: usagePage }) }}
             </p>
             <div class="flex items-center justify-end gap-2">
               <button
@@ -486,7 +485,7 @@
                 :disabled="dashboardLoading || usagePage <= 1"
                 @click="changeUsagePage(usagePage - 1)"
               >
-                Prev
+                {{ t('dash_prev') }}
               </button>
               <div class="min-w-[120px] text-center text-xs font-semibold text-slate-500 dark:text-slate-300">
                 {{ usagePage }} / {{ usageTotalPages }}
@@ -497,7 +496,7 @@
                 :disabled="dashboardLoading || usagePage >= usageTotalPages"
                 @click="changeUsagePage(usagePage + 1)"
               >
-                Next
+                {{ t('dash_next') }}
               </button>
             </div>
           </div>
@@ -514,10 +513,10 @@
         <div class="border-b border-slate-200 bg-slate-50/80 px-5 py-4 dark:border-slate-700 dark:bg-slate-800/60">
           <div class="flex items-start justify-between gap-4">
             <div>
-              <p class="text-xs font-bold uppercase tracking-[0.2em] text-primary">Account Access</p>
-              <h3 class="mt-1 text-lg font-semibold text-slate-900 dark:text-slate-100">登录后继续使用 Dashboard</h3>
+              <p class="text-xs font-bold uppercase tracking-[0.2em] text-primary">{{ t('dash_accountAccess') }}</p>
+              <h3 class="mt-1 text-lg font-semibold text-slate-900 dark:text-slate-100">{{ t('dash_loginModalTitle') }}</h3>
               <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">
-                登录后可解锁代理控制、Quick Setup、Quick Chat 与账户相关功能。
+                {{ t('dash_loginModalDesc') }}
               </p>
             </div>
             <button
@@ -533,11 +532,11 @@
 
         <form class="space-y-4 p-5" @submit.prevent="submitLogin">
           <div class="rounded-xl border border-dashed border-amber-200 bg-amber-50/70 p-4 text-xs text-amber-700 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-200">
-            当前未登录。输入账户信息后，弹窗会在登录成功后自动关闭。
+            {{ t('dash_loginNotLoggedIn') }}
           </div>
 
           <div>
-            <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">Email</label>
+            <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">{{ t('user_email') }}</label>
             <input
               v-model.trim="loginEmail"
               type="email"
@@ -549,13 +548,13 @@
           </div>
 
           <div>
-            <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">Password</label>
+            <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">{{ t('user_password') }}</label>
             <input
               v-model="loginPassword"
               type="password"
               autocomplete="current-password"
               class="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none transition focus:border-primary dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
-              placeholder="Enter your password"
+              :placeholder="t('user_passwordPh')"
               :disabled="loginPending"
             />
           </div>
@@ -569,14 +568,14 @@
               :disabled="loginPending"
               @click="closeLoginModal"
             >
-              取消
+              {{ t('dash_cancel') }}
             </button>
             <button
               type="submit"
               class="inline-flex h-11 flex-1 items-center justify-center rounded-lg bg-primary px-4 text-sm font-semibold text-white transition hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
               :disabled="loginPending"
             >
-              {{ loginPending ? '登录中...' : '登录' }}
+              {{ loginPending ? t('dash_loggingIn') : t('dash_login') }}
             </button>
           </div>
         </form>
@@ -590,7 +589,7 @@
     >
       <div class="w-full max-w-2xl overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl dark:border-slate-700 dark:bg-slate-900">
         <div class="flex items-center justify-between border-b border-slate-200 px-4 py-3 dark:border-slate-700">
-          <h3 class="text-base font-semibold text-slate-900 dark:text-slate-100">Quick Chat</h3>
+          <h3 class="text-base font-semibold text-slate-900 dark:text-slate-100">{{ t('dash_quickChat') }}</h3>
           <button
             type="button"
             class="rounded p-1 text-slate-500 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800 dark:hover:text-slate-200"
@@ -601,9 +600,9 @@
         </div>
 
         <div class="h-[420px] overflow-y-auto bg-slate-50 p-4 dark:bg-slate-800/40">
-          <div v-if="quickChatMessages.length === 0" class="text-center text-sm text-slate-400">开始和 AI 对话吧</div>
+          <div v-if="quickChatMessages.length === 0" class="text-center text-sm text-slate-400">{{ t('dash_startAIChat') }}</div>
           <div v-for="(item, index) in quickChatMessages" :key="`${item.role}-${index}`" class="mb-3">
-            <div class="mb-1 text-xs text-slate-400">{{ item.role === 'user' ? '我' : 'AI' }}</div>
+            <div class="mb-1 text-xs text-slate-400">{{ item.role === 'user' ? t('dash_me') : t('dash_ai') }}</div>
             <div
               class="inline-block max-w-[90%] rounded-lg px-3 py-2 text-sm"
               :class="item.role === 'user'
@@ -620,7 +619,7 @@
             <input
               v-model="quickChatInput"
               type="text"
-              placeholder="输入消息..."
+              :placeholder="t('dash_enterMessage')"
               class="h-10 flex-1 rounded border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none transition focus:border-primary dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
               :disabled="isQuickChatSending"
               @keydown.enter.prevent="sendQuickChat"
@@ -631,7 +630,7 @@
               :disabled="isQuickChatSending"
               @click="sendQuickChat"
             >
-              {{ isQuickChatSending ? '发送中...' : '发送' }}
+              {{ isQuickChatSending ? t('dash_sending') : t('dash_send') }}
             </button>
           </div>
         </div>
@@ -731,11 +730,11 @@
           </div>
 
           <div v-if="tunStartModal.maxRetries > 0" class="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700 dark:border-slate-700 dark:bg-slate-800/50 dark:text-slate-200">
-            Retry Progress: {{ tunStartModal.retryCount || 0 }} / {{ tunStartModal.maxRetries }}
+            {{ t('dash_retryProgress', { current: tunStartModal.retryCount || 0, max: tunStartModal.maxRetries }) }}
           </div>
 
           <div v-if="tunStartModal.errors.length > 0" class="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 dark:border-amber-500/30 dark:bg-amber-500/10">
-            <p class="text-sm font-semibold text-amber-800 dark:text-amber-200">Captured Errors</p>
+            <p class="text-sm font-semibold text-amber-800 dark:text-amber-200">{{ t('dash_capturedErrors') }}</p>
             <div class="mt-2 space-y-1">
               <p
                 v-for="(item, index) in tunStartModal.errors"
@@ -750,16 +749,16 @@
           <div class="overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-700">
             <div class="flex items-center justify-between gap-3 border-b border-slate-200 bg-slate-50/80 px-4 py-3 dark:border-slate-700 dark:bg-slate-800/60">
               <div>
-                <p class="text-sm font-semibold text-slate-900 dark:text-slate-100">Startup Logs</p>
-                <p class="text-xs text-slate-500 dark:text-slate-400">Showing log lines captured since this startup attempt began.</p>
+                <p class="text-sm font-semibold text-slate-900 dark:text-slate-100">{{ t('dash_startupLogs') }}</p>
+                <p class="text-xs text-slate-500 dark:text-slate-400">{{ t('dash_startupLogsHint') }}</p>
               </div>
               <span class="rounded-full bg-slate-900 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-white dark:bg-slate-100 dark:text-slate-900">
-                {{ tunStartModal.logs.length }} lines
+                {{ t('dash_lines', { count: tunStartModal.logs.length }) }}
               </span>
             </div>
             <div class="max-h-80 overflow-y-auto bg-slate-950 p-4 font-mono text-xs text-slate-200">
               <div v-if="tunStartModal.logs.length === 0" class="rounded-lg border border-dashed border-slate-700 bg-slate-900/60 px-4 py-6 text-sm text-slate-500">
-                Waiting for startup logs...
+                {{ t('dash_waitingForLogs') }}
               </div>
               <div v-else class="space-y-1 whitespace-pre-wrap break-all">
                 <div
@@ -794,6 +793,7 @@
 
 <script setup>
 import { computed, ref, onMounted, onUnmounted, watch } from 'vue';
+import { useI18n } from '../i18n';
 import { useCertStatus } from '../composables/useCertStatus';
 import { useNavigation } from '../composables/useNavigation';
 import { useRunStatus } from '../composables/useRunStatus';
@@ -809,6 +809,8 @@ import {
   getDashboardUsageRecords
 } from '../services/dashboardApi';
 import { getAliangLinkStatus } from '../services/runApi';
+
+const { t } = useI18n();
 
 const { certStatus, loading: certLoading, startPolling: startCertPolling, stopPolling: stopCertPolling } = useCertStatus();
 const { currentPage, showSettings } = useNavigation();
@@ -882,15 +884,15 @@ const serverLinkOnline = computed(() => ['connected', 'degraded'].includes(serve
 
 const accountSubtitle = computed(() => {
   if (!isAuthenticated.value) {
-    return 'Log in to unlock proxy controls and account-linked usage.';
+    return t('dash_accountSubtitleGuest');
   }
   if (user.value?.status) {
-    return `Account status: ${user.value.status}`;
+    return t('dash_accountStatus', { status: user.value.status });
   }
   if (user.value?.createdAt) {
-    return `Member since ${user.value.createdAt}`;
+    return t('dash_memberSince', { date: user.value.createdAt });
   }
-  return 'Authenticated session active';
+  return t('dash_sessionActive');
 });
 
 const userAvatarText = computed(() => {
@@ -922,19 +924,19 @@ const accountBalanceHint = computed(() => {
   if (softwareUpdateStatus.value.needs_update) {
     if (softwareUpdateStatus.value.force_update) {
       return latestVersion
-        ? `Version ${currentVersion} • Required update to ${latestVersion}`
-        : `Version ${currentVersion} • Required update available`;
+        ? t('dash_versionUpdateRequired', { current: currentVersion, latest: latestVersion })
+        : t('dash_versionForceUpdate', { current: currentVersion });
     }
     return latestVersion
-      ? `Version ${currentVersion} • Update ${latestVersion} available`
-      : `Version ${currentVersion} • Update available`;
+      ? t('dash_versionUpdateAvailable', { current: currentVersion, latest: latestVersion })
+      : t('dash_versionUpdateGeneric', { current: currentVersion });
   }
 
   if (!softwareUpdateStatus.value.current_version) {
-    return 'Checking version...';
+    return t('dash_versionChecking');
   }
 
-  return `Version ${currentVersion}`;
+  return t('dash_versionCurrent', { current: currentVersion });
 });
 
 const accountBalanceHintClass = computed(() => {
@@ -1015,26 +1017,26 @@ const trendAreaPath = computed(() => {
 
 const trendSummaryText = computed(() => {
   if (!trendPoints.value.length) {
-    return 'No recent request trend yet.';
+    return t('dash_noRecentTrend');
   }
   const latestPoint = trendPoints.value[trendPoints.value.length - 1];
-  return `${latestPoint.requests} requests in latest bucket`;
+  return t('dash_requestsInBucket', { count: latestPoint.requests });
 });
 
 const serverLinkBadgeText = computed(() => {
   if (serverLinkPending.value) {
-    return 'Checking';
+    return t('dash_serverLinkChecking');
   }
   if (serverLinkState.value === 'degraded') {
-    return 'High Latency';
+    return t('dash_serverLinkHighLatency');
   }
   if (serverLinkState.value === 'connected') {
-    return 'Connected';
+    return t('dash_serverLinkOnline');
   }
   if (serverLinkState.value === 'disconnected') {
-    return 'Offline';
+    return t('dash_serverLinkOffline');
   }
-  return 'Unknown';
+  return t('dash_unknown');
 });
 
 const serverLinkBadgeClass = computed(() => {
@@ -1120,24 +1122,24 @@ const serverLatencyLabel = computed(() => {
 
 const serverStateLabel = computed(() => {
   if (serverLinkPending.value || serverLinkState.value === 'connecting') {
-    return 'Probing';
+    return t('dash_serverProbing');
   }
   if (serverLinkState.value === 'degraded') {
-    return 'High latency';
+    return t('dash_serverHighLatency');
   }
   if (runIsRunning.value && serverLinkOnline.value) {
-    return 'Serving';
+    return t('dash_serverServing');
   }
   if (serverLinkState.value === 'connected') {
-    return 'Linked';
+    return t('dash_serverLinked');
   }
   if (serverLinkState.value === 'disconnected') {
-    return 'No link';
+    return t('dash_serverNoLink');
   }
   if (startupStatus.value === 'READY' || startupStatus.value === 'CONFIGURED') {
-    return 'Ready';
+    return t('dash_serverReady');
   }
-  return startupStatus.value === 'UNKNOWN' ? 'Checking' : startupStatus.value;
+  return startupStatus.value === 'UNKNOWN' ? t('dash_serverLinkChecking') : startupStatus.value;
 });
 
 const serverStateTextClass = computed(() => {
@@ -1223,10 +1225,10 @@ async function refreshDashboardView() {
 
 const serverLinkDetailText = computed(() => {
   if (serverLinkPending.value) {
-    return 'Probing mTLS handshake...';
+    return t('dash_serverLinkProbing');
   }
   if (serverLinkError.value) {
-    return `Last error: ${serverLinkError.value}`;
+    return t('dash_serverLinkError', { error: serverLinkError.value });
   }
   if (serverLinkState.value === 'degraded' && typeof serverLinkHighLatencyThresholdMs.value === 'number') {
     return `Probe total time is above ${serverLinkHighLatencyThresholdMs.value} ms.`;
@@ -1248,9 +1250,9 @@ const serverLinkDetailText = computed(() => {
     return 'Latest handshake completed successfully.';
   }
   if (serverLinkLastConnectedAt.value > 0) {
-    return `mTLS link is currently offline. Last successful handshake was ${formatRelativeTimestamp(serverLinkLastConnectedAt.value)}.`;
+    return t('dash_serverLinkOffline', { time: formatRelativeTimestamp(serverLinkLastConnectedAt.value) });
   }
-  return 'No successful mTLS handshake has been recorded yet.';
+  return t('dash_serverLinkNoHandshake');
 });
 
 function formatRelativeTimestamp(timestamp) {
@@ -1538,7 +1540,7 @@ function openCertModal() {
 }
 
 function handleReinstall() {
-  if (!confirm('确定要重新安装证书吗？\n将执行：移除旧证书 → 重新生成 → 安装到系统')) {
+  if (!confirm(t('dash_confirmReinstall'))) {
     return;
   }
   emit('openCertModal');
@@ -1550,43 +1552,43 @@ function handleShowSettings() {
 }
 
 const runModeLabel = computed(() => {
-  if (runMode.value === 'tun') return 'TUN';
-  if (runMode.value === 'http') return 'HTTP';
-  return 'Unknown';
+  if (runMode.value === 'tun') return t('dash_tunMode');
+  if (runMode.value === 'http') return t('dash_httpMode');
+  return t('dash_runModeUnknown');
 });
 
 const proxyStatusTitle = computed(() => {
-  if (runSyncError.value) return 'System Proxy Status Unknown';
-  if (runIsRunning.value) return 'System Proxy Active';
-  if (!canStartProxy.value) return 'System Proxy Not Ready';
-  return 'System Proxy Inactive';
+  if (runSyncError.value) return t('dash_proxyStatusUnknown');
+  if (runIsRunning.value) return t('dash_proxyActive');
+  if (!canStartProxy.value) return t('dash_proxyNotReady');
+  return t('dash_proxyInactive');
 });
 
 const proxyStatusSubtitle = computed(() => {
   if (runActionMessage.value) return runActionMessage.value;
-  if (runSyncError.value) return `Sync failed: ${runSyncError.value}`;
+  if (runSyncError.value) return t('dash_syncFailed', { error: runSyncError.value });
   if (blockingSoftwareUpdate.value) {
-    return `Disabled: a mandatory update (${softwareUpdateStatus.value.latest_version || 'latest version'}) must be installed before proxy startup is allowed.`;
+    return t('dash_disabledMandatoryUpdate', { version: softwareUpdateStatus.value.latest_version || 'latest version' });
   }
   if (!isAuthenticated.value) {
-    return 'Disabled: login required before proxy operations can start.';
+    return t('dash_disabledLoginRequired');
   }
   if (!canStartProxy.value) {
     switch (startupStatus.value) {
       case 'UNCONFIGURED':
-        return 'Disabled: no backend user session was found. Please log in or restore local user info first.';
+        return t('dash_disabledUnconfigured');
       case 'CONFIGURING':
-        return 'Disabled: account activation is still in progress. Please wait until the backend is ready.';
+        return t('dash_disabledConfiguring');
       default:
-        return `Disabled: backend startup status is ${startupStatus.value}. Proxy start is blocked until it becomes ready.`;
+        return t('dash_disabledStatusBlocked', { status: startupStatus.value });
     }
   }
   if (runDescription.value) return runDescription.value;
   if (runStatus.value) return runStatus.value;
-  return runIsRunning.value ? 'Service is running' : 'Service is stopped';
+  return runIsRunning.value ? t('dash_serviceRunning') : t('dash_serviceStopped');
 });
 
-const powerButtonBusyText = computed(() => (runIsRunning.value ? 'Stopping proxy...' : 'Starting proxy...'));
+const powerButtonBusyText = computed(() => (runIsRunning.value ? t('dash_stoppingProxy') : t('dash_startingProxy')));
 
 const canStartProxy = computed(() => {
   if (!isAuthenticated.value) {
@@ -1601,7 +1603,7 @@ const canStartProxy = computed(() => {
 const powerButtonTitle = computed(() => {
   if (runActionLoading.value) return powerButtonBusyText.value;
   if (powerButtonDisabled.value && !runIsRunning.value) return proxyStatusSubtitle.value;
-  return runIsRunning.value ? 'Stop proxy' : 'Start proxy';
+  return runIsRunning.value ? t('dash_stopProxy') : t('dash_startProxy');
 });
 
 const powerButtonHaloClass = computed(() => {
@@ -1877,7 +1879,7 @@ async function toggleProxyPower() {
       throw new Error(data?.msg || `Failed to ${actionText} proxy`);
     }
 
-    runActionMessage.value = runIsRunning.value ? 'Proxy stopped successfully.' : 'Proxy start request sent successfully.';
+    runActionMessage.value = runIsRunning.value ? t('dash_proxyStoppedSuccessfully') : t('dash_proxyStartSent');
     await syncStartupStatus();
     await syncRunStatus();
   } catch (error) {
@@ -1927,11 +1929,11 @@ const networkStatusIconClass = computed(() => {
 
 const certBadgeText = computed(() => {
   switch (certOverallState.value) {
-    case 'trusted': return 'Trusted';
-    case 'installed': return 'Installed';
-    case 'exported': return 'Generated';
-    case 'not_found': return 'Not Found';
-    default: return 'Loading...';
+    case 'trusted': return t('dash_certTrusted');
+    case 'installed': return t('dash_certInstalled');
+    case 'exported': return t('dash_certGenerated');
+    case 'not_found': return t('dash_certNotFound');
+    default: return t('dash_loading');
   }
 });
 
@@ -1999,7 +2001,7 @@ async function sendQuickChat() {
   if (!isAuthenticated.value) {
     quickChatMessages.value.push({
       role: 'assistant',
-      content: '请先登录，随后才能使用 Quick Chat。'
+      content: t('dash_pleaseLoginChat')
     });
     return;
   }
@@ -2045,7 +2047,7 @@ async function sendQuickChat() {
   } catch (error) {
     quickChatMessages.value.push({
       role: 'assistant',
-      content: '暂时无法连接 AI 服务，请稍后重试。'
+      content: t('dash_chatServiceUnavailable')
     });
   } finally {
     isQuickChatSending.value = false;

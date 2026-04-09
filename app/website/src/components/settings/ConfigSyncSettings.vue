@@ -4,12 +4,12 @@
       <div class="flex items-center justify-between mb-4 gap-3 flex-wrap">
         <h3 class="mb-0 flex items-center gap-2 font-bold">
           <span class="material-symbols-outlined text-primary">cloud_sync</span>
-          配置同步中心
+          {{ t('sync_title') }}
         </h3>
         <div class="flex items-center gap-2">
-          <button type="button" class="settings-btn-outline" @click="loadConfigs">刷新</button>
+          <button type="button" class="settings-btn-outline" @click="loadConfigs">{{ t('sync_refresh') }}</button>
           <button type="button" class="settings-btn-primary" :disabled="pushing" @click="pushSelectedToCloud">
-            {{ pushing ? '推送中...' : '一键推送选中到云端' }}
+            {{ pushing ? t('sync_pushing') : t('sync_pushSelected') }}
           </button>
         </div>
       </div>
@@ -19,7 +19,7 @@
           v-model="filters.software"
           class="rounded border border-slate-300 px-3 py-2 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
           type="text"
-          placeholder="软件名（可选）"
+          :placeholder="t('sync_softwarePh')"
           @keydown.enter.prevent="loadConfigs"
         />
         <div class="flex gap-2">
@@ -27,17 +27,17 @@
             v-model="cloud.cloudUrl"
             class="flex-1 rounded border border-slate-300 px-3 py-2 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
             type="text"
-            placeholder="云端 URL"
+            :placeholder="t('sync_cloudUrlPh')"
           />
           <button type="button" class="settings-btn-outline" :disabled="comparing" @click="compareWithCloud">
-            {{ comparing ? '比较中...' : '比较新旧' }}
+            {{ comparing ? t('sync_comparing') : t('sync_compareBtn') }}
           </button>
         </div>
         <input
           v-model="cloud.authToken"
           class="rounded border border-slate-300 px-3 py-2 md:col-span-2 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
           type="text"
-          placeholder="云端 Token（可选）"
+          :placeholder="t('sync_cloudTokenPh')"
         />
       </div>
 
@@ -45,14 +45,14 @@
         <table class="w-full text-sm">
           <thead class="bg-slate-50 dark:bg-slate-800/50">
             <tr>
-              <th class="text-left p-2">选择</th>
-              <th class="text-left p-2">软件名</th>
-              <th class="text-left p-2">配置名</th>
-              <th class="text-left p-2">路径</th>
-              <th class="text-left p-2">版本</th>
-              <th class="text-left p-2">更新时间</th>
-              <th class="text-left p-2">对比</th>
-              <th class="text-left p-2">操作</th>
+              <th class="text-left p-2">{{ t('sync_colSelect') }}</th>
+              <th class="text-left p-2">{{ t('sync_colSoftware') }}</th>
+              <th class="text-left p-2">{{ t('sync_colConfigName') }}</th>
+              <th class="text-left p-2">{{ t('sync_colPath') }}</th>
+              <th class="text-left p-2">{{ t('sync_colVersion') }}</th>
+              <th class="text-left p-2">{{ t('sync_colUpdated') }}</th>
+              <th class="text-left p-2">{{ t('sync_colCompare') }}</th>
+              <th class="text-left p-2">{{ t('sync_colActions') }}</th>
             </tr>
           </thead>
           <tbody>
@@ -79,24 +79,24 @@
               </td>
               <td class="p-2">
                 <div class="flex gap-2 flex-wrap">
-                  <button type="button" class="settings-btn-outline !py-1 !px-2" @click="applyItem(item)">应用</button>
-                  <button type="button" class="settings-btn-outline !py-1 !px-2" @click="copyContent(item)">复制</button>
-                  <button type="button" class="settings-btn-outline !py-1 !px-2" @click="removeConfig(item)">删除</button>
+                  <button type="button" class="settings-btn-outline !py-1 !px-2" @click="applyItem(item)">{{ t('sync_apply') }}</button>
+                  <button type="button" class="settings-btn-outline !py-1 !px-2" @click="copyContent(item)">{{ t('sync_copy') }}</button>
+                  <button type="button" class="settings-btn-outline !py-1 !px-2" @click="removeConfig(item)">{{ t('sync_delete') }}</button>
                 </div>
               </td>
             </tr>
             <tr v-if="!items.length">
-              <td class="p-4 text-slate-500 dark:text-slate-400" colspan="8">暂无配置数据</td>
+              <td class="p-4 text-slate-500 dark:text-slate-400" colspan="8">{{ t('sync_noData') }}</td>
             </tr>
           </tbody>
         </table>
       </div>
 
       <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3">
-        <input v-model="editor.software" class="rounded border border-slate-300 px-3 py-2 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100" placeholder="软件名" type="text" />
-        <input v-model="editor.name" class="rounded border border-slate-300 px-3 py-2 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100" placeholder="配置名" type="text" />
-        <input v-model="editor.filePath" class="rounded border border-slate-300 px-3 py-2 md:col-span-2 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100" placeholder="配置路径" type="text" />
-        <input v-model="editor.version" class="rounded border border-slate-300 px-3 py-2 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100" placeholder="版本号" type="text" />
+        <input v-model="editor.software" class="rounded border border-slate-300 px-3 py-2 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100" :placeholder="t('sync_softwareNamePh')" type="text" />
+        <input v-model="editor.name" class="rounded border border-slate-300 px-3 py-2 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100" :placeholder="t('sync_configNamePh')" type="text" />
+        <input v-model="editor.filePath" class="rounded border border-slate-300 px-3 py-2 md:col-span-2 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100" :placeholder="t('sync_configPathPh')" type="text" />
+        <input v-model="editor.version" class="rounded border border-slate-300 px-3 py-2 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100" :placeholder="t('sync_versionPh')" type="text" />
         <select v-model="editor.format" class="rounded border border-slate-300 px-3 py-2 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100">
           <option value="json">json</option>
           <option value="yaml">yaml</option>
@@ -113,9 +113,9 @@
       </div>
 
       <div class="mt-3 flex justify-end gap-2">
-        <button type="button" class="settings-btn-secondary" @click="resetEditor">重置</button>
+        <button type="button" class="settings-btn-secondary" @click="resetEditor">{{ t('sync_reset') }}</button>
         <button type="button" class="settings-btn-primary" :disabled="saving" @click="saveConfig">
-          {{ saving ? '保存中...' : '保存配置' }}
+          {{ saving ? t('sync_saving') : t('sync_saveConfig') }}
         </button>
       </div>
 
@@ -130,9 +130,12 @@ import { Codemirror as CodeMirror } from 'vue-codemirror';
 import { json } from '@codemirror/lang-json';
 import { yaml } from '@codemirror/lang-yaml';
 import { oneDark } from '@codemirror/theme-one-dark';
+import { useI18n } from '../../i18n';
+
+const { t } = useI18n();
 
 const items = ref([]);
-const status = ref('就绪');
+const status = ref(t('sync_ready'));
 const pushing = ref(false);
 const saving = ref(false);
 const comparing = ref(false);
@@ -175,7 +178,7 @@ async function request(path, options = {}) {
   });
   const payload = await resp.json();
   if (!resp.ok || payload.code !== 0) {
-    throw new Error(payload.msg || '请求失败');
+    throw new Error(payload.msg || t('sync_requestFailed'));
   }
   return normalizeApi(payload);
 }
@@ -210,15 +213,15 @@ function freshnessClass(statusValue) {
 function freshnessLabel(statusValue) {
   switch (statusValue) {
     case 'local_newer':
-      return '本地更新';
+      return t('sync_localNewer');
     case 'cloud_newer':
-      return '云端更新';
+      return t('sync_cloudNewer');
     case 'same':
-      return '一致';
+      return t('sync_same');
     case 'local_only':
-      return '仅本地';
+      return t('sync_localOnly');
     case 'cloud_only':
-      return '仅云端';
+      return t('sync_cloudOnly');
     default:
       return '-';
   }
@@ -230,7 +233,7 @@ async function loadConfigs() {
     : '';
   const data = await request(`/software-config/list${query}`, { method: 'GET' });
   items.value = (data.items || []).map((item) => ({ ...item, freshness_status: item.freshness_status || '' }));
-  status.value = `已加载 ${items.value.length} 条配置`; 
+  status.value = t('sync_loaded', { count: items.value.length });
 }
 
 function fillEditor(item) {
@@ -245,7 +248,7 @@ function fillEditor(item) {
 
 async function saveConfig() {
   if (!editor.software.trim() || !editor.name.trim() || !editor.filePath.trim() || !editor.content.trim()) {
-    status.value = '软件名、配置名、路径、内容不能为空';
+    status.value = t('sync_fieldsRequired');
     return;
   }
 
@@ -275,9 +278,9 @@ async function saveConfig() {
       }),
     });
     await loadConfigs();
-    status.value = '配置已保存';
+    status.value = t('sync_saved');
   } catch (error) {
-    status.value = `保存失败: ${error.message}`;
+    status.value = t('sync_saveFailed', { msg: error.message });
   } finally {
     saving.value = false;
   }
@@ -301,7 +304,7 @@ async function toggleSelect(item, selected) {
       }),
     });
   } catch (error) {
-    status.value = `选择失败: ${error.message}`;
+    status.value = t('sync_selectFailed', { msg: error.message });
   }
 }
 
@@ -319,9 +322,9 @@ async function copyContent(item) {
       }),
     });
     fillEditor(item);
-    status.value = `已复制：${item.name}`;
+    status.value = t('sync_copied', { name: item.name });
   } catch (error) {
-    status.value = `复制失败: ${error.message}`;
+    status.value = t('sync_copyFailed', { msg: error.message });
   }
 }
 
@@ -349,10 +352,10 @@ async function applyItem(item) {
         detail: `applied to ${item.file_path}`,
       }),
     });
-    status.value = `已应用：${item.name}`;
+    status.value = t('sync_applied', { name: item.name });
     await loadConfigs();
   } catch (error) {
-    status.value = `应用失败: ${error.message}`;
+    status.value = t('sync_applyFailed', { msg: error.message });
   }
 }
 
@@ -363,15 +366,15 @@ async function removeConfig(item) {
       body: JSON.stringify({ uuid: item.uuid }),
     });
     await loadConfigs();
-    status.value = `已删除：${item.name}`;
+    status.value = t('sync_deleted', { name: item.name });
   } catch (error) {
-    status.value = `删除失败: ${error.message}`;
+    status.value = t('sync_deleteFailed', { msg: error.message });
   }
 }
 
 async function compareWithCloud() {
   if (!cloud.cloudUrl.trim()) {
-    status.value = '请先填写云端 URL';
+    status.value = t('sync_cloudUrlRequired');
     return;
   }
   comparing.value = true;
@@ -391,9 +394,9 @@ async function compareWithCloud() {
       ...it,
       freshness_status: map.get(it.uuid) || 'local_only',
     }));
-    status.value = `比较完成，共 ${data.items?.length || 0} 条`;
+    status.value = t('sync_compareComplete', { count: data.items?.length || 0 });
   } catch (error) {
-    status.value = `比较失败: ${error.message}`;
+    status.value = t('sync_compareFailed', { msg: error.message });
   } finally {
     comparing.value = false;
   }
@@ -401,7 +404,7 @@ async function compareWithCloud() {
 
 async function pushSelectedToCloud() {
   if (!cloud.cloudUrl.trim()) {
-    status.value = '请先填写云端 URL';
+    status.value = t('sync_cloudUrlRequired');
     return;
   }
   pushing.value = true;
@@ -413,15 +416,15 @@ async function pushSelectedToCloud() {
         auth_token: cloud.authToken.trim(),
       }),
     });
-    status.value = `已推送 ${data.synced_count || 0} 条到云端（${data.last_synced_at || ''}）`;
+    status.value = t('sync_pushedCount', { count: data.synced_count || 0, time: data.last_synced_at || '' });
   } catch (error) {
-    status.value = `推送失败: ${error.message}`;
+    status.value = t('sync_pushFailed', { msg: error.message });
   } finally {
     pushing.value = false;
   }
 }
 
 loadConfigs().catch((error) => {
-  status.value = `初始化失败: ${error.message}`;
+  status.value = t('sync_initFailed', { msg: error.message });
 });
 </script>
