@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"aliang.one/nursorgate/common/logger"
@@ -199,6 +200,24 @@ func RefreshSession(refreshToken string) (*UserInfo, error) {
 		return nil, fmt.Errorf("refresh token cannot be empty")
 	}
 
+	refreshSessionMu.Lock()
+	defer refreshSessionMu.Unlock()
+
+	// Another caller may have refreshed and rotated the token while we were
+	// waiting for the lock. Reuse the newest local session to avoid sending an
+	// already-invalidated refresh token again.
+	current := GetCurrentUserInfoOrLoad()
+	if current != nil {
+		latestToken := strings.TrimSpace(current.RefreshToken)
+		if latestToken != "" && latestToken != token && strings.TrimSpace(current.AccessToken) != "" {
+			logger.Debug("Refresh token rotated while waiting; reusing latest local session")
+			return current, nil
+		}
+		if latestToken != "" {
+			token = latestToken
+		}
+	}
+
 	urlBuilder, err := config.NewURLBuilder()
 	if err != nil {
 		return nil, err
@@ -266,7 +285,7 @@ func RefreshSession(refreshToken string) (*UserInfo, error) {
 	userInfo.RefreshToken = response.Data.RefreshToken
 	userInfo.TokenType = response.Data.TokenType
 	userInfo.ExpiresIn = response.Data.ExpiresIn
-	current := GetCurrentUserInfoOrLoad()
+	current = GetCurrentUserInfoOrLoad()
 	if current != nil {
 		userInfo.AliangSessionToken = current.AliangSessionToken
 	}
@@ -383,7 +402,8 @@ func maskToken(token string) string {
 }
 
 var (
-	tokenRefresher *TokenRefresher
+	tokenRefresher   *TokenRefresher
+	refreshSessionMu sync.Mutex
 )
 
 // startTokenRefresh 启动定时刷新
