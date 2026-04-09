@@ -20,7 +20,7 @@
             "type": "aliang",
             "core_server": "ai-gateway.aliang.one:443"
         },
-        "api_server": "https://www.aliang.one"
+        "api_server": "https://api.aliang.one"
     },
     "customer": {
         "proxy": {
@@ -30,26 +30,27 @@
             "password": ""
         },
         "ai_rules":{
-          "openai":{
-            "enble": true,
-            "exclude": [
-              "api.openai.com",
-              "cdn.openai.com"
-            ]
-          },
-          "claude":{
-            "enble": true,
-            "exclude": [
-              "claude.ai",
-              "claude.com"
-            ]
-          },
-          "gemini":{
-            "enble": true,
-            "exclude": [
-              "gemini.google.com"
-            ]
-          }
+           "vscode": {
+              "enble": true,
+              "include": [
+                "*.githubcopilot.com"
+              ]
+            },
+            "Anthropic": {
+              "enble": true,
+              "include": [
+                "api.aliang.one",
+                "api.anthropic.com"
+              ]
+            },
+            "openai": {
+              "enble": true,
+              "include": [
+                "api.openai.com",
+                "cdn.openai.com",
+                "api.aliang.one"
+              ]
+            }
         },
         "proxy_rules": [
             "domains,cursor.com",
