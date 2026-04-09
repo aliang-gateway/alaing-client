@@ -93,7 +93,7 @@ func (csc *AliangServerConnector) DialWithTiming(ctx context.Context, network, a
 	}
 	handshakeCompletedAt := time.Now()
 
-	logger.Info(fmt.Sprintf(
+	logger.Debug(fmt.Sprintf(
 		"[AliangGate] mtls tunnel ready server=%s app_proto=%s negotiated_alpn=%s",
 		address,
 		appProto,

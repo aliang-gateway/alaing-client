@@ -415,7 +415,7 @@ func (w *WatcherWrapConn) rebuildReqHeadersWithInjectedField(
 				summarizeHTTP2Request(rewrittenFields),
 			))
 		} else if !version.IsProdBuild() {
-			logger.Info(fmt.Sprintf(
+			logger.Debug(fmt.Sprintf(
 				"WatcherWrapConn: added authorization-inner for HTTP/2 stream=%d %s",
 				streamID,
 				summarizeHTTP2Request(rewrittenFields),

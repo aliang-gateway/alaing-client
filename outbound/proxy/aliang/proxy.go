@@ -72,7 +72,7 @@ func (c *Aliang) DialContext(ctx context.Context, metadata *metadata.Metadata) (
 		if appProto == "" {
 			appProto = "unknown"
 		}
-		logger.Info(fmt.Sprintf("[AliangGate] established dedicated mtls session app_proto=%s target=%s via=%s", appProto, metadata.DestinationAddress(), c.config.Addr))
+		logger.Debug(fmt.Sprintf("[AliangGate] established dedicated mtls session app_proto=%s target=%s via=%s", appProto, metadata.DestinationAddress(), c.config.Addr))
 	}
 
 	return conn, nil

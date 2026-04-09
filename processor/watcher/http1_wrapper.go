@@ -72,7 +72,7 @@ func (w *WatcherWrapConn) processH1ReqHeaders() ([]byte, bool, error) {
 			req.Host,
 		))
 	} else if !version.IsProdBuild() {
-		logger.Info(fmt.Sprintf(
+		logger.Debug(fmt.Sprintf(
 			"WatcherWrapConn: added authorization-inner for HTTP/1 request=%q host=%q",
 			requestLine,
 			req.Host,
