@@ -5,6 +5,7 @@ import (
 	"crypto/x509"
 	_ "embed"
 	"fmt"
+	"sync"
 
 	"aliang.one/nursorgate/common/logger"
 )
@@ -18,6 +19,17 @@ var mtlsClientKeyPEM []byte
 //go:embed ca.pem
 var mtlsCACertPEM []byte
 
+var (
+	mtlsMaterialOnce sync.Once
+	mtlsMaterial     mtlsClientMaterial
+	mtlsMaterialErr  error
+)
+
+type mtlsClientMaterial struct {
+	cert   tls.Certificate
+	rootCA *x509.CertPool
+}
+
 // GetMTLSClientTLSConfig returns the outbound TLS config used by the aliang mTLS connector.
 // The certificate material is embedded from processor/cert/client so the runtime consistently
 // uses the dedicated client-auth certificate rather than the MITM server certificate.
@@ -26,19 +38,14 @@ var mtlsCACertPEM []byte
 // This keeps the mTLS channel as a raw encrypted tunnel that can carry arbitrary
 // upper-layer payloads, including both HTTP/1.1 and HTTP/2 bytes.
 func GetMTLSClientTLSConfig(isHTTP2 bool, serverName string) (*tls.Config, error) {
-	cert, err := tls.X509KeyPair(mtlsClientCertPEM, mtlsClientKeyPEM)
+	material, err := getMTLSClientMaterial()
 	if err != nil {
-		return nil, fmt.Errorf("load embedded mTLS client key pair: %w", err)
-	}
-
-	caCertPool := x509.NewCertPool()
-	if !caCertPool.AppendCertsFromPEM(mtlsCACertPEM) {
-		return nil, fmt.Errorf("load embedded mTLS CA certificate: append failed")
+		return nil, err
 	}
 
 	tlsConfig := &tls.Config{
-		RootCAs:      caCertPool,
-		Certificates: []tls.Certificate{cert},
+		RootCAs:      material.rootCA,
+		Certificates: []tls.Certificate{material.cert},
 		ServerName:   serverName,
 
 		// We intentionally disable standard hostname verification because the upstream
@@ -51,7 +58,7 @@ func GetMTLSClientTLSConfig(isHTTP2 bool, serverName string) (*tls.Config, error
 			}
 
 			opts := x509.VerifyOptions{
-				Roots:         caCertPool,
+				Roots:         material.rootCA,
 				Intermediates: x509.NewCertPool(),
 			}
 
@@ -74,4 +81,30 @@ func GetMTLSClientTLSConfig(isHTTP2 bool, serverName string) (*tls.Config, error
 	}
 
 	return tlsConfig, nil
+}
+
+func getMTLSClientMaterial() (*mtlsClientMaterial, error) {
+	mtlsMaterialOnce.Do(func() {
+		cert, err := tls.X509KeyPair(mtlsClientCertPEM, mtlsClientKeyPEM)
+		if err != nil {
+			mtlsMaterialErr = fmt.Errorf("load embedded mTLS client key pair: %w", err)
+			return
+		}
+
+		caCertPool := x509.NewCertPool()
+		if !caCertPool.AppendCertsFromPEM(mtlsCACertPEM) {
+			mtlsMaterialErr = fmt.Errorf("load embedded mTLS CA certificate: append failed")
+			return
+		}
+
+		mtlsMaterial = mtlsClientMaterial{
+			cert:   cert,
+			rootCA: caCertPool,
+		}
+	})
+
+	if mtlsMaterialErr != nil {
+		return nil, mtlsMaterialErr
+	}
+	return &mtlsMaterial, nil
 }

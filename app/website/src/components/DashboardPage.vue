@@ -864,6 +864,9 @@ const appliedRequestFilter = ref('all');
 const serverLinkState = ref('unknown');
 const serverLinkPending = ref(false);
 const serverLinkLatencyMs = ref(null);
+const serverLinkTCPConnectMs = ref(null);
+const serverLinkTLSHandshakeMs = ref(null);
+const serverLinkProbeTotalMs = ref(null);
 const serverLinkLastCheckedAt = ref(0);
 const serverLinkLastConnectedAt = ref(0);
 const serverLinkHighLatencyThresholdMs = ref(null);
@@ -1169,6 +1172,9 @@ async function sampleServerLink() {
       const linkData = linkEnvelope.value?.data || {};
       serverLinkState.value = typeof linkData.state === 'string' ? linkData.state : 'unknown';
       serverLinkLatencyMs.value = typeof linkData.latency_ms === 'number' ? linkData.latency_ms : null;
+      serverLinkTCPConnectMs.value = typeof linkData.tcp_connect_ms === 'number' ? linkData.tcp_connect_ms : null;
+      serverLinkTLSHandshakeMs.value = typeof linkData.tls_handshake_ms === 'number' ? linkData.tls_handshake_ms : null;
+      serverLinkProbeTotalMs.value = typeof linkData.probe_total_ms === 'number' ? linkData.probe_total_ms : null;
       serverLinkLastCheckedAt.value = Number(linkData.last_checked_at || 0);
       serverLinkLastConnectedAt.value = Number(linkData.last_connected_at || 0);
       serverLinkConsecutiveFailures.value = Number(linkData.consecutive_failures || 0);
@@ -1177,6 +1183,9 @@ async function sampleServerLink() {
     } else {
       serverLinkState.value = 'disconnected';
       serverLinkLatencyMs.value = null;
+      serverLinkTCPConnectMs.value = null;
+      serverLinkTLSHandshakeMs.value = null;
+      serverLinkProbeTotalMs.value = null;
       serverLinkLastCheckedAt.value = Date.now();
       serverLinkLastConnectedAt.value = 0;
       serverLinkConsecutiveFailures.value = 0;
@@ -1192,6 +1201,9 @@ async function sampleServerLink() {
   } catch {
     serverLinkState.value = 'disconnected';
     serverLinkLatencyMs.value = null;
+    serverLinkTCPConnectMs.value = null;
+    serverLinkTLSHandshakeMs.value = null;
+    serverLinkProbeTotalMs.value = null;
     serverLinkError.value = 'mTLS link probe failed';
     serverHealthScore.value = null;
     serverLinkLastCheckedAt.value = Date.now();
@@ -1217,9 +1229,22 @@ const serverLinkDetailText = computed(() => {
     return `Last error: ${serverLinkError.value}`;
   }
   if (serverLinkState.value === 'degraded' && typeof serverLinkHighLatencyThresholdMs.value === 'number') {
-    return `Handshake latency is above ${serverLinkHighLatencyThresholdMs.value} ms.`;
+    return `Probe total time is above ${serverLinkHighLatencyThresholdMs.value} ms.`;
   }
   if (serverLinkState.value === 'connected' || serverLinkState.value === 'degraded') {
+    const parts = [];
+    if (typeof serverLinkTCPConnectMs.value === 'number') {
+      parts.push(`TCP ${Math.round(serverLinkTCPConnectMs.value)} ms`);
+    }
+    if (typeof serverLinkTLSHandshakeMs.value === 'number') {
+      parts.push(`TLS ${Math.round(serverLinkTLSHandshakeMs.value)} ms`);
+    }
+    if (typeof serverLinkProbeTotalMs.value === 'number') {
+      parts.push(`total ${Math.round(serverLinkProbeTotalMs.value)} ms`);
+    }
+    if (parts.length > 0) {
+      return parts.join(' · ');
+    }
     return 'Latest handshake completed successfully.';
   }
   if (serverLinkLastConnectedAt.value > 0) {

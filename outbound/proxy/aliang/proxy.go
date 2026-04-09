@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net"
 	"sync"
-	"time"
 
 	"aliang.one/nursorgate/common/logger"
 	"aliang.one/nursorgate/inbound/tun/metadata"
@@ -61,13 +60,12 @@ func (c *Aliang) DialContext(ctx context.Context, metadata *metadata.Metadata) (
 	// Raw byte relaying is not safe to reuse across independent sessions, even if
 	// they target the same destination and protocol.
 	c.status.markConnecting()
-	startedAt := time.Now()
-	conn, err := c.connector.Dial(ctx, "tcp", c.config.Addr, metadata.AppProto)
+	conn, timing, err := c.connector.DialWithTiming(ctx, "tcp", c.config.Addr, metadata.AppProto)
 	if err != nil {
 		c.status.markFailure(describeProbeFailure(c.config.Addr, err))
 		return nil, err
 	}
-	c.status.markSuccess(time.Since(startedAt))
+	c.status.markSuccess(timing)
 
 	if metadata != nil {
 		appProto := metadata.AppProto
@@ -141,15 +139,14 @@ func (c *Aliang) ProbeLink(ctx context.Context) map[string]interface{} {
 	c.mu.RUnlock()
 
 	c.status.markConnecting()
-	startedAt := time.Now()
 
-	conn, err := c.connector.Dial(ctx, "tcp", serverAddr, "unknown")
+	conn, timing, err := c.connector.DialWithTiming(ctx, "tcp", serverAddr, "unknown")
 	if err != nil {
 		c.status.markFailure(describeProbeFailure(serverAddr, err))
 		return c.status.snapshotMap()
 	}
 	_ = conn.Close()
 
-	c.status.markSuccess(time.Since(startedAt))
+	c.status.markSuccess(timing)
 	return c.status.snapshotMap()
 }
