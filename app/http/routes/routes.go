@@ -139,6 +139,7 @@ func RegisterRoutes(h *Handlers, mux *http.ServeMux) {
 	register("/api/run/wintun/install", h.Run.HandleRunWintunInstall, http.MethodPost)
 	register("/api/run/wintun/status", h.Run.HandleRunWintunStatus, http.MethodGet)
 	register("/api/run/tun/status", h.Run.HandleRunTUNStatus, http.MethodGet)
+	register("/api/run/tun/conflicts", h.Run.HandleRunTUNConflictStatus, http.MethodGet)
 	register("/api/run/swift", h.Run.HandleRunSwift, http.MethodPost)
 	register("/api/software-update/status", h.SoftwareUpdate.HandleStatus, http.MethodGet)
 	register("/api/software-update/dismiss", h.SoftwareUpdate.HandleDismiss, http.MethodPost)

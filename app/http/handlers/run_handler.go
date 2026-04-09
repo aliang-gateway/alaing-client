@@ -64,6 +64,12 @@ func (rh *RunHandler) HandleRunTUNStatus(w http.ResponseWriter, r *http.Request)
 	common.Success(w, result)
 }
 
+// HandleRunTUNConflictStatus handles GET /api/run/tun/conflicts
+func (rh *RunHandler) HandleRunTUNConflictStatus(w http.ResponseWriter, r *http.Request) {
+	result := services.GetTunConflictPromptStatus()
+	common.Success(w, result)
+}
+
 // HandleRunSwift handles POST /api/run/swift
 func (rh *RunHandler) HandleRunSwift(w http.ResponseWriter, r *http.Request) {
 	var req struct {

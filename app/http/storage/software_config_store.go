@@ -83,6 +83,7 @@ func openSoftwareConfigDB(dbPath string) (*gorm.DB, error) {
 		&models.SoftwareEffectiveConfigSnapshot{},
 		&models.SoftwareVersionUpdateSnapshot{},
 		&models.SoftwareVersionUpdateDismissal{},
+		&models.UIPromptState{},
 	); err != nil {
 		return nil, fmt.Errorf("failed to migrate software_configs table: %w", err)
 	}

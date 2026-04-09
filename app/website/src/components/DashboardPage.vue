@@ -646,7 +646,7 @@
         <div class="border-b border-slate-200 bg-slate-50/80 px-5 py-4 dark:border-slate-700 dark:bg-slate-800/60">
           <div class="flex items-start justify-between gap-4">
             <div>
-              <p class="text-xs font-bold uppercase tracking-[0.2em] text-primary">TUN Startup</p>
+              <p class="text-xs font-bold uppercase tracking-[0.2em] text-primary">Deep Mode Startup</p>
               <h3 class="mt-1 text-lg font-semibold text-slate-900 dark:text-slate-100">{{ tunStartModal.title }}</h3>
               <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">{{ tunStartModal.detail }}</p>
             </div>
@@ -878,6 +878,7 @@ const serverHealthScore = ref(null);
 let tunStartLogTimer = null;
 let tunStartStatusTimer = null;
 let tunStartBackendTimer = null;
+let tunStartAutoCloseTimer = null;
 let serverLinkTimer = null;
 
 const serverLinkOnline = computed(() => ['connected', 'degraded'].includes(serverLinkState.value));
@@ -1752,17 +1753,17 @@ function describeTunBackendPhase(phase, options = {}) {
       };
     case 'running':
       return {
-        statusLabel: 'TUN startup complete',
+        statusLabel: 'Deep Mode startup complete',
         statusHint: baseMessage || 'The TUN engine is running and ready to proxy traffic.'
       };
     case 'failed':
       return {
-        statusLabel: maxRetries > 0 ? `TUN startup failed after ${retryCount}/${maxRetries} attempts` : 'TUN startup failed',
+        statusLabel: maxRetries > 0 ? `Deep Mode startup failed after ${retryCount}/${maxRetries} attempts` : 'Deep Mode startup failed',
         statusHint: baseMessage || 'Review the captured errors and logs below for the exact failure point.'
       };
     default:
       return {
-        statusLabel: progressPercent > 0 ? `TUN startup ${progressPercent}%` : 'Starting TUN proxy...',
+        statusLabel: progressPercent > 0 ? `Deep Mode startup ${progressPercent}%` : 'Starting Deep Mode...',
         statusHint: baseMessage || 'We are following backend startup progress and collecting fresh logs for this attempt.'
       };
   }
@@ -2120,6 +2121,12 @@ function markTunStartModalSuccess(message, overrides = {}) {
     errorMessage: ''
   };
   stopTunStartObservers();
+  tunStartAutoCloseTimer = window.setTimeout(() => {
+    tunStartAutoCloseTimer = null;
+    if (tunStartModal.value.status === 'success') {
+      closeTunStartModal();
+    }
+  }, 1000);
 }
 
 function markTunStartModalError(message, overrides = {}) {
@@ -2162,6 +2169,10 @@ function stopTunStartObservers() {
   if (tunStartBackendTimer !== null) {
     window.clearInterval(tunStartBackendTimer);
     tunStartBackendTimer = null;
+  }
+  if (tunStartAutoCloseTimer !== null) {
+    window.clearTimeout(tunStartAutoCloseTimer);
+    tunStartAutoCloseTimer = null;
   }
 }
 

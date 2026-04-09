@@ -44,6 +44,17 @@ const (
 	runModeSnapshotPath     = "runtime://run-mode"
 )
 
+func runModeDisplayName(mode models.RunMode) string {
+	switch mode {
+	case models.ModeTUN:
+		return "Deep Mode"
+	case models.ModeHTTP:
+		return "Regular Mode"
+	default:
+		return strings.ToUpper(string(mode))
+	}
+}
+
 type runModeSnapshotStore interface {
 	SaveEffectiveConfigSnapshot(snapshot models.SoftwareEffectiveConfigSnapshot) error
 	GetLatestEffectiveConfigSnapshotBySoftwareAndName(software string, configName string) (*models.SoftwareEffectiveConfigSnapshot, error)
@@ -283,19 +294,19 @@ func (rs *RunService) GetStatus() map[string]interface{} {
 	switch mode {
 	case models.ModeTUN:
 		if rs.isRunning {
-			response["status"] = "TUN service is running"
-			response["description"] = "Transparent proxy mode via TUN interface"
+			response["status"] = "Deep Mode is running"
+			response["description"] = "System traffic is being routed through the TUN interface."
 		} else {
-			response["status"] = "TUN mode selected, service not running"
-			response["description"] = "TUN mode is ready, call start to activate"
+			response["status"] = "Deep Mode is selected, service not running"
+			response["description"] = "Deep Mode is ready. Click start when you want to enable system-wide proxying."
 		}
 	case models.ModeHTTP:
 		if rs.isRunning {
-			response["status"] = "HTTP proxy server is running"
-			response["description"] = "HTTP CONNECT proxy mode on port 56432"
+			response["status"] = "Regular Mode is running"
+			response["description"] = "HTTP CONNECT proxy is running on port 56432."
 		} else {
-			response["status"] = "HTTP mode selected, service not running"
-			response["description"] = "HTTP mode is ready, call start to activate"
+			response["status"] = "Regular Mode is selected, service not running"
+			response["description"] = "Regular Mode is ready. Click start when you want to enable local proxying."
 		}
 	}
 
@@ -361,7 +372,7 @@ func (rs *RunService) SwitchMode(targetMode string) map[string]interface{} {
 	previousMode := authoritativeMode
 	wasRunning := rs.isRunning
 	if previousMode == targetModeEnum {
-		message := "Run mode is already set to " + string(targetModeEnum) + "."
+		message := "Run mode is already set to " + runModeDisplayName(targetModeEnum) + "."
 		if wasRunning {
 			message += " The current proxy keeps running until you stop it."
 		} else {
@@ -418,22 +429,24 @@ func (rs *RunService) SwitchMode(targetMode string) map[string]interface{} {
 	switch targetModeEnum {
 	case models.ModeHTTP:
 		// 检查是否已经在运行 HTTP 服务
-		response["message"] = "Switched to HTTP mode. Proxy remains stopped until start is called."
+		response["message"] = "Switched to Regular Mode. Proxy remains stopped until start is called."
 		response["usage"] = "POST /api/run/start after restoring an authenticated session"
 		if wasRunning {
-			response["details"] = "The previously running " + string(previousMode) + " service was stopped. Call start to launch HTTP mode."
+			response["details"] = "The previously running " + runModeDisplayName(previousMode) + " service was stopped. Call start to launch Regular Mode."
 		} else {
-			response["details"] = "HTTP mode is selected and ready to start."
+			response["details"] = "Regular Mode is selected and ready to start."
 		}
-		response["next_action"] = "Call start to activate HTTP mode"
+		response["next_action"] = "Call start to activate Regular Mode"
 
 	case models.ModeTUN:
-		response["message"] = "Switched to TUN mode. Proxy remains stopped until start is called."
+		response["message"] = "Switched to Deep Mode. Proxy remains stopped until start is called."
 		response["usage"] = "POST /api/run/start after restoring an authenticated session"
 		if wasRunning {
-			response["details"] = "The previously running " + string(previousMode) + " service was stopped. Call start to launch TUN mode."
+			response["details"] = "The previously running " + runModeDisplayName(previousMode) + " service was stopped. Call start to launch Deep Mode."
+		} else {
+			response["details"] = "Deep Mode is selected and ready to start."
 		}
-		response["next_step"] = "Call start to initialize and start the TUN interface"
+		response["next_step"] = "Call start to initialize and launch Deep Mode"
 	}
 
 	return response

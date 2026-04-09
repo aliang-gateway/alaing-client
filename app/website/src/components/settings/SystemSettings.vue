@@ -24,7 +24,7 @@
               ]"
               @click="selectMode('tun')"
             >
-              TUN
+              {{ t('sys_modeDeep') }}
             </button>
             <button
               type="button"
@@ -37,7 +37,7 @@
               ]"
               @click="selectMode('http')"
             >
-              HTTP
+              {{ t('sys_modeRegular') }}
             </button>
           </div>
         </div>
@@ -67,8 +67,8 @@
 
         <div class="space-y-3 rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-900/50">
           <div class="flex flex-wrap items-center gap-2 text-[11px] text-slate-600 dark:text-slate-300">
-            <span class="rounded bg-slate-200 px-2 py-0.5 font-semibold dark:bg-slate-700">{{ t('sys_backend') }}: {{ backendMode.toUpperCase() }}</span>
-            <span class="rounded bg-slate-200 px-2 py-0.5 font-semibold dark:bg-slate-700">{{ t('sys_selected') }}: {{ selectedMode.toUpperCase() }}</span>
+            <span class="rounded bg-slate-200 px-2 py-0.5 font-semibold dark:bg-slate-700">{{ t('sys_backend') }}: {{ backendModeLabel }}</span>
+            <span class="rounded bg-slate-200 px-2 py-0.5 font-semibold dark:bg-slate-700">{{ t('sys_selected') }}: {{ selectedModeLabel }}</span>
             <span v-if="isRunning !== null" class="rounded bg-slate-200 px-2 py-0.5 font-semibold dark:bg-slate-700">
               {{ isRunning ? t('sys_running') : t('sys_stopped') }}
             </span>
@@ -111,9 +111,9 @@
               <div class="flex items-start justify-between gap-4">
                 <div>
                   <p class="text-xs font-bold uppercase tracking-[0.2em] text-amber-500">{{ t('sys_switchToTun') }}</p>
-                  <h3 class="mt-1 text-lg font-semibold text-slate-900 dark:text-slate-100">{{ t('sys_continueTunSwitch') }}</h3>
+                  <h3 class="mt-1 text-lg font-semibold text-slate-900 dark:text-slate-100">{{ tunSwitchDialogTitle }}</h3>
                   <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">
-                    {{ t('sys_tunSwitchDesc') }}
+                    {{ tunSwitchDialogDescription }}
                   </p>
                 </div>
                 <button
@@ -128,8 +128,32 @@
 
             <div class="space-y-4 p-5">
               <div class="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">
-                {{ t('sys_tunPermissionWarning') }}
+                {{ tunSwitchDialogWarning }}
               </div>
+
+              <div
+                v-if="tunConflictScan.interfaces.length > 0"
+                class="rounded-xl border border-slate-200 bg-slate-50/90 px-4 py-3 dark:border-slate-700 dark:bg-slate-800/60"
+              >
+                <p class="text-[11px] font-bold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">{{ t('sys_tunConflictListTitle') }}</p>
+                <div class="mt-3 space-y-2">
+                  <div
+                    v-for="item in tunConflictScan.interfaces"
+                    :key="`${item.name}-${item.description}`"
+                    class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 dark:border-slate-700 dark:bg-slate-900/60 dark:text-slate-200"
+                  >
+                    <div class="font-semibold">{{ item.name }}</div>
+                    <div v-if="item.description" class="mt-1 text-xs text-slate-500 dark:text-slate-400">{{ item.description }}</div>
+                    <div class="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
+                      {{ item.match_reason }}<span v-if="item.status"> · {{ item.status }}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <p class="text-xs leading-6 text-slate-500 dark:text-slate-400">
+                {{ t('sys_tunConflictHint') }}
+              </p>
 
               <div class="flex gap-3">
                 <button
@@ -444,6 +468,12 @@ export default {
       showSystemServiceConfirm: false,
       systemServiceConfirmAction: '',
       pendingTunSwitchAfterInstall: false,
+      tunConflictScan: {
+        should_prompt: false,
+        first_time_prompt: false,
+        has_conflict: false,
+        interfaces: []
+      },
       authoritativeWintunDependency: null,
       systemServiceInfo: {
         supported: false,
@@ -488,6 +518,27 @@ export default {
         return this.t('sys_syncFailed', { error: this.sharedRunSyncError });
       }
       return typeof this.sharedRunStatus === 'string' ? this.sharedRunStatus : '';
+    },
+    backendModeLabel() {
+      return this.modeLabel(this.backendMode);
+    },
+    selectedModeLabel() {
+      return this.modeLabel(this.selectedMode);
+    },
+    tunSwitchDialogTitle() {
+      return this.tunConflictScan.first_time_prompt
+        ? this.t('sys_tunFirstTimeTitle')
+        : this.t('sys_continueTunSwitch');
+    },
+    tunSwitchDialogDescription() {
+      return this.tunConflictScan.first_time_prompt
+        ? this.t('sys_tunFirstTimeDesc')
+        : this.t('sys_tunSwitchDesc');
+    },
+    tunSwitchDialogWarning() {
+      return this.tunConflictScan.first_time_prompt
+        ? this.t('sys_tunFirstTimeWarning')
+        : this.t('sys_tunPermissionWarning');
     },
     wintunDependency() {
       const dependency = this.authoritativeWintunDependency;
@@ -634,6 +685,15 @@ export default {
       this.modeError = '';
       this.modeSuccess = '';
     },
+    modeLabel(mode) {
+      if (mode === 'http') {
+        return this.t('sys_modeRegular');
+      }
+      if (mode === 'tun') {
+        return this.t('sys_modeDeep');
+      }
+      return String(mode || '').toUpperCase() || '--';
+    },
     formatWintunInstallError(dependency, fallbackMessage) {
       const code = dependency && typeof dependency.error_code === 'string' ? dependency.error_code : '';
       if (code === 'uac_cancelled') {
@@ -655,6 +715,25 @@ export default {
       });
       this.authoritativeWintunDependency = result && typeof result === 'object' ? result : null;
       return this.authoritativeWintunDependency;
+    },
+    async fetchTunConflictScan() {
+      const result = await this.requestJSON('/api/run/tun/conflicts', {
+        method: 'GET'
+      });
+      this.tunConflictScan = result && typeof result === 'object'
+        ? {
+            should_prompt: Boolean(result.should_prompt),
+            first_time_prompt: Boolean(result.first_time_prompt),
+            has_conflict: Boolean(result.has_conflict),
+            interfaces: Array.isArray(result.interfaces) ? result.interfaces : []
+          }
+        : {
+            should_prompt: false,
+            first_time_prompt: false,
+            has_conflict: false,
+            interfaces: []
+          };
+      return this.tunConflictScan;
     },
     async refreshSystemServiceStatus() {
       try {
@@ -691,6 +770,27 @@ export default {
       if (this.loadingMode || this.switchingMode || this.wintunDependency.installing || this.selectedMode === normalizedMode) {
         return;
       }
+      if (normalizedMode === 'tun') {
+        try {
+          const scan = await this.fetchTunConflictScan();
+          if (scan.should_prompt) {
+            this.selectedMode = normalizedMode;
+            this.showTunSwitchConfirm = true;
+            return;
+          }
+        } catch {
+          this.modeError = this.t('sys_tunConflictScanFailed');
+          this.selectedMode = normalizedMode;
+          this.tunConflictScan = {
+            should_prompt: true,
+            first_time_prompt: true,
+            has_conflict: false,
+            interfaces: []
+          };
+          this.showTunSwitchConfirm = true;
+          return;
+        }
+      }
       if (normalizedMode === 'tun' && this.wintunDependency.required && !this.wintunDependency.available) {
         this.selectedMode = normalizedMode;
         await this.installWintunDependency({ continueAfterInstall: true });
@@ -701,6 +801,13 @@ export default {
     },
     cancelTunSwitchConfirm() {
       this.showTunSwitchConfirm = false;
+      this.selectedMode = this.backendMode;
+      this.tunConflictScan = {
+        should_prompt: false,
+        first_time_prompt: false,
+        has_conflict: false,
+        interfaces: []
+      };
     },
     async confirmTunSwitch() {
       this.showTunSwitchConfirm = false;
@@ -941,9 +1048,7 @@ export default {
         if (status === 'failed') {
           throw new Error(result?.msg || this.t('sys_modeSwitchFailed'));
         }
-        this.modeSuccess = typeof result?.message === 'string' && result.message
-          ? result.message
-          : this.t('sys_modeSwitchSuccess', { mode: this.selectedMode.toUpperCase() });
+        this.modeSuccess = this.t('sys_modeSwitchSuccess', { mode: this.modeLabel(this.selectedMode) });
         await this.refreshModeState({ preserveMessages: true });
       } catch (err) {
         this.modeError = err instanceof Error ? err.message : this.t('sys_modeSwitchFailed');
