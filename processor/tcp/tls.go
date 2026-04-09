@@ -190,6 +190,11 @@ func (h *DefaultTLSHandler) DetermineRouteWithContext(metadata *M.Metadata) (Pro
 		return h.defaultFallbackRoute(), false
 	}
 
+	if shouldForceAliangRoute(metadata) {
+		logger.Debug(fmt.Sprintf("Route override: forcing aliang for local proxy target %s", metadata.DestinationAddress()))
+		return RouteToALiang, false
+	}
+
 	route := h.decideRouteWithRoutingEngine(metadata)
 	requiresSNI := metadata.DstPort == 443 && metadata.HostName == ""
 

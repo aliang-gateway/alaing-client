@@ -177,6 +177,6 @@ func handleRawConnection(conn net.Conn) {
 		}
 	} else {
 		// 透明代理，基本不存在
-		HandleHttpConnection(conn, req)
+		HandleHttpConnection(conn, reader, req)
 	}
 }

@@ -1,8 +1,12 @@
 package http
 
 import (
+	"bufio"
+	"bytes"
 	"context"
+	"errors"
 	"fmt"
+	"io"
 	"log"
 	"net"
 	"net/http"
@@ -16,7 +20,7 @@ import (
 	"aliang.one/nursorgate/processor/tcp"
 )
 
-func HandleHttpConnection(conn net.Conn, req *http.Request) {
+func HandleHttpConnection(conn net.Conn, reader *bufio.Reader, req *http.Request) {
 	defer conn.Close()
 
 	log.Printf("Received non-CONNECT request: %s %s", req.Method, req.URL.String())
@@ -38,6 +42,16 @@ func HandleHttpConnection(conn net.Conn, req *http.Request) {
 	// Import tcp handler for unified TCP processing
 	tcpHandler := tcp.GetHandler()
 
+	replayConn, err := newHTTPRequestReplayConn(conn, reader, req)
+	if err != nil {
+		logger.Error(fmt.Sprintf("Failed to rebuild HTTP request stream: %v", err))
+		respWriter := NewCustomResponseWriter(conn)
+		respWriter.WriteHeader(http.StatusBadGateway)
+		respWriter.Write([]byte(fmt.Sprintf("Failed to rebuild request stream: %v", err)))
+		respWriter.Flush()
+		return
+	}
+
 	// Create context for the handler
 	ctx := context.Background()
 
@@ -47,7 +61,7 @@ func HandleHttpConnection(conn net.Conn, req *http.Request) {
 	// 2. Route based on domain rules (cursor proxy, door proxy, or direct)
 	// 3. Handle bidirectional relay with statistics
 	logger.Debug(fmt.Sprintf("Routing HTTP request through TCP handler for %s:%d", metadata.HostName, metadata.DstPort))
-	if err := tcpHandler.Handle(ctx, conn, metadata); err != nil {
+	if err := tcpHandler.Handle(ctx, replayConn, metadata); err != nil {
 		logger.Error(fmt.Sprintf("TCP handler failed for %s: %v", metadata.HostName, err))
 		return
 	}
@@ -135,4 +149,119 @@ func convertNetIPToNetipAddr(ip net.IP) (netip.Addr, error) {
 		return netip.Addr{}, fmt.Errorf("nil IP")
 	}
 	return netip.ParseAddr(ip.String())
+}
+
+type replayConn struct {
+	net.Conn
+	reader io.Reader
+}
+
+func (c *replayConn) Read(p []byte) (int, error) {
+	return c.reader.Read(p)
+}
+
+func (c *replayConn) CloseRead() error {
+	if closer, ok := c.Conn.(interface{ CloseRead() error }); ok {
+		return closer.CloseRead()
+	}
+	return nil
+}
+
+func (c *replayConn) CloseWrite() error {
+	if closer, ok := c.Conn.(interface{ CloseWrite() error }); ok {
+		return closer.CloseWrite()
+	}
+	return nil
+}
+
+func newHTTPRequestReplayConn(conn net.Conn, reader *bufio.Reader, req *http.Request) (net.Conn, error) {
+	if conn == nil {
+		return nil, errors.New("conn is nil")
+	}
+	if reader == nil {
+		return nil, errors.New("reader is nil")
+	}
+	head, err := serializeHTTPRequestHead(req)
+	if err != nil {
+		return nil, err
+	}
+
+	return &replayConn{
+		Conn:   conn,
+		reader: io.MultiReader(bytes.NewReader(head), reader),
+	}, nil
+}
+
+func serializeHTTPRequestHead(req *http.Request) ([]byte, error) {
+	if req == nil {
+		return nil, errors.New("request is nil")
+	}
+
+	target := strings.TrimSpace(req.RequestURI)
+	if target == "" && req.URL != nil {
+		target = req.URL.String()
+	}
+	if target == "" {
+		return nil, errors.New("request target is empty")
+	}
+
+	proto := strings.TrimSpace(req.Proto)
+	if proto == "" {
+		proto = "HTTP/1.1"
+	}
+
+	var buf bytes.Buffer
+	if _, err := fmt.Fprintf(&buf, "%s %s %s\r\n", req.Method, target, proto); err != nil {
+		return nil, err
+	}
+
+	hostWritten := false
+	if req.Host != "" {
+		if _, err := fmt.Fprintf(&buf, "Host: %s\r\n", req.Host); err != nil {
+			return nil, err
+		}
+		hostWritten = true
+	}
+
+	contentLengthWritten := false
+	transferEncodingWritten := false
+	for key, values := range req.Header {
+		if strings.EqualFold(key, "Host") {
+			if !hostWritten && len(values) > 0 {
+				if _, err := fmt.Fprintf(&buf, "Host: %s\r\n", values[0]); err != nil {
+					return nil, err
+				}
+				hostWritten = true
+			}
+			continue
+		}
+		if strings.EqualFold(key, "Content-Length") {
+			contentLengthWritten = true
+		}
+		if strings.EqualFold(key, "Transfer-Encoding") {
+			transferEncodingWritten = true
+		}
+		for _, value := range values {
+			if _, err := fmt.Fprintf(&buf, "%s: %s\r\n", key, value); err != nil {
+				return nil, err
+			}
+		}
+	}
+
+	if !contentLengthWritten && req.ContentLength > 0 {
+		if _, err := fmt.Fprintf(&buf, "Content-Length: %d\r\n", req.ContentLength); err != nil {
+			return nil, err
+		}
+	}
+	if !transferEncodingWritten && len(req.TransferEncoding) > 0 {
+		if _, err := fmt.Fprintf(&buf, "Transfer-Encoding: %s\r\n", strings.Join(req.TransferEncoding, ", ")); err != nil {
+			return nil, err
+		}
+	}
+
+	if _, err := buf.WriteString("\r\n"); err != nil {
+		return nil, err
+	}
+
+	return buf.Bytes(), nil
 }

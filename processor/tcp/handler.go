@@ -312,6 +312,15 @@ func (h *TCPConnectionHandler) handleNonTLS(
 	originConn net.Conn,
 	metadata *M.Metadata,
 ) (remoteConn net.Conn, newOriginConn net.Conn, err error) {
+	if shouldForceAliangRoute(metadata) {
+		metadata.Route = "RouteToALiang"
+		remote, dialErr := h.dialByRoute(ctx, metadata, RouteToALiang)
+		if dialErr != nil {
+			return nil, originConn, dialErr
+		}
+		return remote, h.wrapAliangHTTPConnByProto(originConn, metadata.AppProto), nil
+	}
+
 	if metadata != nil && metadata.DstIP.IsValid() && !metadata.DstIP.IsUnspecified() &&
 		(IsLoopbackIP(metadata.DstIP) || IsPrivateIP(metadata.DstIP)) {
 		metadata.Route = "RouteDirect"

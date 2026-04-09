@@ -45,6 +45,8 @@ func GetHandler() TCPConnHandler {
 // SetHandler allows manual setting of the handler (for testing)
 func SetHandler(handler TCPConnHandler) {
 	globalHandler = handler
+	initOnce = sync.Once{}
+	initOnce.Do(func() {})
 }
 
 // ResetHandler resets to uninitialized state (for testing)

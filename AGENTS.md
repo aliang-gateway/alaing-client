@@ -22,3 +22,8 @@
 ## Implementation Notes
 
 This ensures all commits are intentional and user-approved, maintaining clear commit history and preventing unintended changes from being recorded.
+
+## 软件基础信息
+
+常规模式：以http模式运行代理；
+深度模式：以tun虚拟网卡的形式运行代理
