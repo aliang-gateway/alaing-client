@@ -45,7 +45,7 @@ func (r *Registry) RegisterDefault() error {
 
 	directProxy := direct.NewDirect()
 	r.proxies["direct"] = directProxy
-	logger.Info("Default direct proxy registered")
+	logger.Debug("Default direct proxy registered")
 	return nil
 }
 
@@ -70,7 +70,7 @@ func (r *Registry) RegisterAliang(serverAddr string) error {
 	}
 
 	r.proxies["aliang"] = aliangProxy
-	logger.Info(fmt.Sprintf("Default aliang proxy registered (server: %s)", serverAddr))
+	logger.Debug(fmt.Sprintf("Default aliang proxy registered (server: %s)", serverAddr))
 	return nil
 }
 
@@ -99,7 +99,7 @@ func (r *Registry) Register(name string, p proxy.Proxy) error {
 	}
 
 	r.proxies[name] = p
-	logger.Info(fmt.Sprintf("Proxy '%s' registered successfully (type: %s, addr: %s)",
+	logger.Debug(fmt.Sprintf("Proxy '%s' registered successfully (type: %s, addr: %s)",
 		name, p.Proto().String(), p.Addr()))
 	return nil
 }
@@ -114,7 +114,7 @@ func (r *Registry) Unregister(name string) error {
 	}
 
 	delete(r.proxies, name)
-	logger.Info(fmt.Sprintf("Proxy '%s' unregistered", name))
+	logger.Debug(fmt.Sprintf("Proxy '%s' unregistered", name))
 	return nil
 }
 

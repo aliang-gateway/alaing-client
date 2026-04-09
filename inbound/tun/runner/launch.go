@@ -79,7 +79,7 @@ func CleanupTunRoute() error {
 		cmd := utils2.GetRunCommand(r[0], r[1:]...)
 		if err := cmd.Run(); err != nil {
 			// 忽略路由不存在的错误
-			logger.Info("Route deletion warning:", err)
+			logger.Debug("Route deletion warning:", err)
 			continue
 		}
 	}
@@ -90,7 +90,7 @@ func CleanupTunRoute() error {
 		// 清理 pf 规则
 		cmd := utils2.GetRunCommand("pfctl", "-f", "/dev/null")
 		if err := cmd.Run(); err != nil {
-			logger.Info("Failed to reset pf rules:", err)
+			logger.Debug("Failed to reset pf rules:", err)
 			// 继续尝试禁用 pf
 		}
 
@@ -104,19 +104,19 @@ func CleanupTunRoute() error {
 		// 清理 iptables 规则（假设使用 iptables）
 		cmd := utils2.GetRunCommand("iptables", "-F")
 		if err := cmd.Run(); err != nil {
-			logger.Info("Failed to flush iptables rules:", err)
+			logger.Debug("Failed to flush iptables rules:", err)
 		}
 		// 可选：清理 nftables（如果使用 nftables）
 		cmd = utils2.GetRunCommand("nft", "flush", "ruleset")
 		if err := cmd.Run(); err != nil {
-			logger.Info("Failed to flush nftables rules:", err)
+			logger.Debug("Failed to flush nftables rules:", err)
 		}
 
 	case "windows":
 		// 清理 Windows 防火墙规则（假设规则名为 "TUNRule"）
 		cmd := utils2.GetRunCommand("powershell", "-Command", `Get-NetFirewallRule -DisplayName "TUNRule" | Remove-NetFirewallRule`)
 		if err := cmd.Run(); err != nil {
-			logger.Info("Failed to delete firewall rule:", err)
+			logger.Debug("Failed to delete firewall rule:", err)
 		}
 	}
 
@@ -130,14 +130,14 @@ func CleanupTunInterface(ifName string) error {
 		// 关闭 TUN 接口
 		cmd := utils2.GetRunCommand("ip", "link", "set", ifName, "down")
 		if err := cmd.Run(); err != nil {
-			logger.Info("Failed to bring down interface:", err)
+			logger.Debug("Failed to bring down interface:", err)
 			// 继续尝试删除接口
 		}
 
 		// 删除 TUN 接口
 		cmd = utils2.GetRunCommand("ip", "link", "delete", ifName)
 		if err := cmd.Run(); err != nil {
-			logger.Info("Failed to delete interface:", err)
+			logger.Debug("Failed to delete interface:", err)
 			return fmt.Errorf("failed to delete TUN interface %s: %w", ifName, err)
 		}
 
@@ -167,7 +167,7 @@ func CleanupTunInterface(ifName string) error {
 		// Windows 的 TUN 接口（如 Wintun 或 TAP-Windows）通常由驱动管理
 		// 删除接口需要通过设备管理或驱动工具，netsh 不直接支持
 		// 这里仅记录警告，实际删除可能依赖外部工具（如 tapinstall）
-		logger.Info("Windows TUN interface deletion requires driver-specific tools (e.g., tapinstall remove)")
+		logger.Debug("Windows TUN interface deletion requires driver-specific tools (e.g., tapinstall remove)")
 
 	default:
 		return fmt.Errorf("unsupported operating system: %s", runtime.GOOS)
@@ -231,7 +231,7 @@ func monitorTunDevice(ifname string) {
 		// 获取内存统计
 		runtime.ReadMemStats(&memStats)
 		// 打印系统信息
-		logger.Info(fmt.Sprintf("系统信息 - Goroutines: %d, 内存使用: %v MB",
+		logger.Debug(fmt.Sprintf("系统信息 - Goroutines: %d, 内存使用: %v MB",
 			runtime.NumGoroutine(),
 			memStats.Alloc/1024/1024))
 	}
@@ -367,7 +367,7 @@ func waitForTunDeviceReady(deviceName string, timeout time.Duration) error {
 				time.Sleep(500 * time.Millisecond)
 				return nil
 			}
-			logger.Info("Ping 测试失败，设备可能尚未完全就绪")
+			logger.Debug("Ping 测试失败，设备可能尚未完全就绪")
 		}
 
 		// win10返回的是deviceName up这样的内容

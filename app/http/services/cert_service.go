@@ -111,7 +111,7 @@ func (cs *CertService) GetCertStatus(certType string) (CertStatusResult, error) 
 		result.TrustStatus = "not_found"
 	}
 
-	logger.Info(fmt.Sprintf("Certificate %s status: exported=%v, installed=%v, trusted=%v, trustStatus=%s",
+	logger.Debug(fmt.Sprintf("Certificate %s status: exported=%v, installed=%v, trusted=%v, trustStatus=%s",
 		certType, result.IsExported, result.IsInstalled, result.IsTrusted, result.TrustStatus))
 	return result, nil
 }
@@ -132,19 +132,19 @@ func (cs *CertService) ExportCert(certType string) (string, error) {
 
 	// Check if certificate already exists in filesystem
 	if _, err := os.Stat(certPath); err == nil {
-		logger.Info(fmt.Sprintf("Certificate %s already exists at %s", certType, certPath))
+		logger.Debug(fmt.Sprintf("Certificate %s already exists at %s", certType, certPath))
 		return certPath, nil
 	}
 
 	// Certificate doesn't exist, need to generate it
-	logger.Info(fmt.Sprintf("Certificate %s not found, generating new one at %s", certType, certPath))
+	logger.Debug(fmt.Sprintf("Certificate %s not found, generating new one at %s", certType, certPath))
 
 	// For all certificate types, generate new certificates
 	if err := cs.generateAndExportCert(config, certPath); err != nil {
 		return "", fmt.Errorf("failed to generate certificate: %w", err)
 	}
 
-	logger.Info(fmt.Sprintf("Certificate %s exported to %s", certType, certPath))
+	logger.Debug(fmt.Sprintf("Certificate %s exported to %s", certType, certPath))
 	return certPath, nil
 }
 
@@ -161,7 +161,7 @@ func (cs *CertService) DownloadCert(certType string) ([]byte, error) {
 	isInstalled, err := cs.installer.IsInstalled(certType, certBytes)
 	if err == nil && isInstalled {
 		// Certificate is installed, return the installed certificate
-		logger.Info(fmt.Sprintf("Certificate %s is installed, returning installed certificate", certType))
+		logger.Debug(fmt.Sprintf("Certificate %s is installed, returning installed certificate", certType))
 		return certBytes, nil
 	}
 
@@ -178,7 +178,7 @@ func (cs *CertService) DownloadCert(certType string) ([]byte, error) {
 		return nil, fmt.Errorf("failed to read certificate from %s: %w", certPath, err)
 	}
 
-	logger.Info(fmt.Sprintf("Certificate %s is not installed, returning generated certificate", certType))
+	logger.Debug(fmt.Sprintf("Certificate %s is not installed, returning generated certificate", certType))
 	return certBytes, nil
 }
 
@@ -333,6 +333,6 @@ func (cs *CertService) generateAndExportCert(config *cert_config.CertConfig, cer
 		return fmt.Errorf("failed to generate certificate: %w", err)
 	}
 
-	logger.Info(fmt.Sprintf("Generated new certificate for %s at %s", config.CertType, certPath))
+	logger.Debug(fmt.Sprintf("Generated new certificate for %s at %s", config.CertType, certPath))
 	return nil
 }

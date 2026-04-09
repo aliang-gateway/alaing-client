@@ -374,7 +374,7 @@ func (w *WatcherWrapConn) processHttp2ResponseFrame(frame []byte) {
 		}
 
 	case frameTypeRstStream, frameTypeGoaway:
-		logger.Info(fmt.Sprintf("HTTP/2 Stream %d reset or GoAway, removing.", streamID))
+		logger.Debug(fmt.Sprintf("HTTP/2 Stream %d reset or GoAway, removing.", streamID))
 	case frameTypeSettings, frameTypePing, frameTypeWindowUpdate, frameTypePriority, frameTypePushPromise:
 		logger.Debug(fmt.Sprintf("Ignored HTTP/2 response frame type: %d (stream=%d)", ftype, streamID))
 	default:

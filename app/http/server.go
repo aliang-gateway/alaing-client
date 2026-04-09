@@ -248,7 +248,7 @@ func registerStaticFiles() {
 		io.Copy(w, indexFile)
 	})
 
-	logger.Info(fmt.Sprintf("Static file server registered using embedded website files (root=%s)", rootPath))
+	logger.Debug(fmt.Sprintf("Static file server registered using embedded website files (root=%s)", rootPath))
 }
 
 func resolveWebsiteRoot() (fs.FS, string, error) {

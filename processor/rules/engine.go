@@ -367,7 +367,7 @@ func (e *RuleEngine) ClearCache() {
 	defer e.mu.Unlock()
 
 	e.ipDomainCache.Clear()
-	logger.Info("Rule engine cache cleared")
+	logger.Debug("Rule engine cache cleared")
 }
 
 // StoreBinding stores DNS binding from connection metadata to cache
@@ -425,7 +425,7 @@ func (e *RuleEngine) Disable() {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	e.enabled = false
-	logger.Info("Rule engine disabled")
+	logger.Debug("Rule engine disabled")
 }
 
 // Enable enables the rule engine
@@ -433,5 +433,5 @@ func (e *RuleEngine) Enable() {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	e.enabled = true
-	logger.Info("Rule engine enabled")
+	logger.Debug("Rule engine enabled")
 }

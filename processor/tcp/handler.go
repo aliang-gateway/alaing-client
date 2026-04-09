@@ -138,7 +138,7 @@ func logObservedTLSServerName(metadata *M.Metadata, source string) {
 		destIP = "unknown"
 	}
 
-	logger.Info(fmt.Sprintf(
+	logger.Debug(fmt.Sprintf(
 		"[TUN TLS] observed server_name=%s source=%s src=%s dst=%s:%d",
 		metadata.HostName,
 		source,
@@ -158,7 +158,7 @@ func logAliangGateProxy(metadata *M.Metadata, routeSource string) {
 		destIP = "unknown"
 	}
 
-	logger.Info(fmt.Sprintf(
+	logger.Debug(fmt.Sprintf(
 		"[AliangGate] proxying server_name=%s route_source=%s app_proto=%s dst=%s:%d final_route=%s",
 		metadata.HostName,
 		routeSource,
@@ -431,7 +431,7 @@ func (h *TCPConnectionHandler) handleTLS(
 			// Check if this is a DoH (DNS over HTTPS) provider
 			// DoH traffic should be routed directly without proxy interception
 			if IsDoHProvider(sni) {
-				logger.Info(fmt.Sprintf("[DoH] Detected DoH provider: %s, routing directly", sni))
+				logger.Debug(fmt.Sprintf("[DoH] Detected DoH provider: %s, routing directly", sni))
 				// Return nil to allow direct connection (bypass proxy)
 				// This means the connection will be handled directly without MITM or proxy routing
 				return nil, nil, nil
@@ -442,7 +442,7 @@ func (h *TCPConnectionHandler) handleTLS(
 	} else if metadata.HostName != "" {
 		// We have domain from cache, check if it's a DoH provider
 		if IsDoHProvider(metadata.HostName) {
-			logger.Info(fmt.Sprintf("[DoH] Detected DoH provider from cache: %s, routing directly", metadata.HostName))
+			logger.Debug(fmt.Sprintf("[DoH] Detected DoH provider from cache: %s, routing directly", metadata.HostName))
 			// Return nil to allow direct connection (bypass proxy)
 			return nil, nil, nil
 		}

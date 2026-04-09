@@ -131,39 +131,39 @@ func startWithRollback(state *StartupState) error {
 
 // rollbackStartup 回滚已完成的启动步骤（按逆序清理）
 func rollbackStartup(state *StartupState) {
-	logger.Info("执行 TUN 启动回滚...")
+	logger.Debug("执行 TUN 启动回滚...")
 
 	// 按逆序回滚
 	// Step 6 回滚: 清理路由
 	if state.routesConfigured {
-		logger.Info("回滚: 清理 TUN 路由")
+		logger.Debug("回滚: 清理 TUN 路由")
 		if err := CleanupTunRoute(); err != nil {
 			logger.Error(fmt.Sprintf("回滚路由配置失败: %v", err))
 		} else {
-			logger.Info("✓ 路由回滚成功")
+			logger.Debug("✓ 路由回滚成功")
 		}
 	}
 
 	// Step 4 回滚: 清理接口
 	if state.interfaceConfigured {
-		logger.Info("回滚: 清理 TUN 接口")
+		logger.Debug("回滚: 清理 TUN 接口")
 		if err := CleanupTunInterface(defaultConfig.Device); err != nil {
 			logger.Error(fmt.Sprintf("回滚接口配置失败: %v", err))
 		} else {
-			logger.Info("✓ 接口回滚成功")
+			logger.Debug("✓ 接口回滚成功")
 		}
 	}
 
 	// Step 2 回滚: 停止 engine
 	if state.engineStarted {
-		logger.Info("回滚: 停止 engine")
+		logger.Debug("回滚: 停止 engine")
 		engine.Stop()
-		logger.Info("✓ Engine 停止成功")
+		logger.Debug("✓ Engine 停止成功")
 	}
 
 	// Note: 监控 goroutine 会在程序结束时自动终止，无需显式清理
 
-	logger.Info("TUN 启动回滚完成")
+	logger.Debug("TUN 启动回滚完成")
 }
 
 func Stop() {

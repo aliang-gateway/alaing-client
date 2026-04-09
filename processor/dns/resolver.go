@@ -213,7 +213,7 @@ func (r *BaseResolver) ClearCache() {
 	r.cache = make(map[string]*cacheEntry)
 	r.cacheHits = 0
 	r.cacheMiss = 0
-	logger.Info("[DNS] Cache cleared")
+	logger.Debug("[DNS] Cache cleared")
 }
 
 // GetCacheStats 获取缓存统计信息

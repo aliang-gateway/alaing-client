@@ -307,7 +307,7 @@ func (v *VLESS) establishNewConnection(ctx context.Context, metadata *M.Metadata
 		logger.Debug("[VLESS] TLS 配置创建成功")
 
 		// 开始 TLS 握手
-		logger.Info(fmt.Sprintf("[VLESS] 开始TLS握手 - 目标:%s:%d, SNI:%s", v.server, v.port, v.sni))
+		logger.Debug(fmt.Sprintf("[VLESS] 开始TLS握手 - 目标:%s:%d, SNI:%s", v.server, v.port, v.sni))
 		startTime := time.Now()
 		tlsConn, err := stls.ClientHandshake(ctx, conn, tlsConf)
 		handshakeDuration := time.Since(startTime)
@@ -320,7 +320,7 @@ func (v *VLESS) establishNewConnection(ctx context.Context, metadata *M.Metadata
 			logger.Error(fmt.Sprintf("[VLESS]    PublicKey:%s, ShortID:%s", v.reality.PublicKey, v.reality.ShortID))
 			return nil, fmt.Errorf("failed to handshake with VLESS server: %w", err)
 		}
-		logger.Info(fmt.Sprintf("[VLESS] ✓ TLS握手成功 (耗时:%v) - 目标: %s:%d", handshakeDuration, metadata.HostName, metadata.DstPort))
+		logger.Debug(fmt.Sprintf("[VLESS] ✓ TLS握手成功 (耗时:%v) - 目标: %s:%d", handshakeDuration, metadata.HostName, metadata.DstPort))
 
 		// 创建目标地址
 		// 重要：如果有域名，优先使用域名而不是IP，这样目标服务器才能正确处理TLS SNI
@@ -352,7 +352,7 @@ func (v *VLESS) establishNewConnection(ctx context.Context, metadata *M.Metadata
 			return nil, fmt.Errorf("failed to dial early connection: %w", err)
 		}
 
-		logger.Info(fmt.Sprintf("[VLESS] ✓ Early Dial成功 目标: %s:%d, 连接类型: %T", metadata.HostName, metadata.DstPort, visionConn))
+		logger.Debug(fmt.Sprintf("[VLESS] ✓ Early Dial成功 目标: %s:%d, 连接类型: %T", metadata.HostName, metadata.DstPort, visionConn))
 		return visionConn, nil
 	}
 

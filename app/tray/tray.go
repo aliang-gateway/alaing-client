@@ -168,7 +168,7 @@ func (t *TrayApp) startProxy() {
 		return
 	}
 
-	logger.Info("Starting proxy from tray...")
+	logger.Debug("Starting proxy from tray...")
 	result := t.runService.StartService()
 	status := trayResultString(result, "status")
 	if status == "failed" {
@@ -176,7 +176,7 @@ func (t *TrayApp) startProxy() {
 		t.syncProxyState()
 		return
 	}
-	logger.Info(fmt.Sprintf("Tray proxy start result: %s", trayResultMessage(result)))
+	logger.Debug(fmt.Sprintf("Tray proxy start result: %s", trayResultMessage(result)))
 	t.syncProxyState()
 }
 
@@ -187,7 +187,7 @@ func (t *TrayApp) stopProxy() {
 		return
 	}
 
-	logger.Info("Stopping proxy from tray...")
+	logger.Debug("Stopping proxy from tray...")
 	result := t.runService.StopService()
 	status := trayResultString(result, "status")
 	if status == "failed" && trayResultString(result, "error") != "not_running" {
@@ -195,13 +195,13 @@ func (t *TrayApp) stopProxy() {
 		t.syncProxyState()
 		return
 	}
-	logger.Info(fmt.Sprintf("Tray proxy stop result: %s", trayResultMessage(result)))
+	logger.Debug(fmt.Sprintf("Tray proxy stop result: %s", trayResultMessage(result)))
 	t.syncProxyState()
 }
 
 // restartProxy restarts the currently active proxy mode.
 func (t *TrayApp) restartProxy() {
-	logger.Info("Restarting proxy from tray...")
+	logger.Debug("Restarting proxy from tray...")
 	t.stopProxy()
 	time.Sleep(500 * time.Millisecond)
 	t.startProxy()
@@ -213,7 +213,7 @@ func (t *TrayApp) selectMode(mode string) {
 		return
 	}
 
-	logger.Info("Selecting " + mode + " mode from tray...")
+	logger.Debug("Selecting " + mode + " mode from tray...")
 	result := t.runService.SwitchMode(mode)
 	if trayResultString(result, "status") == "failed" {
 		logger.Error(fmt.Sprintf("Failed to switch tray mode: %s", trayResultMessage(result)))
@@ -221,7 +221,7 @@ func (t *TrayApp) selectMode(mode string) {
 		return
 	}
 
-	logger.Info(fmt.Sprintf("Tray mode switch result: %s", trayResultMessage(result)))
+	logger.Debug(fmt.Sprintf("Tray mode switch result: %s", trayResultMessage(result)))
 	t.syncProxyState()
 }
 
@@ -281,7 +281,7 @@ func (t *TrayApp) openDashboard() {
 
 // quit exits the application
 func (t *TrayApp) quit() bool {
-	logger.Info("Quitting application from tray...")
+	logger.Debug("Quitting application from tray...")
 
 	if !t.stopProxyForQuit() {
 		return false
@@ -307,10 +307,10 @@ func (t *TrayApp) stopProxyForQuit() bool {
 		return true
 	}
 
-	logger.Info("Ensuring proxy is stopped before quit...")
+	logger.Debug("Ensuring proxy is stopped before quit...")
 	result := t.runService.StopService()
 	if isAcceptableQuitProxyStopResult(result) {
-		logger.Info(fmt.Sprintf("Tray quit proxy stop result: %s", trayResultMessage(result)))
+		logger.Debug(fmt.Sprintf("Tray quit proxy stop result: %s", trayResultMessage(result)))
 		t.syncProxyState()
 		return true
 	}
@@ -325,7 +325,7 @@ func (t *TrayApp) ensureDashboardServer() {
 		return
 	}
 
-	logger.Info("Starting dashboard HTTP server for tray...")
+	logger.Debug("Starting dashboard HTTP server for tray...")
 	httpServer.StartHttpServer()
 }
 
@@ -447,6 +447,6 @@ func isAcceptableQuitProxyStopResult(result map[string]interface{}) bool {
 // Run starts the system tray application
 // This is the main entry point for the tray application
 func Run() {
-	logger.Info("Starting system tray...")
+	logger.Debug("Starting system tray...")
 	systray.Run(onReady, onExit)
 }

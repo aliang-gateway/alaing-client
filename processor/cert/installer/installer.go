@@ -334,13 +334,13 @@ func (d *DarwinInstaller) IsInstalled(certType string, certBytes []byte) (bool, 
 		return true, nil
 	}
 
-	logger.Info(fmt.Sprintf("Certificate %s not found in System keychain", commonName))
+	logger.Debug(fmt.Sprintf("Certificate %s not found in System keychain", commonName))
 	return false, nil
 }
 
 // Install adds certificate to macOS System keychain with appropriate elevation strategy
 func (d *DarwinInstaller) Install(certType string, certPath string) error {
-	logger.Info(fmt.Sprintf("Installing certificate %s to macOS System keychain", certType))
+	logger.Debug(fmt.Sprintf("Installing certificate %s to macOS System keychain", certType))
 
 	// 1. 获取绝对路径 (非常重要，防止 osascript 执行环境路径不同找不到文件)
 	absPath, err := filepath.Abs(certPath)
@@ -395,7 +395,7 @@ func (d *DarwinInstaller) Remove(certType string, certBytes []byte) error {
 		}
 	}
 
-	logger.Info(fmt.Sprintf("Removing certificate %s (CN: %s) from macOS System keychain", certType, commonName))
+	logger.Debug(fmt.Sprintf("Removing certificate %s (CN: %s) from macOS System keychain", certType, commonName))
 
 	if isRunningAsSudo() {
 		// Already running with sudo privileges - directly execute security command
@@ -510,7 +510,7 @@ func (l *LinuxInstaller) IsInstalled(certType string, certBytes []byte) (bool, e
 	// Check system-level path
 	systemPath := fmt.Sprintf("/etc/ssl/certs/%s", certName)
 	if _, err := os.Stat(systemPath); err == nil {
-		logger.Info(fmt.Sprintf("Certificate %s found in system path: %s", certType, systemPath))
+		logger.Debug(fmt.Sprintf("Certificate %s found in system path: %s", certType, systemPath))
 		return true, nil
 	}
 
@@ -518,23 +518,23 @@ func (l *LinuxInstaller) IsInstalled(certType string, certBytes []byte) (bool, e
 	homeDir, _ := os.UserHomeDir()
 	userPath := filepath.Join(homeDir, ".local/share/ca-certificates/custom", certName)
 	if _, err := os.Stat(userPath); err == nil {
-		logger.Info(fmt.Sprintf("Certificate %s found in user path: %s", certType, userPath))
+		logger.Debug(fmt.Sprintf("Certificate %s found in user path: %s", certType, userPath))
 		return true, nil
 	}
 
-	logger.Info(fmt.Sprintf("Certificate %s not found in Linux system", certType))
+	logger.Debug(fmt.Sprintf("Certificate %s not found in Linux system", certType))
 	return false, nil
 }
 
 // Install attempts to install certificate to system or user CA directory
 func (l *LinuxInstaller) Install(certType string, certPath string) error {
-	logger.Info(fmt.Sprintf("Installing certificate %s to Linux system", certType))
+	logger.Debug(fmt.Sprintf("Installing certificate %s to Linux system", certType))
 
 	certName := getCertFileName(certType)
 
 	// Attempt 1: System-level installation (requires sudo)
 	systemCertPath := fmt.Sprintf("/etc/ssl/certs/%s", certName)
-	logger.Info(fmt.Sprintf("Attempting system-level installation to %s", systemCertPath))
+	logger.Debug(fmt.Sprintf("Attempting system-level installation to %s", systemCertPath))
 
 	// Copy file with sudo
 	copyCmd := exec.Command("sudo", "cp", certPath, systemCertPath)
@@ -576,7 +576,7 @@ func (l *LinuxInstaller) Install(certType string, certPath string) error {
 		logger.Warn(fmt.Sprintf("Failed to update CA certificates: %v", err))
 	}
 
-	logger.Info(fmt.Sprintf("Certificate installed to user keychain at %s", userCertPath))
+	logger.Debug(fmt.Sprintf("Certificate installed to user keychain at %s", userCertPath))
 	return nil
 }
 
@@ -589,7 +589,7 @@ func (l *LinuxInstaller) Remove(certType string, certBytes []byte) error {
 	}
 
 	certName := config.FileName + ".pem"
-	logger.Info(fmt.Sprintf("Removing certificate %s from Linux system", certType))
+	logger.Debug(fmt.Sprintf("Removing certificate %s from Linux system", certType))
 
 	// Attempt 1: Remove from system path (requires sudo)
 	systemCertPath := fmt.Sprintf("/etc/ssl/certs/%s", certName)
@@ -610,7 +610,7 @@ func (l *LinuxInstaller) Remove(certType string, certBytes []byte) error {
 		// Update CA certificates
 		updateCmd := exec.Command("update-ca-certificates")
 		_ = updateCmd.Run()
-		logger.Info(fmt.Sprintf("Certificate removed from user keychain at %s", userCertPath))
+		logger.Debug(fmt.Sprintf("Certificate removed from user keychain at %s", userCertPath))
 		return nil
 	}
 
@@ -698,17 +698,17 @@ func (w *WindowsInstaller) IsInstalled(certType string, certBytes []byte) (bool,
 	}
 
 	if found {
-		logger.Info(fmt.Sprintf("Certificate %s found in Windows certificate store %s", certType, target.PSPath))
+		logger.Debug(fmt.Sprintf("Certificate %s found in Windows certificate store %s", certType, target.PSPath))
 		return true, nil
 	}
 
-	logger.Info(fmt.Sprintf("Certificate %s not found in Windows certificate stores", certType))
+	logger.Debug(fmt.Sprintf("Certificate %s not found in Windows certificate stores", certType))
 	return false, nil
 }
 
 // Install adds certificate to Windows certificate store
 func (w *WindowsInstaller) Install(certType string, certPath string) error {
-	logger.Info(fmt.Sprintf("Installing certificate %s to Windows certificate store", certType))
+	logger.Debug(fmt.Sprintf("Installing certificate %s to Windows certificate store", certType))
 
 	// Convert path to Windows format
 	certPath = strings.ReplaceAll(certPath, "/", "\\")
@@ -727,7 +727,7 @@ func (w *WindowsInstaller) Install(certType string, certPath string) error {
 		for _, strategy := range strategies {
 			output, err := strategy.run(target, certPath)
 			if err == nil {
-				logger.Info(fmt.Sprintf("Certificate installed successfully to Windows certificate store %s via %s", target.PSPath, strategy.name))
+				logger.Debug(fmt.Sprintf("Certificate installed successfully to Windows certificate store %s via %s", target.PSPath, strategy.name))
 				return nil
 			}
 
@@ -756,7 +756,7 @@ func (w *WindowsInstaller) Remove(certType string, certBytes []byte) error {
 		}
 	}
 
-	logger.Info(fmt.Sprintf("Removing certificate %s from Windows certificate stores", certType))
+	logger.Debug(fmt.Sprintf("Removing certificate %s from Windows certificate stores", certType))
 
 	removedAny := false
 	for _, target := range getWindowsStoreTargets(certType) {

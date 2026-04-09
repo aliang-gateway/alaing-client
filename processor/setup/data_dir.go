@@ -60,7 +60,7 @@ func EnsureCoreDataDir() error {
 		if err := os.MkdirAll(dir, 0755); err != nil {
 			return fmt.Errorf("failed to create data directory %s: %w", dir, err)
 		}
-		logger.Info(fmt.Sprintf("[Setup] Ensured data directory: %s", dir))
+		logger.Debug(fmt.Sprintf("[Setup] Ensured data directory: %s", dir))
 	}
 	return nil
 }
@@ -86,7 +86,7 @@ func EnsureCoreDirs() error {
 		return fmt.Errorf("failed to create log directory %s: %w", logDir, err)
 	}
 
-	logger.Info(fmt.Sprintf("[Setup] All core directories ensured"))
+	logger.Debug("[Setup] All core directories ensured")
 	return nil
 }
 
@@ -103,18 +103,18 @@ func MigrateUserData() error {
 
 	// Check if old data exists
 	if _, err := os.Stat(oldDataDir); os.IsNotExist(err) {
-		logger.Info("[Setup] No old data directory found, skipping migration")
+		logger.Debug("[Setup] No old data directory found, skipping migration")
 		return nil
 	}
 
 	// Check if new data already exists
 	if _, err := os.Stat(newDataDir); err == nil {
-		logger.Info(fmt.Sprintf("[Setup] New data directory already exists at %s, skipping migration", newDataDir))
+		logger.Debug(fmt.Sprintf("[Setup] New data directory already exists at %s, skipping migration", newDataDir))
 		return nil
 	}
 
 	// Migrate data
-	logger.Info(fmt.Sprintf("[Setup] Migrating data from %s to %s", oldDataDir, newDataDir))
+	logger.Debug(fmt.Sprintf("[Setup] Migrating data from %s to %s", oldDataDir, newDataDir))
 
 	// Create new directory
 	if err := os.MkdirAll(newDataDir, 0755); err != nil {
@@ -126,7 +126,7 @@ func MigrateUserData() error {
 		return fmt.Errorf("failed to copy data: %w", err)
 	}
 
-	logger.Info("[Setup] Data migration completed successfully")
+	logger.Debug("[Setup] Data migration completed successfully")
 	return nil
 }
 

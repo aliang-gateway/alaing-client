@@ -48,7 +48,7 @@ func SaveConfigToFile(cfg *Config, filePath string) error {
 		return fmt.Errorf("failed to write config file: %w", err)
 	}
 
-	logger.Info(fmt.Sprintf("Configuration saved to: %s", filePath))
+	logger.Debug(fmt.Sprintf("Configuration saved to: %s", filePath))
 	return nil
 }
 

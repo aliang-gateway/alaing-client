@@ -24,7 +24,7 @@ func GenerateCertificateFromConfig(config *cert_config.CertConfig, exportPath st
 		return fmt.Errorf("certificate configuration is nil")
 	}
 
-	logger.Info(fmt.Sprintf("Generating certificate for %s (CN=%s)", config.CertType, config.CN))
+	logger.Debug(fmt.Sprintf("Generating certificate for %s (CN=%s)", config.CertType, config.CN))
 
 	// Generate private key
 	privateKey, err := rsa.GenerateKey(rand.Reader, config.KeySize)
@@ -94,8 +94,8 @@ func GenerateCertificateFromConfig(config *cert_config.CertConfig, exportPath st
 		return fmt.Errorf("failed to encode private key: %w", err)
 	}
 
-	logger.Info(fmt.Sprintf("Certificate generated successfully: %s", certFile))
-	logger.Info(fmt.Sprintf("Private key saved: %s", keyFile))
+	logger.Debug(fmt.Sprintf("Certificate generated successfully: %s", certFile))
+	logger.Debug(fmt.Sprintf("Private key saved: %s", keyFile))
 
 	return nil
 }
@@ -106,7 +106,7 @@ func GenerateSignedCertificate(caCertPath, caKeyPath string, config *cert_config
 		return fmt.Errorf("certificate configuration is nil")
 	}
 
-	logger.Info(fmt.Sprintf("Generating signed certificate for %s", config.CN))
+	logger.Debug(fmt.Sprintf("Generating signed certificate for %s", config.CN))
 
 	// Read CA certificate
 	caCertPEM, err := os.ReadFile(caCertPath)
@@ -201,7 +201,7 @@ func GenerateSignedCertificate(caCertPath, caKeyPath string, config *cert_config
 		return fmt.Errorf("failed to encode private key: %w", err)
 	}
 
-	logger.Info(fmt.Sprintf("Signed certificate generated: %s", certFile))
+	logger.Debug(fmt.Sprintf("Signed certificate generated: %s", certFile))
 
 	return nil
 }

@@ -51,7 +51,7 @@ func NewCompanionApp() *CompanionApp {
 }
 
 func (a *CompanionApp) onReady() {
-	logger.Info("macOS tray companion initialized")
+	logger.Debug("macOS tray companion initialized")
 
 	systray.SetIcon(GetIconDisabled())
 	systray.SetTooltip("Aliang - Starting...")
@@ -92,7 +92,7 @@ func (a *CompanionApp) onReady() {
 }
 
 func (a *CompanionApp) onExit() {
-	logger.Info("macOS tray companion exiting")
+	logger.Debug("macOS tray companion exiting")
 }
 
 // connectAndStartHTTP connects to Core via IPC and starts the HTTP dashboard.
@@ -106,7 +106,7 @@ func (a *CompanionApp) connectAndStartHTTP() {
 
 	// Check if core is already running via launchd
 	if !setup.IsCoreServiceRunning() {
-		logger.Info("Core service not running, starting via kickstart...")
+		logger.Debug("Core service not running, starting via kickstart...")
 		if err := setup.KickstartCoreService(); err != nil {
 			logger.Error(fmt.Sprintf("Failed to kickstart core service: %v", err))
 			a.applyUnavailableState("core service start failed")
@@ -145,7 +145,7 @@ func (a *CompanionApp) connectAndStartHTTP() {
 	}
 
 	a.coreReady = true
-	logger.Info(fmt.Sprintf("Core connected, HTTP dashboard available at %s", a.httpURL))
+	logger.Debug(fmt.Sprintf("Core connected, HTTP dashboard available at %s", a.httpURL))
 }
 
 // waitForIPC waits for the IPC socket to become available.
@@ -185,7 +185,7 @@ func (a *CompanionApp) handleMenuEvents() {
 }
 
 func (a *CompanionApp) startProxy() {
-	logger.Info("Starting proxy from tray companion...")
+	logger.Debug("Starting proxy from tray companion...")
 	result, err := a.ipcClient.Send(ipc.ActionStartProxy, nil)
 	if err != nil {
 		logger.Error(fmt.Sprintf("Failed to start proxy from tray companion: %v", err))
@@ -200,7 +200,7 @@ func (a *CompanionApp) startProxy() {
 }
 
 func (a *CompanionApp) stopProxy() {
-	logger.Info("Stopping proxy from tray companion...")
+	logger.Debug("Stopping proxy from tray companion...")
 	result, err := a.ipcClient.Send(ipc.ActionStopProxy, nil)
 	if err != nil {
 		logger.Error(fmt.Sprintf("Failed to stop proxy from tray companion: %v", err))
@@ -215,7 +215,7 @@ func (a *CompanionApp) stopProxy() {
 }
 
 func (a *CompanionApp) selectMode(mode string) {
-	logger.Info(fmt.Sprintf("Selecting %s mode from tray companion...", mode))
+	logger.Debug(fmt.Sprintf("Selecting %s mode from tray companion...", mode))
 	result, err := a.ipcClient.Send(ipc.ActionSwitchMode, ipc.SwitchModeArgs{Mode: mode})
 	if err != nil {
 		logger.Error(fmt.Sprintf("Failed to switch mode from tray companion: %v", err))
@@ -259,7 +259,7 @@ func (a *CompanionApp) stopProxyIfNeeded() {
 	if !a.isRunning {
 		return
 	}
-	logger.Info("Stopping proxy before quit...")
+	logger.Debug("Stopping proxy before quit...")
 	a.ipcClient.Send(ipc.ActionStopProxy, nil)
 }
 
@@ -373,7 +373,7 @@ func (a *CompanionApp) handleCoreUnavailable() {
 
 	// Core has stopped — attempt to restart it
 	if a.reconnectSeq <= 3 {
-		logger.Info(fmt.Sprintf("Core service stopped, attempting restart (attempt %d)...", a.reconnectSeq))
+		logger.Debug(fmt.Sprintf("Core service stopped, attempting restart (attempt %d)...", a.reconnectSeq))
 		if err := setup.KickstartCoreService(); err != nil {
 			logger.Error(fmt.Sprintf("Failed to restart core service: %v", err))
 		}
@@ -458,7 +458,7 @@ func (a *CompanionApp) quit() {
 	a.stopProxyIfNeeded()
 
 	// 2. Stop HTTP dashboard via IPC (but keep Core running)
-	logger.Info("Stopping HTTP dashboard via IPC...")
+	logger.Debug("Stopping HTTP dashboard via IPC...")
 	a.ipcClient.Send(ipc.ActionStopHTTP, nil)
 
 	// 3. Close IPC connection
@@ -471,6 +471,6 @@ func (a *CompanionApp) quit() {
 
 func RunCompanion() {
 	app := NewCompanionApp()
-	logger.Info("Starting macOS tray companion...")
+	logger.Debug("Starting macOS tray companion...")
 	systray.Run(app.onReady, app.onExit)
 }

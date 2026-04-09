@@ -122,7 +122,7 @@ func (h *ConfigHandler) handleUpdateRoutingConfig(w http.ResponseWriter, r *http
 		return
 	}
 
-	logger.Info("Routing configuration updated (canonical apply store)")
+	logger.Debug("Routing configuration updated (canonical apply store)")
 	common.Success(w, map[string]interface{}{
 		"message": "Configuration updated successfully",
 		"source":  "canonical",

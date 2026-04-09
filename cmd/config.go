@@ -98,40 +98,40 @@ func ApplyStartupConfigForMode(mode setup.RuntimeMode, explicitConfigPath string
 
 	switch source {
 	case startupConfigSourceExplicitPath:
-		logger.Info(fmt.Sprintf("Loading configuration from explicit --config path: %s", selectedPath))
+		logger.Debug(fmt.Sprintf("Loading configuration from explicit --config path: %s", selectedPath))
 		if err := LoadAndApplyConfig(selectedPath); err != nil {
 			return fmt.Errorf("failed to load startup config from --config path %s: %w", selectedPath, err)
 		}
-		logger.Info(fmt.Sprintf("Startup configuration source: %s", source))
+		logger.Debug(fmt.Sprintf("Startup configuration source: %s", source))
 		return nil
 	case startupConfigSourceLocalFile:
-		logger.Info(fmt.Sprintf("Loading configuration from current directory file: %s", selectedPath))
+		logger.Debug(fmt.Sprintf("Loading configuration from current directory file: %s", selectedPath))
 		if err := LoadAndApplyConfig(selectedPath); err != nil {
 			return fmt.Errorf("failed to load startup config from %s (fail-fast, no fallback): %w", selectedPath, err)
 		}
-		logger.Info(fmt.Sprintf("Startup configuration source: %s", source))
+		logger.Debug(fmt.Sprintf("Startup configuration source: %s", source))
 		return nil
 	case startupConfigSourceUserHome:
-		logger.Info(fmt.Sprintf("Loading configuration from user home: %s", selectedPath))
+		logger.Debug(fmt.Sprintf("Loading configuration from user home: %s", selectedPath))
 		if err := LoadAndApplyConfig(selectedPath); err != nil {
 			return fmt.Errorf("failed to load startup config from %s (fail-fast, no fallback): %w", selectedPath, err)
 		}
-		logger.Info(fmt.Sprintf("Startup configuration source: %s", source))
+		logger.Debug(fmt.Sprintf("Startup configuration source: %s", source))
 		return nil
 	case startupConfigSourceRuntime:
-		logger.Info(fmt.Sprintf("Loading configuration from runtime directory: %s", selectedPath))
+		logger.Debug(fmt.Sprintf("Loading configuration from runtime directory: %s", selectedPath))
 		if err := LoadAndApplyConfig(selectedPath); err != nil {
 			return fmt.Errorf("failed to load startup config from %s (fail-fast, no fallback): %w", selectedPath, err)
 		}
-		logger.Info(fmt.Sprintf("Startup configuration source: %s", source))
+		logger.Debug(fmt.Sprintf("Startup configuration source: %s", source))
 		return nil
 	default:
 		// No config file found — try to restore from database before falling back to embedded default
-		logger.Info("No config file found, attempting to restore configuration from database...")
+		logger.Debug("No config file found, attempting to restore configuration from database...")
 		if restored, err := tryRestoreConfigFromDatabase(); err != nil {
 			logger.Warn(fmt.Sprintf("Database config restore failed: %v", err))
 		} else if restored != nil {
-			logger.Info("Startup configuration source: database snapshot")
+			logger.Debug("Startup configuration source: database snapshot")
 			if err := ApplyConfig(restored); err != nil {
 				logger.Warn(fmt.Sprintf("Database config applied with warnings: %v", err))
 				// Don't fail — fall through to embedded default
@@ -141,11 +141,11 @@ func ApplyStartupConfigForMode(mode setup.RuntimeMode, explicitConfigPath string
 			}
 		}
 
-		logger.Info("No config file or database snapshot found, using embedded default configuration")
+		logger.Debug("No config file or database snapshot found, using embedded default configuration")
 		if err := ApplyDefaultConfig(); err != nil {
 			return fmt.Errorf("failed to apply startup config from embedded default: %w", err)
 		}
-		logger.Info(fmt.Sprintf("Startup configuration source: %s", source))
+		logger.Debug(fmt.Sprintf("Startup configuration source: %s", source))
 		return nil
 	}
 }
@@ -171,7 +171,7 @@ func tryRestoreConfigFromDatabase() (*Config, error) {
 		return nil, fmt.Errorf("failed to parse snapshot json: %w", err)
 	}
 
-	logger.Info(fmt.Sprintf("Configuration restored from database snapshot (id=%d, created_at=%v)", snapshot.ID, snapshot.CreatedAt))
+	logger.Debug(fmt.Sprintf("Configuration restored from database snapshot (id=%d, created_at=%v)", snapshot.ID, snapshot.CreatedAt))
 	return &cfg, nil
 }
 
@@ -268,7 +268,7 @@ func setEffectiveDefaultProxy(currentProxy string) error {
 		currentProxy = "direct"
 	}
 
-	logger.Info(fmt.Sprintf("Using proxy: %s", currentProxy))
+	logger.Debug(fmt.Sprintf("Using proxy: %s", currentProxy))
 	return nil
 }
 
@@ -321,7 +321,7 @@ func registerSocksProxy(cfg *config.Config) error {
 		return fmt.Errorf("failed to register socks proxy: %w", err)
 	}
 
-	logger.Info(fmt.Sprintf("SOCKS proxy registered at %s", addr))
+	logger.Debug(fmt.Sprintf("SOCKS proxy registered at %s", addr))
 	return nil
 }
 

@@ -180,7 +180,7 @@ func (ss *Shadowsocks) DialContext(ctx context.Context, metadata *M.Metadata) (c
 		userInfo = ss.username
 	}
 
-	logger.Info(fmt.Sprintf("[Shadowsocks] ✓ TCP连接成功 用户: %s, 目标: %s:%d", userInfo, metadata.HostName, metadata.DstPort))
+	logger.Debug(fmt.Sprintf("[Shadowsocks] ✓ TCP连接成功 用户: %s, 目标: %s:%d", userInfo, metadata.HostName, metadata.DstPort))
 
 	return c, err
 }
@@ -218,7 +218,7 @@ func (ss *Shadowsocks) DialUDP(metadata *M.Metadata) (net.PacketConn, error) {
 	// 使用加密包装 UDP 连接
 	pc = cipher.PacketConn(pc)
 
-	logger.Info(fmt.Sprintf("[Shadowsocks] ✓ UDP连接成功 目标: %s:%d", metadata.HostName, metadata.DstPort))
+	logger.Debug(fmt.Sprintf("[Shadowsocks] ✓ UDP连接成功 目标: %s:%d", metadata.HostName, metadata.DstPort))
 
 	return &ssPacketConn{
 		PacketConn: pc,

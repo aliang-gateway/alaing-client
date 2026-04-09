@@ -201,5 +201,5 @@ func (c *StatsCollector) ClearCache() {
 	c.count5s = 0
 	c.count15s = 0
 
-	logger.Info("All stats caches cleared")
+	logger.Debug("All stats caches cleared")
 }

@@ -126,7 +126,7 @@ func handleRawConnection(conn net.Conn) {
 
 	// 为每个连接分配唯一ID
 	connID := atomic.AddInt64(&connIDCounter, 1)
-	logger.Info(fmt.Sprintf("[CONN#%d] 新连接建立 - %s → 127.0.0.1:56432", connID, conn.RemoteAddr()))
+	logger.Debug(fmt.Sprintf("[CONN#%d] 新连接建立 - %s → 127.0.0.1:56432", connID, conn.RemoteAddr()))
 
 	// 读取客户端初始数据，检查是否为 CONNECT 请求
 	reader := bufio.NewReader(conn)
@@ -137,7 +137,7 @@ func handleRawConnection(conn net.Conn) {
 	}
 
 	if req.Method == "CONNECT" {
-		logger.Info(fmt.Sprintf("[CONN#%d] CONNECT请求: %s", connID, req.Host))
+		logger.Debug(fmt.Sprintf("[CONN#%d] CONNECT请求: %s", connID, req.Host))
 
 		// Extract metadata from CONNECT request
 		metadata, err := ExtractMetadataFromCONNECT(req, conn)
@@ -165,14 +165,14 @@ func handleRawConnection(conn net.Conn) {
 			logger.Error(fmt.Sprintf("[CONN#%d] 发送200应答失败: %v", connID, err))
 			return
 		}
-		logger.Info(fmt.Sprintf("[CONN#%d] ✓ 已发送200 Connection Established", connID))
+		logger.Debug(fmt.Sprintf("[CONN#%d] ✓ 已发送200 Connection Established", connID))
 
 		// Handle CONNECT tunnel - establishes direct tunnel between client and target
 		logger.Debug(fmt.Sprintf("[CONN#%d] 开始建立隧道...", connID))
 		if err := HandleRawConnect(conn, metadata); err != nil {
 			logger.Error(fmt.Sprintf("[CONN#%d] ❌ 隧道建立失败: %v", connID, err))
 		} else {
-			logger.Info(fmt.Sprintf("[CONN#%d] ✓ 隧道建立成功并已关闭", connID))
+			logger.Debug(fmt.Sprintf("[CONN#%d] ✓ 隧道建立成功并已关闭", connID))
 		}
 	} else {
 		// 透明代理，基本不存在

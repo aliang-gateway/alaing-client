@@ -47,7 +47,7 @@ func NewCompanionApp() *CompanionApp {
 }
 
 func (a *CompanionApp) onReady() {
-	logger.Info("Windows tray companion initialized")
+	logger.Debug("Windows tray companion initialized")
 
 	systray.SetIcon(GetIconDisabled())
 	systray.SetTooltip("Aliang - Starting background service...")
@@ -87,7 +87,7 @@ func (a *CompanionApp) onReady() {
 }
 
 func (a *CompanionApp) onExit() {
-	logger.Info("Windows tray companion exiting")
+	logger.Debug("Windows tray companion exiting")
 }
 
 func (a *CompanionApp) connectAndStartHTTP() {
@@ -95,7 +95,7 @@ func (a *CompanionApp) connectAndStartHTTP() {
 	writeWindowsCompanionTrace("connectAndStartHTTP service=%s", serviceName)
 
 	if a.waitForIPC(1500 * time.Millisecond) {
-		logger.Info("Connected to existing Windows service via IPC")
+		logger.Debug("Connected to existing Windows service via IPC")
 	} else {
 		status, err := setup.GetServiceStatus(serviceName, true)
 		if err != nil {
@@ -104,14 +104,14 @@ func (a *CompanionApp) connectAndStartHTTP() {
 
 		serviceRunning := err == nil && status != nil && (status.IsRunning || status.Status == "start_pending")
 		if !serviceRunning {
-			logger.Info("Windows service not running, starting it...")
+			logger.Debug("Windows service not running, starting it...")
 			if err := startServiceWithElevation(serviceName); err != nil {
 				logger.Error("Failed to start Windows service", "error", err)
 				a.failStartup("background service start failed", fmt.Sprintf("后台服务启动失败：%v", err))
 				return
 			}
 		} else {
-			logger.Info("Windows service already running, waiting for IPC...")
+			logger.Debug("Windows service already running, waiting for IPC...")
 		}
 
 		if !a.waitForIPC(15 * time.Second) {
@@ -347,7 +347,7 @@ func (a *CompanionApp) openDashboard() {
 }
 
 func (a *CompanionApp) quit() bool {
-	logger.Info("Quitting Windows tray companion...")
+	logger.Debug("Quitting Windows tray companion...")
 
 	if !a.stopProxyForQuit() {
 		showWindowsCompanionMessage("Aliang", "无法确认代理已经停止，已取消退出。请稍后重试。")
@@ -369,7 +369,7 @@ func (a *CompanionApp) quit() bool {
 }
 
 func (a *CompanionApp) stopProxyForQuit() bool {
-	logger.Info("Ensuring background proxy is stopped before quit...")
+	logger.Debug("Ensuring background proxy is stopped before quit...")
 
 	result, err := a.ipcClient.Send(ipc.ActionStopProxy, nil)
 	if err != nil {
@@ -379,7 +379,7 @@ func (a *CompanionApp) stopProxyForQuit() bool {
 
 	if !result.OK {
 		if strings.Contains(strings.ToLower(result.Error), "not_running") {
-			logger.Info("Background proxy was already stopped before quit")
+			logger.Debug("Background proxy was already stopped before quit")
 			return true
 		}
 
@@ -389,7 +389,7 @@ func (a *CompanionApp) stopProxyForQuit() bool {
 
 	data, _ := result.Data.(map[string]interface{})
 	if isAcceptableQuitProxyStopResult(data) {
-		logger.Info(fmt.Sprintf("Windows companion quit proxy stop result: %s", trayResultMessage(data)))
+		logger.Debug(fmt.Sprintf("Windows companion quit proxy stop result: %s", trayResultMessage(data)))
 		return true
 	}
 
@@ -404,7 +404,7 @@ func RunCompanion() {
 		return
 	}
 	if !acquired {
-		logger.Info("Aliang companion is already running, exiting duplicate launch request.")
+		logger.Debug("Aliang companion is already running, exiting duplicate launch request.")
 		return
 	}
 	defer guard.Close()

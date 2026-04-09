@@ -49,27 +49,27 @@ func (sm *SwitchManager) UpdateSwitches(config *model.RoutingRulesConfig) {
 
 	if sm.aliangEnabled != settings.AliangEnabled {
 		if settings.AliangEnabled {
-			logger.Info("Global switch: Aliang ENABLED")
+			logger.Debug("Global switch: Aliang ENABLED")
 		} else {
-			logger.Info("Global switch: Aliang DISABLED")
+			logger.Debug("Global switch: Aliang DISABLED")
 		}
 		sm.aliangEnabled = settings.AliangEnabled
 	}
 
 	if sm.socksEnabled != settings.SocksEnabled {
 		if settings.SocksEnabled {
-			logger.Info("Global switch: SOCKS ENABLED")
+			logger.Debug("Global switch: SOCKS ENABLED")
 		} else {
-			logger.Info("Global switch: SOCKS DISABLED")
+			logger.Debug("Global switch: SOCKS DISABLED")
 		}
 		sm.socksEnabled = settings.SocksEnabled
 	}
 
 	if sm.geoIPEnabled != settings.GeoIPEnabled {
 		if settings.GeoIPEnabled {
-			logger.Info("Global switch: GeoIP ENABLED")
+			logger.Debug("Global switch: GeoIP ENABLED")
 		} else {
-			logger.Info("Global switch: GeoIP DISABLED")
+			logger.Debug("Global switch: GeoIP DISABLED")
 		}
 		sm.geoIPEnabled = settings.GeoIPEnabled
 	}
@@ -104,9 +104,9 @@ func (sm *SwitchManager) SetAliangEnabled(enabled bool) {
 	if sm.aliangEnabled != enabled {
 		sm.aliangEnabled = enabled
 		if enabled {
-			logger.Info("Global switch: Aliang ENABLED (manual)")
+			logger.Debug("Global switch: Aliang ENABLED (manual)")
 		} else {
-			logger.Info("Global switch: Aliang DISABLED (manual)")
+			logger.Debug("Global switch: Aliang DISABLED (manual)")
 		}
 	}
 }
@@ -119,9 +119,9 @@ func (sm *SwitchManager) SetSocksEnabled(enabled bool) {
 	if sm.socksEnabled != enabled {
 		sm.socksEnabled = enabled
 		if enabled {
-			logger.Info("Global switch: SOCKS ENABLED (manual)")
+			logger.Debug("Global switch: SOCKS ENABLED (manual)")
 		} else {
-			logger.Info("Global switch: SOCKS DISABLED (manual)")
+			logger.Debug("Global switch: SOCKS DISABLED (manual)")
 		}
 	}
 }
@@ -134,9 +134,9 @@ func (sm *SwitchManager) SetGeoIPEnabled(enabled bool) {
 	if sm.geoIPEnabled != enabled {
 		sm.geoIPEnabled = enabled
 		if enabled {
-			logger.Info("Global switch: GeoIP ENABLED (manual)")
+			logger.Debug("Global switch: GeoIP ENABLED (manual)")
 		} else {
-			logger.Info("Global switch: GeoIP DISABLED (manual)")
+			logger.Debug("Global switch: GeoIP DISABLED (manual)")
 		}
 	}
 }
@@ -161,7 +161,7 @@ func (sm *SwitchManager) DisableAll() {
 	sm.aliangEnabled = false
 	sm.socksEnabled = false
 	sm.geoIPEnabled = false
-	logger.Info("Global switches: ALL DISABLED")
+	logger.Debug("Global switches: ALL DISABLED")
 }
 
 // EnableAll enables all switches
@@ -172,7 +172,7 @@ func (sm *SwitchManager) EnableAll() {
 	sm.aliangEnabled = true
 	sm.socksEnabled = true
 	sm.geoIPEnabled = true
-	logger.Info("Global switches: ALL ENABLED")
+	logger.Debug("Global switches: ALL ENABLED")
 }
 
 // ResetToDefaults resets switches to default state
@@ -183,5 +183,5 @@ func (sm *SwitchManager) ResetToDefaults() {
 	sm.aliangEnabled = true
 	sm.socksEnabled = true
 	sm.geoIPEnabled = false
-	logger.Info("Global switches: RESET to defaults (Aliang=ON, SOCKS=ON, GeoIP=OFF)")
+	logger.Debug("Global switches: RESET to defaults (Aliang=ON, SOCKS=ON, GeoIP=OFF)")
 }

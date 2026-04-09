@@ -146,7 +146,7 @@ func downloadDatabase(url, destPath string) error {
 		return fmt.Errorf("failed to save database: %w", err)
 	}
 
-	logger.Info(fmt.Sprintf("Downloaded %d bytes", written))
+	logger.Debug(fmt.Sprintf("Downloaded %d bytes", written))
 
 	// 关闭文件句柄
 	out.Close()

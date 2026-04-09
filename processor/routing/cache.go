@@ -100,7 +100,7 @@ func (gc *GeoIPCache) Clear() {
 
 	oldSize := len(gc.cache)
 	gc.cache = make(map[string]*geoip.CountryInfo)
-	logger.Info(fmt.Sprintf("GeoIP cache cleared (%d entries removed)", oldSize))
+	logger.Debug(fmt.Sprintf("GeoIP cache cleared (%d entries removed)", oldSize))
 }
 
 // GetStats returns cache statistics
@@ -132,7 +132,7 @@ func (gc *GeoIPCache) ResetStats() {
 	gc.hitCount = 0
 	gc.missCount = 0
 	gc.lookupTime = 0
-	logger.Info("GeoIP cache statistics reset")
+	logger.Debug("GeoIP cache statistics reset")
 }
 
 // Size returns the current number of cached entries
