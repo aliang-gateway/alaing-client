@@ -200,8 +200,8 @@ func (rs *RunService) StartService() map[string]interface{} {
 		return map[string]interface{}{
 			"status":  "success",
 			"message": "HTTP proxy server is starting",
-			"details": "HTTP proxy server is starting on port 56432",
-			"port":    "56432",
+			"details": fmt.Sprintf("HTTP proxy server is starting on port %d", config.DefaultHTTPProxyPort),
+			"port":    fmt.Sprintf("%d", config.DefaultHTTPProxyPort),
 		}
 	default:
 		// 未知模式，回滚状态
@@ -260,7 +260,7 @@ func (rs *RunService) StopService() map[string]interface{} {
 	case models.ModeHTTP:
 		logger.Info("Stopping HTTP proxy server...")
 		httpStopRunner()
-		response["details"] = "HTTP proxy server on 127.0.0.1:56432 has been stopped"
+		response["details"] = fmt.Sprintf("HTTP proxy server on %s has been stopped", config.DefaultHTTPProxyAddr)
 
 	case models.ModeTUN:
 		logger.Info("Stopping TUN service...")
@@ -303,7 +303,7 @@ func (rs *RunService) GetStatus() map[string]interface{} {
 	case models.ModeHTTP:
 		if rs.isRunning {
 			response["status"] = "Regular Mode is running"
-			response["description"] = "HTTP CONNECT proxy is running on port 56432."
+			response["description"] = fmt.Sprintf("HTTP CONNECT proxy is running on port %d.", config.DefaultHTTPProxyPort)
 		} else {
 			response["status"] = "Regular Mode is selected, service not running"
 			response["description"] = "Regular Mode is ready. Click start when you want to enable local proxying."

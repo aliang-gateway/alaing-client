@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	_ "embed"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -14,11 +13,6 @@ import (
 	"aliang.one/nursorgate/processor/dns"
 	"aliang.one/nursorgate/processor/setup"
 )
-
-// Embed the default configuration
-//
-//go:embed config.json
-var defaultConfigData string
 
 const startupLocalConfigPath = "./config.json"
 
@@ -47,7 +41,7 @@ func IsUsingDefaultConfig() bool {
 
 // GetDefaultConfigBytes 返回嵌入的默认配置字节数据
 func GetDefaultConfigBytes() []byte {
-	return []byte(defaultConfigData)
+	return config.GetDefaultConfigBytes()
 }
 
 func resolveStartupConfigSourceForMode(mode setup.RuntimeMode, explicitConfigPath string) (startupConfigSource, string, error) {

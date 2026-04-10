@@ -12,6 +12,7 @@ import (
 	"sync/atomic"
 
 	"aliang.one/nursorgate/common/logger"
+	"aliang.one/nursorgate/processor/config"
 )
 
 // HTTP server state management
@@ -40,19 +41,19 @@ func StartMitmHttp() {
 	httpMutex.Unlock()
 
 	// Create listener
-	listener, err := net.Listen("tcp", "127.0.0.1:56432")
+	listener, err := net.Listen("tcp", config.DefaultHTTPProxyAddr)
 	if err != nil {
 		httpMutex.Lock()
 		isHttpRunning = false
 		httpMutex.Unlock()
-		logger.GetMainLogger().Fatal(fmt.Sprintf("Failed to listen on 127.0.0.1:56432: %v", err))
+		logger.GetMainLogger().Fatal(fmt.Sprintf("Failed to listen on %s: %v", config.DefaultHTTPProxyAddr, err))
 	}
 
 	httpMutex.Lock()
 	httpListener = listener
 	httpMutex.Unlock()
 
-	logger.Info("HTTP CONNECT proxy server starting on 127.0.0.1:56432")
+	logger.Info(fmt.Sprintf("HTTP CONNECT proxy server starting on %s", config.DefaultHTTPProxyAddr))
 
 	// Accept connections in a loop until context is cancelled
 	for {
@@ -126,7 +127,7 @@ func handleRawConnection(conn net.Conn) {
 
 	// 为每个连接分配唯一ID
 	connID := atomic.AddInt64(&connIDCounter, 1)
-	logger.Debug(fmt.Sprintf("[CONN#%d] 新连接建立 - %s → 127.0.0.1:56432", connID, conn.RemoteAddr()))
+	logger.Debug(fmt.Sprintf("[CONN#%d] 新连接建立 - %s → %s", connID, conn.RemoteAddr(), config.DefaultHTTPProxyAddr))
 
 	// 读取客户端初始数据，检查是否为 CONNECT 请求
 	reader := bufio.NewReader(conn)

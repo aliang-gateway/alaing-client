@@ -64,7 +64,7 @@ func TestDetermineRouteWithContext_ForcesAliangForLocalHTTPProxyPort(t *testing.
 	metadata := &M.Metadata{
 		Network: M.TCP,
 		DstIP:   netip.MustParseAddr("127.0.0.1"),
-		DstPort: aliangLocalHTTPProxyPort,
+		DstPort: uint16(config.DefaultHTTPProxyPort),
 	}
 
 	route, requiresSNI := handler.DetermineRouteWithContext(metadata)
@@ -90,7 +90,7 @@ func TestHandleNonTLS_DoesNotShortCircuitLocalHTTPProxyPortToDirect(t *testing.T
 	metadata := &M.Metadata{
 		Network: M.TCP,
 		DstIP:   netip.MustParseAddr("127.0.0.1"),
-		DstPort: aliangLocalHTTPProxyPort,
+		DstPort: uint16(config.DefaultHTTPProxyPort),
 	}
 
 	remote, _, err := handler.handleNonTLS(context.Background(), newFakeConn(nil), metadata)

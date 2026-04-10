@@ -10,11 +10,11 @@ import (
 	"time"
 
 	"aliang.one/nursorgate/common/logger"
+	"aliang.one/nursorgate/processor/config"
 )
 
 const (
-	defaultHTTPPort    = 56431
-	defaultHTTPBaseURL = "http://127.0.0.1:56431"
+	defaultHTTPBaseURL = "http://" + config.DefaultManagementAddr
 	requestTimeout     = 5 * time.Second
 )
 

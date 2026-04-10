@@ -209,7 +209,7 @@ func handleStartHTTP(_ json.RawMessage) (interface{}, error) {
 
 	port := httpServer.GetActualPort()
 	if port == "" {
-		port = "56431"
+		port = fmt.Sprintf("%d", config.DefaultManagementPort)
 	}
 
 	logger.Info(fmt.Sprintf("[IPC] HTTP dashboard started on port %s", port))

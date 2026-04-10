@@ -5,12 +5,11 @@ import (
 	"strings"
 
 	M "aliang.one/nursorgate/inbound/tun/metadata"
+	"aliang.one/nursorgate/processor/config"
 )
 
-const aliangLocalHTTPProxyPort uint16 = 56432
-
 func shouldForceAliangRoute(metadata *M.Metadata) bool {
-	if metadata == nil || metadata.DstPort != aliangLocalHTTPProxyPort {
+	if metadata == nil || metadata.DstPort != uint16(config.DefaultHTTPProxyPort) {
 		return false
 	}
 

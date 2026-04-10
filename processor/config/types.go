@@ -293,6 +293,7 @@ func (c *CustomerProxyConfig) IsEnabled() bool {
 }
 
 type CustomerAIRuleSetting struct {
+	Label    string   `json:"label,omitempty"`
 	Enble    *bool    `json:"enble,omitempty"`
 	Include  []string `json:"include,omitempty"`
 	Editable *bool    `json:"editable,omitempty"`
@@ -300,6 +301,7 @@ type CustomerAIRuleSetting struct {
 
 func (c *CustomerAIRuleSetting) UnmarshalJSON(data []byte) error {
 	type alias struct {
+		Label    string   `json:"label,omitempty"`
 		Enble    *bool    `json:"enble,omitempty"`
 		Enable   *bool    `json:"enable,omitempty"`
 		Include  []string `json:"include,omitempty"`
@@ -312,6 +314,7 @@ func (c *CustomerAIRuleSetting) UnmarshalJSON(data []byte) error {
 		return err
 	}
 
+	c.Label = decoded.Label
 	c.Enble = decoded.Enble
 	if c.Enble == nil {
 		c.Enble = decoded.Enable
@@ -326,11 +329,13 @@ func (c *CustomerAIRuleSetting) UnmarshalJSON(data []byte) error {
 
 func (c CustomerAIRuleSetting) MarshalJSON() ([]byte, error) {
 	type alias struct {
+		Label    string   `json:"label,omitempty"`
 		Enble    *bool    `json:"enble,omitempty"`
 		Include  []string `json:"include,omitempty"`
 		Editable *bool    `json:"editable,omitempty"`
 	}
 	return json.Marshal(alias{
+		Label:    c.Label,
 		Enble:    c.Enble,
 		Include:  c.Include,
 		Editable: c.Editable,
@@ -346,12 +351,8 @@ type AIRuleProviderPreset struct {
 }
 
 // PresetAIRuleProviders is the system-known list of AI rule providers.
-var PresetAIRuleProviders = []AIRuleProviderPreset{
-	{Key: "openai", Label: "OpenAI", DefaultInclude: []string{"openai.com", "chatgpt.com"}, Editable: true},
-	{Key: "anthropic", Label: "Anthropic", DefaultInclude: []string{"claude.ai", "api.anthropic.com"}, Editable: true},
-	{Key: "cursor", Label: "Cursor", DefaultInclude: []string{"api.cursor.com"}, Editable: true},
-	{Key: "copilot", Label: "Copilot", DefaultInclude: []string{"copilot.microsoft.com"}, Editable: true},
-}
+// Populated by init() in presets.go from the embedded default configuration.
+var PresetAIRuleProviders []AIRuleProviderPreset
 
 func (c *Config) UnmarshalJSON(data []byte) error {
 	var root map[string]json.RawMessage
@@ -532,7 +533,7 @@ func (c *Config) customerUnknownKeyErrors() error {
 		}
 		sortedUnknown := append([]string(nil), unknown...)
 		sort.Strings(sortedUnknown)
-		return fmt.Errorf("customer.ai_rules.%s.%s is forbidden: editable ai_rules fields are [enble include editable]", provider, sortedUnknown[0])
+		return fmt.Errorf("customer.ai_rules.%s.%s is forbidden: editable ai_rules fields are [enble include editable label]", provider, sortedUnknown[0])
 	}
 
 	return nil
@@ -577,7 +578,7 @@ func extractCustomerUnknownFields(root map[string]json.RawMessage) ([]string, ma
 		}
 		for key := range fields {
 			switch key {
-			case "enble", "enable", "include", "exclude", "editable":
+			case "enble", "enable", "include", "exclude", "editable", "label":
 			default:
 				unknownAIRules[provider] = append(unknownAIRules[provider], key)
 			}

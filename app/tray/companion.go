@@ -12,13 +12,13 @@ import (
 	"aliang.one/nursorgate/common/logger"
 	"aliang.one/nursorgate/common/version"
 	"aliang.one/nursorgate/internal/ipc"
+	"aliang.one/nursorgate/processor/config"
 	"aliang.one/nursorgate/processor/setup"
 	"github.com/getlantern/systray"
 )
 
 const (
-	defaultHTTPPort  = "56431"
-	companionHTTPURL = "http://127.0.0.1:56431"
+	companionHTTPURL = "http://" + config.DefaultManagementAddr
 )
 
 // CompanionApp is the macOS tray companion that communicates with Core via IPC.

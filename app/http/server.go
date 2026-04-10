@@ -17,6 +17,7 @@ import (
 	"aliang.one/nursorgate/app/http/routes"
 	"aliang.one/nursorgate/app/http/services"
 	"aliang.one/nursorgate/common/logger"
+	"aliang.one/nursorgate/processor/config"
 )
 
 var (
@@ -47,7 +48,7 @@ func StartHttpServer() error {
 	}
 
 	// 定义 HTTP 服务端口
-	port := "127.0.0.1:56431"
+	port := config.DefaultManagementAddr
 
 	// Initialize custom mux
 	mux = http.NewServeMux()

@@ -1,5 +1,5 @@
 {
-  
+
     "core": {
         "engine": {
             "mtu": 0,
@@ -32,6 +32,7 @@
         },
         "ai_rules":{
             "Anthropic": {
+              "label": "Anthropic",
               "enble": true,
               "editable": true,
               "include": [
@@ -40,6 +41,7 @@
               ]
             },
             "openai": {
+              "label": "OpenAI",
               "enble": true,
               "editable": true,
               "include": [
@@ -49,6 +51,7 @@
               ]
             },
             "vscode": {
+              "label": "Copilot",
               "enble": true,
               "editable": false,
               "include": [
@@ -57,6 +60,7 @@
               ]
             },
             "cursor": {
+              "label": "Cursor",
               "enble": true,
               "editable": false,
               "include": [
