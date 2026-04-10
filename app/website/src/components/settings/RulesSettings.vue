@@ -111,8 +111,8 @@
                   <h4 class="font-semibold text-slate-900 dark:text-white">{{ providerLabel(provider, presetProviders) }}</h4>
                   <p class="text-xs text-slate-500">{{ provider }}</p>
                 </div>
-                <label v-if="providerEditable(provider)" class="inline-flex cursor-pointer items-center gap-2 text-xs font-semibold text-slate-600 dark:text-slate-200">
-                  <input v-model="form.ai_rules[provider].enble" :disabled="!providerEditable(provider)" class="peer sr-only" type="checkbox" />
+                <label class="inline-flex cursor-pointer items-center gap-2 text-xs font-semibold text-slate-600 dark:text-slate-200">
+                  <input v-model="form.ai_rules[provider].enble" class="peer sr-only" type="checkbox" />
                   <span class="relative h-6 w-11 rounded-full bg-slate-300 transition-colors after:absolute after:left-0.5 after:top-0.5 after:h-5 after:w-5 after:rounded-full after:bg-white after:transition-transform after:content-[''] peer-checked:bg-primary peer-checked:after:translate-x-5 peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-primary dark:bg-slate-700"></span>
                   
                 </label>
