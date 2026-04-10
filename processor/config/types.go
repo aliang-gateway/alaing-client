@@ -348,7 +348,7 @@ type AIRuleProviderPreset struct {
 // PresetAIRuleProviders is the system-known list of AI rule providers.
 var PresetAIRuleProviders = []AIRuleProviderPreset{
 	{Key: "openai", Label: "OpenAI", DefaultInclude: []string{"openai.com", "chatgpt.com"}, Editable: true},
-	{Key: "claude", Label: "Claude", DefaultInclude: []string{"claude.ai", "anthropic.com"}, Editable: true},
+	{Key: "anthropic", Label: "Anthropic", DefaultInclude: []string{"claude.ai", "api.anthropic.com"}, Editable: true},
 	{Key: "cursor", Label: "Cursor", DefaultInclude: []string{"api.cursor.com"}, Editable: true},
 	{Key: "copilot", Label: "Copilot", DefaultInclude: []string{"copilot.microsoft.com"}, Editable: true},
 }

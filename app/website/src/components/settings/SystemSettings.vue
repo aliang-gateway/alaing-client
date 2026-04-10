@@ -382,7 +382,7 @@
           </div>
           <div class="space-y-1 rounded border border-slate-100 p-2 font-mono text-[10px] text-slate-500 dark:border-slate-800">
             <div><span class="text-slate-400">{{ t('sys_subject') }}</span> Opencode Local CA</div>
-            <div><span class="text-slate-400">{{ t('sys_validity') }}</span> 2024-2029 (Valid)</div>
+            <div><span class="text-slate-400">{{ t('sys_validity') }}</span> 2026-2031 (Valid)</div>
             <div class="truncate"><span class="text-slate-400">{{ t('sys_finger') }}</span> 7A:9C:B5:E1:02...</div>
           </div>
           <div class="grid grid-cols-2 gap-2">

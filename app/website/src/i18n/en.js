@@ -339,7 +339,7 @@ export default {
   settings_configSaved: 'Customer configuration saved successfully.',
   settings_configLoadFailed: 'Failed to load customer configuration.',
   settings_configSaveFailed: 'Failed to save customer configuration.',
-  settings_copyright: '\u00A9 2024 ALiang Gateway. All rights reserved.',
+  settings_copyright: '\u00A9 2026 ALiang Gateway. All rights reserved.',
   settings_docs: 'Docs',
   settings_privacy: 'Privacy',
   settings_github: 'Github',
