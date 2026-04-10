@@ -1,54 +1,6 @@
 <template>
   <div class="settings-pane" data-pane="logs">
     <div class="mt-4 flex flex-col gap-4">
-      <section class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900/70">
-        <div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-          <div>
-            <h3 class="text-base font-semibold text-slate-900 dark:text-white">{{ t('logs_runtimeTitle') }}</h3>
-            <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">{{ t('logs_runtimeDesc') }}</p>
-          </div>
-          <span
-            v-if="isProdBuild"
-            class="inline-flex items-center rounded-full bg-amber-100 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-amber-700 dark:bg-amber-500/15 dark:text-amber-300"
-          >
-            {{ t('logs_prodGuard') }}
-          </span>
-        </div>
-
-        <div class="mt-4 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
-          <label class="space-y-2">
-            <span class="text-xs font-semibold uppercase tracking-wide text-slate-500">{{ t('logs_runtimeLevel') }}</span>
-            <select
-              v-model="configLevel"
-              class="min-w-[180px] rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm transition focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
-            >
-              <option v-for="option in runtimeLevelOptions" :key="option.value" :value="option.value">
-                {{ option.label }}
-              </option>
-            </select>
-          </label>
-
-          <div class="flex flex-wrap items-center gap-2">
-            <span class="text-xs text-slate-500 dark:text-slate-400">
-              {{ t('logs_runtimeCurrent', { level: configLevel.toUpperCase() }) }}
-            </span>
-            <button
-              id="logConfigSaveBtn"
-              type="button"
-              class="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white transition hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
-              :disabled="isSavingConfig || !configLevel"
-              @click="saveLogConfig"
-            >
-              <span class="material-symbols-outlined text-sm">save</span>
-              {{ isSavingConfig ? t('logs_runtimeSaving') : t('logs_runtimeSave') }}
-            </button>
-          </div>
-        </div>
-
-        <p v-if="configError" class="mt-3 text-sm text-red-500">{{ configError }}</p>
-        <p v-else-if="configSuccess" class="mt-3 text-sm text-emerald-600 dark:text-emerald-400">{{ configSuccess }}</p>
-      </section>
-
       <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <div class="flex items-center gap-2">
           <h2 class="text-xl font-bold text-slate-900 dark:text-white">{{ t('logs_title') }}</h2>
@@ -153,6 +105,10 @@ const LOG_LEVEL_OPTIONS = [
   { value: 'error', labelKey: 'logs_levelError' }
 ];
 
+// 日志级别可见性控制变量
+// 设置为 true 可在 PROD 模式下也显示 debug/trace 选项
+window.__ALLOW_DEBUG_LOG_LEVEL__ = false;
+
 const entries = ref([]);
 const selectedLevel = ref('all');
 const configLevel = ref(isProdBuild ? 'info' : 'debug');
@@ -167,7 +123,12 @@ const logsContainer = ref(null);
 
 let pollTimer = null;
 
-const minimumRuntimeLevel = computed(() => (isProdBuild ? 'info' : 'trace'));
+const minimumRuntimeLevel = computed(() => {
+  if (isProdBuild && !window.__ALLOW_DEBUG_LOG_LEVEL__) {
+    return 'info';
+  }
+  return 'trace';
+});
 
 const runtimeLevelOptions = computed(() => {
   const minimum = levelRank(minimumRuntimeLevel.value);
