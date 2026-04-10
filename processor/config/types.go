@@ -293,16 +293,18 @@ func (c *CustomerProxyConfig) IsEnabled() bool {
 }
 
 type CustomerAIRuleSetting struct {
-	Enble   *bool    `json:"enble,omitempty"`
-	Include []string `json:"include,omitempty"`
+	Enble    *bool    `json:"enble,omitempty"`
+	Include  []string `json:"include,omitempty"`
+	Editable *bool    `json:"editable,omitempty"`
 }
 
 func (c *CustomerAIRuleSetting) UnmarshalJSON(data []byte) error {
 	type alias struct {
-		Enble   *bool    `json:"enble,omitempty"`
-		Enable  *bool    `json:"enable,omitempty"`
-		Include []string `json:"include,omitempty"`
-		Exclude []string `json:"exclude,omitempty"` // legacy alias
+		Enble    *bool    `json:"enble,omitempty"`
+		Enable   *bool    `json:"enable,omitempty"`
+		Include  []string `json:"include,omitempty"`
+		Exclude  []string `json:"exclude,omitempty"` // legacy alias
+		Editable *bool    `json:"editable,omitempty"`
 	}
 
 	var decoded alias
@@ -318,17 +320,20 @@ func (c *CustomerAIRuleSetting) UnmarshalJSON(data []byte) error {
 	if len(c.Include) == 0 {
 		c.Include = decoded.Exclude
 	}
+	c.Editable = decoded.Editable
 	return nil
 }
 
 func (c CustomerAIRuleSetting) MarshalJSON() ([]byte, error) {
 	type alias struct {
-		Enble   *bool    `json:"enble,omitempty"`
-		Include []string `json:"include,omitempty"`
+		Enble    *bool    `json:"enble,omitempty"`
+		Include  []string `json:"include,omitempty"`
+		Editable *bool    `json:"editable,omitempty"`
 	}
 	return json.Marshal(alias{
-		Enble:   c.Enble,
-		Include: c.Include,
+		Enble:    c.Enble,
+		Include:  c.Include,
+		Editable: c.Editable,
 	})
 }
 
@@ -337,14 +342,15 @@ type AIRuleProviderPreset struct {
 	Key            string   `json:"key"`
 	Label          string   `json:"label"`
 	DefaultInclude []string `json:"default_include,omitempty"`
+	Editable       bool     `json:"editable"`
 }
 
 // PresetAIRuleProviders is the system-known list of AI rule providers.
 var PresetAIRuleProviders = []AIRuleProviderPreset{
-	{Key: "openai", Label: "OpenAI", DefaultInclude: []string{"openai.com", "chatgpt.com"}},
-	{Key: "claude", Label: "Claude", DefaultInclude: []string{"claude.ai", "anthropic.com"}},
-	{Key: "cursor", Label: "Cursor", DefaultInclude: []string{"api.cursor.com"}},
-	{Key: "copilot", Label: "Copilot", DefaultInclude: []string{"copilot.microsoft.com"}},
+	{Key: "openai", Label: "OpenAI", DefaultInclude: []string{"openai.com", "chatgpt.com"}, Editable: true},
+	{Key: "claude", Label: "Claude", DefaultInclude: []string{"claude.ai", "anthropic.com"}, Editable: true},
+	{Key: "cursor", Label: "Cursor", DefaultInclude: []string{"api.cursor.com"}, Editable: true},
+	{Key: "copilot", Label: "Copilot", DefaultInclude: []string{"copilot.microsoft.com"}, Editable: true},
 }
 
 func (c *Config) UnmarshalJSON(data []byte) error {
@@ -480,7 +486,7 @@ func (c *Config) validateCustomerEditableSurface() error {
 			return fmt.Errorf("customer.ai_rules provider key cannot be empty")
 		}
 		if rule == nil {
-			return fmt.Errorf("customer.ai_rules.%s must be an object with editable fields [enble include]", provider)
+			return fmt.Errorf("customer.ai_rules.%s must be an object with editable fields [enble include editable]", provider)
 		}
 		if rule.Enble == nil {
 			return fmt.Errorf("customer.ai_rules.%s.enble is required and editable", provider)
@@ -526,7 +532,7 @@ func (c *Config) customerUnknownKeyErrors() error {
 		}
 		sortedUnknown := append([]string(nil), unknown...)
 		sort.Strings(sortedUnknown)
-		return fmt.Errorf("customer.ai_rules.%s.%s is forbidden: editable ai_rules fields are [enble include]", provider, sortedUnknown[0])
+		return fmt.Errorf("customer.ai_rules.%s.%s is forbidden: editable ai_rules fields are [enble include editable]", provider, sortedUnknown[0])
 	}
 
 	return nil
@@ -567,11 +573,11 @@ func extractCustomerUnknownFields(root map[string]json.RawMessage) ([]string, ma
 	for provider, rawProvider := range aiRoot {
 		var fields map[string]json.RawMessage
 		if err := json.Unmarshal(rawProvider, &fields); err != nil {
-			return nil, nil, fmt.Errorf("customer.ai_rules.%s must be an object with editable fields [enble include]", provider)
+			return nil, nil, fmt.Errorf("customer.ai_rules.%s must be an object with editable fields [enble include editable]", provider)
 		}
 		for key := range fields {
 			switch key {
-			case "enble", "enable", "include", "exclude":
+			case "enble", "enable", "include", "exclude", "editable":
 			default:
 				unknownAIRules[provider] = append(unknownAIRules[provider], key)
 			}

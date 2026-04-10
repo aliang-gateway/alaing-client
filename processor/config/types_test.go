@@ -489,3 +489,35 @@ func TestConfigValidate_AIRulesEnableRequired(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }
+
+func TestConfigValidate_AIRulesEditableAccepted(t *testing.T) {
+	payload := []byte(`{
+		"core": {"api_server": "https://api.aliang.one"},
+		"customer": {
+			"proxy": {
+				"type": "http",
+				"server": "127.0.0.1:1080"
+			},
+			"ai_rules": {
+				"openai": {
+					"enble": true,
+					"include": ["api.openai.com"],
+					"editable": false
+				}
+			}
+		}
+	}`)
+
+	var cfg Config
+	if err := json.Unmarshal(payload, &cfg); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("Validate() error = %v", err)
+	}
+
+	rule := cfg.Customer.AIRules["openai"]
+	if rule == nil || rule.Editable == nil || *rule.Editable {
+		t.Fatalf("rule.Editable = %+v, want false", rule)
+	}
+}

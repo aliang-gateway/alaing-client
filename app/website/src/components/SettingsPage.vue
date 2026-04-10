@@ -222,7 +222,8 @@ function normalizeAiRules(aiRules = {}) {
   return Object.fromEntries(
     Object.entries(aiRules).map(([provider, incoming]) => [provider, {
       enble: Boolean(incoming?.enble ?? incoming?.enable),
-      include: normalizeStringList(incoming?.include ?? incoming?.exclude)
+      include: normalizeStringList(incoming?.include ?? incoming?.exclude),
+      editable: typeof incoming?.editable === 'boolean' ? incoming.editable : undefined
     }])
   );
 }
@@ -391,10 +392,10 @@ export default {
   methods: {
     async loadPresetProviders() {
       const HARDCODED_PRESETS = [
-        { key: 'openai', label: 'OpenAI', default_include: ['openai.com', 'chatgpt.com'] },
-        { key: 'claude', label: 'Claude', default_include: ['claude.ai', 'anthropic.com'] },
-        { key: 'cursor', label: 'Cursor', default_include: ['api.cursor.com'] },
-        { key: 'copilot', label: 'Copilot', default_include: ['copilot.microsoft.com'] }
+        { key: 'openai', label: 'OpenAI', default_include: ['openai.com', 'chatgpt.com'], editable: true },
+        { key: 'claude', label: 'Claude', default_include: ['claude.ai', 'anthropic.com'], editable: true },
+        { key: 'cursor', label: 'Cursor', default_include: ['api.cursor.com'], editable: true },
+        { key: 'copilot', label: 'Copilot', default_include: ['copilot.microsoft.com'], editable: true }
       ];
 
       // Direct fetch — avoids relying on window.customerConfigGetProviders being injected

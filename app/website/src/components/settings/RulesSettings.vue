@@ -111,14 +111,14 @@
                   <h4 class="font-semibold text-slate-900 dark:text-white">{{ providerLabel(provider, presetProviders) }}</h4>
                   <p class="text-xs text-slate-500">{{ provider }}</p>
                 </div>
-                <label class="inline-flex cursor-pointer items-center gap-2 text-xs font-semibold text-slate-600 dark:text-slate-200">
-                  <input v-model="form.ai_rules[provider].enble" class="peer sr-only" type="checkbox" />
+                <label v-if="providerEditable(provider)" class="inline-flex cursor-pointer items-center gap-2 text-xs font-semibold text-slate-600 dark:text-slate-200">
+                  <input v-model="form.ai_rules[provider].enble" :disabled="!providerEditable(provider)" class="peer sr-only" type="checkbox" />
                   <span class="relative h-6 w-11 rounded-full bg-slate-300 transition-colors after:absolute after:left-0.5 after:top-0.5 after:h-5 after:w-5 after:rounded-full after:bg-white after:transition-transform after:content-[''] peer-checked:bg-primary peer-checked:after:translate-x-5 peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-primary dark:bg-slate-700"></span>
                   
                 </label>
               </div>
 
-              <div class="relative" :data-provider-editor-root="provider">
+              <div v-if="providerEditable(provider)" class="relative" :data-provider-editor-root="provider">
                 <button
                   type="button"
                   class="flex w-full items-center justify-between gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-left transition hover:border-primary/20 hover:bg-primary/5 dark:border-slate-800 dark:bg-slate-900/60 dark:hover:border-primary/30 dark:hover:bg-primary/10"
@@ -311,7 +311,8 @@ function normalizeAiRules(aiRules = {}) {
   return Object.fromEntries(
     Object.entries(aiRules).map(([provider, value]) => [provider, {
       enble: Boolean(value?.enble ?? value?.enable),
-      include: normalizeStringList(value?.include ?? value?.exclude)
+      include: normalizeStringList(value?.include ?? value?.exclude),
+      editable: typeof value?.editable === 'boolean' ? value.editable : undefined
     }])
   );
 }
@@ -511,13 +512,26 @@ export default {
     ensureProviders() {
       for (const p of this.presetProviders) {
         if (!(p.key in this.form.ai_rules)) {
-          this.form.ai_rules[p.key] = { enble: false, include: [] };
+          this.form.ai_rules[p.key] = { enble: false, include: [], editable: Boolean(p.editable) };
+          continue;
+        }
+
+        if (typeof this.form.ai_rules[p.key].editable !== 'boolean' && typeof p.editable === 'boolean') {
+          this.form.ai_rules[p.key].editable = p.editable;
         }
       }
     },
     providerLabel(key, presetProviders) {
       const preset = presetProviders.find(p => p.key === key);
       return preset ? preset.label : key;
+    },
+    providerEditable(provider) {
+      const rule = this.form.ai_rules[provider];
+      if (typeof rule?.editable === 'boolean') {
+        return rule.editable;
+      }
+      const preset = this.presetProviders.find((entry) => entry.key === provider);
+      return Boolean(preset?.editable);
     },
     syncTextFromForm() {
       this._proxyRulesText = (this.form.proxy_rules || []).join('\n');
@@ -529,6 +543,9 @@ export default {
       return this.providerEditor.provider === provider;
     },
     toggleProviderEditor(provider) {
+      if (!this.providerEditable(provider)) {
+        return;
+      }
       if (this.isProviderEditorOpen(provider)) {
         this.cancelProviderEditor();
         return;
@@ -551,6 +568,10 @@ export default {
     saveProviderEditor() {
       const provider = this.providerEditor.provider;
       if (!provider) {
+        return;
+      }
+      if (!this.providerEditable(provider)) {
+        this.cancelProviderEditor();
         return;
       }
 
