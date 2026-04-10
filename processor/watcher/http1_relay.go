@@ -277,6 +277,8 @@ func injectHTTP1AuthorizationHeader(req *http.Request) {
 		return
 	}
 
+	rewriteAliangHTTPRequestHost(req)
+
 	if authHeader := strings.TrimSpace(user.GetCurrentAuthorizationHeader()); authHeader != "" {
 		req.Header.Set("Authorization-Inner", authHeader)
 	}

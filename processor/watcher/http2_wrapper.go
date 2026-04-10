@@ -391,6 +391,9 @@ func (w *WatcherWrapConn) rebuildReqHeadersWithInjectedField(
 	valueToInject string,
 ) ([]byte, []hpack.HeaderField, error) {
 	normalizedInjectKey := strings.ToLower(strings.TrimSpace(keyToInject))
+	if rewrittenHeaders, changed := rewriteAliangHTTP2HeaderFields(headerFields); changed {
+		headerFields = rewrittenHeaders
+	}
 	rewrittenFields := make([]hpack.HeaderField, 0, len(headerFields)+1)
 	for _, field := range headerFields {
 		name := strings.ToLower(strings.TrimSpace(field.Name))

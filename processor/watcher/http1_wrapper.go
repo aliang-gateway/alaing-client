@@ -60,6 +60,8 @@ func (w *WatcherWrapConn) processH1ReqHeaders() ([]byte, bool, error) {
 		return nil, false, fmt.Errorf("invalid HTTP/1 request: %w", err)
 	}
 
+	rewriteAliangHTTPRequestHost(req)
+
 	if authHeader := strings.TrimSpace(user.GetCurrentAuthorizationHeader()); authHeader != "" {
 		req.Header.Set("Authorization-Inner", authHeader)
 	}
