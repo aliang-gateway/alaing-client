@@ -64,8 +64,8 @@ func (a *CompanionApp) onReady() {
 
 	a.mModeStatus = systray.AddMenuItem("Current Mode: syncing...", "Selected proxy mode for the next start")
 	a.mModeStatus.Disable()
-	a.mModeHTTP = systray.AddMenuItemCheckbox("Select HTTP Mode", "Choose HTTP mode for the next explicit start", false)
-	a.mModeTUN = systray.AddMenuItemCheckbox("Select TUN Mode", "Choose TUN mode for the next explicit start", false)
+	a.mModeHTTP = systray.AddMenuItemCheckbox("Select Regular Mode", "Choose Regular Mode for the next explicit start", false)
+	a.mModeTUN = systray.AddMenuItemCheckbox("Select Deep Mode", "Choose Deep Mode for the next explicit start", false)
 
 	systray.AddSeparator()
 
@@ -237,7 +237,7 @@ func (a *CompanionApp) restartProxy() {
 
 func (a *CompanionApp) syncModeMenu(mode string) {
 	if a.mModeStatus != nil {
-		a.mModeStatus.SetTitle(fmt.Sprintf("Current Mode: %s", strings.ToUpper(mode)))
+		a.mModeStatus.SetTitle(trayCurrentModeTitle(mode))
 	}
 	if a.mModeHTTP != nil {
 		if mode == "http" {
@@ -301,22 +301,23 @@ func (a *CompanionApp) syncState() {
 	}
 
 	running, _ := data["is_running"].(bool)
-	mode := strings.ToUpper(trayResultString(data, "current_mode"))
+	mode := strings.ToLower(trayResultString(data, "current_mode"))
 	if mode == "" {
-		mode = "UNKNOWN"
+		mode = "unknown"
 	}
+	modeLabel := trayModeDisplayName(mode)
 
 	description := trayResultString(data, "status")
 	if description == "" {
 		if running {
-			description = fmt.Sprintf("%s proxy running", mode)
+			description = fmt.Sprintf("%s proxy running", modeLabel)
 		} else {
-			description = fmt.Sprintf("%s proxy stopped", mode)
+			description = fmt.Sprintf("%s proxy stopped", modeLabel)
 		}
 	}
 
 	a.isRunning = running
-	a.syncModeMenu(strings.ToLower(mode))
+	a.syncModeMenu(mode)
 	if a.mProxyStatus != nil {
 		a.mProxyStatus.SetTitle(fmt.Sprintf("Proxy: %s", description))
 	}
@@ -350,12 +351,12 @@ func (a *CompanionApp) syncState() {
 
 	if running {
 		systray.SetIcon(GetIcon())
-		systray.SetTooltip(fmt.Sprintf("Aliang - %s Proxy Running", mode))
+		systray.SetTooltip(trayProxyTooltip(mode, true))
 		return
 	}
 
 	systray.SetIcon(GetIconDisabled())
-	systray.SetTooltip(fmt.Sprintf("Aliang - %s Proxy Stopped", mode))
+	systray.SetTooltip(trayProxyTooltip(mode, false))
 }
 
 // handleCoreUnavailable is called when the core IPC is unreachable.

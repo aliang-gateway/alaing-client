@@ -2,6 +2,24 @@ package tray
 
 import "testing"
 
+func TestTrayModeDisplayName(t *testing.T) {
+	testCases := []struct {
+		mode string
+		want string
+	}{
+		{mode: "http", want: "Regular Mode"},
+		{mode: "tun", want: "Deep Mode"},
+		{mode: "unknown", want: "Unknown Mode"},
+		{mode: "", want: "Unknown Mode"},
+	}
+
+	for _, tc := range testCases {
+		if got := trayModeDisplayName(tc.mode); got != tc.want {
+			t.Fatalf("trayModeDisplayName(%q) = %q, want %q", tc.mode, got, tc.want)
+		}
+	}
+}
+
 func TestIsAcceptableQuitProxyStopResult(t *testing.T) {
 	testCases := []struct {
 		name   string

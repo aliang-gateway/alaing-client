@@ -68,15 +68,15 @@ func onReady() {
 
 	mModeStatus := systray.AddMenuItem("Current Mode: syncing...", "Selected proxy mode for the next start")
 	mModeStatus.Disable()
-	mModeHTTP := systray.AddMenuItemCheckbox("Select HTTP Mode", "Choose HTTP mode for the next explicit start", false)
-	mModeTUN := systray.AddMenuItemCheckbox("Select TUN Mode", "Choose TUN mode for the next explicit start", false)
+	mModeHTTP := systray.AddMenuItemCheckbox("Select Regular Mode", "Choose Regular Mode for the next explicit start", false)
+	mModeTUN := systray.AddMenuItemCheckbox("Select Deep Mode", "Choose Deep Mode for the next explicit start", false)
 
 	systray.AddSeparator()
 
-	mStart := systray.AddMenuItem("Start Proxy", "Start the active HTTP/TUN proxy listener")
-	mStop := systray.AddMenuItem("Stop Proxy", "Stop the active HTTP/TUN proxy listener")
+	mStart := systray.AddMenuItem("Start Proxy", "Start the selected Deep Mode or Regular Mode proxy listener")
+	mStop := systray.AddMenuItem("Stop Proxy", "Stop the active Deep Mode or Regular Mode proxy listener")
 	mStop.Disable()
-	mRestart := systray.AddMenuItem("Restart Proxy", "Restart the active HTTP/TUN proxy listener")
+	mRestart := systray.AddMenuItem("Restart Proxy", "Restart the active Deep Mode or Regular Mode proxy listener")
 	mRestart.Disable()
 
 	systray.AddSeparator()
@@ -227,7 +227,7 @@ func (t *TrayApp) selectMode(mode string) {
 
 func (t *TrayApp) syncModeMenu(mode string) {
 	if t.mModeStatus != nil {
-		t.mModeStatus.SetTitle(fmt.Sprintf("Current Mode: %s", strings.ToUpper(mode)))
+		t.mModeStatus.SetTitle(trayCurrentModeTitle(mode))
 	}
 	if t.mModeHTTP != nil {
 		if mode == "http" {
@@ -361,17 +361,18 @@ func (t *TrayApp) syncProxyState() {
 
 	status := t.runService.GetStatus()
 	running, _ := status["is_running"].(bool)
-	mode := strings.ToUpper(trayResultString(status, "current_mode"))
+	mode := strings.ToLower(trayResultString(status, "current_mode"))
 	if mode == "" {
-		mode = "UNKNOWN"
+		mode = "unknown"
 	}
+	modeLabel := trayModeDisplayName(mode)
 	description := trayResultString(status, "status")
 	if description == "" {
-		description = fmt.Sprintf("%s proxy stopped", mode)
+		description = fmt.Sprintf("%s proxy stopped", modeLabel)
 	}
 
 	t.isRunning = running
-	t.syncModeMenu(strings.ToLower(mode))
+	t.syncModeMenu(mode)
 
 	if t.mProxyStatus != nil {
 		t.mProxyStatus.SetTitle(fmt.Sprintf("Proxy: %s", description))
@@ -401,17 +402,17 @@ func (t *TrayApp) syncProxyState() {
 
 	if running {
 		systray.SetIcon(GetIcon())
-		systray.SetTooltip(fmt.Sprintf("Aliang - %s Proxy Running", mode))
+		systray.SetTooltip(trayProxyTooltip(mode, true))
 		return
 	}
 
 	systray.SetIcon(GetIconDisabled())
 	startupStatus := startupRuntime.GetStartupState().GetStatus()
 	if startupStatus == startupRuntime.READY || startupStatus == startupRuntime.CONFIGURED {
-		systray.SetTooltip(fmt.Sprintf("Aliang - %s Proxy Stopped", mode))
+		systray.SetTooltip(trayProxyTooltip(mode, false))
 		return
 	}
-	systray.SetTooltip(fmt.Sprintf("Aliang - %s Proxy Unavailable (%s)", mode, startupStatus))
+	systray.SetTooltip(fmt.Sprintf("Aliang - %s Unavailable (%s)", modeLabel, startupStatus))
 }
 
 func trayResultString(result map[string]interface{}, key string) string {
