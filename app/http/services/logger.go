@@ -13,6 +13,7 @@ import (
 	"aliang.one/nursorgate/app/http/models"
 	"aliang.one/nursorgate/common/cache"
 	"aliang.one/nursorgate/common/logger"
+	"aliang.one/nursorgate/common/version"
 )
 
 // Custom errors for logger operations
@@ -21,6 +22,7 @@ var (
 	ErrInvalidDurationFormat = errors.New("invalid duration format")
 	ErrNoValidConfigFields   = errors.New("no valid configuration fields provided")
 	ErrInvalidRequestBody    = errors.New("invalid request body")
+	ErrProdLogLevelTooLow    = errors.New("prod build requires log level INFO or above")
 )
 
 // LogService handles log retrieval and management operations
@@ -78,6 +80,9 @@ func (ls *LogService) UpdateLogLevel(levelStr string) (logger.LogLevelType, erro
 	level, err := StringToLogLevelType(levelUpStr)
 	if err != nil {
 		return 0, err
+	}
+	if version.IsProdBuild() && level < logger.INFO {
+		return 0, ErrProdLogLevelTooLow
 	}
 
 	logger.UpdateLogLevel(level)

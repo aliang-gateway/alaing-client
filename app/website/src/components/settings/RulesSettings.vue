@@ -104,7 +104,7 @@
             <template v-for="provider in providerOrder" :key="provider">
             <article
               v-if="form.ai_rules[provider]"
-              class="rounded-lg border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-background-dark"
+              class="relative rounded-lg border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-background-dark"
             >
               <div class="mb-3 flex items-center justify-between gap-3">
                 <div>
@@ -118,15 +118,62 @@
                 </label>
               </div>
 
-              <label v-if="isDev" class="space-y-2">
-                <span class="text-xs font-semibold uppercase tracking-wide text-slate-500">{{ t('rules_includeDomains') }}</span>
-                <textarea
-                  :value="_providerIncludeTexts[provider]"
-                  class="min-h-28 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 font-mono text-sm text-slate-700 shadow-sm transition focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
-                  placeholder="example.com&#10;api.aliang.one, chatgpt.com; anthropic.com"
-                  @input="_providerIncludeTexts[provider] = $event.target.value"
-                ></textarea>
-              </label>
+              <div class="relative" :data-provider-editor-root="provider">
+                <button
+                  type="button"
+                  class="flex w-full items-center justify-between gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-left transition hover:border-primary/20 hover:bg-primary/5 dark:border-slate-800 dark:bg-slate-900/60 dark:hover:border-primary/30 dark:hover:bg-primary/10"
+                  :aria-expanded="isProviderEditorOpen(provider)"
+                  @click.stop="toggleProviderEditor(provider)"
+                >
+                  <span class="text-xs font-normal text-slate-500 dark:text-slate-400">{{ t('rules_includeDomains') }}</span>
+                  <span class="inline-flex items-center rounded-full bg-white px-2 py-0.5 text-[11px] font-medium text-slate-500 shadow-sm ring-1 ring-slate-200 dark:bg-slate-950 dark:text-slate-400 dark:ring-slate-800">
+                    {{ isProviderEditorOpen(provider) ? t('rules_includeDomainsClose') : t('rules_includeDomainsEdit') }}
+                  </span>
+                </button>
+
+                <div
+                  v-if="isProviderEditorOpen(provider)"
+                  class="absolute inset-x-0 top-full z-20 mt-2 rounded-2xl border border-slate-200 bg-white p-4 shadow-2xl dark:border-slate-700 dark:bg-slate-950"
+                  @click.stop
+                >
+                  <div class="mb-3 flex items-start justify-between gap-3">
+                    <h5 class="text-xs font-medium text-slate-600 dark:text-slate-300">{{ t('rules_includeDomainsDialogTitle', { provider: providerLabel(provider, presetProviders) }) }}</h5>
+                    <button
+                      type="button"
+                      class="rounded-lg p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800 dark:hover:text-slate-300"
+                      @click="cancelProviderEditor"
+                    >
+                      <span class="material-symbols-outlined text-base">close</span>
+                    </button>
+                  </div>
+
+                  <textarea
+                    :ref="`providerEditor-${provider}`"
+                    v-model="providerEditor.draft"
+                    class="min-h-32 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 font-mono text-sm text-slate-700 shadow-sm transition focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+                    :placeholder="t('rules_includeDomainsPlaceholder')"
+                  ></textarea>
+
+                  <p class="mt-2 text-xs text-slate-500">{{ t('rules_includeDomainsDialogHint') }}</p>
+
+                  <div class="mt-4 flex items-center justify-end gap-2">
+                    <button
+                      type="button"
+                      class="rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-normal text-slate-500 transition hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+                      @click="cancelProviderEditor"
+                    >
+                      {{ t('rules_includeDomainsCancel') }}
+                    </button>
+                    <button
+                      type="button"
+                      class="rounded-lg bg-primary px-2.5 py-1.5 text-xs font-normal text-white transition hover:bg-primary/90"
+                      @click="saveProviderEditor"
+                    >
+                      {{ t('rules_includeDomainsSave') }}
+                    </button>
+                  </div>
+                </div>
+              </div>
             </article>
             </template>
           </div>
@@ -220,8 +267,33 @@ function normalizeStringList(items) {
 function sanitizeList(value) {
   return value
     .split(/[\n,;]+/)
-    .map((entry) => entry.trim())
+    .map((entry) => normalizeIncludeEntry(entry))
     .filter(Boolean);
+}
+
+function normalizeIncludeEntry(entry) {
+  const trimmed = String(entry || '').trim();
+  if (!trimmed) {
+    return '';
+  }
+
+  if (trimmed.startsWith('//')) {
+    try {
+      return new URL(`https:${trimmed}`).hostname || trimmed;
+    } catch {
+      return trimmed;
+    }
+  }
+
+  if (/^[a-zA-Z][a-zA-Z\d+\-.]*:\/\//.test(trimmed)) {
+    try {
+      return new URL(trimmed).hostname || trimmed;
+    } catch {
+      return trimmed;
+    }
+  }
+
+  return trimmed;
 }
 
 function sanitizeLines(value) {
@@ -335,20 +407,48 @@ export default {
   emits: ['save'],
   data() {
     return {
-      isDev: import.meta.env.VITE_MODE === 'dev',
+      providerEditor: {
+        provider: '',
+        draft: ''
+      },
       form: normalizeConfig(this.config),
       _proxyRulesText: '',
       _providerIncludeTexts: {},
       _showSuccessDialog: false,
-      _successDialogTimer: null
+      _successDialogTimer: null,
+      _providerEditorClickHandler: null
     };
   },
   created() {
     this.ensureProviders();
     this.syncTextFromForm();
   },
+  mounted() {
+    this._providerEditorClickHandler = (event) => {
+      if (!this.providerEditor.provider) {
+        return;
+      }
+
+      const target = event.target;
+      if (!(target instanceof Element)) {
+        return;
+      }
+
+      const selector = `[data-provider-editor-root="${this.providerEditor.provider}"]`;
+      if (target.closest(selector)) {
+        return;
+      }
+
+      this.cancelProviderEditor();
+    };
+    document.addEventListener('click', this._providerEditorClickHandler, true);
+  },
   beforeUnmount() {
     this.clearSuccessDialogTimer();
+    if (this._providerEditorClickHandler) {
+      document.removeEventListener('click', this._providerEditorClickHandler, true);
+      this._providerEditorClickHandler = null;
+    }
   },
   computed: {
     providerOrder() {
@@ -424,6 +524,42 @@ export default {
       for (const key of Object.keys(this.form.ai_rules)) {
         this._providerIncludeTexts[key] = (this.form.ai_rules[key].include || []).join('\n');
       }
+    },
+    isProviderEditorOpen(provider) {
+      return this.providerEditor.provider === provider;
+    },
+    toggleProviderEditor(provider) {
+      if (this.isProviderEditorOpen(provider)) {
+        this.cancelProviderEditor();
+        return;
+      }
+
+      this.providerEditor.provider = provider;
+      this.providerEditor.draft = this._providerIncludeTexts[provider] || '';
+      this.$nextTick(() => {
+        const refValue = this.$refs[`providerEditor-${provider}`];
+        const textarea = Array.isArray(refValue) ? refValue[0] : refValue;
+        if (textarea && typeof textarea.focus === 'function') {
+          textarea.focus();
+        }
+      });
+    },
+    cancelProviderEditor() {
+      this.providerEditor.provider = '';
+      this.providerEditor.draft = '';
+    },
+    saveProviderEditor() {
+      const provider = this.providerEditor.provider;
+      if (!provider) {
+        return;
+      }
+
+      const include = sanitizeList(this.providerEditor.draft);
+      this._providerIncludeTexts[provider] = include.join('\n');
+      if (this.form.ai_rules[provider]) {
+        this.form.ai_rules[provider].include = include;
+      }
+      this.cancelProviderEditor();
     },
     async handleSubmit() {
       const normalized = normalizeConfig(this.form);

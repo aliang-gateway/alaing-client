@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"aliang.one/nursorgate/common/cache"
+	"aliang.one/nursorgate/common/version"
 )
 
 // LogLevel represents logging level
@@ -56,7 +57,7 @@ func DefaultLogConfig() *LogConfig {
 	}
 
 	return &LogConfig{
-		Level:              DEBUG,
+		Level:              sanitizeLogLevel(DEBUG),
 		ErrorWindow:        1 * time.Hour,
 		MaxErrorCount:      4,
 		CleanupInterval:    2 * time.Hour,
@@ -79,7 +80,7 @@ func HTTPLogConfig() *LogConfig {
 	}
 
 	return &LogConfig{
-		Level:              TRACE,
+		Level:              sanitizeLogLevel(TRACE),
 		FileLogPath:        filepath.Join(logDir, "aliang_http.log"),
 		EnableFileRotation: true,
 		MaxLogSize:         10 * 1024 * 1024, // 10MB
@@ -105,6 +106,7 @@ func SetLogConfig(config *LogConfig) {
 	globalLogConfigMu.Lock()
 	defer globalLogConfigMu.Unlock()
 	if config != nil {
+		config.Level = sanitizeLogLevel(config.Level)
 		globalLogConfig = config
 		// Propagate config to existing mainLogger instance if already created
 		if ml, ok := mainLoggerInstance.(*mainLogger); ok && ml != nil {
@@ -117,7 +119,14 @@ func SetLogConfig(config *LogConfig) {
 func UpdateLogLevel(level LogLevelType) {
 	globalLogConfigMu.Lock()
 	defer globalLogConfigMu.Unlock()
-	globalLogConfig.Level = level
+	globalLogConfig.Level = sanitizeLogLevel(level)
+}
+
+func sanitizeLogLevel(level LogLevelType) LogLevelType {
+	if version.IsProdBuild() && level < INFO {
+		return INFO
+	}
+	return level
 }
 
 // Legacy compatibility - keep ErrorDedupConfig for backward compatibility

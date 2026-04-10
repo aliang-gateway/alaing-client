@@ -5,6 +5,7 @@ import (
 
 	"aliang.one/nursorgate/app/http/models"
 	"aliang.one/nursorgate/common/logger"
+	"aliang.one/nursorgate/common/version"
 )
 
 // LogConfigService handles logger configuration operations
@@ -44,6 +45,9 @@ func (lcs *LogConfigService) UpdateConfig(req models.LogConfigRequest) error {
 		level, err := StringToLogLevelType(req.Level)
 		if err != nil {
 			return err
+		}
+		if version.IsProdBuild() && level < logger.INFO {
+			return ErrProdLogLevelTooLow
 		}
 		config.Level = level
 		updated = true
