@@ -46,6 +46,13 @@ export default {
   // -- System Settings --
   sys_language: '语言',
   sys_languageDesc: '选择显示语言',
+  sys_theme: '外观',
+  sys_themeDesc: '默认跟随系统，也可以手动固定浅色或深色',
+  sys_themeSystem: '跟随系统',
+  sys_themeLight: '浅色',
+  sys_themeDark: '深色',
+  sys_themeFollowingSystemState: '当前跟随系统：{mode}',
+  sys_themeManualState: '当前外观：{mode}',
   sys_systemSettings: '系统设置',
   sys_runMode: '运行模式',
   sys_runModeDesc: '在深度模式和常规模式之间切换',

@@ -46,6 +46,13 @@ export default {
   // -- System Settings --
   sys_language: 'Language',
   sys_languageDesc: 'Choose display language',
+  sys_theme: 'Appearance',
+  sys_themeDesc: 'Follow system by default, or choose a fixed appearance',
+  sys_themeSystem: 'System',
+  sys_themeLight: 'Light',
+  sys_themeDark: 'Dark',
+  sys_themeFollowingSystemState: 'Currently following system: {mode}',
+  sys_themeManualState: 'Current appearance: {mode}',
   sys_systemSettings: 'System Settings',
   sys_runMode: 'Run Mode',
   sys_runModeDesc: 'Switch between Deep Mode and Regular Mode',
