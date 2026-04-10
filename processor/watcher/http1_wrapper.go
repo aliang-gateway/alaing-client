@@ -59,7 +59,7 @@ func (w *WatcherWrapConn) processH1ReqHeaders() ([]byte, bool, error) {
 	if err != nil {
 		return nil, false, fmt.Errorf("invalid HTTP/1 request: %w", err)
 	}
-
+	// 将localhost:56432上监听到的，别家的host，改成openai.com等，改完后继续往下走正常的流程，最终发给aliang，不然后端要考虑处理各种第三方的host
 	rewriteAliangHTTPRequestHost(req)
 
 	if authHeader := strings.TrimSpace(user.GetCurrentAuthorizationHeader()); authHeader != "" {

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"aliang.one/nursorgate/common/logger"
+	httpServer "aliang.one/nursorgate/inbound/http"
 	tunDevice "aliang.one/nursorgate/inbound/tun/device/tun"
 	"aliang.one/nursorgate/inbound/tun/engine"
 	"aliang.one/nursorgate/processor/config"
@@ -126,6 +127,21 @@ func startWithRollback(state *StartupState) error {
 	}
 	state.routesConfigured = true
 
+	// Step 7: 启动 HTTP 代理 (56432端口)
+	UpdateStartupProgress("starting", "starting_proxy", 95, "Starting HTTP proxy on port 56432.", "", false)
+	if err := startHTTPProxyForTUN(); err != nil {
+		AppendStartupError(fmt.Sprintf("启动 HTTP 代理失败: %v", err))
+		return fmt.Errorf("启动 HTTP 代理失败: %w", err)
+	}
+
+	return nil
+}
+
+// startHTTPProxyForTUN 启动 HTTP 代理供 TUN 模式使用
+func startHTTPProxyForTUN() error {
+	// 注意：StartMitmHttp 是阻塞的，需要 goroutine 运行
+	go httpServer.StartMitmHttp()
+	logger.Info("HTTP proxy server started in TUN mode")
 	return nil
 }
 

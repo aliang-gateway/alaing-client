@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"aliang.one/nursorgate/common/logger"
+	httpServer "aliang.one/nursorgate/inbound/http"
 	utils2 "aliang.one/nursorgate/inbound/tun/runner/utils"
 	"aliang.one/nursorgate/processor/config"
 )
@@ -26,6 +27,10 @@ type PSNetItem struct {
 
 func stopTun() {
 	logger.Info("Stopping TUN service...")
+
+	// 1. 停止 HTTP 代理
+	logger.Info("Stopping HTTP proxy server...")
+	httpServer.StopHttpProxy()
 
 	// 2. 清理 TUN 路由
 	if err := CleanupTunRoute(); err != nil {
