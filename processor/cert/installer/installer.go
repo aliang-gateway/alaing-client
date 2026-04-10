@@ -503,23 +503,53 @@ func (d *DarwinInstaller) GetTrustStatus(certType string, certBytes []byte) (str
 
 type LinuxInstaller struct{}
 
-// IsInstalled checks if certificate is installed in system or user CA directories
+// IsInstalled checks if certificate is installed in system or user CA directories.
+// It verifies the actual certificate content (via SHA256 fingerprint), not just file existence,
+// so that a file with the same name but different content is correctly reported as not installed.
 func (l *LinuxInstaller) IsInstalled(certType string, certBytes []byte) (bool, error) {
-	certName := getCertFileName(certType)
+	// Compute our certificate's SHA256 fingerprint from its raw bytes
+	block, _ := pem.Decode(certBytes)
+	if block == nil {
+		return false, fmt.Errorf("failed to decode certificate PEM")
+	}
+	cert, err := x509.ParseCertificate(block.Bytes)
+	if err != nil {
+		return false, fmt.Errorf("failed to parse certificate: %w", err)
+	}
+	ourFingerprint := fmt.Sprintf("%X", sha256.Sum256(cert.Raw))
 
-	// Check system-level path
-	systemPath := fmt.Sprintf("/etc/ssl/certs/%s", certName)
-	if _, err := os.Stat(systemPath); err == nil {
-		logger.Debug(fmt.Sprintf("Certificate %s found in system path: %s", certType, systemPath))
-		return true, nil
+	// Check system CA bundle for our fingerprint
+	for _, caFile := range []string{
+		"/etc/ssl/certs/ca-certificates.crt",
+		"/etc/ssl/certs/ca-bundle.crt",
+	} {
+		caData, err := os.ReadFile(caFile)
+		if err != nil {
+			continue
+		}
+		if strings.Contains(string(caData), ourFingerprint) {
+			logger.Debug(fmt.Sprintf("Certificate %s found in system CA bundle %s", certType, caFile))
+			return true, nil
+		}
 	}
 
-	// Check user-level path
+	// Check user-level CA directory and verify content matches via fingerprint
 	homeDir, _ := os.UserHomeDir()
-	userPath := filepath.Join(homeDir, ".local/share/ca-certificates/custom", certName)
-	if _, err := os.Stat(userPath); err == nil {
-		logger.Debug(fmt.Sprintf("Certificate %s found in user path: %s", certType, userPath))
-		return true, nil
+	userPath := filepath.Join(homeDir, ".local/share/ca-certificates/custom", getCertFileName(certType))
+	userData, err := os.ReadFile(userPath)
+	if err == nil {
+		userBlock, _ := pem.Decode(userData)
+		if userBlock != nil {
+			userCert, err := x509.ParseCertificate(userBlock.Bytes)
+			if err == nil {
+				userFingerprint := fmt.Sprintf("%X", sha256.Sum256(userCert.Raw))
+				if userFingerprint == ourFingerprint {
+					logger.Debug(fmt.Sprintf("Certificate %s found in user CA path with matching fingerprint: %s", certType, userPath))
+					return true, nil
+				}
+				logger.Debug(fmt.Sprintf("Certificate %s found in user CA path but fingerprint mismatch (expected %s, got %s)", certType, ourFingerprint, userFingerprint))
+			}
+		}
 	}
 
 	logger.Debug(fmt.Sprintf("Certificate %s not found in Linux system", certType))
