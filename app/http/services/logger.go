@@ -76,16 +76,22 @@ func (ls *LogService) ClearLogs() error {
 
 // UpdateLogLevel updates only the log level
 func (ls *LogService) UpdateLogLevel(levelStr string) (logger.LogLevelType, error) {
+	return ls.UpdateLogLevelWithOverride(levelStr, false)
+}
+
+// UpdateLogLevelWithOverride updates the log level dynamically and can
+// optionally allow debug/trace levels in prod builds.
+func (ls *LogService) UpdateLogLevelWithOverride(levelStr string, allowProdLowLevel bool) (logger.LogLevelType, error) {
 	levelUpStr := strings.ToUpper(levelStr)
 	level, err := StringToLogLevelType(levelUpStr)
 	if err != nil {
 		return 0, err
 	}
-	if version.IsProdBuild() && level < logger.INFO {
+	if version.IsProdBuild() && level < logger.INFO && !allowProdLowLevel {
 		return 0, ErrProdLogLevelTooLow
 	}
 
-	logger.UpdateLogLevel(level)
+	logger.UpdateLogLevelWithOverride(level, allowProdLowLevel)
 	return level, nil
 }
 

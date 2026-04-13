@@ -501,6 +501,8 @@ export default {
   logs_runtimeLoadFailed: '加载日志配置失败。',
   logs_runtimeSaveFailed: '保存日志配置失败。',
   logs_prodGuard: 'Prod 最低为 Info',
+  logs_filterLevel: '显示筛选',
+  logs_debugUnlockHint: '若需在 Prod 中启用 Debug/Trace，请在控制台执行 window.__ALLOW_DEBUG_LOG_LEVEL__ = true',
   logs_live: '实时',
   logs_paused: '已暂停',
   logs_entries: '{count} 条',

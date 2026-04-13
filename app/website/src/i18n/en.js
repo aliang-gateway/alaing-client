@@ -501,6 +501,8 @@ export default {
   logs_runtimeLoadFailed: 'Failed to load log configuration.',
   logs_runtimeSaveFailed: 'Failed to save log configuration.',
   logs_prodGuard: 'Prod minimum is Info',
+  logs_filterLevel: 'Display Filter',
+  logs_debugUnlockHint: 'To enable Debug/Trace in prod, run window.__ALLOW_DEBUG_LOG_LEVEL__ = true in the console',
   logs_live: 'Live',
   logs_paused: 'Paused',
   logs_entries: '{count} entries',

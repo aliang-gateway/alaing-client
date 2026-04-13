@@ -3,11 +3,14 @@ package handlers
 import (
 	"encoding/json"
 	"net/http"
+	"strings"
 
 	"aliang.one/nursorgate/app/http/common"
 	"aliang.one/nursorgate/app/http/models"
 	"aliang.one/nursorgate/app/http/services"
 )
+
+const allowDebugLogLevelHeader = "X-Allow-Debug-Log-Level"
 
 // LogHandler handles HTTP requests for log-related operations
 type LogHandler struct {
@@ -67,7 +70,7 @@ func (lh *LogHandler) HandleSetLogLevel(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	level, err := lh.logService.UpdateLogLevel(req.Level)
+	level, err := lh.logService.UpdateLogLevelWithOverride(req.Level, allowsDebugLogLevelOverride(r))
 	if err != nil {
 		common.ErrorBadRequest(w, err.Error(), nil)
 		return
@@ -90,7 +93,7 @@ func (lh *LogHandler) HandleSetLogConfig(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	if err := lh.logConfigService.UpdateConfig(req); err != nil {
+	if err := lh.logConfigService.UpdateConfigWithOverride(req, allowsDebugLogLevelOverride(r)); err != nil {
 		common.ErrorBadRequest(w, err.Error(), nil)
 		return
 	}
@@ -107,5 +110,15 @@ func (lh *LogHandler) HandleLogConfig(w http.ResponseWriter, r *http.Request) {
 		lh.HandleSetLogConfig(w, r)
 	default:
 		common.Error(w, http.StatusMethodNotAllowed, "Method not allowed", nil)
+	}
+}
+
+func allowsDebugLogLevelOverride(r *http.Request) bool {
+	value := strings.TrimSpace(strings.ToLower(r.Header.Get(allowDebugLogLevelHeader)))
+	switch value {
+	case "1", "true", "yes", "on":
+		return true
+	default:
+		return false
 	}
 }

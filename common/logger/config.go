@@ -103,10 +103,16 @@ func GetLogConfig() *LogConfig {
 
 // SetLogConfig updates the global configuration and propagates changes to existing loggers
 func SetLogConfig(config *LogConfig) {
+	SetLogConfigWithOverride(config, false)
+}
+
+// SetLogConfigWithOverride updates the global configuration and optionally
+// allows debug/trace levels even in prod builds.
+func SetLogConfigWithOverride(config *LogConfig, allowProdLowLevel bool) {
 	globalLogConfigMu.Lock()
 	defer globalLogConfigMu.Unlock()
 	if config != nil {
-		config.Level = sanitizeLogLevel(config.Level)
+		config.Level = normalizeLogLevel(config.Level, allowProdLowLevel)
 		globalLogConfig = config
 		// Propagate config to existing mainLogger instance if already created
 		if ml, ok := mainLoggerInstance.(*mainLogger); ok && ml != nil {
@@ -117,12 +123,25 @@ func SetLogConfig(config *LogConfig) {
 
 // UpdateLogLevel updates the log level dynamically
 func UpdateLogLevel(level LogLevelType) {
+	UpdateLogLevelWithOverride(level, false)
+}
+
+// UpdateLogLevelWithOverride updates the log level dynamically and optionally
+// allows debug/trace levels even in prod builds.
+func UpdateLogLevelWithOverride(level LogLevelType, allowProdLowLevel bool) {
 	globalLogConfigMu.Lock()
 	defer globalLogConfigMu.Unlock()
-	globalLogConfig.Level = sanitizeLogLevel(level)
+	globalLogConfig.Level = normalizeLogLevel(level, allowProdLowLevel)
 }
 
 func sanitizeLogLevel(level LogLevelType) LogLevelType {
+	return normalizeLogLevel(level, false)
+}
+
+func normalizeLogLevel(level LogLevelType, allowProdLowLevel bool) LogLevelType {
+	if allowProdLowLevel {
+		return level
+	}
 	if version.IsProdBuild() && level < INFO {
 		return INFO
 	}

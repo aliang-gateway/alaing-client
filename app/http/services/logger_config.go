@@ -37,6 +37,12 @@ func (lcs *LogConfigService) GetConfig() map[string]interface{} {
 // UpdateConfig updates the logger configuration with provided values
 // Only updates fields that are provided in the request
 func (lcs *LogConfigService) UpdateConfig(req models.LogConfigRequest) error {
+	return lcs.UpdateConfigWithOverride(req, false)
+}
+
+// UpdateConfigWithOverride updates the logger configuration with provided
+// values and can optionally allow debug/trace levels in prod builds.
+func (lcs *LogConfigService) UpdateConfigWithOverride(req models.LogConfigRequest, allowProdLowLevel bool) error {
 	config := logger.GetLogConfig()
 	updated := false
 
@@ -46,7 +52,7 @@ func (lcs *LogConfigService) UpdateConfig(req models.LogConfigRequest) error {
 		if err != nil {
 			return err
 		}
-		if version.IsProdBuild() && level < logger.INFO {
+		if version.IsProdBuild() && level < logger.INFO && !allowProdLowLevel {
 			return ErrProdLogLevelTooLow
 		}
 		config.Level = level
@@ -121,6 +127,6 @@ func (lcs *LogConfigService) UpdateConfig(req models.LogConfigRequest) error {
 	}
 
 	// Save updated config
-	logger.SetLogConfig(config)
+	logger.SetLogConfigWithOverride(config, allowProdLowLevel)
 	return nil
 }

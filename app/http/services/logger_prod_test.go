@@ -30,6 +30,27 @@ func TestLogServiceUpdateLogLevelRejectsBelowInfoInProd(t *testing.T) {
 	}
 }
 
+func TestLogServiceUpdateLogLevelAllowsDebugOverrideInProd(t *testing.T) {
+	original := cloneLogConfig(logger.GetLogConfig())
+	restoreBuildMode := setBuildModeForTest(t, "prod")
+	t.Cleanup(func() {
+		restoreBuildMode()
+		logger.SetLogConfig(original)
+	})
+
+	service := NewLogService()
+	level, err := service.UpdateLogLevelWithOverride("DEBUG", true)
+	if err != nil {
+		t.Fatalf("UpdateLogLevelWithOverride(DEBUG, true) error = %v, want nil", err)
+	}
+	if level != logger.DEBUG {
+		t.Fatalf("UpdateLogLevelWithOverride(DEBUG, true) level = %v, want %v", level, logger.DEBUG)
+	}
+	if got := logger.GetLogConfig().Level; got != logger.DEBUG {
+		t.Fatalf("logger.GetLogConfig().Level = %v, want %v", got, logger.DEBUG)
+	}
+}
+
 func TestLogConfigServiceRejectsBelowInfoInProd(t *testing.T) {
 	original := cloneLogConfig(logger.GetLogConfig())
 	restoreBuildMode := setBuildModeForTest(t, "prod")
@@ -48,6 +69,23 @@ func TestLogConfigServiceRejectsBelowInfoInProd(t *testing.T) {
 	}
 	if got := logger.GetLogConfig().Level; got != logger.WARN {
 		t.Fatalf("logger.GetLogConfig().Level = %v, want %v", got, logger.WARN)
+	}
+}
+
+func TestLogConfigServiceAllowsDebugOverrideInProd(t *testing.T) {
+	original := cloneLogConfig(logger.GetLogConfig())
+	restoreBuildMode := setBuildModeForTest(t, "prod")
+	t.Cleanup(func() {
+		restoreBuildMode()
+		logger.SetLogConfig(original)
+	})
+
+	service := NewLogConfigService()
+	if err := service.UpdateConfigWithOverride(models.LogConfigRequest{Level: "DEBUG"}, true); err != nil {
+		t.Fatalf("UpdateConfigWithOverride(DEBUG, true) error = %v, want nil", err)
+	}
+	if got := logger.GetLogConfig().Level; got != logger.DEBUG {
+		t.Fatalf("logger.GetLogConfig().Level = %v, want %v", got, logger.DEBUG)
 	}
 }
 
