@@ -17,6 +17,7 @@ import (
 	M "aliang.one/nursorgate/inbound/tun/metadata"
 	"aliang.one/nursorgate/outbound"
 	outboundproxy "aliang.one/nursorgate/outbound/proxy"
+	cachepkg "aliang.one/nursorgate/processor/cache"
 	"aliang.one/nursorgate/processor/config"
 	"aliang.one/nursorgate/processor/rules"
 	"aliang.one/nursorgate/processor/statistic"
@@ -196,6 +197,32 @@ func detectApplicationProtocol(prefetched []byte) string {
 	}
 
 	return AppProtoUnknown
+}
+
+func selectUniqueCachedDomainEntry(entries []*cachepkg.CacheEntry) (*cachepkg.CacheEntry, int) {
+	if len(entries) == 0 {
+		return nil, 0
+	}
+
+	unique := make(map[string]*cachepkg.CacheEntry, len(entries))
+	for _, entry := range entries {
+		if entry == nil || entry.Domain == "" {
+			continue
+		}
+		if _, exists := unique[entry.Domain]; !exists {
+			unique[entry.Domain] = entry
+		}
+	}
+
+	if len(unique) != 1 {
+		return nil, len(unique)
+	}
+
+	for _, entry := range unique {
+		return entry, 1
+	}
+
+	return nil, 0
 }
 
 // Handle processes a single TCP connection.
@@ -390,9 +417,8 @@ func (h *TCPConnectionHandler) handleTLS(
 		cacheHit = false
 	} else if !metadata.DstIP.IsUnspecified() && metadata.HostName == "" {
 		cacheEntries := cache.GetByIP(metadata.DstIP)
-		if len(cacheEntries) > 0 {
-			// Use the first entry's domain for routing
-			cachedEntry := cacheEntries[0]
+		cachedEntry, uniqueDomainCount := selectUniqueCachedDomainEntry(cacheEntries)
+		if cachedEntry != nil {
 			// Extract binding source from cache (use first source if multiple exist)
 			bindingSource := ""
 			if len(cachedEntry.BindingSources) > 0 {
@@ -408,6 +434,12 @@ func (h *TCPConnectionHandler) handleTLS(
 			logger.Debug(fmt.Sprintf("TLS: Found domain in cache for IP %s: %s (hit count: %d)",
 				metadata.DstIP, metadata.HostName, cachedEntry.HitCount))
 			logObservedTLSServerName(metadata, "cache")
+		} else if uniqueDomainCount > 1 {
+			logger.Debug(fmt.Sprintf(
+				"TLS: Multiple cached domains found for IP %s (%d unique domains); extracting SNI to avoid certificate mismatch",
+				metadata.DstIP,
+				uniqueDomainCount,
+			))
 		}
 	} else {
 		cacheHit = true
