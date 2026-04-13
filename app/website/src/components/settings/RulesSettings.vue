@@ -222,30 +222,6 @@
       @click.self="hideSuccessDialog"
     >
       <div class="relative w-full max-w-sm rounded-2xl border border-emerald-200 bg-white p-5 shadow-2xl dark:border-emerald-500/30 dark:bg-slate-900">
-        <!-- Circular countdown indicator -->
-        <div class="absolute -top-3 -right-3 flex h-8 w-8 items-center justify-center">
-          <svg class="h-8 w-8 -rotate-90" viewBox="0 0 36 36">
-            <circle
-              cx="18" cy="18" r="15.5"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="3"
-              class="text-emerald-100 dark:text-emerald-900/60"
-            />
-            <circle
-              cx="18" cy="18" r="15.5"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="3"
-              stroke-linecap="round"
-              stroke-dasharray="98"
-              :stroke-dashoffset="98 - (_countdownProgress * 0.98)"
-              class="text-emerald-500 transition-none"
-            />
-          </svg>
-          <span class="absolute text-[10px] font-medium text-emerald-600 dark:text-emerald-300">{{ _countdownSeconds }}</span>
-        </div>
-
         <div class="flex items-start gap-3">
           <div class="flex h-11 w-11 items-center justify-center rounded-full bg-emerald-100 text-emerald-600 dark:bg-emerald-500/15 dark:text-emerald-300">
             <span class="material-symbols-outlined">check_circle</span>
@@ -256,10 +232,30 @@
           </div>
           <button
             type="button"
-            class="rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+            aria-label="Close"
+            class="relative inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-500 dark:hover:bg-slate-800 dark:hover:text-slate-200"
             @click="hideSuccessDialog"
           >
-            <span class="material-symbols-outlined text-lg">close</span>
+            <svg class="pointer-events-none absolute inset-0 h-full w-full -rotate-90" viewBox="0 0 36 36" aria-hidden="true">
+              <circle
+                cx="18" cy="18" r="15.5"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2.75"
+                class="text-emerald-100 dark:text-emerald-900/60"
+              />
+              <circle
+                cx="18" cy="18" r="15.5"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2.75"
+                stroke-linecap="round"
+                :stroke-dasharray="successRingCircumference"
+                :stroke-dashoffset="successRingDashoffset"
+                class="text-emerald-500 transition-none"
+              />
+            </svg>
+            <span class="material-symbols-outlined relative z-10 text-lg">close</span>
           </button>
         </div>
       </div>
@@ -393,6 +389,9 @@ function valueOrDefaultBoolean(value, defaultValue) {
   return typeof value === 'boolean' ? value : defaultValue;
 }
 
+const SUCCESS_RING_RADIUS = 15.5;
+const SUCCESS_RING_CIRCUMFERENCE = 2 * Math.PI * SUCCESS_RING_RADIUS;
+
 export default {
   name: 'RulesSettings',
   setup() {
@@ -441,7 +440,6 @@ export default {
       _providerIncludeTexts: {},
       _showSuccessDialog: false,
       _successDialogTimer: null,
-      _countdownSeconds: 2,
       _countdownProgress: 1,
       _providerEditorClickHandler: null
     };
@@ -490,6 +488,13 @@ export default {
       return this.serverError
         ? 'border-red-400 bg-red-50 focus:border-red-500 focus:ring-red-500/20 dark:border-red-500/50 dark:bg-red-900/10'
         : 'border-emerald-400 bg-emerald-50/50 focus:border-emerald-500 focus:ring-emerald-500/20 dark:border-emerald-500/50 dark:bg-emerald-900/10';
+    },
+    successRingCircumference() {
+      return SUCCESS_RING_CIRCUMFERENCE;
+    },
+    successRingDashoffset() {
+      const clampedProgress = Math.min(Math.max(this._countdownProgress, 0), 1);
+      return SUCCESS_RING_CIRCUMFERENCE * (1 - clampedProgress);
     }
   },
   watch: {
@@ -531,11 +536,9 @@ export default {
       const totalSteps = totalDuration / interval;
       let currentStep = 0;
       this._countdownProgress = 1;
-      this._countdownSeconds = 2;
       this._successDialogTimer = window.setInterval(() => {
         currentStep++;
         this._countdownProgress = 1 - (currentStep / totalSteps);
-        this._countdownSeconds = Math.ceil((totalDuration - currentStep * interval) / 1000);
         if (currentStep >= totalSteps) {
           window.clearInterval(this._successDialogTimer);
           this._successDialogTimer = null;
