@@ -36,12 +36,12 @@ type WatcherWrapConn struct {
 	http2PrefaceSent bool
 	isTokenFound     bool
 	isHttp1          bool
-	http1HeaderDone  bool
 	passthrough      bool
 	http1ReqContent  string
 	http1RespContent string
 	hpackDecoderReq  *hpack.Decoder
 	hpackDecoderResp *hpack.Decoder
+	http1BodyTracker *http1BodyTracker
 
 	toServerBuffer       *bytes.Buffer
 	hpackEncoderToServer *hpack.Encoder
@@ -115,7 +115,7 @@ func (w *WatcherWrapConn) Read(p []byte) (int, error) {
 			return w.readFromPending(p)
 		}
 
-		if w.passthrough || (w.isHttp1 && w.http1HeaderDone) {
+		if w.passthrough {
 			if w.reqBuf.Len() > 0 {
 				buffered := append([]byte(nil), w.reqBuf.Bytes()...)
 				w.reqBuf.Reset()
@@ -182,6 +182,20 @@ func (w *WatcherWrapConn) prepareBufferedOutput() ([]byte, bool, error) {
 	}
 
 	if w.isHttp1 {
+		if w.http1BodyTracker != nil {
+			out, progressed, err := w.consumeHTTP1Body()
+			if err != nil {
+				return nil, false, err
+			}
+			if len(out) > 0 {
+				return out, true, nil
+			}
+			if progressed {
+				return nil, true, nil
+			}
+			return nil, false, nil
+		}
+
 		out, ready, err := w.parseHttp1Req()
 		if err != nil {
 			return nil, false, err
