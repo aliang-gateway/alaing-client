@@ -221,7 +221,31 @@
       class="fixed inset-0 z-[1000] flex items-center justify-center bg-slate-950/45 p-4 backdrop-blur-sm"
       @click.self="hideSuccessDialog"
     >
-      <div class="w-full max-w-sm rounded-2xl border border-emerald-200 bg-white p-5 shadow-2xl dark:border-emerald-500/30 dark:bg-slate-900">
+      <div class="relative w-full max-w-sm rounded-2xl border border-emerald-200 bg-white p-5 shadow-2xl dark:border-emerald-500/30 dark:bg-slate-900">
+        <!-- Circular countdown indicator -->
+        <div class="absolute -top-3 -right-3 flex h-8 w-8 items-center justify-center">
+          <svg class="h-8 w-8 -rotate-90" viewBox="0 0 36 36">
+            <circle
+              cx="18" cy="18" r="15.5"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="3"
+              class="text-emerald-100 dark:text-emerald-900/60"
+            />
+            <circle
+              cx="18" cy="18" r="15.5"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="3"
+              stroke-linecap="round"
+              stroke-dasharray="98"
+              :stroke-dashoffset="98 - (_countdownProgress * 0.98)"
+              class="text-emerald-500 transition-none"
+            />
+          </svg>
+          <span class="absolute text-[10px] font-medium text-emerald-600 dark:text-emerald-300">{{ _countdownSeconds }}</span>
+        </div>
+
         <div class="flex items-start gap-3">
           <div class="flex h-11 w-11 items-center justify-center rounded-full bg-emerald-100 text-emerald-600 dark:bg-emerald-500/15 dark:text-emerald-300">
             <span class="material-symbols-outlined">check_circle</span>
@@ -417,6 +441,8 @@ export default {
       _providerIncludeTexts: {},
       _showSuccessDialog: false,
       _successDialogTimer: null,
+      _countdownSeconds: 2,
+      _countdownProgress: 1,
       _providerEditorClickHandler: null
     };
   },
@@ -493,17 +519,29 @@ export default {
   methods: {
     clearSuccessDialogTimer() {
       if (this._successDialogTimer !== null) {
-        window.clearTimeout(this._successDialogTimer);
+        window.clearInterval(this._successDialogTimer);
         this._successDialogTimer = null;
       }
     },
     showSuccessDialog() {
       this._showSuccessDialog = true;
       this.clearSuccessDialogTimer();
-      this._successDialogTimer = window.setTimeout(() => {
-        this._showSuccessDialog = false;
-        this._successDialogTimer = null;
-      }, 1800);
+      const totalDuration = 1800;
+      const interval = 50;
+      const totalSteps = totalDuration / interval;
+      let currentStep = 0;
+      this._countdownProgress = 1;
+      this._countdownSeconds = 2;
+      this._successDialogTimer = window.setInterval(() => {
+        currentStep++;
+        this._countdownProgress = 1 - (currentStep / totalSteps);
+        this._countdownSeconds = Math.ceil((totalDuration - currentStep * interval) / 1000);
+        if (currentStep >= totalSteps) {
+          window.clearInterval(this._successDialogTimer);
+          this._successDialogTimer = null;
+          this._showSuccessDialog = false;
+        }
+      }, interval);
     },
     hideSuccessDialog() {
       this._showSuccessDialog = false;
