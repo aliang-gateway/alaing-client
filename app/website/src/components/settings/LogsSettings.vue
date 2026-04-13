@@ -54,57 +54,6 @@
         </div>
       </div>
 
-      <div class="flex flex-col gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900/70">
-        <div class="flex flex-col gap-1">
-          <div class="flex items-center gap-2">
-            <h3 class="text-sm font-semibold text-slate-900 dark:text-slate-100">{{ t('logs_runtimeTitle') }}</h3>
-            <span
-              v-if="isProdBuild && !allowDebugLogLevelOverride"
-              class="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-700 dark:bg-amber-500/10 dark:text-amber-300"
-            >
-              {{ t('logs_prodGuard') }}
-            </span>
-          </div>
-          <p class="text-xs text-slate-500 dark:text-slate-400">{{ t('logs_runtimeDesc') }}</p>
-          <p
-            v-if="isProdBuild"
-            class="text-xs text-slate-400 dark:text-slate-500"
-          >
-            {{ t('logs_debugUnlockHint') }}
-          </p>
-        </div>
-
-        <div class="flex flex-wrap items-center gap-2">
-          <span class="text-xs font-medium text-slate-500 dark:text-slate-400">{{ t('logs_runtimeLevel') }}</span>
-          <select
-            v-model="configLevel"
-            class="rounded-md border-0 bg-slate-50 px-2.5 py-1.5 text-xs font-medium text-slate-700 shadow-sm ring-1 ring-slate-200 focus:outline-none focus:ring-2 focus:ring-primary/40 dark:bg-slate-950 dark:text-slate-200 dark:ring-slate-700"
-          >
-            <option v-for="option in runtimeLevelOptions" :key="`runtime-${option.value}`" :value="option.value">
-              {{ option.label }}
-            </option>
-          </select>
-          <button
-            type="button"
-            class="rounded-md bg-primary px-3 py-1.5 text-xs font-semibold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
-            :disabled="isSavingConfig"
-            @click="saveLogConfig"
-          >
-            {{ isSavingConfig ? t('logs_runtimeSaving') : t('logs_runtimeSave') }}
-          </button>
-          <span class="text-xs text-slate-500 dark:text-slate-400">
-            {{ t('logs_runtimeCurrent', { level: configLevel.toUpperCase() }) }}
-          </span>
-        </div>
-
-        <div v-if="configSuccess" class="rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-600 dark:text-emerald-300">
-          {{ configSuccess }}
-        </div>
-        <div v-if="configError" class="rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-xs text-red-600 dark:text-red-300">
-          {{ configError }}
-        </div>
-      </div>
-
       <div
         ref="logsContainer"
         class="overflow-y-auto rounded-xl border border-slate-200 bg-slate-950 p-4 font-mono text-xs text-slate-300 dark:border-slate-800"
