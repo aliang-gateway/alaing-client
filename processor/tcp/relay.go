@@ -180,8 +180,14 @@ func (r *DefaultRelayManager) relayStream(
 	}
 
 	if shouldUseConservativeTeardown(metadata) {
-		logger.Debug(fmt.Sprintf("[RELAY] conn_id=%s conservative teardown [%s]: skipping half-close/deadline for route=%s",
-			connID, direction, safeRoute(metadata)))
+		logger.Warn(fmt.Sprintf(
+			"[RELAY] conn_id=%s conservative teardown [%s]: skipping half-close/deadline for route=%s app_proto=%s host=%s",
+			connID,
+			direction,
+			safeRoute(metadata),
+			safeAppProto(metadata),
+			safeHost(metadata),
+		))
 		return
 	}
 
@@ -217,11 +223,21 @@ func safeHost(metadata *M.Metadata) string {
 	return metadata.HostName
 }
 
+func safeAppProto(metadata *M.Metadata) string {
+	if metadata == nil {
+		return ""
+	}
+	return metadata.AppProto
+}
+
 func shouldUseConservativeTeardown(metadata *M.Metadata) bool {
 	if metadata == nil {
 		return false
 	}
-	return metadata.Route == "RouteDirect"
+	if metadata.Route == "RouteToALiang" {
+		return true
+	}
+	return metadata.AppProto == AppProtoHTTP2
 }
 
 func describeConn(conn net.Conn) string {
