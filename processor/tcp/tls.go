@@ -84,8 +84,13 @@ func (h *DefaultTLSHandler) PerformMITM(ctx context.Context, originConn net.Conn
 		if addr := originConn.RemoteAddr(); addr != nil {
 			remoteAddr = addr.String()
 		}
+		connID := "unknown"
+		if metadataConn, ok := ctx.Value(tcpContextConnIDKey{}).(string); ok && strings.TrimSpace(metadataConn) != "" {
+			connID = metadataConn
+		}
 		msg := fmt.Sprintf(
-			"TLS MITM handshake with client failed for %s: local=%s remote=%s err=%v",
+			"TLS MITM handshake with client failed conn_id=%s for %s: local=%s remote=%s err=%v",
+			connID,
 			serverName,
 			localAddr,
 			remoteAddr,
@@ -101,8 +106,12 @@ func (h *DefaultTLSHandler) PerformMITM(ctx context.Context, originConn net.Conn
 
 	// Log successful handshake
 	state := tlsConn.ConnectionState()
-	logger.Debug(fmt.Sprintf("TLS handshake successful for %s. Protocol: %s, Version: 0x%04x",
-		serverName, state.NegotiatedProtocol, state.Version))
+	connID := "unknown"
+	if metadataConn, ok := ctx.Value(tcpContextConnIDKey{}).(string); ok && strings.TrimSpace(metadataConn) != "" {
+		connID = metadataConn
+	}
+	logger.Debug(fmt.Sprintf("TLS handshake successful conn_id=%s for %s. Protocol: %s, Version: 0x%04x",
+		connID, serverName, state.NegotiatedProtocol, state.Version))
 
 	return tlsConn, nil
 }

@@ -42,6 +42,20 @@ func NewDefaultRelayManager() *DefaultRelayManager {
 // It establishes bidirectional data flow between two connections.
 func (r *DefaultRelayManager) Relay(ctx context.Context, originConn, remoteConn net.Conn, metadata *M.Metadata) (*RelayStats, error) {
 	stats := &RelayStats{StartedAt: time.Now()}
+	connID := "unknown"
+	if metadata != nil && metadata.ConnID != "" {
+		connID = metadata.ConnID
+	}
+	logger.Debug(fmt.Sprintf(
+		"[RELAY] conn_id=%s start origin_type=%T remote_type=%T origin=%s remote=%s route=%s host=%s",
+		connID,
+		originConn,
+		remoteConn,
+		describeConn(originConn),
+		describeConn(remoteConn),
+		safeRoute(metadata),
+		safeHost(metadata),
+	))
 
 	// Use a WaitGroup to wait for both directions to complete
 	wg := sync.WaitGroup{}
@@ -63,8 +77,8 @@ func (r *DefaultRelayManager) Relay(ctx context.Context, originConn, remoteConn 
 	}
 
 	// Start concurrent unidirectional streams
-	go r.relayStream(remoteConn, originConn, "client->server", &wg, requestCapture, nil, &clientToServerBytes, ctx)
-	go r.relayStream(originConn, remoteConn, "server->client", &wg, responseCapture, markFirstResponse, &serverToClientBytes, ctx)
+	go r.relayStream(remoteConn, originConn, "client->server", &wg, requestCapture, nil, &clientToServerBytes, ctx, metadata)
+	go r.relayStream(originConn, remoteConn, "server->client", &wg, responseCapture, markFirstResponse, &serverToClientBytes, ctx, metadata)
 
 	// Wait for both directions to complete
 	wg.Wait()
@@ -77,6 +91,12 @@ func (r *DefaultRelayManager) Relay(ctx context.Context, originConn, remoteConn 
 	stats.ServerToClientByte = atomic.LoadInt64(&serverToClientBytes)
 	stats.RequestPayload = requestCapture.Bytes()
 	stats.ResponsePayload = responseCapture.Bytes()
+	logger.Debug(fmt.Sprintf("[RELAY] conn_id=%s finished bytes_up=%d bytes_down=%d duration=%s",
+		connID,
+		stats.ClientToServerByte,
+		stats.ServerToClientByte,
+		stats.CompletedAt.Sub(stats.StartedAt).Round(time.Millisecond),
+	))
 
 	return stats, nil
 }
@@ -96,8 +116,15 @@ func (r *DefaultRelayManager) relayStream(
 	onFirstData func(),
 	byteCounter *int64,
 	_ context.Context,
+	metadata *M.Metadata,
 ) {
 	defer wg.Done()
+	connID := "unknown"
+	if metadata != nil && metadata.ConnID != "" {
+		connID = metadata.ConnID
+	}
+	logger.Debug(fmt.Sprintf("[RELAY] conn_id=%s stream_start dir=%s dst_type=%T src_type=%T dst=%s src=%s",
+		connID, direction, dst, src, describeConn(dst), describeConn(src)))
 
 	// Get buffer from pool
 	buf := buffer.Get(defaultRelayBufferSize)
@@ -111,30 +138,68 @@ func (r *DefaultRelayManager) relayStream(
 	}
 	if err != nil && err != io.EOF {
 		// Classify relay errors by severity for better debugging
-		if isUnexpectedConnectionReset(err) {
-			logger.Warn(fmt.Sprintf("[RELAY] Unexpected connection reset [%s]: %v", direction, err))
+		if isTLSBadRecordMAC(err) {
+			logger.Warn(fmt.Sprintf("[RELAY] conn_id=%s TLS record integrity failure [%s]: bytes=%d dst=%s src=%s err=%v",
+				connID, direction, countingDst.written, describeConn(dst), describeConn(src), err))
+		} else if isUnexpectedConnectionReset(err) {
+			logger.Warn(fmt.Sprintf("[RELAY] conn_id=%s Unexpected connection reset [%s]: %v", connID, direction, err))
 		} else if isTimeoutError(err) {
-			logger.Debug(fmt.Sprintf("[RELAY] Connection timeout [%s]: %v", direction, err))
+			logger.Debug(fmt.Sprintf("[RELAY] conn_id=%s Connection timeout [%s]: %v", connID, direction, err))
 		} else if isConnectionClosedByPeer(err) {
-			logger.Debug(fmt.Sprintf("[RELAY] Connection closed by peer [%s]: %v", direction, err))
+			logger.Debug(fmt.Sprintf("[RELAY] conn_id=%s Connection closed by peer [%s]: %v", connID, direction, err))
 		} else {
-			logger.Warn(fmt.Sprintf("[RELAY] Data relay error [%s]: %v", direction, err))
+			logger.Warn(fmt.Sprintf("[RELAY] conn_id=%s Data relay error [%s]: %v", connID, direction, err))
 		}
+	} else {
+		logger.Debug(fmt.Sprintf("[RELAY] conn_id=%s Stream completed [%s]: bytes=%d dst=%s src=%s",
+			connID, direction, countingDst.written, describeConn(dst), describeConn(src)))
 	}
 
 	// Perform TCP half-close to signal end of stream
 	// Try to close the read side on src (source stops sending)
 	if cr, ok := src.(interface{ CloseRead() error }); ok {
+		logger.Debug(fmt.Sprintf("[RELAY] conn_id=%s half_close src CloseRead dir=%s src_type=%T", connID, direction, src))
 		cr.CloseRead()
 	}
 
 	// Try to close the write side on dst (destination stops accepting)
 	if cw, ok := dst.(interface{ CloseWrite() error }); ok {
+		logger.Debug(fmt.Sprintf("[RELAY] conn_id=%s half_close dst CloseWrite dir=%s dst_type=%T", connID, direction, dst))
 		cw.CloseWrite()
 	}
 
 	// Set a read deadline so we don't wait forever for the other side to close
+	logger.Debug(fmt.Sprintf("[RELAY] conn_id=%s set deadline dir=%s dst_type=%T timeout=%ds", connID, direction, dst, DefaultTCPWaitTimeout))
 	dst.SetReadDeadline(time.Now().Add(time.Duration(DefaultTCPWaitTimeout) * time.Second))
+}
+
+func safeRoute(metadata *M.Metadata) string {
+	if metadata == nil {
+		return ""
+	}
+	return metadata.Route
+}
+
+func safeHost(metadata *M.Metadata) string {
+	if metadata == nil {
+		return ""
+	}
+	return metadata.HostName
+}
+
+func describeConn(conn net.Conn) string {
+	if conn == nil {
+		return "nil"
+	}
+	local := "unknown"
+	remote := "unknown"
+	if addr := conn.LocalAddr(); addr != nil {
+		local = addr.String()
+	}
+	if addr := conn.RemoteAddr(); addr != nil {
+		remote = addr.String()
+	}
+	return fmt.Sprintf("local=%s remote=%s", local, remote)
 }
 
 // isUnexpectedConnectionReset checks if the error is an unexpected connection reset
@@ -163,6 +228,13 @@ func isConnectionClosedByPeer(err error) bool {
 	return strings.Contains(errMsg, "closed") ||
 		strings.Contains(errMsg, "broken pipe") ||
 		strings.Contains(errMsg, "EPIPE")
+}
+
+func isTLSBadRecordMAC(err error) bool {
+	if err == nil {
+		return false
+	}
+	return strings.Contains(strings.ToLower(err.Error()), "bad record mac")
 }
 
 type payloadCaptureBuffer struct {

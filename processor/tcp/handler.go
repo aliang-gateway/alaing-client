@@ -10,6 +10,7 @@ import (
 	"net/netip"
 	"net/url"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"aliang.one/nursorgate/common/logger"
@@ -53,6 +54,10 @@ const (
 	toSocksBranchName              = "toSocks"
 	toAliangBranchName             = "toAliang"
 )
+
+var tcpConnIDCounter uint64
+
+type tcpContextConnIDKey struct{}
 
 type BranchDenyError struct {
 	Branch string
@@ -140,7 +145,8 @@ func logObservedTLSServerName(metadata *M.Metadata, source string) {
 	}
 
 	logger.Debug(fmt.Sprintf(
-		"[TUN TLS] observed server_name=%s source=%s src=%s dst=%s:%d",
+		"[TUN TLS] conn_id=%s observed server_name=%s source=%s src=%s dst=%s:%d",
+		metadata.ConnID,
 		metadata.HostName,
 		source,
 		sourceAddr,
@@ -160,7 +166,8 @@ func logAliangGateProxy(metadata *M.Metadata, routeSource string) {
 	}
 
 	logger.Debug(fmt.Sprintf(
-		"[AliangGate] proxying server_name=%s route_source=%s app_proto=%s dst=%s:%d final_route=%s",
+		"[AliangGate] conn_id=%s proxying server_name=%s route_source=%s app_proto=%s dst=%s:%d final_route=%s",
+		metadata.ConnID,
 		metadata.HostName,
 		routeSource,
 		metadata.AppProto,
@@ -197,6 +204,17 @@ func detectApplicationProtocol(prefetched []byte) string {
 	}
 
 	return AppProtoUnknown
+}
+
+func ensureTCPConnID(metadata *M.Metadata) string {
+	if metadata == nil {
+		return "unknown"
+	}
+	if strings.TrimSpace(metadata.ConnID) != "" {
+		return metadata.ConnID
+	}
+	metadata.ConnID = fmt.Sprintf("tcp-%d", atomic.AddUint64(&tcpConnIDCounter, 1))
+	return metadata.ConnID
 }
 
 func selectUniqueCachedDomainEntry(entries []*cachepkg.CacheEntry) (*cachepkg.CacheEntry, int) {
@@ -238,6 +256,8 @@ func setMetadataHostFromObservedSNI(metadata *M.Metadata, sni string) {
 func (h *TCPConnectionHandler) Handle(ctx context.Context, originConn net.Conn, metadata *M.Metadata) error {
 	// Ensure we close the origin connection when done
 	defer originConn.Close()
+	connID := ensureTCPConnID(metadata)
+	ctx = context.WithValue(ctx, tcpContextConnIDKey{}, connID)
 
 	// Log connection arrival at INFO level for business tracking
 	logger.Info(fmt.Sprintf("[TCP] New connection from %s -> %s:%d",
@@ -254,8 +274,8 @@ func (h *TCPConnectionHandler) Handle(ctx context.Context, originConn net.Conn, 
 
 	// Detect protocol
 	protocol := h.protocolDetector.Detect(metadata.DstPort)
-	logger.Debug(fmt.Sprintf("TCP: handling %v connection to %s:%d",
-		protocol, metadata.DstIP, metadata.DstPort))
+	logger.Debug(fmt.Sprintf("TCP: conn_id=%s handling %v connection to %s:%d src=%s",
+		connID, protocol, metadata.DstIP, metadata.DstPort, metadata.SourceAddress()))
 
 	var remoteConn net.Conn
 	var newOriginConn net.Conn = originConn
@@ -272,7 +292,7 @@ func (h *TCPConnectionHandler) Handle(ctx context.Context, originConn net.Conn, 
 	}
 
 	if err != nil {
-		msg := fmt.Sprintf("[TCP HANDLER] ❌ 处理失败 - 域名:%s, 端口:%d, 错误:%v", metadata.HostName, metadata.DstPort, err)
+		msg := fmt.Sprintf("[TCP HANDLER] conn_id=%s ❌ 处理失败 - 域名:%s, 端口:%d, 错误:%v", connID, metadata.HostName, metadata.DstPort, err)
 		if isExpectedClientDisconnect(err) {
 			logger.Debug(msg)
 		} else {
@@ -298,8 +318,8 @@ func (h *TCPConnectionHandler) Handle(ctx context.Context, originConn net.Conn, 
 	}
 
 	// Log successful connection establishment at INFO level
-	logger.Info(fmt.Sprintf("[TCP] Connection established: %s -> %s:%d via %s (proto=%s)",
-		metadata.SourceAddress(), metadata.DstIP, metadata.DstPort, metadata.Route, metadata.AppProto))
+	logger.Info(fmt.Sprintf("[TCP] conn_id=%s Connection established: %s -> %s:%d via %s (proto=%s)",
+		connID, metadata.SourceAddress(), metadata.DstIP, metadata.DstPort, metadata.Route, metadata.AppProto))
 
 	// Track statistics
 	trackedRemote := statistic.NewTCPTracker(remoteConn, metadata, h.statsManager)
@@ -326,6 +346,12 @@ func (h *TCPConnectionHandler) Handle(ctx context.Context, originConn net.Conn, 
 				engine.StoreBinding(metadata)
 			}
 		}
+		if relayErr != nil {
+			logger.Debug(fmt.Sprintf("TCP: conn_id=%s http1 relay finished with err=%v", connID, relayErr))
+		} else {
+			logger.Debug(fmt.Sprintf("TCP: conn_id=%s http1 relay completed bytes_up=%d bytes_down=%d",
+				connID, http1RelayStats.ClientToServerByte, http1RelayStats.ServerToClientByte))
+		}
 		return relayErr
 	}
 
@@ -351,6 +377,13 @@ func (h *TCPConnectionHandler) Handle(ctx context.Context, originConn net.Conn, 
 		// Log relay failure at WARN level with context
 		logger.Warn(fmt.Sprintf("[TCP] Relay failed: %s -> %s:%d, error: %v",
 			metadata.SourceAddress(), metadata.DstIP, metadata.DstPort, err))
+	}
+	if err != nil {
+		logger.Debug(fmt.Sprintf("TCP: conn_id=%s relay finished with err=%v bytes_up=%d bytes_down=%d",
+			connID, err, relayStats.ClientToServerByte, relayStats.ServerToClientByte))
+	} else {
+		logger.Debug(fmt.Sprintf("TCP: conn_id=%s relay completed bytes_up=%d bytes_down=%d first_response=%s",
+			connID, relayStats.ClientToServerByte, relayStats.ServerToClientByte, relayStats.FirstResponseAt.Format(time.RFC3339Nano)))
 	}
 
 	// Store DNS binding to cache after successful relay
@@ -608,7 +641,7 @@ func (h *TCPConnectionHandler) resolveTLSRoute(
 			mitmConn = originConn
 		}
 
-	mitmed, err := h.tlsHandler.PerformMITM(ctx, mitmConn, mitmedSNI)
+		mitmed, err := h.tlsHandler.PerformMITM(ctx, mitmConn, mitmedSNI)
 		if err != nil {
 			logger.Warn(fmt.Sprintf("[TLS MITM] MITM failed for %s: %v", mitmedSNI, err))
 			return nil, nil, err

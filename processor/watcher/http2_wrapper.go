@@ -43,7 +43,6 @@ const (
 type http2SettingsSource string
 
 const (
-	http2SettingsSourceClient http2SettingsSource = "client"
 	http2SettingsSourceServer http2SettingsSource = "server"
 )
 
@@ -53,31 +52,15 @@ func (w *WatcherWrapConn) applyHTTP2Setting(setting http2.Setting, source http2S
 
 	identifier := uint16(setting.ID)
 	value := setting.Val
-	var settings map[uint16]uint32
-	switch source {
-	case http2SettingsSourceServer:
-		settings = w.serverHTTP2Settings
-	case http2SettingsSourceClient:
-		settings = w.clientHTTP2Settings
-	default:
-		settings = w.serverHTTP2Settings
-	}
-	settings[identifier] = value
+	w.serverHTTP2Settings[identifier] = value
 
 	var settingName string
 	switch identifier {
 	case SETTINGS_HEADER_TABLE_SIZE:
 		settingName = "HEADER_TABLE_SIZE"
-		switch source {
-		case http2SettingsSourceServer:
-			w.requestDecoderFromClient.SetAllowedMaxDynamicTableSize(value)
-			w.requestEncoderToServer.SetMaxDynamicTableSizeLimit(value)
-			w.requestEncoderToServer.SetMaxDynamicTableSize(value)
-		case http2SettingsSourceClient:
-			w.responseDecoderFromServer.SetAllowedMaxDynamicTableSize(value)
-			w.responseEncoderToClient.SetMaxDynamicTableSizeLimit(value)
-			w.responseEncoderToClient.SetMaxDynamicTableSize(value)
-		}
+		w.requestDecoderFromClient.SetAllowedMaxDynamicTableSize(value)
+		w.requestEncoderToServer.SetMaxDynamicTableSizeLimit(value)
+		w.requestEncoderToServer.SetMaxDynamicTableSize(value)
 	case SETTINGS_ENABLE_PUSH:
 		settingName = "ENABLE_PUSH"
 	case SETTINGS_MAX_CONCURRENT_STREAMS:
@@ -112,14 +95,7 @@ func (w *WatcherWrapConn) ParseSettingsFrame(payload []byte, source http2Setting
 func (w *WatcherWrapConn) getHTTP2Setting(identifier uint16, source http2SettingsSource) (uint32, bool) {
 	w.settingsMu.Lock()
 	defer w.settingsMu.Unlock()
-	var settings map[uint16]uint32
-	switch source {
-	case http2SettingsSourceClient:
-		settings = w.clientHTTP2Settings
-	default:
-		settings = w.serverHTTP2Settings
-	}
-	value, exists := settings[identifier]
+	value, exists := w.serverHTTP2Settings[identifier]
 	return value, exists
 }
 
@@ -127,24 +103,12 @@ func (w *WatcherWrapConn) GetServerHTTP2Setting(identifier uint16) (uint32, bool
 	return w.getHTTP2Setting(identifier, http2SettingsSourceServer)
 }
 
-func (w *WatcherWrapConn) GetClientHTTP2Setting(identifier uint16) (uint32, bool) {
-	return w.getHTTP2Setting(identifier, http2SettingsSourceClient)
-}
-
 func (w *WatcherWrapConn) getAllHTTP2Settings(source http2SettingsSource) map[uint16]uint32 {
 	w.settingsMu.Lock()
 	defer w.settingsMu.Unlock()
 
-	var sourceSettings map[uint16]uint32
-	switch source {
-	case http2SettingsSourceClient:
-		sourceSettings = w.clientHTTP2Settings
-	default:
-		sourceSettings = w.serverHTTP2Settings
-	}
-
-	settings := make(map[uint16]uint32, len(sourceSettings))
-	for k, v := range sourceSettings {
+	settings := make(map[uint16]uint32, len(w.serverHTTP2Settings))
+	for k, v := range w.serverHTTP2Settings {
 		settings[k] = v
 	}
 	return settings
@@ -152,10 +116,6 @@ func (w *WatcherWrapConn) getAllHTTP2Settings(source http2SettingsSource) map[ui
 
 func (w *WatcherWrapConn) GetAllServerHTTP2Settings() map[uint16]uint32 {
 	return w.getAllHTTP2Settings(http2SettingsSourceServer)
-}
-
-func (w *WatcherWrapConn) GetAllClientHTTP2Settings() map[uint16]uint32 {
-	return w.getAllHTTP2Settings(http2SettingsSourceClient)
 }
 
 type http2Stream struct {
@@ -257,9 +217,6 @@ func (w *WatcherWrapConn) processHttp2RequestFrame(preBuff *bytes.Buffer) error 
 			w.reqBuf.Next(len(rawHeaders))
 
 		case frameTypeSettings:
-			if flags&flagAck == 0 {
-				w.ParseSettingsFrame(payload, http2SettingsSourceClient)
-			}
 			preBuff.Write(frame)
 			w.reqBuf.Next(len(frame))
 
@@ -364,23 +321,6 @@ func (w *WatcherWrapConn) decodeMetaHeaders(rawHeaders []byte) (*http2.MetaHeade
 	return metaFrame, nil
 }
 
-func (w *WatcherWrapConn) decodeResponseMetaHeaders(rawHeaders []byte) (*http2.MetaHeadersFrame, error) {
-	reader := bytes.NewReader(rawHeaders)
-	framer := http2.NewFramer(nil, reader)
-	framer.ReadMetaHeaders = w.responseDecoderFromServer
-
-	frame, err := framer.ReadFrame()
-	if err != nil {
-		return nil, err
-	}
-
-	metaFrame, ok := frame.(*http2.MetaHeadersFrame)
-	if !ok {
-		return nil, fmt.Errorf("expected HTTP/2 response meta headers frame, got %T", frame)
-	}
-	return metaFrame, nil
-}
-
 func http2FrameTotalLen(data []byte) (int, bool) {
 	if len(data) < frameHeaderLen {
 		return 0, false
@@ -391,149 +331,6 @@ func http2FrameTotalLen(data []byte) (int, bool) {
 		return 0, false
 	}
 	return totalLen, true
-}
-
-func extractCompleteHeaderSequenceFromBuffer(initialFrame []byte, buf *bytes.Buffer) ([]byte, bool, error) {
-	if len(initialFrame) < frameHeaderLen {
-		return nil, false, fmt.Errorf("incomplete HTTP/2 HEADERS frame")
-	}
-
-	flags := initialFrame[4]
-	streamID := binary.BigEndian.Uint32(initialFrame[5:9]) & 0x7FFFFFFF
-	if flags&flagEndHeaders != 0 {
-		raw := make([]byte, len(initialFrame))
-		copy(raw, initialFrame)
-		return raw, true, nil
-	}
-
-	raw := append([]byte(nil), initialFrame...)
-	for {
-		contFrame, ok := (&WatcherWrapConn{}).tryExtractFrameFromBuf(buf, false)
-		if !ok {
-			return nil, false, nil
-		}
-		ctype := contFrame[3]
-		cflags := contFrame[4]
-		cstreamID := binary.BigEndian.Uint32(contFrame[5:9]) & 0x7FFFFFFF
-		if ctype != frameTypeContinuation {
-			return nil, false, fmt.Errorf("expected HTTP/2 CONTINUATION frame, got type=%d", ctype)
-		}
-		if cstreamID != streamID {
-			return nil, false, fmt.Errorf("unexpected stream switch in HTTP/2 header block: got=%d want=%d", cstreamID, streamID)
-		}
-		buf.Next(len(contFrame))
-		raw = append(raw, contFrame...)
-		if cflags&flagEndHeaders != 0 {
-			return raw, true, nil
-		}
-	}
-}
-
-func (w *WatcherWrapConn) processHttp2ResponseFrame(frame []byte) error {
-	ftype := frame[3]
-	flags := frame[4]
-	streamID := binary.BigEndian.Uint32(frame[5:9]) & 0x7FFFFFFF
-
-	var stream *http2Stream
-	if streamID != 0 {
-		w.streamsMu.Lock()
-		var ok bool
-		stream, ok = w.streams[streamID]
-		if !ok {
-			stream = &http2Stream{}
-			w.streams[streamID] = stream
-		}
-		w.streamsMu.Unlock()
-	}
-
-	payload := frame[frameHeaderLen:]
-	switch ftype {
-	case frameTypeHeaders:
-		rawHeaders, ok, err := extractCompleteHeaderSequenceFromBuffer(frame, &w.respBuf)
-		if err != nil {
-			logger.Error(fmt.Sprintf("[HTTP/2 RESP] Header extraction failed for Stream %d: %v", streamID, err))
-			return err
-		}
-		if !ok {
-			return nil
-		}
-
-		metaFrame, err := w.decodeResponseMetaHeaders(rawHeaders)
-		if err != nil {
-			logger.Error(fmt.Sprintf("[HTTP/2 RESP] Error decoding response headers for Stream %d: %v", streamID, err))
-		} else {
-			if stream != nil {
-				stream.RespHeaders = headerFieldsToMap(metaFrame.Fields)
-				if metaFrame.StreamEnded() {
-					stream.RespEndStream = true
-				}
-			}
-			logger.Debug(fmt.Sprintf("[HTTP/2 RESP] Headers decoded for Stream %d: %+v", streamID, metaFrame.Fields))
-		}
-
-	case frameTypeData:
-		if stream == nil {
-			return nil
-		}
-		stream.RespBody.Write(payload)
-		if flags&flagEndStream != 0 {
-			w.streamsMu.Lock()
-			stream.RespEndStream = true
-			trimBody := func(buf *bytes.Buffer, n int) string {
-				data := buf.Bytes()
-				if len(data) > n {
-					return string(data[:n]) + "..."
-				}
-				return string(data)
-			}
-			if IsWatcherAllowed {
-				logger.HttpInfo(fmt.Sprintf(
-					"-----------starth2----------------\n"+
-						"ReqHeaders: %+v\n"+
-						"RespHeaders: %+v\n"+
-						"ReqBody: %s\n"+
-						"RespBody: %s\n"+
-						"-------------------------endh2------------------\n\n",
-					stream.ReqHeaders,
-					stream.RespHeaders,
-					trimBody(&stream.ReqBody, 512),
-					trimBody(&stream.RespBody, 512),
-				))
-			}
-			logger.Info(fmt.Sprintf("[HTTP/2 RESP] Stream %d completed (method=%s, path=%s)",
-				streamID, stream.ReqHeaders[":method"], stream.ReqHeaders[":path"]))
-			delete(w.streams, streamID)
-			w.streamsMu.Unlock()
-		}
-
-	case frameTypeRstStream:
-		if len(payload) >= 4 {
-			errorCode := binary.BigEndian.Uint32(payload[0:4])
-			logger.Warn(fmt.Sprintf("[HTTP/2 RESP] Stream %d reset by server, error code=%d", streamID, errorCode))
-		}
-		if streamID != 0 {
-			delete(w.streams, streamID)
-		}
-
-	case frameTypeGoaway:
-		if len(payload) >= 8 {
-			lastStreamID := binary.BigEndian.Uint32(payload[0:4]) & 0x7FFFFFFF
-			errorCode := binary.BigEndian.Uint32(payload[4:8])
-			logger.Warn(fmt.Sprintf("[HTTP/2 RESP] GOAWAY from server, last stream=%d, error code=%d", lastStreamID, errorCode))
-		}
-
-	case frameTypeSettings:
-		if flags&flagAck == 0 {
-			w.ParseSettingsFrame(payload, http2SettingsSourceServer)
-		}
-		logger.Debug(fmt.Sprintf("[HTTP/2 RESP] SETTINGS frame processed (stream=%d ack=%t)", streamID, flags&flagAck != 0))
-
-	case frameTypePing, frameTypeWindowUpdate, frameTypePriority, frameTypePushPromise:
-		logger.Debug(fmt.Sprintf("[HTTP/2 RESP] Ignored frame type: %d (stream=%d)", ftype, streamID))
-	default:
-		logger.Debug(fmt.Sprintf("[HTTP/2 RESP] Unknown frame type: %d (stream=%d)", ftype, streamID))
-	}
-	return nil
 }
 
 func (w *WatcherWrapConn) rebuildReqHeadersWithInjectedField(
@@ -637,7 +434,7 @@ func (w *WatcherWrapConn) decodeHeaderBlock(block []byte, isRequest bool) (map[s
 	if isRequest {
 		decoder = w.requestDecoderFromClient
 	} else {
-		decoder = w.responseDecoderFromServer
+		return nil, fmt.Errorf("response header decoding is not used in transparent response mode")
 	}
 
 	decoder.SetEmitFunc(func(f hpack.HeaderField) {

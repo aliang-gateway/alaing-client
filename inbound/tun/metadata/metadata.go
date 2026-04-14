@@ -39,6 +39,7 @@ type DNSInfo struct {
 // Metadata contains metadata of transport protocol sessions.
 type Metadata struct {
 	Network  Network    `json:"network"`
+	ConnID   string     `json:"connId,omitempty"`
 	SrcIP    netip.Addr `json:"sourceIP"`
 	MidIP    netip.Addr `json:"dialerIP"`
 	DstIP    netip.Addr `json:"destinationIP"`

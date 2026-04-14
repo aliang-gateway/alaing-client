@@ -63,26 +63,6 @@ func extractHeaderBlockFragments(t *testing.T, frames []byte) []byte {
 	return block.Bytes()
 }
 
-func TestParseSettingsFrame_ClientUpdatesResponseDecoder(t *testing.T) {
-	w := NewWatcherWrapConn(nil)
-	w.ParseSettingsFrame([]byte{
-		0x00, 0x01, // HEADER_TABLE_SIZE
-		0x00, 0x00, 0x20, 0x00, // 8192
-	}, http2SettingsSourceClient)
-
-	block := buildHeaderBlockWithDynamicTableSize(t, 8192, hpack.HeaderField{Name: ":status", Value: "200"})
-	headers, err := w.decodeHeaderBlock(block, false)
-	if err != nil {
-		t.Fatalf("decodeHeaderBlock(response) error = %v", err)
-	}
-	if got := headers[":status"]; got != "200" {
-		t.Fatalf("decoded response pseudo-header = %q, want %q", got, "200")
-	}
-	if got := w.responseEncoderToClient.MaxDynamicTableSize(); got != 8192 {
-		t.Fatalf("response encoder dynamic table size = %d, want %d", got, 8192)
-	}
-}
-
 func TestParseSettingsFrame_ServerUpdatesRequestDecoderAndEncoder(t *testing.T) {
 	w := NewWatcherWrapConn(nil)
 	w.ParseSettingsFrame([]byte{
@@ -109,30 +89,7 @@ func TestParseSettingsFrame_ServerUpdatesRequestDecoderAndEncoder(t *testing.T) 
 	}
 }
 
-func TestProcessHttp2ResponseFrame_UpdatesResponseLifecycle(t *testing.T) {
-	w := NewWatcherWrapConn(nil)
-	stream := w.getOrCreateStream(1)
-
-	frame := []byte{
-		0x00, 0x00, 0x02, // length
-		0x00,                   // DATA
-		0x01,                   // END_STREAM
-		0x00, 0x00, 0x00, 0x01, // stream 1
-		'o', 'k',
-	}
-
-	if err := w.processHttp2ResponseFrame(frame); err != nil {
-		t.Fatalf("processHttp2ResponseFrame() error = %v", err)
-	}
-	if !stream.RespEndStream {
-		t.Fatal("expected RespEndStream to be true")
-	}
-	if stream.ReqEndStream {
-		t.Fatal("did not expect ReqEndStream to be changed by response DATA")
-	}
-}
-
-func TestWatcherWrapConnWrite_ProcessesServerSettings(t *testing.T) {
+func TestWatcherWrapConnWrite_PassthroughsServerFrames(t *testing.T) {
 	clientConn, serverConn := net.Pipe()
 	defer clientConn.Close()
 	defer serverConn.Close()
@@ -146,8 +103,11 @@ func TestWatcherWrapConnWrite_ProcessesServerSettings(t *testing.T) {
 	})
 
 	readDone := make(chan error, 1)
+	readBuf := make(chan []byte, 1)
 	go func() {
-		_, err := io.ReadFull(clientConn, make([]byte, len(frame)))
+		buf := make([]byte, len(frame))
+		_, err := io.ReadFull(clientConn, buf)
+		readBuf <- buf
 		readDone <- err
 	}()
 
@@ -157,77 +117,8 @@ func TestWatcherWrapConnWrite_ProcessesServerSettings(t *testing.T) {
 	if err := <-readDone; err != nil {
 		t.Fatalf("reader error = %v", err)
 	}
-
-	if got, ok := w.GetServerHTTP2Setting(SETTINGS_HEADER_TABLE_SIZE); !ok || got != 8192 {
-		t.Fatalf("GetServerHTTP2Setting(HEADER_TABLE_SIZE) = (%d, %t), want (8192, true)", got, ok)
-	}
-}
-
-func TestWatcherWrapConnWrite_DoesNotCreateStreamForServerSettings(t *testing.T) {
-	clientConn, serverConn := net.Pipe()
-	defer clientConn.Close()
-	defer serverConn.Close()
-
-	w := NewWatcherWrapConn(serverConn)
-	w.prefetched = true
-
-	frame := buildSettingsFrame(t, http2.Setting{
-		ID:  http2.SettingMaxFrameSize,
-		Val: 32768,
-	})
-
-	readDone := make(chan error, 1)
-	go func() {
-		_, err := io.ReadFull(clientConn, make([]byte, len(frame)))
-		readDone <- err
-	}()
-
-	if _, err := w.Write(frame); err != nil {
-		t.Fatalf("Write() error = %v", err)
-	}
-	if err := <-readDone; err != nil {
-		t.Fatalf("reader error = %v", err)
-	}
-
-	w.streamsMu.Lock()
-	streamCount := len(w.streams)
-	w.streamsMu.Unlock()
-	if streamCount != 0 {
-		t.Fatalf("unexpected stream entries after server SETTINGS: got %d want 0", streamCount)
-	}
-}
-
-func TestProcessHttp2ResponseFrame_DecodesPriorityHeaders(t *testing.T) {
-	w := NewWatcherWrapConn(nil)
-	stream := w.getOrCreateStream(1)
-
-	var headerBlock bytes.Buffer
-	enc := hpack.NewEncoder(&headerBlock)
-	if err := enc.WriteField(hpack.HeaderField{Name: ":status", Value: "200"}); err != nil {
-		t.Fatalf("WriteField() error = %v", err)
-	}
-
-	var buf bytes.Buffer
-	framer := http2.NewFramer(&buf, nil)
-	if err := framer.WriteHeaders(http2.HeadersFrameParam{
-		StreamID:      1,
-		BlockFragment: headerBlock.Bytes(),
-		EndHeaders:    true,
-		Priority: http2.PriorityParam{
-			StreamDep: 3,
-			Exclusive: true,
-			Weight:    15,
-		},
-	}); err != nil {
-		t.Fatalf("WriteHeaders() error = %v", err)
-	}
-
-	frame := buf.Bytes()
-	if err := w.processHttp2ResponseFrame(frame); err != nil {
-		t.Fatalf("processHttp2ResponseFrame() error = %v", err)
-	}
-	if got := stream.RespHeaders[":status"]; got != "200" {
-		t.Fatalf("response status header = %q, want %q", got, "200")
+	if got := <-readBuf; !bytes.Equal(got, frame) {
+		t.Fatalf("Write() passthrough mismatch")
 	}
 }
 

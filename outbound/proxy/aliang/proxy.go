@@ -60,6 +60,9 @@ func (c *Aliang) DialContext(ctx context.Context, metadata *metadata.Metadata) (
 	// Raw byte relaying is not safe to reuse across independent sessions, even if
 	// they target the same destination and protocol.
 	c.status.markConnecting()
+	if metadata != nil && metadata.ConnID != "" {
+		ctx = context.WithValue(ctx, aliangContextConnIDKey{}, metadata.ConnID)
+	}
 	conn, timing, err := c.connector.DialWithTiming(ctx, "tcp", c.config.Addr, metadata.AppProto)
 	if err != nil {
 		c.status.markFailure(describeProbeFailure(c.config.Addr, err))
@@ -72,7 +75,7 @@ func (c *Aliang) DialContext(ctx context.Context, metadata *metadata.Metadata) (
 		if appProto == "" {
 			appProto = "unknown"
 		}
-		logger.Debug(fmt.Sprintf("[AliangGate] established dedicated mtls session app_proto=%s target=%s via=%s", appProto, metadata.DestinationAddress(), c.config.Addr))
+		logger.Debug(fmt.Sprintf("[AliangGate] conn_id=%s established dedicated mtls session app_proto=%s target=%s via=%s", metadata.ConnID, appProto, metadata.DestinationAddress(), c.config.Addr))
 	}
 
 	return conn, nil

@@ -31,14 +31,12 @@ type WatcherWrapConn struct {
 	net.Conn
 
 	reqBuf           bytes.Buffer
-	respBuf          bytes.Buffer
 	prefetched       bool
 	http2PrefaceSent bool
 	isTokenFound     bool
 	isHttp1          bool
 	passthrough      bool
 	http1ReqContent  string
-	http1RespContent string
 	http1BodyTracker *http1BodyTracker
 
 	// Connection-scoped HPACK lifecycle for request path:
@@ -47,20 +45,9 @@ type WatcherWrapConn struct {
 	requestEncoderBuffer     *bytes.Buffer
 	requestEncoderToServer   *hpack.Encoder
 
-	// Connection-scoped HPACK lifecycle for response path:
-	// server encoder -> proxy responseDecoderFromServer -> proxy responseEncoderToClient -> client decoder
-	//
-	// responseEncoderToClient is prepared for response-side header rewriting and must
-	// track the client-advertised SETTINGS even when current logic only observes
-	// responses instead of re-encoding them.
-	responseDecoderFromServer *hpack.Decoder
-	responseEncoderBuffer     *bytes.Buffer
-	responseEncoderToClient   *hpack.Encoder
-
 	streams   map[uint32]*http2Stream
 	streamsMu sync.Mutex
 
-	clientHTTP2Settings map[uint16]uint32
 	serverHTTP2Settings map[uint16]uint32
 	settingsMu          sync.Mutex
 
@@ -70,20 +57,14 @@ type WatcherWrapConn struct {
 func NewWatcherWrapConn(conn net.Conn) *WatcherWrapConn {
 	requestBuffer := bytes.NewBuffer([]byte{})
 	requestEncoder := hpack.NewEncoder(requestBuffer)
-	responseBuffer := bytes.NewBuffer([]byte{})
-	responseEncoder := hpack.NewEncoder(responseBuffer)
 
 	return &WatcherWrapConn{
-		Conn:                      conn,
-		streams:                   map[uint32]*http2Stream{},
-		clientHTTP2Settings:       map[uint16]uint32{},
-		serverHTTP2Settings:       map[uint16]uint32{},
-		requestDecoderFromClient:  hpack.NewDecoder(65536, nil),
-		requestEncoderBuffer:      requestBuffer,
-		requestEncoderToServer:    requestEncoder,
-		responseDecoderFromServer: hpack.NewDecoder(65536, nil),
-		responseEncoderBuffer:     responseBuffer,
-		responseEncoderToClient:   responseEncoder,
+		Conn:                     conn,
+		streams:                  map[uint32]*http2Stream{},
+		serverHTTP2Settings:      map[uint16]uint32{},
+		requestDecoderFromClient: hpack.NewDecoder(65536, nil),
+		requestEncoderBuffer:     requestBuffer,
+		requestEncoderToServer:   requestEncoder,
 	}
 }
 
@@ -263,29 +244,7 @@ func (w *WatcherWrapConn) parseHttp2Req() ([]byte, error) {
 }
 
 func (w *WatcherWrapConn) Write(p []byte) (n int, err error) {
-	n, err = w.Conn.Write(p)
-	if err != nil {
-		return n, err
-	}
-	if n > 0 && w.prefetched && !w.isHttp1 && !w.passthrough {
-		w.respBuf.Write(p[:n])
-		if parseErr := w.processBufferedHTTP2Responses(); parseErr != nil {
-			logger.Warn(fmt.Sprintf("Error processing HTTP/2 response frame: %v", parseErr))
-		}
-	}
-	return n, err
-}
-
-func (w *WatcherWrapConn) processBufferedHTTP2Responses() error {
-	for {
-		frame, ok := w.tryExtractFrameFromBuf(&w.respBuf, true)
-		if !ok {
-			return nil
-		}
-		if err := w.processHttp2ResponseFrame(frame); err != nil {
-			return err
-		}
-	}
+	return w.Conn.Write(p)
 }
 
 func (w *WatcherWrapConn) tryExtractFrameFromBuf(buf *bytes.Buffer, shouldMove bool) ([]byte, bool) {
