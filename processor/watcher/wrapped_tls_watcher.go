@@ -31,6 +31,7 @@ type WatcherWrapConn struct {
 	net.Conn
 
 	reqBuf           bytes.Buffer
+	respBuf          bytes.Buffer
 	prefetched       bool
 	http2PrefaceSent bool
 	isTokenFound     bool
@@ -244,6 +245,9 @@ func (w *WatcherWrapConn) parseHttp2Req() ([]byte, error) {
 }
 
 func (w *WatcherWrapConn) Write(p []byte) (n int, err error) {
+	if len(p) > 0 && w.prefetched && !w.passthrough {
+		w.observeHTTP2ResponseFrames(p)
+	}
 	return w.Conn.Write(p)
 }
 

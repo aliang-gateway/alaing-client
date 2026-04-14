@@ -120,6 +120,53 @@ func TestWatcherWrapConnWrite_PassthroughsServerFrames(t *testing.T) {
 	if got := <-readBuf; !bytes.Equal(got, frame) {
 		t.Fatalf("Write() passthrough mismatch")
 	}
+	if got, ok := w.GetServerHTTP2Setting(SETTINGS_HEADER_TABLE_SIZE); !ok || got != 8192 {
+		t.Fatalf("GetServerHTTP2Setting(HEADER_TABLE_SIZE) = (%d, %t), want (8192, true)", got, ok)
+	}
+}
+
+func TestWatcherWrapConnWrite_BuffersPartialServerFrames(t *testing.T) {
+	clientConn, serverConn := net.Pipe()
+	defer clientConn.Close()
+	defer serverConn.Close()
+
+	w := NewWatcherWrapConn(serverConn)
+	w.prefetched = true
+
+	frame := buildSettingsFrame(t, http2.Setting{
+		ID:  http2.SettingHeaderTableSize,
+		Val: 4096,
+	})
+
+	readDone := make(chan error, 1)
+	readBuf := make(chan []byte, 1)
+	go func() {
+		buf := make([]byte, len(frame))
+		_, err := io.ReadFull(clientConn, buf)
+		readBuf <- buf
+		readDone <- err
+	}()
+
+	split := len(frame) / 2
+	if _, err := w.Write(frame[:split]); err != nil {
+		t.Fatalf("Write(first half) error = %v", err)
+	}
+	if _, ok := w.GetServerHTTP2Setting(SETTINGS_HEADER_TABLE_SIZE); ok {
+		t.Fatalf("GetServerHTTP2Setting(HEADER_TABLE_SIZE) unexpectedly set before complete frame")
+	}
+
+	if _, err := w.Write(frame[split:]); err != nil {
+		t.Fatalf("Write(second half) error = %v", err)
+	}
+	if err := <-readDone; err != nil {
+		t.Fatalf("reader error = %v", err)
+	}
+	if got := <-readBuf; !bytes.Equal(got, frame) {
+		t.Fatalf("Write() passthrough mismatch after split frame")
+	}
+	if got, ok := w.GetServerHTTP2Setting(SETTINGS_HEADER_TABLE_SIZE); !ok || got != 4096 {
+		t.Fatalf("GetServerHTTP2Setting(HEADER_TABLE_SIZE) = (%d, %t), want (4096, true)", got, ok)
+	}
 }
 
 func TestRebuildReqHeadersWithInjectedField_SequentialStreamsRemainConnectionDecodable(t *testing.T) {

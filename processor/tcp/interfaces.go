@@ -162,6 +162,6 @@ const (
 
 // Timeouts for TCP operations
 const (
-	DefaultTCPConnectTimeout = 30 // seconds
-	DefaultTCPWaitTimeout    = 60 // seconds
+	DefaultTCPConnectTimeout = 30     // seconds
+	DefaultTCPWaitTimeout    = 5 * 60 // seconds
 )

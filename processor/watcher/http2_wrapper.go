@@ -257,6 +257,46 @@ func (w *WatcherWrapConn) processHttp2RequestFrame(preBuff *bytes.Buffer) error 
 	}
 }
 
+func (w *WatcherWrapConn) observeHTTP2ResponseFrames(payload []byte) {
+	w.respBuf.Write(payload)
+
+	for {
+		frame, ok := w.tryExtractFrameFromBuf(&w.respBuf, false)
+		if !ok {
+			return
+		}
+
+		ftype := frame[3]
+		flags := frame[4]
+		streamID := binary.BigEndian.Uint32(frame[5:9]) & 0x7FFFFFFF
+		framePayload := frame[frameHeaderLen:]
+
+		logger.Debug(fmt.Sprintf("[HTTP/2 RESP] Frame type=%d flags=0x%02x stream=%d len=%d", ftype, flags, streamID, len(framePayload)))
+
+		switch ftype {
+		case frameTypeSettings:
+			if flags&flagAck == 0 {
+				w.ParseSettingsFrame(framePayload, http2SettingsSourceServer)
+			}
+
+		case frameTypeRstStream:
+			if len(framePayload) >= 4 {
+				errorCode := binary.BigEndian.Uint32(framePayload[:4])
+				logger.Warn(fmt.Sprintf("[HTTP/2 RESP] Stream %d reset by server, error code=%d", streamID, errorCode))
+			}
+
+		case frameTypeGoaway:
+			if len(framePayload) >= 8 {
+				lastStreamID := binary.BigEndian.Uint32(framePayload[0:4]) & 0x7FFFFFFF
+				errorCode := binary.BigEndian.Uint32(framePayload[4:8])
+				logger.Warn(fmt.Sprintf("[HTTP/2 RESP] GOAWAY received from server, last stream=%d, error code=%d", lastStreamID, errorCode))
+			}
+		}
+
+		w.respBuf.Next(len(frame))
+	}
+}
+
 func (w *WatcherWrapConn) extractCompleteHeaderSequence() ([]byte, bool, error) {
 	data := w.reqBuf.Bytes()
 	if len(data) < frameHeaderLen {
