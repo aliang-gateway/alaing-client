@@ -70,11 +70,13 @@ func (w *WatcherWrapConn) applyHTTP2Setting(setting http2.Setting, source http2S
 		settingName = "HEADER_TABLE_SIZE"
 		switch source {
 		case http2SettingsSourceServer:
-			w.hpackDecoderReq.SetAllowedMaxDynamicTableSize(value)
-			w.hpackEncoderToServer.SetMaxDynamicTableSizeLimit(value)
-			w.hpackEncoderToServer.SetMaxDynamicTableSize(value)
+			w.requestDecoderFromClient.SetAllowedMaxDynamicTableSize(value)
+			w.requestEncoderToServer.SetMaxDynamicTableSizeLimit(value)
+			w.requestEncoderToServer.SetMaxDynamicTableSize(value)
 		case http2SettingsSourceClient:
-			w.hpackDecoderResp.SetAllowedMaxDynamicTableSize(value)
+			w.responseDecoderFromServer.SetAllowedMaxDynamicTableSize(value)
+			w.responseEncoderToClient.SetMaxDynamicTableSizeLimit(value)
+			w.responseEncoderToClient.SetMaxDynamicTableSize(value)
 		}
 	case SETTINGS_ENABLE_PUSH:
 		settingName = "ENABLE_PUSH"
@@ -348,7 +350,7 @@ func (w *WatcherWrapConn) extractCompleteHeaderSequence() ([]byte, bool, error) 
 func (w *WatcherWrapConn) decodeMetaHeaders(rawHeaders []byte) (*http2.MetaHeadersFrame, error) {
 	reader := bytes.NewReader(rawHeaders)
 	framer := http2.NewFramer(nil, reader)
-	framer.ReadMetaHeaders = w.hpackDecoderReq
+	framer.ReadMetaHeaders = w.requestDecoderFromClient
 
 	frame, err := framer.ReadFrame()
 	if err != nil {
@@ -358,6 +360,23 @@ func (w *WatcherWrapConn) decodeMetaHeaders(rawHeaders []byte) (*http2.MetaHeade
 	metaFrame, ok := frame.(*http2.MetaHeadersFrame)
 	if !ok {
 		return nil, fmt.Errorf("expected HTTP/2 meta headers frame, got %T", frame)
+	}
+	return metaFrame, nil
+}
+
+func (w *WatcherWrapConn) decodeResponseMetaHeaders(rawHeaders []byte) (*http2.MetaHeadersFrame, error) {
+	reader := bytes.NewReader(rawHeaders)
+	framer := http2.NewFramer(nil, reader)
+	framer.ReadMetaHeaders = w.responseDecoderFromServer
+
+	frame, err := framer.ReadFrame()
+	if err != nil {
+		return nil, err
+	}
+
+	metaFrame, ok := frame.(*http2.MetaHeadersFrame)
+	if !ok {
+		return nil, fmt.Errorf("expected HTTP/2 response meta headers frame, got %T", frame)
 	}
 	return metaFrame, nil
 }
@@ -374,52 +393,88 @@ func http2FrameTotalLen(data []byte) (int, bool) {
 	return totalLen, true
 }
 
+func extractCompleteHeaderSequenceFromBuffer(initialFrame []byte, buf *bytes.Buffer) ([]byte, bool, error) {
+	if len(initialFrame) < frameHeaderLen {
+		return nil, false, fmt.Errorf("incomplete HTTP/2 HEADERS frame")
+	}
+
+	flags := initialFrame[4]
+	streamID := binary.BigEndian.Uint32(initialFrame[5:9]) & 0x7FFFFFFF
+	if flags&flagEndHeaders != 0 {
+		raw := make([]byte, len(initialFrame))
+		copy(raw, initialFrame)
+		return raw, true, nil
+	}
+
+	raw := append([]byte(nil), initialFrame...)
+	for {
+		contFrame, ok := (&WatcherWrapConn{}).tryExtractFrameFromBuf(buf, false)
+		if !ok {
+			return nil, false, nil
+		}
+		ctype := contFrame[3]
+		cflags := contFrame[4]
+		cstreamID := binary.BigEndian.Uint32(contFrame[5:9]) & 0x7FFFFFFF
+		if ctype != frameTypeContinuation {
+			return nil, false, fmt.Errorf("expected HTTP/2 CONTINUATION frame, got type=%d", ctype)
+		}
+		if cstreamID != streamID {
+			return nil, false, fmt.Errorf("unexpected stream switch in HTTP/2 header block: got=%d want=%d", cstreamID, streamID)
+		}
+		buf.Next(len(contFrame))
+		raw = append(raw, contFrame...)
+		if cflags&flagEndHeaders != 0 {
+			return raw, true, nil
+		}
+	}
+}
+
 func (w *WatcherWrapConn) processHttp2ResponseFrame(frame []byte) error {
 	ftype := frame[3]
 	flags := frame[4]
 	streamID := binary.BigEndian.Uint32(frame[5:9]) & 0x7FFFFFFF
 
-	w.streamsMu.Lock()
-	stream, ok := w.streams[streamID]
-	if !ok {
-		stream = &http2Stream{}
-		w.streams[streamID] = stream
+	var stream *http2Stream
+	if streamID != 0 {
+		w.streamsMu.Lock()
+		var ok bool
+		stream, ok = w.streams[streamID]
+		if !ok {
+			stream = &http2Stream{}
+			w.streams[streamID] = stream
+		}
+		w.streamsMu.Unlock()
 	}
-	w.streamsMu.Unlock()
 
 	payload := frame[frameHeaderLen:]
 	switch ftype {
 	case frameTypeHeaders:
-		headerBlock := append([]byte{}, payload...)
-		if flags&flagEndHeaders == 0 {
-			for {
-				contFrame, ok := w.tryExtractFrameFromBuf(&w.respBuf, false)
-				if !ok {
-					break
-				}
-				ctype := contFrame[3]
-				cflags := contFrame[4]
-				cstreamID := binary.BigEndian.Uint32(contFrame[5:9]) & 0x7FFFFFFF
-				if ctype != frameTypeContinuation || cstreamID != streamID {
-					break
-				}
-				w.respBuf.Next(len(contFrame))
-				headerBlock = append(headerBlock, contFrame[frameHeaderLen:]...)
-				if cflags&flagEndHeaders != 0 {
-					break
-				}
-			}
+		rawHeaders, ok, err := extractCompleteHeaderSequenceFromBuffer(frame, &w.respBuf)
+		if err != nil {
+			logger.Error(fmt.Sprintf("[HTTP/2 RESP] Header extraction failed for Stream %d: %v", streamID, err))
+			return err
+		}
+		if !ok {
+			return nil
 		}
 
-		headers, err := w.decodeHeaderBlock(headerBlock, false)
+		metaFrame, err := w.decodeResponseMetaHeaders(rawHeaders)
 		if err != nil {
 			logger.Error(fmt.Sprintf("[HTTP/2 RESP] Error decoding response headers for Stream %d: %v", streamID, err))
 		} else {
-			w.streams[streamID].RespHeaders = headers
-			logger.Debug(fmt.Sprintf("[HTTP/2 RESP] Headers decoded for Stream %d: %+v", streamID, headers))
+			if stream != nil {
+				stream.RespHeaders = headerFieldsToMap(metaFrame.Fields)
+				if metaFrame.StreamEnded() {
+					stream.RespEndStream = true
+				}
+			}
+			logger.Debug(fmt.Sprintf("[HTTP/2 RESP] Headers decoded for Stream %d: %+v", streamID, metaFrame.Fields))
 		}
 
 	case frameTypeData:
+		if stream == nil {
+			return nil
+		}
 		stream.RespBody.Write(payload)
 		if flags&flagEndStream != 0 {
 			w.streamsMu.Lock()
@@ -456,7 +511,9 @@ func (w *WatcherWrapConn) processHttp2ResponseFrame(frame []byte) error {
 			errorCode := binary.BigEndian.Uint32(payload[0:4])
 			logger.Warn(fmt.Sprintf("[HTTP/2 RESP] Stream %d reset by server, error code=%d", streamID, errorCode))
 		}
-		delete(w.streams, streamID)
+		if streamID != 0 {
+			delete(w.streams, streamID)
+		}
 
 	case frameTypeGoaway:
 		if len(payload) >= 8 {
@@ -523,18 +580,18 @@ func (w *WatcherWrapConn) rebuildReqHeadersWithInjectedField(
 		}
 	}
 
-	w.toServerBuffer.Reset()
+	w.requestEncoderBuffer.Reset()
 	for _, field := range rewrittenFields {
 		toWrite := field
 		if strings.EqualFold(field.Name, normalizedInjectKey) {
 			toWrite.Sensitive = true
 		}
-		if err := w.hpackEncoderToServer.WriteField(toWrite); err != nil {
+		if err := w.requestEncoderToServer.WriteField(toWrite); err != nil {
 			return nil, nil, fmt.Errorf("hpack encode error: %w", err)
 		}
 	}
 
-	headerBlock := append([]byte(nil), w.toServerBuffer.Bytes()...)
+	headerBlock := append([]byte(nil), w.requestEncoderBuffer.Bytes()...)
 	maxFrameSize := 16384
 	if val, ok := w.GetServerHTTP2Setting(SETTINGS_MAX_FRAME_SIZE); ok {
 		maxFrameSize = int(val)
@@ -578,9 +635,9 @@ func (w *WatcherWrapConn) decodeHeaderBlock(block []byte, isRequest bool) (map[s
 
 	var decoder *hpack.Decoder
 	if isRequest {
-		decoder = w.hpackDecoderReq
+		decoder = w.requestDecoderFromClient
 	} else {
-		decoder = w.hpackDecoderResp
+		decoder = w.responseDecoderFromServer
 	}
 
 	decoder.SetEmitFunc(func(f hpack.HeaderField) {

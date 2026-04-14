@@ -39,12 +39,23 @@ type WatcherWrapConn struct {
 	passthrough      bool
 	http1ReqContent  string
 	http1RespContent string
-	hpackDecoderReq  *hpack.Decoder
-	hpackDecoderResp *hpack.Decoder
 	http1BodyTracker *http1BodyTracker
 
-	toServerBuffer       *bytes.Buffer
-	hpackEncoderToServer *hpack.Encoder
+	// Connection-scoped HPACK lifecycle for request path:
+	// client encoder -> proxy requestDecoderFromClient -> proxy requestEncoderToServer -> server decoder
+	requestDecoderFromClient *hpack.Decoder
+	requestEncoderBuffer     *bytes.Buffer
+	requestEncoderToServer   *hpack.Encoder
+
+	// Connection-scoped HPACK lifecycle for response path:
+	// server encoder -> proxy responseDecoderFromServer -> proxy responseEncoderToClient -> client decoder
+	//
+	// responseEncoderToClient is prepared for response-side header rewriting and must
+	// track the client-advertised SETTINGS even when current logic only observes
+	// responses instead of re-encoding them.
+	responseDecoderFromServer *hpack.Decoder
+	responseEncoderBuffer     *bytes.Buffer
+	responseEncoderToClient   *hpack.Encoder
 
 	streams   map[uint32]*http2Stream
 	streamsMu sync.Mutex
@@ -54,50 +65,26 @@ type WatcherWrapConn struct {
 	settingsMu          sync.Mutex
 
 	pendingBuffer *bytes.Buffer
-
-	mu                 sync.Mutex
-	encoderToserverMap sync.Map
 }
 
 func NewWatcherWrapConn(conn net.Conn) *WatcherWrapConn {
-	newBuffer := bytes.NewBuffer([]byte{})
-	encoder := hpack.NewEncoder(newBuffer)
+	requestBuffer := bytes.NewBuffer([]byte{})
+	requestEncoder := hpack.NewEncoder(requestBuffer)
+	responseBuffer := bytes.NewBuffer([]byte{})
+	responseEncoder := hpack.NewEncoder(responseBuffer)
 
 	return &WatcherWrapConn{
-		Conn:                 conn,
-		streams:              map[uint32]*http2Stream{},
-		clientHTTP2Settings:  map[uint16]uint32{},
-		serverHTTP2Settings:  map[uint16]uint32{},
-		hpackDecoderReq:      hpack.NewDecoder(65536, nil),
-		hpackDecoderResp:     hpack.NewDecoder(65536, nil),
-		toServerBuffer:       newBuffer,
-		hpackEncoderToServer: encoder,
+		Conn:                      conn,
+		streams:                   map[uint32]*http2Stream{},
+		clientHTTP2Settings:       map[uint16]uint32{},
+		serverHTTP2Settings:       map[uint16]uint32{},
+		requestDecoderFromClient:  hpack.NewDecoder(65536, nil),
+		requestEncoderBuffer:      requestBuffer,
+		requestEncoderToServer:    requestEncoder,
+		responseDecoderFromServer: hpack.NewDecoder(65536, nil),
+		responseEncoderBuffer:     responseBuffer,
+		responseEncoderToClient:   responseEncoder,
 	}
-}
-
-func (m *WatcherWrapConn) GetDecoder(streamID uint32, emitFunc func(hpack.HeaderField)) *hpack.Decoder {
-	if d, ok := m.encoderToserverMap.Load(streamID); ok {
-		decoder := d.(*hpack.Decoder)
-		decoder.SetEmitFunc(emitFunc)
-		return decoder
-	}
-
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	if d, ok := m.encoderToserverMap.Load(streamID); ok {
-		decoder := d.(*hpack.Decoder)
-		decoder.SetEmitFunc(emitFunc)
-		return decoder
-	}
-
-	decoder := hpack.NewDecoder(4096, emitFunc)
-	m.encoderToserverMap.Store(streamID, decoder)
-	return decoder
-}
-
-func (m *WatcherWrapConn) SetDecoder(streamID uint32, decoder hpack.Decoder) {
-	m.encoderToserverMap.Store(streamID, decoder)
 }
 
 func (w *WatcherWrapConn) getOrCreateStream(id uint32) *http2Stream {

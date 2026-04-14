@@ -34,6 +34,35 @@ func buildSettingsFrame(t *testing.T, setting http2.Setting) []byte {
 	return buf.Bytes()
 }
 
+func extractHeaderBlockFragments(t *testing.T, frames []byte) []byte {
+	t.Helper()
+
+	var block bytes.Buffer
+	reader := bytes.NewReader(frames)
+	framer := http2.NewFramer(nil, reader)
+
+	for {
+		frame, err := framer.ReadFrame()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			t.Fatalf("ReadFrame() error = %v", err)
+		}
+
+		switch f := frame.(type) {
+		case *http2.HeadersFrame:
+			block.Write(f.HeaderBlockFragment())
+		case *http2.ContinuationFrame:
+			block.Write(f.HeaderBlockFragment())
+		default:
+			t.Fatalf("unexpected frame type %T while extracting header block", frame)
+		}
+	}
+
+	return block.Bytes()
+}
+
 func TestParseSettingsFrame_ClientUpdatesResponseDecoder(t *testing.T) {
 	w := NewWatcherWrapConn(nil)
 	w.ParseSettingsFrame([]byte{
@@ -48,6 +77,9 @@ func TestParseSettingsFrame_ClientUpdatesResponseDecoder(t *testing.T) {
 	}
 	if got := headers[":status"]; got != "200" {
 		t.Fatalf("decoded response pseudo-header = %q, want %q", got, "200")
+	}
+	if got := w.responseEncoderToClient.MaxDynamicTableSize(); got != 8192 {
+		t.Fatalf("response encoder dynamic table size = %d, want %d", got, 8192)
 	}
 }
 
@@ -72,7 +104,7 @@ func TestParseSettingsFrame_ServerUpdatesRequestDecoderAndEncoder(t *testing.T) 
 	if got, ok := w.GetServerHTTP2Setting(SETTINGS_MAX_FRAME_SIZE); !ok || got != 4096 {
 		t.Fatalf("GetServerHTTP2Setting(MAX_FRAME_SIZE) = (%d, %t), want (4096, true)", got, ok)
 	}
-	if got := w.hpackEncoderToServer.MaxDynamicTableSize(); got != 8192 {
+	if got := w.requestEncoderToServer.MaxDynamicTableSize(); got != 8192 {
 		t.Fatalf("encoder dynamic table size = %d, want %d", got, 8192)
 	}
 }
@@ -128,5 +160,205 @@ func TestWatcherWrapConnWrite_ProcessesServerSettings(t *testing.T) {
 
 	if got, ok := w.GetServerHTTP2Setting(SETTINGS_HEADER_TABLE_SIZE); !ok || got != 8192 {
 		t.Fatalf("GetServerHTTP2Setting(HEADER_TABLE_SIZE) = (%d, %t), want (8192, true)", got, ok)
+	}
+}
+
+func TestWatcherWrapConnWrite_DoesNotCreateStreamForServerSettings(t *testing.T) {
+	clientConn, serverConn := net.Pipe()
+	defer clientConn.Close()
+	defer serverConn.Close()
+
+	w := NewWatcherWrapConn(serverConn)
+	w.prefetched = true
+
+	frame := buildSettingsFrame(t, http2.Setting{
+		ID:  http2.SettingMaxFrameSize,
+		Val: 32768,
+	})
+
+	readDone := make(chan error, 1)
+	go func() {
+		_, err := io.ReadFull(clientConn, make([]byte, len(frame)))
+		readDone <- err
+	}()
+
+	if _, err := w.Write(frame); err != nil {
+		t.Fatalf("Write() error = %v", err)
+	}
+	if err := <-readDone; err != nil {
+		t.Fatalf("reader error = %v", err)
+	}
+
+	w.streamsMu.Lock()
+	streamCount := len(w.streams)
+	w.streamsMu.Unlock()
+	if streamCount != 0 {
+		t.Fatalf("unexpected stream entries after server SETTINGS: got %d want 0", streamCount)
+	}
+}
+
+func TestProcessHttp2ResponseFrame_DecodesPriorityHeaders(t *testing.T) {
+	w := NewWatcherWrapConn(nil)
+	stream := w.getOrCreateStream(1)
+
+	var headerBlock bytes.Buffer
+	enc := hpack.NewEncoder(&headerBlock)
+	if err := enc.WriteField(hpack.HeaderField{Name: ":status", Value: "200"}); err != nil {
+		t.Fatalf("WriteField() error = %v", err)
+	}
+
+	var buf bytes.Buffer
+	framer := http2.NewFramer(&buf, nil)
+	if err := framer.WriteHeaders(http2.HeadersFrameParam{
+		StreamID:      1,
+		BlockFragment: headerBlock.Bytes(),
+		EndHeaders:    true,
+		Priority: http2.PriorityParam{
+			StreamDep: 3,
+			Exclusive: true,
+			Weight:    15,
+		},
+	}); err != nil {
+		t.Fatalf("WriteHeaders() error = %v", err)
+	}
+
+	frame := buf.Bytes()
+	if err := w.processHttp2ResponseFrame(frame); err != nil {
+		t.Fatalf("processHttp2ResponseFrame() error = %v", err)
+	}
+	if got := stream.RespHeaders[":status"]; got != "200" {
+		t.Fatalf("response status header = %q, want %q", got, "200")
+	}
+}
+
+func TestRebuildReqHeadersWithInjectedField_SequentialStreamsRemainConnectionDecodable(t *testing.T) {
+	w := NewWatcherWrapConn(nil)
+	w.ParseSettingsFrame([]byte{
+		0x00, 0x01, // HEADER_TABLE_SIZE
+		0x00, 0x00, 0x10, 0x00, // 4096
+	}, http2SettingsSourceServer)
+
+	firstFrames, firstFields, err := w.rebuildReqHeadersWithInjectedField(
+		[]hpack.HeaderField{
+			{Name: ":method", Value: "GET"},
+			{Name: ":scheme", Value: "https"},
+			{Name: ":authority", Value: "example.com"},
+			{Name: ":path", Value: "/one"},
+			{Name: "user-agent", Value: "agent-a"},
+		},
+		1,
+		false,
+		http2.PriorityParam{},
+		"",
+		"",
+	)
+	if err != nil {
+		t.Fatalf("first rebuildReqHeadersWithInjectedField() error = %v", err)
+	}
+	secondFrames, secondFields, err := w.rebuildReqHeadersWithInjectedField(
+		[]hpack.HeaderField{
+			{Name: ":method", Value: "GET"},
+			{Name: ":scheme", Value: "https"},
+			{Name: ":authority", Value: "example.com"},
+			{Name: ":path", Value: "/two"},
+			{Name: "user-agent", Value: "agent-a"},
+		},
+		3,
+		true,
+		http2.PriorityParam{},
+		"",
+		"",
+	)
+	if err != nil {
+		t.Fatalf("second rebuildReqHeadersWithInjectedField() error = %v", err)
+	}
+
+	serverDecoder := hpack.NewDecoder(4096, nil)
+
+	firstDecoded, err := w.decodeHeaderBlock(extractHeaderBlockFragments(t, firstFrames), true)
+	if err != nil {
+		t.Fatalf("local decode first block error = %v", err)
+	}
+	if got := firstDecoded[":path"]; got != "/one" {
+		t.Fatalf("decoded first path = %q, want %q", got, "/one")
+	}
+
+	serverHeaders1 := map[string]string{}
+	serverDecoder.SetEmitFunc(func(f hpack.HeaderField) { serverHeaders1[f.Name] = f.Value })
+	if _, err := serverDecoder.Write(extractHeaderBlockFragments(t, firstFrames)); err != nil {
+		t.Fatalf("server decoder first block error = %v", err)
+	}
+	if got := serverHeaders1[":path"]; got != "/one" {
+		t.Fatalf("server decoded first path = %q, want %q", got, "/one")
+	}
+
+	serverHeaders2 := map[string]string{}
+	serverDecoder.SetEmitFunc(func(f hpack.HeaderField) { serverHeaders2[f.Name] = f.Value })
+	if _, err := serverDecoder.Write(extractHeaderBlockFragments(t, secondFrames)); err != nil {
+		t.Fatalf("server decoder second block error = %v", err)
+	}
+	if got := serverHeaders2[":path"]; got != "/two" {
+		t.Fatalf("server decoded second path = %q, want %q", got, "/two")
+	}
+
+	if len(firstFields) == 0 || len(secondFields) == 0 {
+		t.Fatal("expected rewritten header field snapshots to be returned")
+	}
+}
+
+func TestRebuildReqHeadersWithInjectedField_UsesLatestServerMaxFrameSize(t *testing.T) {
+	w := NewWatcherWrapConn(nil)
+	w.ParseSettingsFrame([]byte{
+		0x00, 0x05, // MAX_FRAME_SIZE
+		0x00, 0x00, 0x00, 0x10, // 16
+	}, http2SettingsSourceServer)
+	w.ParseSettingsFrame([]byte{
+		0x00, 0x05, // MAX_FRAME_SIZE
+		0x00, 0x00, 0x00, 0x20, // 32
+	}, http2SettingsSourceServer)
+
+	var largeValue bytes.Buffer
+	for i := 0; i < 80; i++ {
+		largeValue.WriteByte('a')
+	}
+
+	frames, _, err := w.rebuildReqHeadersWithInjectedField(
+		[]hpack.HeaderField{
+			{Name: ":method", Value: "GET"},
+			{Name: ":scheme", Value: "https"},
+			{Name: ":authority", Value: "example.com"},
+			{Name: ":path", Value: "/frame-size"},
+			{Name: "x-large", Value: largeValue.String()},
+		},
+		1,
+		false,
+		http2.PriorityParam{},
+		"",
+		"",
+	)
+	if err != nil {
+		t.Fatalf("rebuildReqHeadersWithInjectedField() error = %v", err)
+	}
+
+	reader := bytes.NewReader(frames)
+	framer := http2.NewFramer(nil, reader)
+	for {
+		frame, err := framer.ReadFrame()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			t.Fatalf("ReadFrame() error = %v", err)
+		}
+		switch f := frame.(type) {
+		case *http2.HeadersFrame:
+			if got := len(f.HeaderBlockFragment()); got > 32 {
+				t.Fatalf("headers fragment length = %d, want <= 32", got)
+			}
+		case *http2.ContinuationFrame:
+			if got := len(f.HeaderBlockFragment()); got > 32 {
+				t.Fatalf("continuation fragment length = %d, want <= 32", got)
+			}
+		}
 	}
 }
