@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"aliang.one/nursorgate/common/logger"
+	tundialer "aliang.one/nursorgate/inbound/tun/dialer"
 	clientcert "aliang.one/nursorgate/processor/cert/client"
 )
 
@@ -77,13 +78,8 @@ func (csc *AliangServerConnector) DialWithTiming(ctx context.Context, network, a
 		defer cancel()
 	}
 
-	// Perform TLS handshake
-	dialer := &net.Dialer{
-		Timeout: dialTimeout,
-	}
-
 	startedAt := time.Now()
-	conn, err := dialer.DialContext(ctx, network, address)
+	conn, err := tundialer.DialContext(ctx, network, address)
 	if err != nil {
 		logger.Warn(fmt.Sprintf("[AliangGate] conn_id=%s TCP connect failed to %s: %v", connID, address, err))
 		return nil, ProbeTimings{}, NewErrorWithCause(ErrTLSHandshakeFailed, "failed to dial cursor server", err)
