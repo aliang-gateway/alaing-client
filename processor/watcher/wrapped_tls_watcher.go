@@ -49,8 +49,9 @@ type WatcherWrapConn struct {
 	streams   map[uint32]*http2Stream
 	streamsMu sync.Mutex
 
-	http2Settings map[uint16]uint32
-	settingsMu    sync.Mutex
+	clientHTTP2Settings map[uint16]uint32
+	serverHTTP2Settings map[uint16]uint32
+	settingsMu          sync.Mutex
 
 	pendingBuffer *bytes.Buffer
 
@@ -65,7 +66,8 @@ func NewWatcherWrapConn(conn net.Conn) *WatcherWrapConn {
 	return &WatcherWrapConn{
 		Conn:                 conn,
 		streams:              map[uint32]*http2Stream{},
-		http2Settings:        map[uint16]uint32{},
+		clientHTTP2Settings:  map[uint16]uint32{},
+		serverHTTP2Settings:  map[uint16]uint32{},
 		hpackDecoderReq:      hpack.NewDecoder(65536, nil),
 		hpackDecoderResp:     hpack.NewDecoder(65536, nil),
 		toServerBuffer:       newBuffer,
@@ -278,7 +280,25 @@ func (w *WatcherWrapConn) Write(p []byte) (n int, err error) {
 	if err != nil {
 		return n, err
 	}
+	if n > 0 && w.prefetched && !w.isHttp1 && !w.passthrough {
+		w.respBuf.Write(p[:n])
+		if parseErr := w.processBufferedHTTP2Responses(); parseErr != nil {
+			logger.Warn(fmt.Sprintf("Error processing HTTP/2 response frame: %v", parseErr))
+		}
+	}
 	return n, err
+}
+
+func (w *WatcherWrapConn) processBufferedHTTP2Responses() error {
+	for {
+		frame, ok := w.tryExtractFrameFromBuf(&w.respBuf, true)
+		if !ok {
+			return nil
+		}
+		if err := w.processHttp2ResponseFrame(frame); err != nil {
+			return err
+		}
+	}
 }
 
 func (w *WatcherWrapConn) tryExtractFrameFromBuf(buf *bytes.Buffer, shouldMove bool) ([]byte, bool) {

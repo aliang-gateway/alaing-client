@@ -40,19 +40,42 @@ const (
 	SETTINGS_MAX_HEADER_LIST_SIZE   = 0x6
 )
 
-func (w *WatcherWrapConn) applyHTTP2Setting(setting http2.Setting) {
+type http2SettingsSource string
+
+const (
+	http2SettingsSourceClient http2SettingsSource = "client"
+	http2SettingsSourceServer http2SettingsSource = "server"
+)
+
+func (w *WatcherWrapConn) applyHTTP2Setting(setting http2.Setting, source http2SettingsSource) {
 	w.settingsMu.Lock()
 	defer w.settingsMu.Unlock()
 
 	identifier := uint16(setting.ID)
 	value := setting.Val
-	w.http2Settings[identifier] = value
+	var settings map[uint16]uint32
+	switch source {
+	case http2SettingsSourceServer:
+		settings = w.serverHTTP2Settings
+	case http2SettingsSourceClient:
+		settings = w.clientHTTP2Settings
+	default:
+		settings = w.serverHTTP2Settings
+	}
+	settings[identifier] = value
 
 	var settingName string
 	switch identifier {
 	case SETTINGS_HEADER_TABLE_SIZE:
 		settingName = "HEADER_TABLE_SIZE"
-		w.hpackDecoderReq.SetMaxDynamicTableSize(value)
+		switch source {
+		case http2SettingsSourceServer:
+			w.hpackDecoderReq.SetAllowedMaxDynamicTableSize(value)
+			w.hpackEncoderToServer.SetMaxDynamicTableSizeLimit(value)
+			w.hpackEncoderToServer.SetMaxDynamicTableSize(value)
+		case http2SettingsSourceClient:
+			w.hpackDecoderResp.SetAllowedMaxDynamicTableSize(value)
+		}
 	case SETTINGS_ENABLE_PUSH:
 		settingName = "ENABLE_PUSH"
 	case SETTINGS_MAX_CONCURRENT_STREAMS:
@@ -67,10 +90,10 @@ func (w *WatcherWrapConn) applyHTTP2Setting(setting http2.Setting) {
 		settingName = fmt.Sprintf("UNKNOWN_%d", identifier)
 	}
 
-	logger.Debug(fmt.Sprintf("HTTP/2 SETTINGS: %s = %d", settingName, value))
+	logger.Debug(fmt.Sprintf("HTTP/2 SETTINGS(%s): %s = %d", source, settingName, value))
 }
 
-func (w *WatcherWrapConn) ParseSettingsFrame(payload []byte) {
+func (w *WatcherWrapConn) ParseSettingsFrame(payload []byte, source http2SettingsSource) {
 	if len(payload)%6 != 0 {
 		logger.Error("Invalid SETTINGS frame payload length")
 		return
@@ -80,26 +103,57 @@ func (w *WatcherWrapConn) ParseSettingsFrame(payload []byte) {
 		w.applyHTTP2Setting(http2.Setting{
 			ID:  http2.SettingID(binary.BigEndian.Uint16(payload[i : i+2])),
 			Val: binary.BigEndian.Uint32(payload[i+2 : i+6]),
-		})
+		}, source)
 	}
 }
 
-func (w *WatcherWrapConn) GetHttp2Setting(identifier uint16) (uint32, bool) {
+func (w *WatcherWrapConn) getHTTP2Setting(identifier uint16, source http2SettingsSource) (uint32, bool) {
 	w.settingsMu.Lock()
 	defer w.settingsMu.Unlock()
-	value, exists := w.http2Settings[identifier]
+	var settings map[uint16]uint32
+	switch source {
+	case http2SettingsSourceClient:
+		settings = w.clientHTTP2Settings
+	default:
+		settings = w.serverHTTP2Settings
+	}
+	value, exists := settings[identifier]
 	return value, exists
 }
 
-func (w *WatcherWrapConn) GetAllHttp2Settings() map[uint16]uint32 {
+func (w *WatcherWrapConn) GetServerHTTP2Setting(identifier uint16) (uint32, bool) {
+	return w.getHTTP2Setting(identifier, http2SettingsSourceServer)
+}
+
+func (w *WatcherWrapConn) GetClientHTTP2Setting(identifier uint16) (uint32, bool) {
+	return w.getHTTP2Setting(identifier, http2SettingsSourceClient)
+}
+
+func (w *WatcherWrapConn) getAllHTTP2Settings(source http2SettingsSource) map[uint16]uint32 {
 	w.settingsMu.Lock()
 	defer w.settingsMu.Unlock()
 
-	settings := make(map[uint16]uint32, len(w.http2Settings))
-	for k, v := range w.http2Settings {
+	var sourceSettings map[uint16]uint32
+	switch source {
+	case http2SettingsSourceClient:
+		sourceSettings = w.clientHTTP2Settings
+	default:
+		sourceSettings = w.serverHTTP2Settings
+	}
+
+	settings := make(map[uint16]uint32, len(sourceSettings))
+	for k, v := range sourceSettings {
 		settings[k] = v
 	}
 	return settings
+}
+
+func (w *WatcherWrapConn) GetAllServerHTTP2Settings() map[uint16]uint32 {
+	return w.getAllHTTP2Settings(http2SettingsSourceServer)
+}
+
+func (w *WatcherWrapConn) GetAllClientHTTP2Settings() map[uint16]uint32 {
+	return w.getAllHTTP2Settings(http2SettingsSourceClient)
 }
 
 type http2Stream struct {
@@ -202,7 +256,7 @@ func (w *WatcherWrapConn) processHttp2RequestFrame(preBuff *bytes.Buffer) error 
 
 		case frameTypeSettings:
 			if flags&flagAck == 0 {
-				w.ParseSettingsFrame(payload)
+				w.ParseSettingsFrame(payload, http2SettingsSourceClient)
 			}
 			preBuff.Write(frame)
 			w.reqBuf.Next(len(frame))
@@ -320,7 +374,7 @@ func http2FrameTotalLen(data []byte) (int, bool) {
 	return totalLen, true
 }
 
-func (w *WatcherWrapConn) processHttp2ResponseFrame(frame []byte) {
+func (w *WatcherWrapConn) processHttp2ResponseFrame(frame []byte) error {
 	ftype := frame[3]
 	flags := frame[4]
 	streamID := binary.BigEndian.Uint32(frame[5:9]) & 0x7FFFFFFF
@@ -369,7 +423,7 @@ func (w *WatcherWrapConn) processHttp2ResponseFrame(frame []byte) {
 		stream.RespBody.Write(payload)
 		if flags&flagEndStream != 0 {
 			w.streamsMu.Lock()
-			stream.ReqEndStream = true
+			stream.RespEndStream = true
 			trimBody := func(buf *bytes.Buffer, n int) string {
 				data := buf.Bytes()
 				if len(data) > n {
@@ -411,11 +465,18 @@ func (w *WatcherWrapConn) processHttp2ResponseFrame(frame []byte) {
 			logger.Warn(fmt.Sprintf("[HTTP/2 RESP] GOAWAY from server, last stream=%d, error code=%d", lastStreamID, errorCode))
 		}
 
-	case frameTypeSettings, frameTypePing, frameTypeWindowUpdate, frameTypePriority, frameTypePushPromise:
+	case frameTypeSettings:
+		if flags&flagAck == 0 {
+			w.ParseSettingsFrame(payload, http2SettingsSourceServer)
+		}
+		logger.Debug(fmt.Sprintf("[HTTP/2 RESP] SETTINGS frame processed (stream=%d ack=%t)", streamID, flags&flagAck != 0))
+
+	case frameTypePing, frameTypeWindowUpdate, frameTypePriority, frameTypePushPromise:
 		logger.Debug(fmt.Sprintf("[HTTP/2 RESP] Ignored frame type: %d (stream=%d)", ftype, streamID))
 	default:
 		logger.Debug(fmt.Sprintf("[HTTP/2 RESP] Unknown frame type: %d (stream=%d)", ftype, streamID))
 	}
+	return nil
 }
 
 func (w *WatcherWrapConn) rebuildReqHeadersWithInjectedField(
@@ -475,7 +536,7 @@ func (w *WatcherWrapConn) rebuildReqHeadersWithInjectedField(
 
 	headerBlock := append([]byte(nil), w.toServerBuffer.Bytes()...)
 	maxFrameSize := 16384
-	if val, ok := w.GetHttp2Setting(SETTINGS_MAX_FRAME_SIZE); ok {
+	if val, ok := w.GetServerHTTP2Setting(SETTINGS_MAX_FRAME_SIZE); ok {
 		maxFrameSize = int(val)
 	}
 
