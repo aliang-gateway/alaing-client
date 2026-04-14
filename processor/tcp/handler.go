@@ -405,11 +405,10 @@ func (h *TCPConnectionHandler) handleNonTLS(
 	return remote, newOriginConn, dialErr
 }
 
-// handleTLS processes TLS connections (port 443)
-// Implements three-step routing decision process:
-// 1. Prefer the real SNI from this connection's ClientHello
-// 2. If SNI is unavailable, optionally fall back to a unique cached IP→Domain binding
-// 3. Determine route based on the best available domain information
+// handleTLS processes TLS connections (port 443).
+// Transparent TLS interception only trusts identifiers observed on the current
+// connection. If we can't read an explicit hostname or SNI, we bypass MITM and
+// route direct to avoid certificate and HTTP/2 mismatches on shared IPs.
 func (h *TCPConnectionHandler) handleTLS(
 	ctx context.Context,
 	originConn net.Conn,
@@ -418,12 +417,11 @@ func (h *TCPConnectionHandler) handleTLS(
 	var sni string
 	var sniBuf []byte
 	var wrapped *WrappedConn
-	var cacheHit bool
+	var cacheFallbackUsed bool
 
-	// STEP 1: Prefer the real SNI from the current ClientHello whenever we don't
-	// already have an explicit hostname (for example from CONNECT).
+	// STEP 1: Prefer an explicit hostname (for example CONNECT), otherwise read
+	// SNI from the current TLS ClientHello.
 	if metadata.HostName != "" {
-		cacheHit = true
 		sni = metadata.HostName
 		logObservedTLSServerName(metadata, "preset")
 	} else {
@@ -450,12 +448,25 @@ func (h *TCPConnectionHandler) handleTLS(
 		}
 	}
 
-	// STEP 2: Fall back to a unique cached binding only when SNI is unavailable.
-	// Shared-IP cache entries are never trusted as the primary source for MITM.
+	// Preserve the bytes consumed while reading ClientHello so direct forwarding
+	// or MITM can continue from the original stream.
+	if len(sniBuf) > 0 {
+		wrapped = &WrappedConn{
+			Conn: originConn,
+			Buf:  sniBuf,
+		}
+	}
+
+	// STEP 2: Without an explicit hostname or observed SNI, we only trust a
+	// unique cached IP->domain binding. Shared-IP cache entries still bypass MITM.
 	if metadata.HostName == "" {
 		cache := rules.GetCache()
 		if cache == nil {
-			logger.Debug("TLS: DNS cache not initialized - Rule engine may not be configured.")
+			logger.Warn(fmt.Sprintf(
+				"TLS: No SNI observed for %s:%d and DNS cache is unavailable; bypassing MITM and routing direct",
+				metadata.DstIP,
+				metadata.DstPort,
+			))
 		} else if !metadata.DstIP.IsUnspecified() {
 			cacheEntries := cache.GetByIP(metadata.DstIP)
 			cachedEntry, uniqueDomainCount := selectUniqueCachedDomainEntry(cacheEntries)
@@ -470,31 +481,37 @@ func (h *TCPConnectionHandler) handleTLS(
 					cachedEntry.CreatedAt,
 					cachedEntry.TimeToLive(),
 				)
-				cacheHit = true
-				logger.Debug(fmt.Sprintf("TLS: Falling back to unique cached domain for IP %s: %s (hit count: %d)",
-					metadata.DstIP, metadata.HostName, cachedEntry.HitCount))
+				cacheFallbackUsed = true
+				logger.Warn(fmt.Sprintf(
+					"TLS: No SNI observed for %s:%d; using unique cached domain=%s to continue TLS routing and MITM",
+					metadata.DstIP,
+					metadata.DstPort,
+					cachedEntry.Domain,
+				))
 				logObservedTLSServerName(metadata, "cache")
 			} else if uniqueDomainCount > 1 {
-				logger.Debug(fmt.Sprintf(
-					"TLS: Shared IP %s has %d cached domains; skipping cache fallback and relying on SNI-only routing",
+				logger.Warn(fmt.Sprintf(
+					"TLS: No SNI observed for %s:%d; shared IP has %d cached domains, bypassing MITM and routing direct",
 					metadata.DstIP,
+					metadata.DstPort,
 					uniqueDomainCount,
 				))
+			} else {
+				logger.Warn(fmt.Sprintf(
+					"TLS: No SNI observed for %s:%d and no reliable cached hostname exists; bypassing MITM and routing direct",
+					metadata.DstIP,
+					metadata.DstPort,
+				))
 			}
+		} else {
+			logger.Warn(fmt.Sprintf(
+				"TLS: No SNI observed for destination %s:%d; bypassing MITM and routing direct",
+				metadata.DstIP,
+				metadata.DstPort,
+			))
 		}
-	}
-
-	if metadata.HostName != "" && sni == "" && IsDoHProvider(metadata.HostName) {
-		logger.Debug(fmt.Sprintf("[DoH] Detected DoH provider from fallback hostname: %s, routing directly", metadata.HostName))
-		return nil, nil, nil
-	}
-
-	// Wrap the connection with buffered SNI data for protocols that need it.
-	// This preserves the ClientHello we consumed during SNI extraction.
-	if len(sniBuf) > 0 {
-		wrapped = &WrappedConn{
-			Conn: originConn,
-			Buf:  sniBuf,
+		if metadata.HostName == "" {
+			return h.resolveTLSRoute(ctx, originConn, metadata, RouteDirect, wrapped, "")
 		}
 	}
 
@@ -507,10 +524,10 @@ func (h *TCPConnectionHandler) handleTLS(
 	var routeSource string
 	if sni != "" {
 		routeSource = "SNI"
-	} else if cacheHit && metadata.HostName != "" {
+	} else if cacheFallbackUsed {
 		routeSource = "cache"
 	} else {
-		routeSource = "IP/GeoIP"
+		routeSource = "preset"
 	}
 	logger.Debug(fmt.Sprintf("TLS: Route decision for %s (%s via %s): %v", metadata.HostName, metadata.DstIP, routeSource, route))
 
@@ -518,9 +535,9 @@ func (h *TCPConnectionHandler) handleTLS(
 	if mitmedSNI == "" && metadata.HostName != "" && metadata.DNSInfo != nil && metadata.DNSInfo.BindingSource == M.BindingSourceCONNECT {
 		// CONNECT already provided an explicit target hostname, which is safe to reuse.
 		mitmedSNI = metadata.HostName
-	} else if cacheHit && sni == "" {
-		// Cache-derived hostnames may help routing, but they are not preferred for MITM.
-		// We only reuse them here as a last resort when no real SNI was observable.
+	} else if mitmedSNI == "" && cacheFallbackUsed {
+		// A unique cached domain is acceptable as a last-resort MITM name when
+		// this transparent TLS flow did not expose SNI.
 		mitmedSNI = metadata.HostName
 	}
 
