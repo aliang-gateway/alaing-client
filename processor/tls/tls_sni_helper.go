@@ -125,22 +125,28 @@ func ExtractSNI(conn net.Conn) (string, []byte, error) {
 	buf := make([]byte, 4096)
 	err := conn.SetReadDeadline(time.Now().Add(60 * 2 * time.Second))
 	if err != nil {
+		logger.Warn(fmt.Sprintf("[TLS SNI] Failed to set read deadline: %v", err))
 		return "", nil, err
 	} // 防止阻塞
+
+	logger.Debug("[TLS SNI] Waiting for ClientHello...")
 
 	for {
 		n, err := conn.Read(buf)
 		if n > 0 {
 			totalBuf = append(totalBuf, buf[:n]...)
+			logger.Debug(fmt.Sprintf("[TLS SNI] Read %d bytes, total: %d bytes", n, len(totalBuf)))
 		}
 
 		if len(totalBuf) >= 5 {
 			if totalBuf[0] != 0x16 {
+				logger.Warn(fmt.Sprintf("[TLS SNI] Not a TLS handshake: first byte is 0x%x (expected 0x16)", totalBuf[0]))
 				return "", totalBuf, fmt.Errorf("not a TLS handshake: first byte is 0x%x", totalBuf[0])
 			}
 			recordLen := int(binary.BigEndian.Uint16(totalBuf[3:5]))
 			expectedLen := recordLen + 5
 			if len(totalBuf) >= expectedLen {
+				logger.Debug(fmt.Sprintf("[TLS SNI] Got complete TLS record (%d bytes), parsing...", expectedLen))
 				break // got full TLS record
 			}
 		}
@@ -148,19 +154,23 @@ func ExtractSNI(conn net.Conn) (string, []byte, error) {
 		if err != nil {
 			if err == io.EOF {
 				if len(totalBuf) < 5 {
+					logger.Warn(fmt.Sprintf("[TLS SNI] EOF before complete TLS ClientHello (received %d bytes)", len(totalBuf)))
 					return "", nil, fmt.Errorf("EOF before complete TLS ClientHello len: %d", len(totalBuf))
 				}
+				logger.Debug("[TLS SNI] EOF received, attempting partial parse")
 				break
 			}
-			logger.Warn("failure in reading ClientHello", err)
+			logger.Warn(fmt.Sprintf("[TLS SNI] Read error while waiting for ClientHello: %v", err))
 			return "", nil, err
 		}
 	}
 
-	s, _, err := parseSNIFromBuffer(totalBuf)
+	sni, _, err := parseSNIFromBuffer(totalBuf)
 	if err != nil {
-		logger.Warn("failure in reading sni", err)
+		logger.Warn(fmt.Sprintf("[TLS SNI] Failed to parse SNI from ClientHello: %v (buffer size: %d bytes)", err, len(totalBuf)))
 		return "", totalBuf, err
 	}
-	return s, totalBuf, nil
+
+	logger.Debug(fmt.Sprintf("[TLS SNI] Successfully extracted SNI: %s", sni))
+	return sni, totalBuf, nil
 }

@@ -3,8 +3,11 @@ package tcp
 import (
 	"bytes"
 	"context"
+	"errors"
+	"fmt"
 	"io"
 	"net"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -83,7 +86,7 @@ func (r *DefaultRelayManager) Relay(ctx context.Context, originConn, remoteConn 
 // - Buffer management and pooling
 // - TCP half-close (CloseRead/CloseWrite)
 // - Timeout handling
-// - Error logging
+// - Error logging with appropriate severity levels
 func (r *DefaultRelayManager) relayStream(
 	dst net.Conn,
 	src net.Conn,
@@ -107,7 +110,16 @@ func (r *DefaultRelayManager) relayStream(
 		atomic.AddInt64(byteCounter, countingDst.written)
 	}
 	if err != nil && err != io.EOF {
-		logger.Debug("relay copy error [" + direction + "]: " + err.Error())
+		// Classify relay errors by severity for better debugging
+		if isUnexpectedConnectionReset(err) {
+			logger.Warn(fmt.Sprintf("[RELAY] Unexpected connection reset [%s]: %v", direction, err))
+		} else if isTimeoutError(err) {
+			logger.Debug(fmt.Sprintf("[RELAY] Connection timeout [%s]: %v", direction, err))
+		} else if isConnectionClosedByPeer(err) {
+			logger.Debug(fmt.Sprintf("[RELAY] Connection closed by peer [%s]: %v", direction, err))
+		} else {
+			logger.Warn(fmt.Sprintf("[RELAY] Data relay error [%s]: %v", direction, err))
+		}
 	}
 
 	// Perform TCP half-close to signal end of stream
@@ -123,6 +135,34 @@ func (r *DefaultRelayManager) relayStream(
 
 	// Set a read deadline so we don't wait forever for the other side to close
 	dst.SetReadDeadline(time.Now().Add(time.Duration(DefaultTCPWaitTimeout) * time.Second))
+}
+
+// isUnexpectedConnectionReset checks if the error is an unexpected connection reset
+func isUnexpectedConnectionReset(err error) bool {
+	if err == nil {
+		return false
+	}
+	errMsg := err.Error()
+	return strings.Contains(errMsg, "reset") ||
+		strings.Contains(errMsg, "connection reset") ||
+		strings.Contains(errMsg, "ECONNRESET")
+}
+
+// isTimeoutError checks if the error is a timeout
+func isTimeoutError(err error) bool {
+	var netErr net.Error
+	return errors.As(err, &netErr) && netErr.Timeout()
+}
+
+// isConnectionClosedByPeer checks if the error indicates the peer closed the connection
+func isConnectionClosedByPeer(err error) bool {
+	if err == nil {
+		return false
+	}
+	errMsg := err.Error()
+	return strings.Contains(errMsg, "closed") ||
+		strings.Contains(errMsg, "broken pipe") ||
+		strings.Contains(errMsg, "EPIPE")
 }
 
 type payloadCaptureBuffer struct {

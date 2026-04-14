@@ -151,6 +151,8 @@ func (w *WatcherWrapConn) processHttp2RequestFrame(preBuff *bytes.Buffer) error 
 		streamID := binary.BigEndian.Uint32(frame[5:9]) & 0x7FFFFFFF
 		payload := frame[frameHeaderLen:]
 
+		logger.Debug(fmt.Sprintf("[HTTP/2 REQ] Frame type=%d flags=0x%02x stream=%d len=%d", ftype, flags, streamID, len(payload)))
+
 		if streamID != 0 {
 			w.getOrCreateStream(streamID)
 		}
@@ -159,6 +161,7 @@ func (w *WatcherWrapConn) processHttp2RequestFrame(preBuff *bytes.Buffer) error 
 		case frameTypeHeaders:
 			rawHeaders, ok, err := w.extractCompleteHeaderSequence()
 			if err != nil {
+				logger.Warn(fmt.Sprintf("[HTTP/2 REQ] Header extraction failed for stream %d: %v", streamID, err))
 				return err
 			}
 			if !ok {
@@ -167,6 +170,7 @@ func (w *WatcherWrapConn) processHttp2RequestFrame(preBuff *bytes.Buffer) error 
 
 			metaFrame, err := w.decodeMetaHeaders(rawHeaders)
 			if err != nil {
+				logger.Warn(fmt.Sprintf("[HTTP/2 REQ] Header decode failed for stream %d: %v", streamID, err))
 				return err
 			}
 
@@ -179,6 +183,7 @@ func (w *WatcherWrapConn) processHttp2RequestFrame(preBuff *bytes.Buffer) error 
 				user.GetCurrentAuthorizationHeader(),
 			)
 			if err != nil {
+				logger.Warn(fmt.Sprintf("[HTTP/2 REQ] Header rebuild failed for stream %d: %v", streamID, err))
 				return err
 			}
 
@@ -212,6 +217,23 @@ func (w *WatcherWrapConn) processHttp2RequestFrame(preBuff *bytes.Buffer) error 
 				}
 			}
 			w.streamsMu.Unlock()
+			preBuff.Write(frame)
+			w.reqBuf.Next(len(frame))
+
+		case frameTypeRstStream:
+			if len(payload) >= 4 {
+				errorCode := binary.BigEndian.Uint32(payload[0:4])
+				logger.Warn(fmt.Sprintf("[HTTP/2 REQ] Stream %d reset by client, error code=%d", streamID, errorCode))
+			}
+			preBuff.Write(frame)
+			w.reqBuf.Next(len(frame))
+
+		case frameTypeGoaway:
+			if len(payload) >= 8 {
+				lastStreamID := binary.BigEndian.Uint32(payload[0:4]) & 0x7FFFFFFF
+				errorCode := binary.BigEndian.Uint32(payload[4:8])
+				logger.Warn(fmt.Sprintf("[HTTP/2 REQ] GOAWAY received, last stream=%d, error code=%d", lastStreamID, errorCode))
+			}
 			preBuff.Write(frame)
 			w.reqBuf.Next(len(frame))
 
@@ -337,10 +359,10 @@ func (w *WatcherWrapConn) processHttp2ResponseFrame(frame []byte) {
 
 		headers, err := w.decodeHeaderBlock(headerBlock, false)
 		if err != nil {
-			logger.Error(fmt.Sprintf("Error decoding HTTP/2 response headers for Stream %d: %v", streamID, err))
+			logger.Error(fmt.Sprintf("[HTTP/2 RESP] Error decoding response headers for Stream %d: %v", streamID, err))
 		} else {
 			w.streams[streamID].RespHeaders = headers
-			logger.Debug(fmt.Sprintf("HTTP/2 Response Headers for Stream %d: %+v", streamID, headers))
+			logger.Debug(fmt.Sprintf("[HTTP/2 RESP] Headers decoded for Stream %d: %+v", streamID, headers))
 		}
 
 	case frameTypeData:
@@ -369,16 +391,30 @@ func (w *WatcherWrapConn) processHttp2ResponseFrame(frame []byte) {
 					trimBody(&stream.RespBody, 512),
 				))
 			}
+			logger.Info(fmt.Sprintf("[HTTP/2 RESP] Stream %d completed (method=%s, path=%s)",
+				streamID, stream.ReqHeaders[":method"], stream.ReqHeaders[":path"]))
 			delete(w.streams, streamID)
 			w.streamsMu.Unlock()
 		}
 
-	case frameTypeRstStream, frameTypeGoaway:
-		logger.Debug(fmt.Sprintf("HTTP/2 Stream %d reset or GoAway, removing.", streamID))
+	case frameTypeRstStream:
+		if len(payload) >= 4 {
+			errorCode := binary.BigEndian.Uint32(payload[0:4])
+			logger.Warn(fmt.Sprintf("[HTTP/2 RESP] Stream %d reset by server, error code=%d", streamID, errorCode))
+		}
+		delete(w.streams, streamID)
+
+	case frameTypeGoaway:
+		if len(payload) >= 8 {
+			lastStreamID := binary.BigEndian.Uint32(payload[0:4]) & 0x7FFFFFFF
+			errorCode := binary.BigEndian.Uint32(payload[4:8])
+			logger.Warn(fmt.Sprintf("[HTTP/2 RESP] GOAWAY from server, last stream=%d, error code=%d", lastStreamID, errorCode))
+		}
+
 	case frameTypeSettings, frameTypePing, frameTypeWindowUpdate, frameTypePriority, frameTypePushPromise:
-		logger.Debug(fmt.Sprintf("Ignored HTTP/2 response frame type: %d (stream=%d)", ftype, streamID))
+		logger.Debug(fmt.Sprintf("[HTTP/2 RESP] Ignored frame type: %d (stream=%d)", ftype, streamID))
 	default:
-		logger.Debug(fmt.Sprintf("Unknown HTTP/2 response frame type: %d (stream=%d)", ftype, streamID))
+		logger.Debug(fmt.Sprintf("[HTTP/2 RESP] Unknown frame type: %d (stream=%d)", ftype, streamID))
 	}
 }
 

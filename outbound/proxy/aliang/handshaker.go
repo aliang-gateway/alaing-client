@@ -48,12 +48,12 @@ func (csc *AliangServerConnector) Dial(ctx context.Context, network, address str
 }
 
 func (csc *AliangServerConnector) DialWithTiming(ctx context.Context, network, address string, appProto string) (net.Conn, ProbeTimings, error) {
-	logger.Debug("[cursor_h2] Starting mTLS handshake with", address, " app_proto=", appProto)
+	logger.Info(fmt.Sprintf("[AliangGate] Connecting to server %s (app_proto=%s)", address, appProto))
 	serverName := normalizeServerName(address)
 	enableHTTP2ALPN := appProto == "http2"
 	tlsConfig, err := clientcert.GetMTLSClientTLSConfig(enableHTTP2ALPN, serverName)
 	if err != nil {
-		logger.Error("[cursor_h2] Failed to build outbound TLS config for", address, err)
+		logger.Error(fmt.Sprintf("[AliangGate] Failed to build outbound TLS config for %s: %v", address, err))
 		return nil, ProbeTimings{}, NewErrorWithCause(ErrTLSHandshakeFailed, "failed to load outbound TLS config", err)
 	}
 
@@ -78,27 +78,28 @@ func (csc *AliangServerConnector) DialWithTiming(ctx context.Context, network, a
 	startedAt := time.Now()
 	conn, err := dialer.DialContext(ctx, network, address)
 	if err != nil {
-		logger.Error("[cursor_h2] Failed to dial cursor server", address, err)
+		logger.Warn(fmt.Sprintf("[AliangGate] TCP connect failed to %s: %v", address, err))
 		return nil, ProbeTimings{}, NewErrorWithCause(ErrTLSHandshakeFailed, "failed to dial cursor server", err)
 	}
 	tcpConnectedAt := time.Now()
+	logger.Debug(fmt.Sprintf("[AliangGate] TCP connected to %s in %v", address, tcpConnectedAt.Sub(startedAt)))
 
 	// Upgrade connection to TLS using hardcoded certs
 	tlsConn := tls.Client(conn, tlsConfig)
 	handshakeStartedAt := time.Now()
 	if err := tlsConn.HandshakeContext(ctx); err != nil {
 		conn.Close()
-		logger.Error("[cursor_h2] mTLS handshake failed with", address, err)
+		logger.Warn(fmt.Sprintf("[AliangGate] mTLS handshake failed with %s: %v", address, err))
 		return nil, ProbeTimings{}, NewErrorWithCause(ErrTLSHandshakeFailed, "mTLS handshake failed", err)
 	}
 	handshakeCompletedAt := time.Now()
 
-	logger.Debug(fmt.Sprintf(
-		"[AliangGate] mtls tunnel ready server=%s app_proto=%s negotiated_alpn=%s",
+	logger.Info(fmt.Sprintf("[AliangGate] mTLS tunnel ready: server=%s app_proto=%s alpn=%s tcp=%v tls=%v",
 		address,
 		appProto,
 		tlsConn.ConnectionState().NegotiatedProtocol,
-	))
+		tcpConnectedAt.Sub(startedAt).Round(time.Millisecond),
+		handshakeCompletedAt.Sub(handshakeStartedAt).Round(time.Millisecond)))
 	return tlsConn, ProbeTimings{
 		TCPConnect:   tcpConnectedAt.Sub(startedAt),
 		TLSHandshake: handshakeCompletedAt.Sub(handshakeStartedAt),

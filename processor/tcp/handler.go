@@ -239,6 +239,10 @@ func (h *TCPConnectionHandler) Handle(ctx context.Context, originConn net.Conn, 
 	// Ensure we close the origin connection when done
 	defer originConn.Close()
 
+	// Log connection arrival at INFO level for business tracking
+	logger.Info(fmt.Sprintf("[TCP] New connection from %s -> %s:%d",
+		metadata.SourceAddress(), metadata.DstIP, metadata.DstPort))
+
 	// Create timeout context (使用父 context 而非 Background)
 	timeout := time.Duration(DefaultTCPConnectTimeout) * time.Second
 	if deadline, ok := ctx.Deadline(); ok {
@@ -279,6 +283,7 @@ func (h *TCPConnectionHandler) Handle(ctx context.Context, originConn net.Conn, 
 
 	if remoteConn == nil {
 		// Special handling (e.g., DoH)
+		logger.Info(fmt.Sprintf("[TCP] Connection handled specially (no relay) for %s", metadata.HostName))
 		return nil
 	}
 
@@ -291,6 +296,10 @@ func (h *TCPConnectionHandler) Handle(ctx context.Context, originConn net.Conn, 
 			metadata.MidPort = uint16(localAddr.Port)
 		}
 	}
+
+	// Log successful connection establishment at INFO level
+	logger.Info(fmt.Sprintf("[TCP] Connection established: %s -> %s:%d via %s (proto=%s)",
+		metadata.SourceAddress(), metadata.DstIP, metadata.DstPort, metadata.Route, metadata.AppProto))
 
 	// Track statistics
 	trackedRemote := statistic.NewTCPTracker(remoteConn, metadata, h.statsManager)
@@ -323,6 +332,11 @@ func (h *TCPConnectionHandler) Handle(ctx context.Context, originConn net.Conn, 
 	// Relay data bidirectionally
 	relayStats, err := h.relayManager.Relay(ctx, newOriginConn, trackedRemote, metadata)
 	if err == nil {
+		// Log successful relay completion at INFO level
+		logger.Info(fmt.Sprintf("[TCP] Relay completed: %s -> %s:%d (sent=%dKB, recv=%dKB)",
+			metadata.SourceAddress(), metadata.DstIP, metadata.DstPort,
+			relayStats.ClientToServerByte/1024, relayStats.ServerToClientByte/1024))
+
 		statistic.GetDefaultHTTPStatsCollector().RecordConnection(
 			metadata,
 			relayStats.RequestPayload,
@@ -333,6 +347,10 @@ func (h *TCPConnectionHandler) Handle(ctx context.Context, originConn net.Conn, 
 			relayStats.FirstResponseAt,
 			relayStats.CompletedAt,
 		)
+	} else {
+		// Log relay failure at WARN level with context
+		logger.Warn(fmt.Sprintf("[TCP] Relay failed: %s -> %s:%d, error: %v",
+			metadata.SourceAddress(), metadata.DstIP, metadata.DstPort, err))
 	}
 
 	// Store DNS binding to cache after successful relay
@@ -423,13 +441,14 @@ func (h *TCPConnectionHandler) handleTLS(
 	// SNI from the current TLS ClientHello.
 	if metadata.HostName != "" {
 		sni = metadata.HostName
+		logger.Info(fmt.Sprintf("[TLS] Using preset hostname: %s", sni))
 		logObservedTLSServerName(metadata, "preset")
 	} else {
 		logger.Debug("TLS: Extracting SNI from TLS ClientHello")
 		sni, sniBuf, err = h.tlsHandler.ExtractSNI(ctx, originConn)
 
 		if err != nil {
-			logger.Debug(fmt.Sprintf("SNI extraction error: %v", err))
+			logger.Warn(fmt.Sprintf("[TLS] SNI extraction error: %v", err))
 			sni = ""
 		} else if sni != "" {
 			// Set hostname with SNI binding source
@@ -438,13 +457,13 @@ func (h *TCPConnectionHandler) handleTLS(
 			// Check if this is a DoH (DNS over HTTPS) provider
 			// DoH traffic should be routed directly without proxy interception
 			if IsDoHProvider(sni) {
-				logger.Debug(fmt.Sprintf("[DoH] Detected DoH provider: %s, routing directly", sni))
+				logger.Info(fmt.Sprintf("[DoH] Detected DoH provider: %s, routing directly", sni))
 				// Return nil to allow direct connection (bypass proxy)
 				// This means the connection will be handled directly without MITM or proxy routing
 				return nil, nil, nil
 			}
 
-			logger.Debug(fmt.Sprintf("TLS: Extracted SNI: %s", sni))
+			logger.Info(fmt.Sprintf("[TLS] Successfully extracted SNI: %s", sni))
 		}
 	}
 
@@ -520,7 +539,7 @@ func (h *TCPConnectionHandler) handleTLS(
 	// can make a more informed routing decision
 	route, _ := h.tlsHandler.DetermineRouteWithContext(metadata)
 
-	// Log routing decision for debugging
+	// Log routing decision at INFO level for business tracking
 	var routeSource string
 	if sni != "" {
 		routeSource = "SNI"
@@ -529,6 +548,7 @@ func (h *TCPConnectionHandler) handleTLS(
 	} else {
 		routeSource = "preset"
 	}
+	logger.Info(fmt.Sprintf("[TLS] Route decision: %s matched via %s -> %v", metadata.HostName, routeSource, route))
 	logger.Debug(fmt.Sprintf("TLS: Route decision for %s (%s via %s): %v", metadata.HostName, metadata.DstIP, routeSource, route))
 
 	mitmedSNI := sni
@@ -588,10 +608,12 @@ func (h *TCPConnectionHandler) resolveTLSRoute(
 			mitmConn = originConn
 		}
 
-		mitmed, err := h.tlsHandler.PerformMITM(ctx, mitmConn, mitmedSNI)
+	mitmed, err := h.tlsHandler.PerformMITM(ctx, mitmConn, mitmedSNI)
 		if err != nil {
+			logger.Warn(fmt.Sprintf("[TLS MITM] MITM failed for %s: %v", mitmedSNI, err))
 			return nil, nil, err
 		}
+		logger.Info(fmt.Sprintf("[TLS MITM] MITM completed for %s", mitmedSNI))
 
 		prefetchedData, sniffErr := prefetchApplicationData(ctx, mitmed, applicationPrefetchMaxBytes)
 		if sniffErr != nil {
