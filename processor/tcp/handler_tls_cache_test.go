@@ -1,7 +1,10 @@
 package tcp
 
 import (
+	"errors"
+	"io"
 	"net/netip"
+	"syscall"
 	"testing"
 	"time"
 
@@ -81,5 +84,17 @@ func TestSelectUniqueCachedDomainEntry_DeduplicatesSameDomain(t *testing.T) {
 	}
 	if uniqueDomains != 1 {
 		t.Fatalf("expected 1 unique domain after deduplication, got %d", uniqueDomains)
+	}
+}
+
+func TestIsExpectedClientDisconnect(t *testing.T) {
+	if !isExpectedClientDisconnect(io.EOF) {
+		t.Fatal("expected EOF to be treated as client disconnect")
+	}
+	if !isExpectedClientDisconnect(syscall.ECONNRESET) {
+		t.Fatal("expected connection reset to be treated as client disconnect")
+	}
+	if isExpectedClientDisconnect(errors.New("certificate verify failed")) {
+		t.Fatal("did not expect generic certificate failure to be treated as client disconnect")
 	}
 }

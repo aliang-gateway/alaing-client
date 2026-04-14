@@ -225,6 +225,14 @@ func selectUniqueCachedDomainEntry(entries []*cachepkg.CacheEntry) (*cachepkg.Ca
 	return nil, 0
 }
 
+func setMetadataHostFromObservedSNI(metadata *M.Metadata, sni string) {
+	if metadata == nil || sni == "" {
+		return
+	}
+	metadata.SetHostName(sni, M.BindingSourceSNI, M.DefaultSNITTL)
+	logObservedTLSServerName(metadata, "sni")
+}
+
 // Handle processes a single TCP connection.
 // It is the main orchestration entry point.
 func (h *TCPConnectionHandler) Handle(ctx context.Context, originConn net.Conn, metadata *M.Metadata) error {
@@ -260,7 +268,12 @@ func (h *TCPConnectionHandler) Handle(ctx context.Context, originConn net.Conn, 
 	}
 
 	if err != nil {
-		logger.Error(fmt.Sprintf("[TCP HANDLER] ❌ 处理失败 - 域名:%s, 端口:%d, 错误:%v", metadata.HostName, metadata.DstPort, err))
+		msg := fmt.Sprintf("[TCP HANDLER] ❌ 处理失败 - 域名:%s, 端口:%d, 错误:%v", metadata.HostName, metadata.DstPort, err)
+		if isExpectedClientDisconnect(err) {
+			logger.Debug(msg)
+		} else {
+			logger.Error(msg)
+		}
 		return err
 	}
 
@@ -394,10 +407,9 @@ func (h *TCPConnectionHandler) handleNonTLS(
 
 // handleTLS processes TLS connections (port 443)
 // Implements three-step routing decision process:
-// 1. Attempt IP→Domain reverse lookup from cache
-// 2. If cache miss, extract SNI from TLS ClientHello
-// 3. Determine route based on rules engine with available domain
-// 4. GeoIP routing only used as last fallback if no domain info
+// 1. Prefer the real SNI from this connection's ClientHello
+// 2. If SNI is unavailable, optionally fall back to a unique cached IP→Domain binding
+// 3. Determine route based on the best available domain information
 func (h *TCPConnectionHandler) handleTLS(
 	ctx context.Context,
 	originConn net.Conn,
@@ -408,48 +420,14 @@ func (h *TCPConnectionHandler) handleTLS(
 	var wrapped *WrappedConn
 	var cacheHit bool
 
-	// STEP 1: Attempt cache reverse lookup by destination IP
-	// This is the hot path - check if we've seen this IP-domain pair before
-	cache := rules.GetCache()
-	if cache == nil {
-		// 诊断日志：如果 cache 为 nil，说明 Rule Engine 未初始化
-		logger.Debug("TLS: DNS cache not initialized - Rule engine may not be configured. Will extract SNI directly.")
-		cacheHit = false
-	} else if !metadata.DstIP.IsUnspecified() && metadata.HostName == "" {
-		cacheEntries := cache.GetByIP(metadata.DstIP)
-		cachedEntry, uniqueDomainCount := selectUniqueCachedDomainEntry(cacheEntries)
-		if cachedEntry != nil {
-			// Extract binding source from cache (use first source if multiple exist)
-			bindingSource := ""
-			if len(cachedEntry.BindingSources) > 0 {
-				bindingSource = string(cachedEntry.BindingSources[0])
-			}
-			metadata.SetHostNameFromCacheEntry(
-				cachedEntry.Domain,
-				M.BindingSource(bindingSource),
-				cachedEntry.CreatedAt,
-				cachedEntry.TimeToLive(),
-			)
-			cacheHit = true
-			logger.Debug(fmt.Sprintf("TLS: Found domain in cache for IP %s: %s (hit count: %d)",
-				metadata.DstIP, metadata.HostName, cachedEntry.HitCount))
-			logObservedTLSServerName(metadata, "cache")
-		} else if uniqueDomainCount > 1 {
-			logger.Debug(fmt.Sprintf(
-				"TLS: Multiple cached domains found for IP %s (%d unique domains); extracting SNI to avoid certificate mismatch",
-				metadata.DstIP,
-				uniqueDomainCount,
-			))
-		}
-	} else {
+	// STEP 1: Prefer the real SNI from the current ClientHello whenever we don't
+	// already have an explicit hostname (for example from CONNECT).
+	if metadata.HostName != "" {
 		cacheHit = true
 		sni = metadata.HostName
 		logObservedTLSServerName(metadata, "preset")
-	}
-
-	// STEP 2: Only extract SNI if we didn't find domain in cache
-	if !cacheHit || metadata.HostName == "" {
-		logger.Debug("TLS: Cache miss or empty hostname, extracting SNI from TLS ClientHello")
+	} else {
+		logger.Debug("TLS: Extracting SNI from TLS ClientHello")
 		sni, sniBuf, err = h.tlsHandler.ExtractSNI(ctx, originConn)
 
 		if err != nil {
@@ -457,8 +435,7 @@ func (h *TCPConnectionHandler) handleTLS(
 			sni = ""
 		} else if sni != "" {
 			// Set hostname with SNI binding source
-			metadata.SetHostName(sni, M.BindingSourceSNI, 5*time.Minute)
-			logObservedTLSServerName(metadata, "sni")
+			setMetadataHostFromObservedSNI(metadata, sni)
 
 			// Check if this is a DoH (DNS over HTTPS) provider
 			// DoH traffic should be routed directly without proxy interception
@@ -471,18 +448,54 @@ func (h *TCPConnectionHandler) handleTLS(
 
 			logger.Debug(fmt.Sprintf("TLS: Extracted SNI: %s", sni))
 		}
-	} else if metadata.HostName != "" {
-		// We have domain from cache, check if it's a DoH provider
-		if IsDoHProvider(metadata.HostName) {
-			logger.Debug(fmt.Sprintf("[DoH] Detected DoH provider from cache: %s, routing directly", metadata.HostName))
-			// Return nil to allow direct connection (bypass proxy)
-			return nil, nil, nil
+	}
+
+	// STEP 2: Fall back to a unique cached binding only when SNI is unavailable.
+	// Shared-IP cache entries are never trusted as the primary source for MITM.
+	if metadata.HostName == "" {
+		cache := rules.GetCache()
+		if cache == nil {
+			logger.Debug("TLS: DNS cache not initialized - Rule engine may not be configured.")
+		} else if !metadata.DstIP.IsUnspecified() {
+			cacheEntries := cache.GetByIP(metadata.DstIP)
+			cachedEntry, uniqueDomainCount := selectUniqueCachedDomainEntry(cacheEntries)
+			if cachedEntry != nil {
+				bindingSource := ""
+				if len(cachedEntry.BindingSources) > 0 {
+					bindingSource = string(cachedEntry.BindingSources[0])
+				}
+				metadata.SetHostNameFromCacheEntry(
+					cachedEntry.Domain,
+					M.BindingSource(bindingSource),
+					cachedEntry.CreatedAt,
+					cachedEntry.TimeToLive(),
+				)
+				cacheHit = true
+				logger.Debug(fmt.Sprintf("TLS: Falling back to unique cached domain for IP %s: %s (hit count: %d)",
+					metadata.DstIP, metadata.HostName, cachedEntry.HitCount))
+				logObservedTLSServerName(metadata, "cache")
+			} else if uniqueDomainCount > 1 {
+				logger.Debug(fmt.Sprintf(
+					"TLS: Shared IP %s has %d cached domains; skipping cache fallback and relying on SNI-only routing",
+					metadata.DstIP,
+					uniqueDomainCount,
+				))
+			}
 		}
 	}
-	// Wrap the connection with buffered SNI data for protocols that need it
-	wrapped = &WrappedConn{
-		Conn: originConn,
-		Buf:  sniBuf,
+
+	if metadata.HostName != "" && sni == "" && IsDoHProvider(metadata.HostName) {
+		logger.Debug(fmt.Sprintf("[DoH] Detected DoH provider from fallback hostname: %s, routing directly", metadata.HostName))
+		return nil, nil, nil
+	}
+
+	// Wrap the connection with buffered SNI data for protocols that need it.
+	// This preserves the ClientHello we consumed during SNI extraction.
+	if len(sniBuf) > 0 {
+		wrapped = &WrappedConn{
+			Conn: originConn,
+			Buf:  sniBuf,
+		}
 	}
 
 	// STEP 3: Determine route based on rules engine with domain info available
@@ -492,18 +505,22 @@ func (h *TCPConnectionHandler) handleTLS(
 
 	// Log routing decision for debugging
 	var routeSource string
-	if cacheHit && metadata.HostName != "" {
-		routeSource = "cache"
-	} else if sni != "" {
+	if sni != "" {
 		routeSource = "SNI"
+	} else if cacheHit && metadata.HostName != "" {
+		routeSource = "cache"
 	} else {
 		routeSource = "IP/GeoIP"
 	}
 	logger.Debug(fmt.Sprintf("TLS: Route decision for %s (%s via %s): %v", metadata.HostName, metadata.DstIP, routeSource, route))
 
 	mitmedSNI := sni
-	if cacheHit && sni == "" {
-		// If we got domain from cache but not SNI, use cached domain as SNI
+	if mitmedSNI == "" && metadata.HostName != "" && metadata.DNSInfo != nil && metadata.DNSInfo.BindingSource == M.BindingSourceCONNECT {
+		// CONNECT already provided an explicit target hostname, which is safe to reuse.
+		mitmedSNI = metadata.HostName
+	} else if cacheHit && sni == "" {
+		// Cache-derived hostnames may help routing, but they are not preferred for MITM.
+		// We only reuse them here as a last resort when no real SNI was observable.
 		mitmedSNI = metadata.HostName
 	}
 

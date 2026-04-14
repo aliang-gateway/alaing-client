@@ -160,7 +160,7 @@ func ExtractSNI(conn net.Conn) (string, []byte, error) {
 	s, _, err := parseSNIFromBuffer(totalBuf)
 	if err != nil {
 		logger.Warn("failure in reading sni", err)
-		return "", nil, err
+		return "", totalBuf, err
 	}
 	return s, totalBuf, nil
 }

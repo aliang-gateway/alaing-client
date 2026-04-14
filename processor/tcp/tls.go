@@ -3,9 +3,13 @@ package tcp
 import (
 	"context"
 	"crypto/tls"
+	"errors"
 	"fmt"
+	"io"
 	"net"
+	"os"
 	"strings"
+	"syscall"
 
 	"aliang.one/nursorgate/common/logger"
 	M "aliang.one/nursorgate/inbound/tun/metadata"
@@ -80,13 +84,18 @@ func (h *DefaultTLSHandler) PerformMITM(ctx context.Context, originConn net.Conn
 		if addr := originConn.RemoteAddr(); addr != nil {
 			remoteAddr = addr.String()
 		}
-		logger.Error(fmt.Sprintf(
+		msg := fmt.Sprintf(
 			"TLS MITM handshake with client failed for %s: local=%s remote=%s err=%v",
 			serverName,
 			localAddr,
 			remoteAddr,
 			err,
-		))
+		)
+		if isExpectedClientDisconnect(err) {
+			logger.Debug(msg)
+		} else {
+			logger.Error(msg)
+		}
 		return nil, err
 	}
 
@@ -96,6 +105,34 @@ func (h *DefaultTLSHandler) PerformMITM(ctx context.Context, originConn net.Conn
 		serverName, state.NegotiatedProtocol, state.Version))
 
 	return tlsConn, nil
+}
+
+func isExpectedClientDisconnect(err error) bool {
+	if err == nil {
+		return false
+	}
+	if errors.Is(err, io.EOF) || errors.Is(err, net.ErrClosed) {
+		return true
+	}
+
+	var opErr *net.OpError
+	if errors.As(err, &opErr) {
+		if isExpectedClientDisconnect(opErr.Err) {
+			return true
+		}
+	}
+
+	if errors.Is(err, os.ErrClosed) ||
+		errors.Is(err, syscall.EPIPE) ||
+		errors.Is(err, syscall.ECONNRESET) ||
+		errors.Is(err, syscall.ECONNABORTED) {
+		return true
+	}
+
+	errText := strings.ToLower(err.Error())
+	return strings.Contains(errText, "broken pipe") ||
+		strings.Contains(errText, "connection reset by peer") ||
+		strings.Contains(errText, "use of closed network connection")
 }
 
 func (h *DefaultTLSHandler) DetermineRoute(serverName string) ProxyRoute {
