@@ -77,6 +77,12 @@ export async function getUserCenterUsageProgress() {
   });
 }
 
+export async function getUserCenterAPIKeys() {
+  return request('/api/user-center/api-keys', {
+    method: 'GET'
+  });
+}
+
 export async function redeemUserCenterCode(code) {
   return request('/api/user-center/redeem', {
     method: 'POST',

@@ -187,6 +187,175 @@
           </div>
         </div>
 
+        <div class="mt-3 grid gap-3 xl:grid-cols-[minmax(0,1.45fr)_360px]">
+          <div class="rounded-xl border border-slate-200 bg-white p-3.5 dark:border-slate-800 dark:bg-background-dark">
+            <div class="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">{{ t('user_apiKeyDetail') }}</p>
+                <p class="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">{{ t('user_apiKeyDetailDesc') }}</p>
+              </div>
+              <button
+                type="button"
+                class="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:text-slate-100 dark:hover:bg-slate-800"
+                @click="openAPIKeyDocs"
+              >
+                <span class="material-symbols-outlined text-sm">menu_book</span>
+                {{ t('user_apiKeyDocsOpen') }}
+              </button>
+            </div>
+
+            <div v-if="apiKeysLoadError && !apiKeys.length" class="mt-3 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700 dark:border-rose-900 dark:bg-rose-950/30 dark:text-rose-300">
+              {{ apiKeysLoadError }}
+            </div>
+            <div v-else-if="!selectedApiKey" class="mt-3 rounded-lg border border-dashed border-slate-300 bg-slate-50 px-4 py-6 text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-400">
+              {{ t('user_noApiKeys') }}
+            </div>
+            <div v-else class="mt-3 space-y-3">
+              <div class="flex flex-wrap items-start justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50/80 p-3 dark:border-slate-800 dark:bg-slate-900/50">
+                <div class="min-w-0">
+                  <p class="truncate text-sm font-semibold text-slate-900 dark:text-white">{{ selectedApiKey.name }}</p>
+                  <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">{{ apiKeyProviderLabel(selectedApiKey) }} • {{ apiKeyGroupLabel(selectedApiKey) }}</p>
+                </div>
+                <span
+                  class="rounded-full px-2.5 py-1 text-[11px] font-semibold"
+                  :class="apiKeyStatusClass(selectedApiKey.status)"
+                >
+                  {{ apiKeyStatusLabel(selectedApiKey.status) }}
+                </span>
+              </div>
+
+              <div class="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                <button
+                  type="button"
+                  class="rounded-lg bg-slate-50 px-3 py-2 text-left transition hover:bg-slate-100 dark:bg-slate-900/50 dark:hover:bg-slate-900"
+                  @click="copyApiKey(selectedApiKey)"
+                >
+                  <p class="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{{ t('user_apiKeyKeyLabel') }}</p>
+                  <p class="mt-1 break-all font-mono text-xs text-slate-900 dark:text-white">{{ apiKeyDisplayValue(selectedApiKey) }}</p>
+                  <p class="mt-1 text-[10px] text-slate-500 dark:text-slate-400">{{ t('user_apiKeyTapToCopy') }}</p>
+                </button>
+                <div class="rounded-lg bg-slate-50 px-3 py-2 dark:bg-slate-900/50">
+                  <p class="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{{ t('user_apiKeyId') }}</p>
+                  <p class="mt-1 text-sm font-medium text-slate-900 dark:text-white">{{ selectedApiKey.id }}</p>
+                </div>
+                <div class="rounded-lg bg-slate-50 px-3 py-2 dark:bg-slate-900/50">
+                  <p class="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{{ t('user_apiKeyProvider') }}</p>
+                  <p class="mt-1 text-sm font-medium text-slate-900 dark:text-white">{{ apiKeyProviderLabel(selectedApiKey) }}</p>
+                </div>
+                <div class="rounded-lg bg-slate-50 px-3 py-2 dark:bg-slate-900/50">
+                  <p class="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{{ t('user_apiKeyGroup') }}</p>
+                  <p class="mt-1 text-sm font-medium text-slate-900 dark:text-white">{{ apiKeyGroupLabel(selectedApiKey) }}</p>
+                </div>
+                <div class="rounded-lg bg-slate-50 px-3 py-2 dark:bg-slate-900/50">
+                  <p class="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{{ t('user_apiKeyGroupId') }}</p>
+                  <p class="mt-1 text-sm font-medium text-slate-900 dark:text-white">{{ selectedApiKey.groupIdText }}</p>
+                </div>
+                <div class="rounded-lg bg-slate-50 px-3 py-2 dark:bg-slate-900/50">
+                  <p class="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{{ t('user_apiKeySecret') }}</p>
+                  <p class="mt-1 text-sm font-medium text-slate-900 dark:text-white">{{ apiKeySecretLabel(selectedApiKey) }}</p>
+                </div>
+                <div class="rounded-lg bg-slate-50 px-3 py-2 dark:bg-slate-900/50">
+                  <p class="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{{ t('user_apiKeyClaudeCodeOnly') }}</p>
+                  <p class="mt-1 text-sm font-medium text-slate-900 dark:text-white">{{ booleanLabel(selectedApiKey.group?.claudeCodeOnly) }}</p>
+                </div>
+                <div class="rounded-lg bg-slate-50 px-3 py-2 dark:bg-slate-900/50">
+                  <p class="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{{ t('user_apiKeyMessagesDispatch') }}</p>
+                  <p class="mt-1 text-sm font-medium text-slate-900 dark:text-white">{{ booleanLabel(selectedApiKey.group?.allowMessagesDispatch) }}</p>
+                </div>
+                <div class="rounded-lg bg-slate-50 px-3 py-2 dark:bg-slate-900/50">
+                  <p class="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{{ t('user_apiKeyRateMultiplier') }}</p>
+                  <p class="mt-1 text-sm font-medium text-slate-900 dark:text-white">{{ selectedApiKey.group?.rateMultiplierText || '-' }}</p>
+                </div>
+              </div>
+
+              <p v-if="apiKeyCopyFeedback.text" :class="feedbackClass(apiKeyCopyFeedback.kind)">{{ apiKeyCopyFeedback.text }}</p>
+
+              <div v-if="selectedApiKey.group?.description" class="rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-xs leading-6 text-slate-600 dark:border-slate-800 dark:bg-slate-900/30 dark:text-slate-300">
+                <p class="font-semibold uppercase tracking-wide text-slate-500">{{ t('user_apiKeyDescription') }}</p>
+                <p class="mt-1">{{ selectedApiKey.group.description }}</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="rounded-xl border border-slate-200 bg-white p-3.5 dark:border-slate-800 dark:bg-background-dark">
+            <div class="mb-3">
+              <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">{{ t('user_apiKeysTitle') }}</p>
+              <p class="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">{{ t('user_apiKeysDesc') }}</p>
+            </div>
+
+            <div v-if="isRefreshing && !hasLoaded" class="rounded-lg border border-dashed border-slate-300 bg-slate-50 px-4 py-5 text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-400">
+              {{ t('user_loadingData') }}
+            </div>
+            <div v-else-if="apiKeysLoadError && !apiKeys.length" class="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700 dark:border-rose-900 dark:bg-rose-950/30 dark:text-rose-300">
+              {{ apiKeysLoadError }}
+            </div>
+            <div v-else-if="!apiKeys.length" class="rounded-lg border border-dashed border-slate-300 bg-slate-50 px-4 py-5 text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-400">
+              {{ t('user_noApiKeys') }}
+            </div>
+            <div v-else class="space-y-3">
+              <div class="flex items-center justify-between gap-3">
+                <span class="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                  {{ t('user_apiKeysPageCompact', { page: apiKeysPage }) }}
+                </span>
+
+                <div class="flex items-center gap-2">
+                  <button
+                    type="button"
+                    :aria-label="t('dash_prev')"
+                    class="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200 text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+                    :disabled="apiKeysPage <= 1"
+                    @click="changeApiKeysPage(apiKeysPage - 1)"
+                  >
+                    <span class="material-symbols-outlined text-lg">chevron_left</span>
+                  </button>
+                  <button
+                    type="button"
+                    :aria-label="t('dash_next')"
+                    class="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200 text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+                    :disabled="apiKeysPage >= apiKeysTotalPages"
+                    @click="changeApiKeysPage(apiKeysPage + 1)"
+                  >
+                    <span class="material-symbols-outlined text-lg">chevron_right</span>
+                  </button>
+                </div>
+              </div>
+
+              <button
+                v-for="item in paginatedApiKeys"
+                :key="item.id"
+                type="button"
+                class="w-full rounded-xl border px-4 py-3 text-left transition"
+                :class="item.id === selectedApiKey?.id
+                  ? 'border-primary/30 bg-primary/5 shadow-sm ring-1 ring-primary/10 dark:border-primary/40 dark:bg-primary/10'
+                  : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-950/40 dark:hover:border-slate-700 dark:hover:bg-slate-900'"
+                @click="selectApiKey(item.id)"
+              >
+                <div class="flex items-start justify-between gap-4">
+                  <div class="min-w-0">
+                    <p class="break-all font-mono text-[13px] font-medium text-slate-800 dark:text-slate-100">{{ apiKeyDisplayValue(item) }}</p>
+                  </div>
+                  <button
+                    type="button"
+                    :aria-label="t('user_apiKeyCopyAction')"
+                    :title="t('user_apiKeyCopyAction')"
+                    class="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+                    @click.stop="copyApiKey(item)"
+                  >
+                    <span class="material-symbols-outlined text-[18px]">content_copy</span>
+                  </button>
+                </div>
+                <div class="mt-3 flex flex-wrap items-center gap-2 text-[11px] text-slate-500 dark:text-slate-400">
+                  <span>{{ apiKeyProviderLabel(item) }}</span>
+                  <span>*</span>
+                  <span>{{ apiKeyGroupLabel(item) }}</span>
+                  <span>*</span>
+                  <span>{{ item.name }}</span>
+                </div>
+              </button>
+            </div>
+          </div>
+        </div>
+
         <div class="mt-3 grid gap-3 lg:grid-cols-3">
           <div class="rounded-xl border border-slate-200 bg-white p-3.5 dark:border-slate-800 dark:bg-background-dark lg:col-span-2">
             <div class="mb-2.5 flex items-center justify-between gap-3">
@@ -270,6 +439,49 @@
             {{ logoutPending ? t('user_loggingOut') : t('user_logOut') }}
           </button>
         </div>
+
+        <div
+          v-if="apiKeyDocsOpen"
+          class="fixed inset-0 z-[1000] flex items-center justify-center bg-slate-950/45 p-4 backdrop-blur-sm"
+          @click.self="closeAPIKeyDocs"
+        >
+          <div class="flex max-h-[85vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-slate-800 dark:bg-slate-950">
+            <div class="flex items-start justify-between gap-3 border-b border-slate-200 px-5 py-4 dark:border-slate-800">
+              <div>
+                <p class="text-sm font-semibold text-slate-900 dark:text-white">{{ t('user_apiKeyDocs') }}</p>
+                <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">{{ t('user_apiKeyDocsDesc') }}</p>
+              </div>
+              <div class="flex items-center gap-2">
+                <a
+                  href="/docs/sub2api-apikey-api-reference.md"
+                  target="_blank"
+                  rel="noreferrer"
+                  class="inline-flex min-h-10 items-center justify-center rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:text-slate-100 dark:hover:bg-slate-800"
+                >
+                  {{ t('user_apiKeyDocsRaw') }}
+                </a>
+                <button
+                  type="button"
+                  aria-label="Close"
+                  class="inline-flex min-h-10 min-w-10 items-center justify-center rounded-lg border border-slate-200 text-slate-500 transition hover:bg-slate-50 hover:text-slate-700 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white"
+                  @click="closeAPIKeyDocs"
+                >
+                  <span class="material-symbols-outlined text-lg">close</span>
+                </button>
+              </div>
+            </div>
+
+            <div class="min-h-0 flex-1 overflow-auto px-5 py-4">
+              <div v-if="apiKeyDocsLoading" class="rounded-lg border border-dashed border-slate-300 bg-slate-50 px-4 py-6 text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-400">
+                {{ t('user_apiKeyDocsLoading') }}
+              </div>
+              <div v-else-if="apiKeyDocsError" class="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700 dark:border-rose-900 dark:bg-rose-950/30 dark:text-rose-300">
+                {{ apiKeyDocsError }}
+              </div>
+              <pre v-else class="whitespace-pre-wrap break-words rounded-xl bg-slate-950 px-4 py-4 text-xs leading-6 text-slate-100">{{ apiKeyDocsContent }}</pre>
+            </div>
+          </div>
+        </div>
       </template>
 
       <div class="compat-anchors" aria-hidden="true">
@@ -292,6 +504,7 @@ import { computed, onMounted, reactive, ref, watch } from 'vue';
 import { useAuthStore } from '../../stores/auth';
 import { useI18n } from '../../i18n';
 import {
+  getUserCenterAPIKeys,
   getUserCenterProfile,
   getUserCenterUsageProgress,
   getUserCenterUsageSummary,
@@ -300,6 +513,8 @@ import {
 } from '../../services/userCenterApi';
 
 const { t } = useI18n();
+const API_KEY_DOCS_PATH = '/docs/sub2api-apikey-api-reference.md';
+const API_KEYS_PAGE_SIZE = 3;
 
 const email = ref('');
 const password = ref('');
@@ -331,8 +546,17 @@ const usageSummary = reactive({
 });
 
 const progressItems = ref([]);
+const apiKeys = ref([]);
+const apiKeysLoadError = ref('');
+const apiKeysPage = ref(1);
+const selectedApiKeyId = ref(0);
+const apiKeyDocsOpen = ref(false);
+const apiKeyDocsLoading = ref(false);
+const apiKeyDocsError = ref('');
+const apiKeyDocsContent = ref('');
 const profileFeedback = reactive({ kind: '', text: '' });
 const redeemFeedback = reactive({ kind: '', text: '' });
+const apiKeyCopyFeedback = reactive({ kind: '', text: '' });
 
 const {
   user,
@@ -365,6 +589,20 @@ const allowedGroupsText = computed(() => {
   return profile.allowedGroups.join(', ');
 });
 
+const selectedApiKey = computed(() => {
+  if (!apiKeys.value.length) {
+    return null;
+  }
+  return apiKeys.value.find((item) => item.id === selectedApiKeyId.value) || apiKeys.value[0];
+});
+
+const apiKeysTotalPages = computed(() => Math.max(1, Math.ceil(apiKeys.value.length / API_KEYS_PAGE_SIZE)));
+
+const paginatedApiKeys = computed(() => {
+  const start = (apiKeysPage.value - 1) * API_KEYS_PAGE_SIZE;
+  return apiKeys.value.slice(start, start + API_KEYS_PAGE_SIZE);
+});
+
 async function submitLogin() {
   const success = await loginWithPassword({
     email: email.value,
@@ -389,6 +627,7 @@ async function refreshAll() {
 
   isRefreshing.value = true;
   loadError.value = '';
+  apiKeysLoadError.value = '';
 
   try {
     const [profileEnvelope, usageSummaryEnvelope, usageProgressEnvelope] = await Promise.all([
@@ -396,11 +635,19 @@ async function refreshAll() {
       getUserCenterUsageSummary(),
       getUserCenterUsageProgress()
     ]);
+    let apiKeysEnvelope = null;
+
+    try {
+      apiKeysEnvelope = await getUserCenterAPIKeys();
+    } catch (error) {
+      apiKeysLoadError.value = error instanceof Error ? error.message : t('user_loadApiKeysFailed');
+    }
 
     const unauthenticatedMessage = findUnauthenticatedMessage([
       profileEnvelope,
       usageSummaryEnvelope,
-      usageProgressEnvelope
+      usageProgressEnvelope,
+      apiKeysEnvelope
     ]);
 
     if (unauthenticatedMessage) {
@@ -423,6 +670,16 @@ async function refreshAll() {
     applyProfile(profileEnvelope.data);
     applyUsageSummary(usageSummaryEnvelope.data);
     progressItems.value = normalizeProgressItems(usageProgressEnvelope.data?.items);
+    if (apiKeysEnvelope) {
+      if (apiKeysEnvelope.status !== 'success') {
+        apiKeysLoadError.value = apiKeysEnvelope.message || t('user_loadApiKeysFailed');
+        applyAPIKeys([]);
+      } else {
+        applyAPIKeys(apiKeysEnvelope.data?.items);
+      }
+    } else {
+      applyAPIKeys([]);
+    }
     usernameDraft.value = profile.username || user.value?.username || '';
     hasLoaded.value = true;
   } catch (error) {
@@ -501,6 +758,89 @@ async function submitRedeemCode() {
     redeemFeedback.text = error instanceof Error ? error.message : t('user_redeemFailed');
   } finally {
     redeemPending.value = false;
+  }
+}
+
+function applyAPIKeys(items) {
+  apiKeys.value = normalizeUserAPIKeys(items);
+  apiKeysPage.value = clampApiKeysPage(apiKeysPage.value);
+
+  if (!apiKeys.value.length) {
+    selectedApiKeyId.value = 0;
+    return;
+  }
+
+  const currentSelected = apiKeys.value.find((item) => item.id === selectedApiKeyId.value);
+  if (currentSelected) {
+    apiKeysPage.value = getApiKeyPage(currentSelected.id);
+    return;
+  }
+
+  selectFirstApiKeyOnPage(apiKeysPage.value);
+}
+
+function selectApiKey(id) {
+  const numericID = Number(id || 0);
+  selectedApiKeyId.value = numericID;
+  apiKeysPage.value = getApiKeyPage(numericID);
+  clearFeedback(apiKeyCopyFeedback);
+}
+
+function changeApiKeysPage(nextPage) {
+  const targetPage = clampApiKeysPage(nextPage);
+  if (targetPage === apiKeysPage.value) {
+    return;
+  }
+
+  apiKeysPage.value = targetPage;
+  selectFirstApiKeyOnPage(targetPage);
+}
+
+async function openAPIKeyDocs() {
+  apiKeyDocsOpen.value = true;
+  if (apiKeyDocsContent.value || apiKeyDocsLoading.value) {
+    return;
+  }
+
+  apiKeyDocsLoading.value = true;
+  apiKeyDocsError.value = '';
+
+  try {
+    const response = await fetch(API_KEY_DOCS_PATH, {
+      credentials: 'same-origin'
+    });
+    if (!response.ok) {
+      throw new Error(t('user_apiKeyDocsLoadFailed'));
+    }
+    apiKeyDocsContent.value = await response.text();
+  } catch (error) {
+    apiKeyDocsError.value = error instanceof Error ? error.message : t('user_apiKeyDocsLoadFailed');
+  } finally {
+    apiKeyDocsLoading.value = false;
+  }
+}
+
+function closeAPIKeyDocs() {
+  apiKeyDocsOpen.value = false;
+}
+
+async function copyApiKey(item) {
+  clearFeedback(apiKeyCopyFeedback);
+
+  const value = pickString(item, ['key']);
+  if (!value) {
+    apiKeyCopyFeedback.kind = 'error';
+    apiKeyCopyFeedback.text = t('user_apiKeyCopyFailed');
+    return;
+  }
+
+  try {
+    await navigator.clipboard.writeText(value);
+    apiKeyCopyFeedback.kind = 'success';
+    apiKeyCopyFeedback.text = t('user_apiKeyCopied');
+  } catch (error) {
+    apiKeyCopyFeedback.kind = 'error';
+    apiKeyCopyFeedback.text = error instanceof Error ? error.message : t('user_apiKeyCopyFailed');
   }
 }
 
@@ -738,6 +1078,164 @@ function formatCurrency(value) {
   return `$${amount.toFixed(2)}`;
 }
 
+function apiKeyDisplayValue(item) {
+  const value = pickString(item, ['key']);
+  if (!value) {
+    return '-';
+  }
+
+  if (Boolean(item?.masked) || value.includes('***') || value.includes('...') || value.includes('…')) {
+    return value;
+  }
+
+  if (value.startsWith('sk-')) {
+    const body = value.slice(3);
+    if (body.length <= 8) {
+      return value;
+    }
+    return `sk-${body.slice(0, 4)}****${body.slice(-4)}`;
+  }
+
+  if (value.length <= 8) {
+    return value;
+  }
+
+  return `${value.slice(0, 4)}****${value.slice(-4)}`;
+}
+
+function clampApiKeysPage(page) {
+  const numericPage = Number(page || 1);
+  if (!Number.isFinite(numericPage) || numericPage < 1) {
+    return 1;
+  }
+  return Math.min(Math.trunc(numericPage), apiKeysTotalPages.value);
+}
+
+function getApiKeyPage(id) {
+  const index = apiKeys.value.findIndex((item) => item.id === id);
+  if (index < 0) {
+    return 1;
+  }
+  return Math.floor(index / API_KEYS_PAGE_SIZE) + 1;
+}
+
+function selectFirstApiKeyOnPage(page) {
+  const targetPage = clampApiKeysPage(page);
+  const start = (targetPage - 1) * API_KEYS_PAGE_SIZE;
+  selectedApiKeyId.value = apiKeys.value[start]?.id || 0;
+  clearFeedback(apiKeyCopyFeedback);
+}
+
+function normalizeUserAPIKeys(items) {
+  if (!Array.isArray(items)) {
+    return [];
+  }
+
+  return items
+    .map((item, index) => normalizeUserAPIKey(item, index))
+    .filter(Boolean);
+}
+
+function normalizeUserAPIKey(item, index) {
+  const raw = asObject(item);
+  const numericID = Number(raw.id || 0);
+  if (!numericID) {
+    return null;
+  }
+
+  const rawGroup = asObject(raw.group);
+  const groupIDNumber = Number(raw.group_id);
+  const hasGroupID = Number.isFinite(groupIDNumber) && groupIDNumber > 0;
+  const groupName = pickString(rawGroup, ['name']);
+  const groupPlatform = pickString(rawGroup, ['platform']);
+  const groupDescription = pickString(rawGroup, ['description']);
+  const provider = pickString(raw, ['provider']) || groupPlatform;
+  const keyValue = pickString(raw, ['key']);
+  const rateMultiplier = Number(rawGroup.rate_multiplier);
+  const hasRateMultiplier = Number.isFinite(rateMultiplier) && rateMultiplier > 0;
+
+  return {
+    id: numericID,
+    key: keyValue,
+    name: pickString(raw, ['name']) || t('user_apiKeyUntitled', { index: index + 1 }),
+    status: pickString(raw, ['status']) || 'unknown',
+    provider,
+    masked: Boolean(raw.masked),
+    secretAvailable: Boolean(raw.secret_available),
+    groupId: hasGroupID ? groupIDNumber : null,
+    groupIdText: hasGroupID ? String(groupIDNumber) : '-',
+    group: groupName || groupPlatform || groupDescription
+      ? {
+          name: groupName,
+          description: groupDescription,
+          platform: groupPlatform,
+          rateMultiplier: hasRateMultiplier ? rateMultiplier : null,
+          rateMultiplierText: hasRateMultiplier ? `${rateMultiplier.toFixed(2)}x` : '',
+          claudeCodeOnly: Boolean(rawGroup.claude_code_only),
+          allowMessagesDispatch: Boolean(rawGroup.allow_messages_dispatch)
+        }
+      : null
+  };
+}
+
+function apiKeyProviderLabel(item) {
+  const provider = pickString(item, ['provider']) || pickString(item?.group, ['platform']);
+  return provider ? capitalize(provider) : t('user_apiKeyProviderUnknown');
+}
+
+function apiKeyGroupLabel(item) {
+  const groupName = pickString(item?.group, ['name']);
+  if (groupName) {
+    return groupName;
+  }
+  if (Number.isFinite(Number(item?.groupId)) && Number(item.groupId) > 0) {
+    return `#${item.groupId}`;
+  }
+  return t('user_apiKeyUnassignedGroup');
+}
+
+function apiKeyStatusLabel(status) {
+  switch (String(status || '').toLowerCase()) {
+    case 'active':
+      return t('user_apiKeyActive');
+    case 'inactive':
+      return t('user_apiKeyInactive');
+    default:
+      return t('user_apiKeyUnknown');
+  }
+}
+
+function apiKeyStatusClass(status) {
+  switch (String(status || '').toLowerCase()) {
+    case 'active':
+      return 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300';
+    case 'inactive':
+      return 'bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300';
+    default:
+      return 'bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300';
+  }
+}
+
+function apiKeySecretLabel(item) {
+  if (!item) {
+    return '-';
+  }
+  if (item.secretAvailable) {
+    return t('user_apiKeyVisible');
+  }
+  if (item.masked) {
+    return t('user_apiKeyMasked');
+  }
+  return '-';
+}
+
+function booleanLabel(value) {
+  if (typeof value !== 'boolean') {
+    return '-';
+  }
+  return value ? t('user_yes') : t('user_no');
+}
+
 function formatRedeemSuccessMessage(data) {
   if (data && typeof data === 'object') {
     const code = pickString(data, ['code', 'redeem_code']);
@@ -772,8 +1270,17 @@ function resetUserCenterState() {
   hasLoaded.value = false;
   usernameDraft.value = '';
   redeemCode.value = '';
+  apiKeys.value = [];
+  apiKeysLoadError.value = '';
+  apiKeysPage.value = 1;
+  selectedApiKeyId.value = 0;
+  apiKeyDocsOpen.value = false;
+  apiKeyDocsLoading.value = false;
+  apiKeyDocsError.value = '';
+  apiKeyDocsContent.value = '';
   clearFeedback(profileFeedback);
   clearFeedback(redeemFeedback);
+  clearFeedback(apiKeyCopyFeedback);
   applyProfile({});
   applyUsageSummary({});
   progressItems.value = [];
