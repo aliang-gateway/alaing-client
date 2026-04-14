@@ -130,29 +130,59 @@ func (r *DefaultRelayManager) relayStream(
 	buf := buffer.Get(defaultRelayBufferSize)
 	defer buffer.Put(buf)
 
-	// Copy data with timeout handling
 	countingDst := &countingWriter{writer: dst, capture: payloadCapture, onFirstData: onFirstData}
-	_, err := io.CopyBuffer(countingDst, src, buf)
 	if byteCounter != nil {
-		atomic.AddInt64(byteCounter, countingDst.written)
+		defer atomic.AddInt64(byteCounter, countingDst.written)
 	}
-	if err != nil && err != io.EOF {
+	var loopErr error
+	var loopPhase string
+	for {
+		nr, readErr := src.Read(buf)
+		if nr > 0 {
+			nw, writeErr := countingDst.Write(buf[:nr])
+			if nw != nr && writeErr == nil {
+				writeErr = io.ErrShortWrite
+			}
+			if writeErr != nil {
+				loopErr = writeErr
+				loopPhase = "write"
+				break
+			}
+		}
+
+		if readErr != nil {
+			if readErr == io.EOF {
+				break
+			}
+			loopErr = readErr
+			loopPhase = "read"
+			break
+		}
+	}
+
+	if loopErr != nil {
 		// Classify relay errors by severity for better debugging
-		if isTLSBadRecordMAC(err) {
-			logger.Warn(fmt.Sprintf("[RELAY] conn_id=%s TLS record integrity failure [%s]: bytes=%d dst=%s src=%s err=%v",
-				connID, direction, countingDst.written, describeConn(dst), describeConn(src), err))
-		} else if isUnexpectedConnectionReset(err) {
-			logger.Warn(fmt.Sprintf("[RELAY] conn_id=%s Unexpected connection reset [%s]: %v", connID, direction, err))
-		} else if isTimeoutError(err) {
-			logger.Debug(fmt.Sprintf("[RELAY] conn_id=%s Connection timeout [%s]: %v", connID, direction, err))
-		} else if isConnectionClosedByPeer(err) {
-			logger.Debug(fmt.Sprintf("[RELAY] conn_id=%s Connection closed by peer [%s]: %v", connID, direction, err))
+		if isTLSBadRecordMAC(loopErr) {
+			logger.Warn(fmt.Sprintf("[RELAY] conn_id=%s TLS record integrity failure [%s]: phase=%s bytes=%d dst=%s src=%s err=%v",
+				connID, direction, loopPhase, countingDst.written, describeConn(dst), describeConn(src), loopErr))
+		} else if isUnexpectedConnectionReset(loopErr) {
+			logger.Warn(fmt.Sprintf("[RELAY] conn_id=%s Unexpected connection reset [%s]: phase=%s err=%v", connID, direction, loopPhase, loopErr))
+		} else if isTimeoutError(loopErr) {
+			logger.Debug(fmt.Sprintf("[RELAY] conn_id=%s Connection timeout [%s]: phase=%s err=%v", connID, direction, loopPhase, loopErr))
+		} else if isConnectionClosedByPeer(loopErr) {
+			logger.Debug(fmt.Sprintf("[RELAY] conn_id=%s Connection closed by peer [%s]: phase=%s err=%v", connID, direction, loopPhase, loopErr))
 		} else {
-			logger.Warn(fmt.Sprintf("[RELAY] conn_id=%s Data relay error [%s]: %v", connID, direction, err))
+			logger.Warn(fmt.Sprintf("[RELAY] conn_id=%s Data relay error [%s]: phase=%s err=%v", connID, direction, loopPhase, loopErr))
 		}
 	} else {
 		logger.Debug(fmt.Sprintf("[RELAY] conn_id=%s Stream completed [%s]: bytes=%d dst=%s src=%s",
 			connID, direction, countingDst.written, describeConn(dst), describeConn(src)))
+	}
+
+	if shouldUseConservativeTeardown(metadata) {
+		logger.Debug(fmt.Sprintf("[RELAY] conn_id=%s conservative teardown [%s]: skipping half-close/deadline for route=%s",
+			connID, direction, safeRoute(metadata)))
+		return
 	}
 
 	// Perform TCP half-close to signal end of stream
@@ -185,6 +215,13 @@ func safeHost(metadata *M.Metadata) string {
 		return ""
 	}
 	return metadata.HostName
+}
+
+func shouldUseConservativeTeardown(metadata *M.Metadata) bool {
+	if metadata == nil {
+		return false
+	}
+	return metadata.Route == "RouteDirect"
 }
 
 func describeConn(conn net.Conn) string {
