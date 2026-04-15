@@ -98,6 +98,7 @@ func (w *WatcherWrapConn) Read(p []byte) (int, error) {
 
 		out, progressed, err := w.prepareBufferedOutput()
 		if err != nil {
+			logger.Warn(fmt.Sprintf("WatcherWrapConn.Read: prepareBufferedOutput failed: %v", err))
 			return 0, err
 		}
 		if len(out) > 0 {
@@ -121,6 +122,7 @@ func (w *WatcherWrapConn) Read(p []byte) (int, error) {
 			if n > 0 {
 				continue
 			}
+			logger.Warn(fmt.Sprintf("WatcherWrapConn.Read: underlying read failed: %v", err))
 			return 0, err
 		}
 	}
@@ -139,8 +141,8 @@ func (w *WatcherWrapConn) prepareBufferedOutput() ([]byte, bool, error) {
 	if w.prefetched {
 		out, err := w.parseHttp2Req()
 		if err != nil {
-			logger.Error(fmt.Sprintf("Error parsing HTTP/2 request: %v", err))
-			return nil, false, err
+			logger.Warn(fmt.Sprintf("HTTP/2 request parsing failed, falling back to passthrough: %v", err))
+			return w.fallbackHTTP2ToPassthrough(), true, nil
 		}
 		if !w.http2PrefaceSent {
 			w.http2PrefaceSent = true
@@ -156,6 +158,7 @@ func (w *WatcherWrapConn) prepareBufferedOutput() ([]byte, bool, error) {
 		if w.http1BodyTracker != nil {
 			out, progressed, err := w.consumeHTTP1Body()
 			if err != nil {
+				logger.Warn(fmt.Sprintf("WatcherWrapConn: HTTP/1 body consumption failed: %v", err))
 				return nil, false, err
 			}
 			if len(out) > 0 {
@@ -169,6 +172,7 @@ func (w *WatcherWrapConn) prepareBufferedOutput() ([]byte, bool, error) {
 
 		out, ready, err := w.parseHttp1Req()
 		if err != nil {
+			logger.Warn(fmt.Sprintf("WatcherWrapConn: HTTP/1 request parsing failed: %v", err))
 			return nil, false, err
 		}
 		if ready {
@@ -238,17 +242,36 @@ func (w *WatcherWrapConn) parseHttp1Req() ([]byte, bool, error) {
 func (w *WatcherWrapConn) parseHttp2Req() ([]byte, error) {
 	preBuff := bytes.NewBuffer(nil)
 	if err := w.processHttp2RequestFrame(preBuff); err != nil {
-		logger.Error(fmt.Sprintf("Error processing HTTP/2 request frame: %v", err))
+		logger.Warn(fmt.Sprintf("WatcherWrapConn: HTTP/2 request frame processing failed: %v", err))
 		return nil, err
 	}
 	return preBuff.Bytes(), nil
+}
+
+func (w *WatcherWrapConn) fallbackHTTP2ToPassthrough() []byte {
+	w.passthrough = true
+
+	var out bytes.Buffer
+	if !w.http2PrefaceSent {
+		w.http2PrefaceSent = true
+		out.WriteString(http2.ClientPreface)
+	}
+	if w.reqBuf.Len() > 0 {
+		out.Write(w.reqBuf.Bytes())
+		w.reqBuf.Reset()
+	}
+	return out.Bytes()
 }
 
 func (w *WatcherWrapConn) Write(p []byte) (n int, err error) {
 	if len(p) > 0 && w.prefetched && !w.passthrough {
 		w.observeHTTP2ResponseFrames(p)
 	}
-	return w.Conn.Write(p)
+	n, err = w.Conn.Write(p)
+	if err != nil {
+		logger.Warn(fmt.Sprintf("WatcherWrapConn.Write: underlying write failed: %v", err))
+	}
+	return n, err
 }
 
 func (w *WatcherWrapConn) tryExtractFrameFromBuf(buf *bytes.Buffer, shouldMove bool) ([]byte, bool) {

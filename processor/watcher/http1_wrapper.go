@@ -111,6 +111,7 @@ func (w *WatcherWrapConn) consumeHTTP1Body() ([]byte, bool, error) {
 
 	consumed, done, err := w.http1BodyTracker.consume(data)
 	if err != nil {
+		logger.Warn(fmt.Sprintf("WatcherWrapConn: HTTP/1 body tracker failed: %v", err))
 		return nil, false, err
 	}
 	if consumed == 0 {
@@ -255,6 +256,7 @@ func (w *WatcherWrapConn) processH1ReqHeaders() ([]byte, bool, error) {
 
 	req, err := http.ReadRequest(bufio.NewReader(bytes.NewReader(headersData)))
 	if err != nil {
+		logger.Warn(fmt.Sprintf("WatcherWrapConn: invalid HTTP/1 request headers: %v", err))
 		return nil, false, fmt.Errorf("invalid HTTP/1 request: %w", err)
 	}
 
@@ -282,6 +284,7 @@ func (w *WatcherWrapConn) processH1ReqHeaders() ([]byte, bool, error) {
 
 	headBytes, err := serializeHTTPRequestHead(req)
 	if err != nil {
+		logger.Warn(fmt.Sprintf("WatcherWrapConn: HTTP/1 request rebuild failed: %v", err))
 		return nil, false, err
 	}
 
@@ -294,6 +297,7 @@ func (w *WatcherWrapConn) processH1ReqHeaders() ([]byte, bool, error) {
 	} else {
 		consumed, done, consumeErr := bodyTracker.consume(bodyData)
 		if consumeErr != nil {
+			logger.Warn(fmt.Sprintf("WatcherWrapConn: HTTP/1 inline body parse failed: %v", consumeErr))
 			return nil, false, consumeErr
 		}
 		currentBody = bodyData[:consumed]

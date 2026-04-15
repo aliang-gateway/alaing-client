@@ -50,7 +50,7 @@ func withTCPHandler(handle func(adapter.TCPConn)) option.Option {
 	return func(s *stack.Stack) error {
 		tcpForwarder := tcp.NewForwarder(s, defaultWndSize, maxConnAttempts, func(r *tcp.ForwarderRequest) {
 			var (
-				wq  waiter.Queue
+				wq  = &waiter.Queue{}
 				ep  tcpip.Endpoint
 				err tcpip.Error
 				id  = r.ID()
@@ -64,7 +64,7 @@ func withTCPHandler(handle func(adapter.TCPConn)) option.Option {
 			}()
 
 			// Perform a TCP three-way handshake.
-			ep, err = r.CreateEndpoint(&wq)
+			ep, err = r.CreateEndpoint(wq)
 			if err != nil {
 				// RST: prevent potential half-open TCP connection leak.
 				r.Complete(true)
@@ -75,7 +75,7 @@ func withTCPHandler(handle func(adapter.TCPConn)) option.Option {
 			err = setSocketOptions(s, ep)
 
 			conn := &tcpConn{
-				TCPConn: gonet.NewTCPConn(&wq, ep),
+				TCPConn: gonet.NewTCPConn(wq, ep),
 				id:      id,
 			}
 			handle(conn)

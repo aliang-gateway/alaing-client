@@ -80,7 +80,7 @@ func (w *WatcherWrapConn) applyHTTP2Setting(setting http2.Setting, source http2S
 
 func (w *WatcherWrapConn) ParseSettingsFrame(payload []byte, source http2SettingsSource) {
 	if len(payload)%6 != 0 {
-		logger.Error("Invalid SETTINGS frame payload length")
+		logger.Warn(fmt.Sprintf("WatcherWrapConn: invalid HTTP/2 SETTINGS payload length=%d source=%s", len(payload), source))
 		return
 	}
 
@@ -237,6 +237,8 @@ func (w *WatcherWrapConn) processHttp2RequestFrame(preBuff *bytes.Buffer) error 
 			if len(payload) >= 4 {
 				errorCode := binary.BigEndian.Uint32(payload[0:4])
 				logger.Warn(fmt.Sprintf("[HTTP/2 REQ] Stream %d reset by client, error code=%d", streamID, errorCode))
+			} else {
+				logger.Warn(fmt.Sprintf("[HTTP/2 REQ] Malformed RST_STREAM payload on stream %d: len=%d", streamID, len(payload)))
 			}
 			preBuff.Write(frame)
 			w.reqBuf.Next(len(frame))
@@ -246,6 +248,8 @@ func (w *WatcherWrapConn) processHttp2RequestFrame(preBuff *bytes.Buffer) error 
 				lastStreamID := binary.BigEndian.Uint32(payload[0:4]) & 0x7FFFFFFF
 				errorCode := binary.BigEndian.Uint32(payload[4:8])
 				logger.Warn(fmt.Sprintf("[HTTP/2 REQ] GOAWAY received, last stream=%d, error code=%d", lastStreamID, errorCode))
+			} else {
+				logger.Warn(fmt.Sprintf("[HTTP/2 REQ] Malformed GOAWAY payload: len=%d", len(payload)))
 			}
 			preBuff.Write(frame)
 			w.reqBuf.Next(len(frame))
@@ -283,6 +287,8 @@ func (w *WatcherWrapConn) observeHTTP2ResponseFrames(payload []byte) {
 			if len(framePayload) >= 4 {
 				errorCode := binary.BigEndian.Uint32(framePayload[:4])
 				logger.Warn(fmt.Sprintf("[HTTP/2 RESP] Stream %d reset by server, error code=%d", streamID, errorCode))
+			} else {
+				logger.Warn(fmt.Sprintf("[HTTP/2 RESP] Malformed RST_STREAM payload on stream %d: len=%d", streamID, len(framePayload)))
 			}
 
 		case frameTypeGoaway:
@@ -290,6 +296,8 @@ func (w *WatcherWrapConn) observeHTTP2ResponseFrames(payload []byte) {
 				lastStreamID := binary.BigEndian.Uint32(framePayload[0:4]) & 0x7FFFFFFF
 				errorCode := binary.BigEndian.Uint32(framePayload[4:8])
 				logger.Warn(fmt.Sprintf("[HTTP/2 RESP] GOAWAY received from server, last stream=%d, error code=%d", lastStreamID, errorCode))
+			} else {
+				logger.Warn(fmt.Sprintf("[HTTP/2 RESP] Malformed GOAWAY payload: len=%d", len(framePayload)))
 			}
 		}
 
