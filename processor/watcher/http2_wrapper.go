@@ -209,6 +209,8 @@ func (w *WatcherWrapConn) processHttp2RequestFrame(preBuff *bytes.Buffer) error 
 				stream.ReqHeaders = headerFieldsToMap(rewrittenFields)
 				if metaFrame.StreamEnded() {
 					stream.ReqEndStream = true
+					// END_STREAM: cleanup stream
+					delete(w.streams, streamID)
 				}
 			}
 			w.streamsMu.Unlock()
@@ -227,6 +229,8 @@ func (w *WatcherWrapConn) processHttp2RequestFrame(preBuff *bytes.Buffer) error 
 				stream.ReqBody.Write(payload)
 				if flags&flagEndStream != 0 {
 					stream.ReqEndStream = true
+					// END_STREAM: cleanup stream
+					delete(w.streams, streamID)
 				}
 			}
 			w.streamsMu.Unlock()
@@ -237,6 +241,10 @@ func (w *WatcherWrapConn) processHttp2RequestFrame(preBuff *bytes.Buffer) error 
 			if len(payload) >= 4 {
 				errorCode := binary.BigEndian.Uint32(payload[0:4])
 				logger.Warn(fmt.Sprintf("[HTTP/2 REQ] Stream %d reset by client, error code=%d", streamID, errorCode))
+				// RST_STREAM: cleanup stream
+				w.streamsMu.Lock()
+				delete(w.streams, streamID)
+				w.streamsMu.Unlock()
 			} else {
 				logger.Warn(fmt.Sprintf("[HTTP/2 REQ] Malformed RST_STREAM payload on stream %d: len=%d", streamID, len(payload)))
 			}
@@ -248,8 +256,26 @@ func (w *WatcherWrapConn) processHttp2RequestFrame(preBuff *bytes.Buffer) error 
 				lastStreamID := binary.BigEndian.Uint32(payload[0:4]) & 0x7FFFFFFF
 				errorCode := binary.BigEndian.Uint32(payload[4:8])
 				logger.Warn(fmt.Sprintf("[HTTP/2 REQ] GOAWAY received, last stream=%d, error code=%d", lastStreamID, errorCode))
+				// GOAWAY: cleanup all streams with ID > lastStreamID
+				w.streamsMu.Lock()
+				for sid := range w.streams {
+					if sid > lastStreamID {
+						delete(w.streams, sid)
+					}
+				}
+				w.streamsMu.Unlock()
 			} else {
 				logger.Warn(fmt.Sprintf("[HTTP/2 REQ] Malformed GOAWAY payload: len=%d", len(payload)))
+			}
+			preBuff.Write(frame)
+			w.reqBuf.Next(len(frame))
+
+		case frameTypeWindowUpdate:
+			// Basic flow control: track window size, respond if needed
+			if len(payload) >= 4 {
+				windowSizeIncrement := binary.BigEndian.Uint32(payload[0:4]) & 0x7FFFFFFF
+				logger.Debug(fmt.Sprintf("[HTTP/2 REQ] WINDOW_UPDATE stream=%d increment=%d", streamID, windowSizeIncrement))
+				// TODO: Implement window size tracking and enforcement if needed
 			}
 			preBuff.Write(frame)
 			w.reqBuf.Next(len(frame))
