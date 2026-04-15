@@ -1,102 +1,126 @@
-# Nursorgate - TUN-Based Intelligent Proxy System
+
+# Aliang-Core (Nursorgate) - Intelligent TUN/HTTP Proxy System
 
 English | [中文](./README.zh.md)
 
-> A high-performance TUN-based transparent proxy system with intelligent routing, DNS caching, and real-time network traffic management.
+> Aliang-Core (Nursorgate) is a cross-platform, high-performance proxy system supporting TUN-based transparent proxy and HTTP proxy modes, with intelligent routing, DNS caching, and a real-time management dashboard.
 
-## 🎯 Project Overview
+## 🚀 Project Overview
 
-**Nursorgate** (formerly Nursor) is a sophisticated network proxy system built for macOS and Linux that intercepts and intelligently routes network traffic through TUN (Tunnel) devices. It combines transparent packet interception with intelligent rule-based routing to provide a seamless, privacy-focused networking experience.
+Aliang-Core (Nursorgate) is a next-generation proxy engine for Windows, macOS, and Linux. It intercepts and routes network traffic using TUN virtual network interfaces or HTTP proxy, with advanced rule engines, DNS/IP caching, and a modern web dashboard.
 
-### Key Characteristics
+### ✨ Features
 
-- **TUN-Based Architecture**: Operates at the OS kernel level using TUN devices for transparent traffic interception
-- **Intelligent Routing**: SNI allowlist → MITM to Aliang; otherwise SOCKS (if configured) → Direct
-- **Real-Time DNS Caching**: Automatic domain-IP relationship discovery and caching
-- **HTTPS MITM Support**: Optional transparent HTTPS interception with custom CA certificates
-- **Multi-Protocol Proxy Support**: SOCKS5, VLESS, Shadowsocks, and custom protocols
-- **Live Dashboard**: Web-based management interface with real-time statistics
-- **Cross-Platform**: Builds for macOS (arm64/amd64), Linux (amd64/arm64), and Windows
+- **Dual Mode:**
+  - TUN Mode: Transparent interception at the OS network layer (kernel/user-space TUN)
+  - HTTP Proxy Mode: Standard HTTP/SOCKS5 proxy
+- **Intelligent Routing:**
+  - SNI/domain allowlist → MITM to Aliang
+  - Otherwise: SOCKS5/VLESS/SS/Direct
+  - GeoIP-based rules, cache-first optimization
+- **DNS/IP Cache:**
+  - Multi-source domain-IP binding (SNI, HTTP Host, CONNECT)
+  - Bidirectional mapping (domain→IP, IP→domain)
+  - Real-time cache stats, hit/miss, TTL, source tracking
+- **HTTPS MITM:**
+  - Optional transparent HTTPS interception with custom CA
+- **Web Dashboard:**
+  - Real-time stats, DNS cache, traffic, and rule management
+  - Built with Vue 3, TailwindCSS, Vite
+- **Cross-Platform:**
+  - Windows (service/tray), macOS, Linux
+- **Extensible Protocols:**
+  - SOCKS5, VLESS, Shadowsocks, custom outbound
+- **Service/Tray Integration:**
+  - System service install/uninstall/start/stop
+  - Tray mode for desktop control
+
+## 🏗️ Architecture
+
+```
+┌─────────────┐   ┌──────────────┐   ┌──────────────┐
+│  TUN/HTTP   │→→│ Metadata/Rules│→→│ Outbound     │
+│  Inbound    │   │ Engine/Cache │   │ Proxy/Direct│
+└─────────────┘   └──────────────┘   └──────────────┘
+```
+
+Key modules:
+- `cmd/`         - CLI, service, tray, start, config commands
+- `inbound/`     - TUN/HTTP traffic capture
+- `processor/`   - Rules, cache, DNS, geoip, config, statistics
+- `outbound/`    - Proxy protocol implementations
+- `app/http/`    - REST API, dashboard server
+- `app/website/` - Web dashboard (Vue 3, Vite)
+- `common/`      - Logger, version, shared utils
+
+## ⚡ Quick Start
+
+### Build
+
+```bash
+# Standard build
+go build -o aliang ./cmd/aliang
+
+# Cross-compile (example: Windows)
+GOOS=windows GOARCH=amd64 go build -o aliang.exe ./cmd/aliang
+```
+
+### Run
+
+```bash
+# Start in TUN mode (default)
+./aliang start --config ./config.json
+
+# Start HTTP proxy mode
+./aliang start --config ./config.json --mode http
+
+# Start as system tray (desktop)
+./aliang tray --config ./config.json
+
+# Install as system service (admin/root)
+sudo ./aliang service install --system-wide --config /etc/aliang/config.json
+```
+
+### Dashboard
+
+Open browser: [http://localhost:56431](http://localhost:56431)
+
+## 🔑 Configuration
+
+See `config.new.json` for a full example. Key sections:
+
+- `core.engine`: TUN/HTTP mode, device, loglevel, etc.
+- `customer.proxy`: Enable/disable outbound proxy, type, server
+- `customer.ai_rules`: Domain allowlists for AI services
+- `customer.proxy_rules`: Custom domain/IP routing rules
+
+## 🧩 Key Commands
+
+- `aliang start`      - Start core proxy engine
+- `aliang tray`       - Start system tray app
+- `aliang service`    - Manage as system service (install/uninstall/start/stop)
+- `aliang config`     - Manage/load/validate config
+- `aliang version`    - Print version info
+
+## 📦 Dependencies
+
+- Go 1.25+
+- sing-box, gVisor, tun2socks, gorilla/websocket, miekg/dns, GORM, SQLite/MySQL, Vue 3, Vite, TailwindCSS
+
+## 🛡️ Security
+
+- HTTPS MITM requires trusting custom CA
+- SNI/domain extraction at TCP handshake
+- GeoIP database (GeoLite2) for region-based rules
+
+## 🤝 Contributing
+
+See [docs/](docs/) for API, config, and development notes.
 
 ---
 
-## 📊 Recent Development Achievements
-
-### Phase 4 ✅ - Complete DNS Binding Storage Layer (December 2024)
-
-Successfully implemented automatic DNS binding persistence:
-
-- **DNS Binding Capture**: Automatically captures domain-IP relationships from:
-  - TLS SNI extraction (HTTPS connections)
-  - HTTP Host headers
-  - CONNECT requests
-
-- **Automatic Storage**: DNS bindings stored to cache immediately after successful relay
-- **Route Decision Tracking**: Each binding stores the routing decision used (RouteToALiang/RouteToDoor/RouteDirect)
-
-**Files Modified:**
-- `inbound/tun/metadata/metadata.go` - Added Route field for tracking final routing decision
-- `processor/rules/engine.go` - Implemented StoreBinding() method for DNS cache persistence
-- `processor/tcp/handler.go` - Integrated binding storage after successful relay
-
-**Impact**: Enables cache-first routing optimization - repeated connections to the same IP can now skip expensive SNI extraction by looking up domain from cache.
-
----
-
-### Phase 3 ✅ - Real-Time DNS Cache API & Dashboard (December 2024)
-
-Comprehensive DNS cache visibility with real-time web interface:
-
-- **7 REST API Endpoints**: Full CRUD operations for DNS cache management
-  - `GET /api/dns/cache` - List cache entries with pagination
-  - `GET /api/dns/stats` - Cache statistics (hits, misses, hit rate, unique domains/IPs)
-  - `GET /api/dns/hotspots` - Top 20 most frequently accessed domains and IPs
-  - `GET /api/dns/cache/query` - Domain lookup
-  - `GET /api/dns/cache/reverse` - Reverse IP lookup
-  - `DELETE /api/dns/cache/{domain}` - Remove specific entry
-  - `DELETE /api/dns/cache` - Clear all entries
-
-- **Integrated Dashboard**: DNS cache panel in main web dashboard with:
-  - 4 Stat Cards: Total entries, unique domains, unique IPs, hit rate
-  - Hot Domains Table: Top 20 with hit counts and binding sources
-  - Hot IPs Table: Top 20 with associated domains
-  - Search Interface: Domain/IP search with delete functionality
-  - Color-Coded Badges: Binding source identification (SNI=blue, HTTP=yellow, CONNECT=red, DNS=green)
-  - Auto-refresh: 5-second update interval when viewing DNS cache page
-
-**Files Created:**
-- `app/http/handlers/dns_cache.go` - REST API implementation
-- Web UI integrated into `app/website/index.html` and `app/website/assets/app.js`
-
----
-
-### Phase 2 ✅ - IP↔Domain Bidirectional Mapping (December 2024)
-
-Complete reverse lookup capability with statistical aggregation:
-
-- **Forward Index**: Domain → IP mapping
-- **Reverse Index**: IP → Multiple domains mapping
-- **Query Methods**:
-  - GetByDomain(domain) - Find IPs for a domain
-  - GetByIP(ip) - Find domains for an IP
-  - GetIPStatistics(ip) - Aggregated stats for an IP
-  - GetHotspotIPs() - Top N IPs by access frequency
-  - GetAll() - All valid (non-expired) entries
-
-- **Bidirectional Sync**: Both indexes stay consistent through all cache mutations
-
-**Files Modified:**
-- `processor/cache/ipdomain.go` - Extended with reverse index and query methods
-
----
-
-### Phase 1 ✅ - Multi-Source DNS Binding (December 2024)
-
-Automatic domain capture from multiple sources:
-
-- **SNI Extraction**: Automatically extract domain from TLS ClientHello
-- **HTTP Header Extraction**: Capture domain from Host header and CONNECT requests
-- **Binding Metadata**: Track source, timestamp, and TTL for each binding
+**Last Updated:** April 2026
+**Maintainers:** aliang.one
 
 **Data Structure Enhancement:**
 ```go
