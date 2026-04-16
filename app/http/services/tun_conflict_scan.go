@@ -1,17 +1,17 @@
 package services
 
 import (
-	"encoding/json"
 	"fmt"
 	"net"
-	"os/exec"
 	"runtime"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"aliang.one/nursorgate/app/http/models"
 	"aliang.one/nursorgate/app/http/storage"
+	"aliang.one/nursorgate/common/logger"
 )
 
 type TunConflictInterface struct {
@@ -51,11 +51,24 @@ var tunConflictPromptStoreFactory = func() tunConflictPromptStore {
 	return storage.NewUIPromptStateStore()
 }
 
-var execTunConflictCommand = func(name string, args ...string) ([]byte, error) {
-	return exec.Command(name, args...).CombinedOutput()
+var tunInterfaceSnapshotLoader = loadTunInterfaceSnapshots
+
+// Cache for TUN interface snapshots to avoid frequent scans.
+// Network interface state rarely changes at sub-second granularity.
+var tunSnapshotCache = struct {
+	mu        sync.RWMutex
+	snapshots []tunInterfaceSnapshot
+	warning   string
+	expiresAt time.Time
+}{
+	expiresAt: time.Time{}, // Zero means cache miss on first call
 }
 
-var tunInterfaceSnapshotLoader = loadTunInterfaceSnapshots
+const (
+	tunCacheTTL         = 2 * time.Second // Short TTL to balance freshness vs performance
+	tunMaxRetryAttempts = 3
+	tunRetryBaseDelay   = 10 * time.Millisecond
+)
 
 func ScanTunConflictInterfaces() TunConflictScanResult {
 	result := TunConflictScanResult{
@@ -133,17 +146,48 @@ func GetTunConflictPromptStatus() TunConflictScanResult {
 }
 
 func loadTunInterfaceSnapshots() ([]tunInterfaceSnapshot, string) {
+	// Check cache first
+	tunSnapshotCache.mu.RLock()
+	if time.Now().Before(tunSnapshotCache.expiresAt) {
+		snapshots := tunSnapshotCache.snapshots
+		warning := tunSnapshotCache.warning
+		tunSnapshotCache.mu.RUnlock()
+		return snapshots, warning
+	}
+	tunSnapshotCache.mu.RUnlock()
+
+	// Cache miss or expired, perform scan
 	snapshots := snapshotsFromNetInterfaces()
 
 	if runtime.GOOS == "windows" {
 		windowsSnapshots, err := loadWindowsTunInterfaceSnapshots()
 		if err != nil {
-			return dedupeTunInterfaceSnapshots(snapshots), fmt.Sprintf("Windows adapter scan fallback: %v", err)
+			warning := fmt.Sprintf("Windows adapter scan fallback: %v", err)
+			logger.Debug(fmt.Sprintf("[TUN Conflict] %s", warning))
+
+			// Update cache with partial results
+			result := dedupeTunInterfaceSnapshots(snapshots)
+			tunSnapshotCache.mu.Lock()
+			tunSnapshotCache.snapshots = result
+			tunSnapshotCache.warning = warning
+			tunSnapshotCache.expiresAt = time.Now().Add(tunCacheTTL)
+			tunSnapshotCache.mu.Unlock()
+
+			return result, warning
 		}
 		snapshots = append(snapshots, windowsSnapshots...)
 	}
 
-	return dedupeTunInterfaceSnapshots(snapshots), ""
+	result := dedupeTunInterfaceSnapshots(snapshots)
+
+	// Update cache
+	tunSnapshotCache.mu.Lock()
+	tunSnapshotCache.snapshots = result
+	tunSnapshotCache.warning = ""
+	tunSnapshotCache.expiresAt = time.Now().Add(tunCacheTTL)
+	tunSnapshotCache.mu.Unlock()
+
+	return result, ""
 }
 
 func snapshotsFromNetInterfaces() []tunInterfaceSnapshot {
@@ -175,54 +219,17 @@ func snapshotsFromNetInterfaces() []tunInterfaceSnapshot {
 }
 
 func loadWindowsTunInterfaceSnapshots() ([]tunInterfaceSnapshot, error) {
-	output, err := execTunConflictCommand(
-		"powershell.exe",
-		"-NoProfile",
-		"-Command",
-		"Get-NetAdapter -IncludeHidden | Select-Object Name, InterfaceDescription, Status | ConvertTo-Json -Compress",
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	return parseWindowsTunInterfaceSnapshots(output)
+	return loadWindowsTunInterfaceSnapshotsNative()
 }
 
-func parseWindowsTunInterfaceSnapshots(raw []byte) ([]tunInterfaceSnapshot, error) {
-	trimmed := strings.TrimSpace(string(raw))
-	if trimmed == "" || trimmed == "null" {
-		return nil, nil
-	}
-
-	type adapter struct {
-		Name                 string `json:"Name"`
-		InterfaceDescription string `json:"InterfaceDescription"`
-		Status               string `json:"Status"`
-	}
-
-	var many []adapter
-	if err := json.Unmarshal([]byte(trimmed), &many); err == nil {
-		snapshots := make([]tunInterfaceSnapshot, 0, len(many))
-		for _, item := range many {
-			snapshots = append(snapshots, tunInterfaceSnapshot{
-				Name:        strings.TrimSpace(item.Name),
-				Description: strings.TrimSpace(item.InterfaceDescription),
-				Status:      strings.TrimSpace(strings.ToLower(item.Status)),
-			})
-		}
-		return snapshots, nil
-	}
-
-	var one adapter
-	if err := json.Unmarshal([]byte(trimmed), &one); err != nil {
-		return nil, err
-	}
-
-	return []tunInterfaceSnapshot{{
-		Name:        strings.TrimSpace(one.Name),
-		Description: strings.TrimSpace(one.InterfaceDescription),
-		Status:      strings.TrimSpace(strings.ToLower(one.Status)),
-	}}, nil
+// InvalidateTunSnapshotCache forces the next scan to refresh the cache.
+// Useful after network configuration changes.
+func InvalidateTunSnapshotCache() {
+	tunSnapshotCache.mu.Lock()
+	defer tunSnapshotCache.mu.Unlock()
+	tunSnapshotCache.expiresAt = time.Time{}
+	tunSnapshotCache.snapshots = nil
+	tunSnapshotCache.warning = ""
 }
 
 func dedupeTunInterfaceSnapshots(items []tunInterfaceSnapshot) []tunInterfaceSnapshot {
@@ -230,8 +237,9 @@ func dedupeTunInterfaceSnapshots(items []tunInterfaceSnapshot) []tunInterfaceSna
 		return nil
 	}
 
-	seen := make(map[string]struct{}, len(items))
+	seen := make(map[[2]string]struct{}, len(items))
 	deduped := make([]tunInterfaceSnapshot, 0, len(items))
+
 	for _, item := range items {
 		name := strings.TrimSpace(item.Name)
 		description := strings.TrimSpace(item.Description)
@@ -239,7 +247,7 @@ func dedupeTunInterfaceSnapshots(items []tunInterfaceSnapshot) []tunInterfaceSna
 			continue
 		}
 
-		key := strings.ToLower(name) + "\x00" + strings.ToLower(description)
+		key := [2]string{strings.ToLower(name), strings.ToLower(description)}
 		if _, ok := seen[key]; ok {
 			continue
 		}
@@ -250,6 +258,7 @@ func dedupeTunInterfaceSnapshots(items []tunInterfaceSnapshot) []tunInterfaceSna
 			Status:      strings.TrimSpace(item.Status),
 		})
 	}
+
 	return deduped
 }
 

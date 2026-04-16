@@ -7,40 +7,32 @@ import (
 	"aliang.one/nursorgate/app/http/models"
 )
 
-func TestParseWindowsTunInterfaceSnapshots(t *testing.T) {
-	t.Run("parses array payload", func(t *testing.T) {
-		raw := []byte(`[{"Name":"Ethernet 2","InterfaceDescription":"Wintun Userspace Tunnel","Status":"Up"},{"Name":"Wi-Fi","InterfaceDescription":"Intel Wi-Fi","Status":"Up"}]`)
+func TestDedupeTunInterfaceSnapshots(t *testing.T) {
+	t.Run("removes duplicate entries", func(t *testing.T) {
+		items := []tunInterfaceSnapshot{
+			{Name: "Ethernet 2", Description: "Wintun Userspace Tunnel", Status: "up"},
+			{Name: "ethernet 2", Description: "wintun userspace tunnel", Status: "running"}, // Duplicate (case-insensitive)
+			{Name: "Wi-Fi", Description: "Intel Wi-Fi", Status: "up"},
+		}
 
-		snapshots, err := parseWindowsTunInterfaceSnapshots(raw)
-		if err != nil {
-			t.Fatalf("parseWindowsTunInterfaceSnapshots() error = %v", err)
-		}
-		if len(snapshots) != 2 {
-			t.Fatalf("expected 2 snapshots, got %d", len(snapshots))
-		}
-		if snapshots[0].Description != "Wintun Userspace Tunnel" {
-			t.Fatalf("unexpected description: %#v", snapshots[0].Description)
-		}
-		if snapshots[0].Status != "up" {
-			t.Fatalf("unexpected status normalization: %#v", snapshots[0].Status)
+		result := dedupeTunInterfaceSnapshots(items)
+		if len(result) != 2 {
+			t.Fatalf("expected 2 snapshots after deduplication, got %d", len(result))
 		}
 	})
 
-	t.Run("parses single object payload", func(t *testing.T) {
-		raw := []byte(`{"Name":"Ethernet 4","InterfaceDescription":"WireGuard Tunnel","Status":"Disconnected"}`)
+	t.Run("skips empty entries", func(t *testing.T) {
+		items := []tunInterfaceSnapshot{
+			{Name: "", Description: "", Status: "up"},
+			{Name: "Valid", Description: "Valid Desc", Status: "up"},
+		}
 
-		snapshots, err := parseWindowsTunInterfaceSnapshots(raw)
-		if err != nil {
-			t.Fatalf("parseWindowsTunInterfaceSnapshots() error = %v", err)
+		result := dedupeTunInterfaceSnapshots(items)
+		if len(result) != 1 {
+			t.Fatalf("expected 1 snapshot, got %d", len(result))
 		}
-		if len(snapshots) != 1 {
-			t.Fatalf("expected 1 snapshot, got %d", len(snapshots))
-		}
-		if snapshots[0].Name != "Ethernet 4" {
-			t.Fatalf("unexpected name: %#v", snapshots[0].Name)
-		}
-		if snapshots[0].Status != "disconnected" {
-			t.Fatalf("unexpected status normalization: %#v", snapshots[0].Status)
+		if result[0].Name != "Valid" {
+			t.Fatalf("expected 'Valid', got %q", result[0].Name)
 		}
 	})
 }
@@ -77,13 +69,8 @@ func TestDetectTunConflictInterfaces(t *testing.T) {
 }
 
 func TestScanTunConflictInterfacesSetsRecommendation(t *testing.T) {
-	originalExec := execTunConflictCommand
 	originalLoader := tunInterfaceSnapshotLoader
-	execTunConflictCommand = func(name string, args ...string) ([]byte, error) {
-		return []byte(`[]`), nil
-	}
 	defer func() {
-		execTunConflictCommand = originalExec
 		tunInterfaceSnapshotLoader = originalLoader
 	}()
 	tunInterfaceSnapshotLoader = func() ([]tunInterfaceSnapshot, string) {
@@ -128,18 +115,13 @@ func (f *fakeTunConflictPromptStore) Upsert(state models.UIPromptState) error {
 }
 
 func TestGetTunConflictPromptStatus(t *testing.T) {
-	originalExec := execTunConflictCommand
 	originalFactory := tunConflictPromptStoreFactory
 	originalLoader := tunInterfaceSnapshotLoader
 	defer func() {
-		execTunConflictCommand = originalExec
 		tunConflictPromptStoreFactory = originalFactory
 		tunInterfaceSnapshotLoader = originalLoader
 	}()
 
-	execTunConflictCommand = func(name string, args ...string) ([]byte, error) {
-		return []byte(`[]`), nil
-	}
 	tunInterfaceSnapshotLoader = func() ([]tunInterfaceSnapshot, string) {
 		return nil, ""
 	}
