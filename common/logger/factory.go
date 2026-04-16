@@ -200,9 +200,10 @@ func (tl *TracedLogger) WithContext(ctx context.Context) Logger {
 
 // httpLogger implements the Logger interface for HTTP-specific logging
 type httpLogger struct {
-	config  *LogConfig
-	mu      *sync.RWMutex
-	loggers []*log.Logger
+	config     *LogConfig
+	mu         *sync.RWMutex
+	loggers    []*log.Logger
+	fileLogger *log.Logger
 }
 
 // initLoggers initializes the HTTP logger with rotation support
@@ -214,34 +215,34 @@ func (hl *httpLogger) initLoggers() {
 		return // Already initialized
 	}
 
-	var writers []io.Writer
+	logger := log.New(os.Stdout, "", log.LstdFlags|log.Lshortfile)
+	hl.loggers = append(hl.loggers, logger)
 
-	// Always add stdout
-	writers = append(writers, os.Stdout)
+	if fileWriter := hl.newFileWriter(); fileWriter != nil {
+		hl.fileLogger = log.New(fileWriter, "", log.LstdFlags|log.Lshortfile)
+	}
+}
 
-	// Add file writer with rotation if path is specified
-	if hl.config.FileLogPath != "" {
-		if hl.config.EnableFileRotation {
-			rotateLogger := &lumberjack.Logger{
-				Filename:   hl.config.FileLogPath,
-				MaxSize:    int(hl.config.MaxLogSize / 1024 / 1024),
-				MaxBackups: hl.config.MaxLogBackups,
-				Compress:   true,
-			}
-			writers = append(writers, rotateLogger)
-		} else {
-			file, err := os.OpenFile(hl.config.FileLogPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
-			if err == nil {
-				writers = append(writers, file)
-				os.Chmod(hl.config.FileLogPath, 0666)
-			}
+func (hl *httpLogger) newFileWriter() io.Writer {
+	if hl.config == nil || hl.config.FileLogPath == "" {
+		return nil
+	}
+
+	if hl.config.EnableFileRotation {
+		return &lumberjack.Logger{
+			Filename:   hl.config.FileLogPath,
+			MaxSize:    int(hl.config.MaxLogSize / 1024 / 1024),
+			MaxBackups: hl.config.MaxLogBackups,
+			Compress:   true,
 		}
 	}
 
-	// Create logger
-	multiWriter := io.MultiWriter(writers...)
-	logger := log.New(multiWriter, "", log.LstdFlags|log.Lshortfile)
-	hl.loggers = append(hl.loggers, logger)
+	file, err := os.OpenFile(hl.config.FileLogPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+	if err != nil {
+		return nil
+	}
+	_ = os.Chmod(hl.config.FileLogPath, 0666)
+	return file
 }
 
 func (hl *httpLogger) Debug(v ...interface{}) {
@@ -335,6 +336,9 @@ func (hl *httpLogger) logf(level LogLevelType, prefix string, v ...interface{}) 
 	message := SafeSprint(v...)
 	for _, logger := range hl.loggers {
 		safeLoggerOutput(logger, 3, fmt.Sprintf("[%s] %s\n", prefix, message))
+	}
+	if level >= INFO && hl.fileLogger != nil {
+		safeLoggerOutput(hl.fileLogger, 3, fmt.Sprintf("[%s] %s\n", prefix, message))
 	}
 
 	AppendToBuffer(&LogEntry{

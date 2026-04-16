@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"runtime"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -33,6 +34,59 @@ type DefaultRelayManager struct {
 	// No fields needed - buffer pooling is handled globally
 }
 
+type relayCompletionTracker struct {
+	originConn net.Conn
+	remoteConn net.Conn
+
+	clientToServerDone atomic.Bool
+	serverToClientDone atomic.Bool
+	closeOnce          sync.Once
+}
+
+func newRelayCompletionTracker(originConn, remoteConn net.Conn) *relayCompletionTracker {
+	return &relayCompletionTracker{
+		originConn: originConn,
+		remoteConn: remoteConn,
+	}
+}
+
+func (t *relayCompletionTracker) markDone(direction, connID string) {
+	if t == nil {
+		return
+	}
+
+	switch direction {
+	case "client->server":
+		t.clientToServerDone.Store(true)
+	case "server->client":
+		t.serverToClientDone.Store(true)
+	default:
+		return
+	}
+
+	if !t.clientToServerDone.Load() || !t.serverToClientDone.Load() {
+		logger.Debug(fmt.Sprintf(
+			"[RELAY] conn_id=%s tracked teardown dir=%s completed; waiting for opposite direction before closing both sides",
+			connID,
+			direction,
+		))
+		return
+	}
+
+	t.closeOnce.Do(func() {
+		logger.Debug(fmt.Sprintf(
+			"[RELAY] conn_id=%s tracked teardown both directions completed; closing origin and remote connections",
+			connID,
+		))
+		if t.originConn != nil {
+			_ = t.originConn.Close()
+		}
+		if t.remoteConn != nil {
+			_ = t.remoteConn.Close()
+		}
+	})
+}
+
 // NewDefaultRelayManager creates a new relay manager
 func NewDefaultRelayManager() *DefaultRelayManager {
 	return &DefaultRelayManager{}
@@ -45,6 +99,16 @@ func (r *DefaultRelayManager) Relay(ctx context.Context, originConn, remoteConn 
 	connID := "unknown"
 	if metadata != nil && metadata.ConnID != "" {
 		connID = metadata.ConnID
+	}
+	var completionTracker *relayCompletionTracker
+	if shouldUseTrackedTeardown(metadata) {
+		completionTracker = newRelayCompletionTracker(originConn, remoteConn)
+		logger.Debug(fmt.Sprintf(
+			"[RELAY] conn_id=%s tracked teardown enabled for windows tun connection: origin_type=%T remote_type=%T",
+			connID,
+			originConn,
+			remoteConn,
+		))
 	}
 	logger.Debug(fmt.Sprintf(
 		"[RELAY] conn_id=%s start origin_type=%T remote_type=%T origin=%s remote=%s origin_diag=%s remote_diag=%s route=%s host=%s",
@@ -79,8 +143,8 @@ func (r *DefaultRelayManager) Relay(ctx context.Context, originConn, remoteConn 
 	}
 
 	// Start concurrent unidirectional streams
-	go r.relayStream(remoteConn, originConn, "client->server", &wg, requestCapture, nil, &clientToServerBytes, ctx, metadata)
-	go r.relayStream(originConn, remoteConn, "server->client", &wg, responseCapture, markFirstResponse, &serverToClientBytes, ctx, metadata)
+	go r.relayStream(remoteConn, originConn, "client->server", &wg, requestCapture, nil, &clientToServerBytes, ctx, metadata, completionTracker)
+	go r.relayStream(originConn, remoteConn, "server->client", &wg, responseCapture, markFirstResponse, &serverToClientBytes, ctx, metadata, completionTracker)
 
 	// Wait for both directions to complete
 	wg.Wait()
@@ -119,6 +183,7 @@ func (r *DefaultRelayManager) relayStream(
 	byteCounter *int64,
 	_ context.Context,
 	metadata *M.Metadata,
+	completionTracker *relayCompletionTracker,
 ) {
 	defer wg.Done()
 	connID := "unknown"
@@ -159,6 +224,11 @@ func (r *DefaultRelayManager) relayStream(
 	} else {
 		logger.Debug(fmt.Sprintf("[RELAY] conn_id=%s Stream completed [%s]: bytes=%d dst=%s src=%s dst_diag=%s src_diag=%s",
 			connID, direction, countingDst.written, describeConn(dst), describeConn(src), describeConnDiagnostics(dst), describeConnDiagnostics(src)))
+	}
+
+	if completionTracker != nil {
+		completionTracker.markDone(direction, connID)
+		return
 	}
 
 	if shouldUseConservativeTeardown(metadata) {
@@ -204,6 +274,17 @@ func shouldUseConservativeTeardown(metadata *M.Metadata) bool {
 		return false
 	}
 	return metadata.Route == "RouteDirect"
+}
+
+func shouldUseTrackedTeardown(metadata *M.Metadata) bool {
+	return shouldUseTrackedTeardownForGOOS(runtime.GOOS, metadata)
+}
+
+func shouldUseTrackedTeardownForGOOS(goos string, metadata *M.Metadata) bool {
+	if goos != "windows" || metadata == nil {
+		return false
+	}
+	return strings.HasPrefix(strings.TrimSpace(metadata.ConnID), "tun-")
 }
 
 func describeConn(conn net.Conn) string {

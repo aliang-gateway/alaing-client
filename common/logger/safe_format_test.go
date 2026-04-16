@@ -93,3 +93,51 @@ func TestMainLoggerErrorDoesNotPanicWhenFormattingBrokenError(t *testing.T) {
 
 	ml.Error("panic: ", panickingError{})
 }
+
+type recordingWriter struct {
+	mu     sync.Mutex
+	writes [][]byte
+}
+
+func (w *recordingWriter) Write(p []byte) (int, error) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	cp := make([]byte, len(p))
+	copy(cp, p)
+	w.writes = append(w.writes, cp)
+	return len(p), nil
+}
+
+func (w *recordingWriter) Count() int {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return len(w.writes)
+}
+
+func TestMainLoggerFileLoggerSkipsDebugBelowInfo(t *testing.T) {
+	stdoutWriter := &recordingWriter{}
+	fileWriter := &recordingWriter{}
+	ml := &mainLogger{
+		config: &LogConfig{
+			Level:         DEBUG,
+			ErrorWindow:   time.Minute,
+			MaxErrorCount: 1,
+		},
+		mu:         &sync.RWMutex{},
+		loggers:    []*log.Logger{log.New(stdoutWriter, "", 0)},
+		fileLogger: log.New(fileWriter, "", 0),
+	}
+
+	ml.Debug("debug only")
+	if stdoutWriter.Count() != 1 {
+		t.Fatalf("stdout writer count = %d, want 1", stdoutWriter.Count())
+	}
+	if fileWriter.Count() != 0 {
+		t.Fatalf("file writer count = %d, want 0 for debug", fileWriter.Count())
+	}
+
+	ml.Info("info persists")
+	if fileWriter.Count() != 1 {
+		t.Fatalf("file writer count = %d, want 1 for info", fileWriter.Count())
+	}
+}

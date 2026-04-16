@@ -29,10 +29,11 @@ type errorInfo struct {
 
 // mainLogger implements the Logger interface
 type mainLogger struct {
-	config  *LogConfig
-	writers []io.Writer
-	mu      *sync.RWMutex
-	loggers []*log.Logger
+	config     *LogConfig
+	writers    []io.Writer
+	mu         *sync.RWMutex
+	loggers    []*log.Logger
+	fileLogger *log.Logger
 }
 
 // initLoggers initializes the loggers with rotation support
@@ -46,41 +47,38 @@ func (ml *mainLogger) initLoggers() {
 
 	var writers []io.Writer
 
-	// Always add stdout
+	// Always add stdout for synchronous console visibility.
 	writers = append(writers, os.Stdout)
+	ml.writers = writers
 
-	// Add file writer with rotation if path is specified
-	if ml.config.FileLogPath != "" {
-		if ml.config.EnableFileRotation {
-			// Use lumberjack for rotation
-			rotateLogger := &lumberjack.Logger{
-				Filename:   ml.config.FileLogPath,
-				MaxSize:    int(ml.config.MaxLogSize / 1024 / 1024), // lumberjack uses MB
-				MaxBackups: ml.config.MaxLogBackups,
-				Compress:   true, // compress rotated files
-			}
-			writers = append(writers, rotateLogger)
-		} else {
-			// Simple append mode
-			file, err := os.OpenFile(ml.config.FileLogPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
-			if err == nil {
-				writers = append(writers, file)
-				os.Chmod(ml.config.FileLogPath, 0666)
-			}
+	logger := log.New(os.Stdout, "", log.LstdFlags|log.Lshortfile)
+	ml.loggers = append(ml.loggers, logger)
+
+	if fileWriter := ml.newFileWriter(); fileWriter != nil {
+		ml.fileLogger = log.New(fileWriter, "", log.LstdFlags|log.Lshortfile)
+	}
+}
+
+func (ml *mainLogger) newFileWriter() io.Writer {
+	if ml.config == nil || ml.config.FileLogPath == "" {
+		return nil
+	}
+
+	if ml.config.EnableFileRotation {
+		return &lumberjack.Logger{
+			Filename:   ml.config.FileLogPath,
+			MaxSize:    int(ml.config.MaxLogSize / 1024 / 1024),
+			MaxBackups: ml.config.MaxLogBackups,
+			Compress:   true,
 		}
 	}
 
-	// Create multi-writer
-	var multiWriter io.Writer
-	if len(writers) == 1 {
-		multiWriter = writers[0]
-	} else {
-		multiWriter = io.MultiWriter(writers...)
+	file, err := os.OpenFile(ml.config.FileLogPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+	if err != nil {
+		return nil
 	}
-
-	// Create logger with multi-writer
-	logger := log.New(multiWriter, "", log.LstdFlags|log.Lshortfile)
-	ml.loggers = append(ml.loggers, logger)
+	_ = os.Chmod(ml.config.FileLogPath, 0666)
+	return file
 }
 
 func (ml *mainLogger) Debug(v ...interface{}) {
@@ -196,6 +194,9 @@ func (ml *mainLogger) logf(level LogLevelType, prefix string, v ...interface{}) 
 	message := SafeSprint(v...)
 	for _, logger := range ml.loggers {
 		safeLoggerOutput(logger, 3, fmt.Sprintf("[%s] %s\n", prefix, message))
+	}
+	if level >= INFO && ml.fileLogger != nil {
+		safeLoggerOutput(ml.fileLogger, 3, fmt.Sprintf("[%s] %s\n", prefix, message))
 	}
 
 	AppendToBuffer(&LogEntry{
