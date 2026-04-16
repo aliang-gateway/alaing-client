@@ -204,6 +204,7 @@ type httpLogger struct {
 	mu         *sync.RWMutex
 	loggers    []*log.Logger
 	fileLogger *log.Logger
+	fileSink   *asyncLogWriter
 }
 
 // initLoggers initializes the HTTP logger with rotation support
@@ -219,7 +220,8 @@ func (hl *httpLogger) initLoggers() {
 	hl.loggers = append(hl.loggers, logger)
 
 	if fileWriter := hl.newFileWriter(); fileWriter != nil {
-		hl.fileLogger = log.New(fileWriter, "", log.LstdFlags|log.Lshortfile)
+		hl.fileSink = newAsyncLogWriter(fileWriter)
+		hl.fileLogger = log.New(hl.fileSink, "", log.LstdFlags|log.Lshortfile)
 	}
 }
 
@@ -325,7 +327,9 @@ func (hl *httpLogger) WithContext(ctx context.Context) Logger {
 }
 
 func (hl *httpLogger) Flush() {
-	// No-op
+	if hl.fileSink != nil {
+		_ = hl.fileSink.Flush()
+	}
 }
 
 func (hl *httpLogger) logf(level LogLevelType, prefix string, v ...interface{}) {

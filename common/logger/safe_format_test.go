@@ -141,3 +141,25 @@ func TestMainLoggerFileLoggerSkipsDebugBelowInfo(t *testing.T) {
 		t.Fatalf("file writer count = %d, want 1 for info", fileWriter.Count())
 	}
 }
+
+func TestAsyncLogWriterSerializesWritesAndFlushes(t *testing.T) {
+	sink := &recordingWriter{}
+	writer := newAsyncLogWriter(sink)
+	t.Cleanup(func() {
+		_ = writer.Close()
+	})
+
+	if _, err := writer.Write([]byte("first")); err != nil {
+		t.Fatalf("first write failed: %v", err)
+	}
+	if _, err := writer.Write([]byte("second")); err != nil {
+		t.Fatalf("second write failed: %v", err)
+	}
+	if err := writer.Flush(); err != nil {
+		t.Fatalf("flush failed: %v", err)
+	}
+
+	if sink.Count() != 2 {
+		t.Fatalf("sink write count = %d, want 2", sink.Count())
+	}
+}

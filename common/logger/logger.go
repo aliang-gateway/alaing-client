@@ -34,6 +34,7 @@ type mainLogger struct {
 	mu         *sync.RWMutex
 	loggers    []*log.Logger
 	fileLogger *log.Logger
+	fileSink   *asyncLogWriter
 }
 
 // initLoggers initializes the loggers with rotation support
@@ -55,7 +56,8 @@ func (ml *mainLogger) initLoggers() {
 	ml.loggers = append(ml.loggers, logger)
 
 	if fileWriter := ml.newFileWriter(); fileWriter != nil {
-		ml.fileLogger = log.New(fileWriter, "", log.LstdFlags|log.Lshortfile)
+		ml.fileSink = newAsyncLogWriter(fileWriter)
+		ml.fileLogger = log.New(ml.fileSink, "", log.LstdFlags|log.Lshortfile)
 	}
 }
 
@@ -182,7 +184,9 @@ func (ml *mainLogger) WithContext(ctx context.Context) Logger {
 
 // Flush flushes all writers
 func (ml *mainLogger) Flush() {
-	// No-op for stdout/file writers
+	if ml.fileSink != nil {
+		_ = ml.fileSink.Flush()
+	}
 }
 
 // logf formats and logs a message
@@ -244,6 +248,18 @@ func startCleanupRoutineOnce() {
 }
 
 func Shutdown() {
+	if ml, ok := mainLoggerInstance.(*mainLogger); ok && ml != nil {
+		ml.Flush()
+		if ml.fileSink != nil {
+			_ = ml.fileSink.Close()
+		}
+	}
+	if hl, ok := httpLoggerInstance.(*httpLogger); ok && hl != nil {
+		hl.Flush()
+		if hl.fileSink != nil {
+			_ = hl.fileSink.Close()
+		}
+	}
 	if cleanupTick != nil {
 		cleanupTick.Stop()
 		close(cleanupDone)
