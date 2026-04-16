@@ -1,8 +1,11 @@
 package tcp
 
 import (
+	"fmt"
 	"net"
 	"net/netip"
+
+	"aliang.one/nursorgate/common/logger"
 )
 
 // Metadata contains connection metadata for TCP handlers.
@@ -63,8 +66,9 @@ func (m *Metadata) TCPAddr() *net.TCPAddr {
 // to provide that same data to the TLS server during handshake.
 type WrappedConn struct {
 	net.Conn
-	Buf        []byte // Buffered data from initial read (TLS ClientHello)
-	readOffset int    // Current position in buffer
+	Buf               []byte // Buffered data from initial read (TLS ClientHello)
+	readOffset        int    // Current position in buffer
+	passThroughLogged bool
 }
 
 // Read implements net.Conn.Read with buffer support.
@@ -76,6 +80,17 @@ func (w *WrappedConn) Read(p []byte) (int, error) {
 		n := copy(p, w.Buf[w.readOffset:])
 		w.readOffset += n
 		return n, nil
+	}
+	if !w.passThroughLogged {
+		w.passThroughLogged = true
+		logger.Debug(fmt.Sprintf(
+			"[WRAPPED CONN] passthrough begin underlying_type=%T buffered=%d consumed=%d local=%v remote=%v",
+			w.Conn,
+			len(w.Buf),
+			w.readOffset,
+			w.LocalAddr(),
+			w.RemoteAddr(),
+		))
 	}
 	// All buffered data consumed, read from underlying connection
 	return w.Conn.Read(p)

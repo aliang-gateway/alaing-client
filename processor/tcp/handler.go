@@ -508,6 +508,18 @@ func (h *TCPConnectionHandler) handleTLS(
 			Buf:  sniBuf,
 		}
 	}
+	logger.Debug(fmt.Sprintf(
+		"[TLS DIAG] conn_id=%s post_sni origin_type=%T wrapped=%t wrapped_diag=%s sni=%q sni_buf=%d host=%s dns_source=%s route=%s",
+		ensureTCPConnID(metadata),
+		originConn,
+		wrapped != nil,
+		describeConnDiagnostics(wrapped),
+		sni,
+		len(sniBuf),
+		metadata.HostName,
+		safeBindingSource(metadata),
+		metadata.Route,
+	))
 
 	// STEP 2: Without an explicit hostname or observed SNI, we only trust a
 	// unique cached IP->domain binding. Shared-IP cache entries still bypass MITM.
@@ -672,7 +684,25 @@ func (h *TCPConnectionHandler) resolveTLSRoute(
 	if err != nil {
 		return nil, nil, err
 	}
+	logger.Debug(fmt.Sprintf(
+		"[TLS DIAG] conn_id=%s resolve_tls route=%s host=%s mitm_sni=%q relay_origin_type=%T relay_origin_diag=%s remote_type=%T remote_diag=%s",
+		ensureTCPConnID(metadata),
+		metadata.Route,
+		metadata.HostName,
+		mitmedSNI,
+		wrapped,
+		describeConnDiagnostics(wrapped),
+		remote,
+		describeConnDiagnostics(remote),
+	))
 	return remote, wrapped, nil
+}
+
+func safeBindingSource(metadata *M.Metadata) string {
+	if metadata == nil || metadata.DNSInfo == nil {
+		return ""
+	}
+	return string(metadata.DNSInfo.BindingSource)
 }
 
 func (h *TCPConnectionHandler) wrapAliangHTTPConn(conn net.Conn) net.Conn {

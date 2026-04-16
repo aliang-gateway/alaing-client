@@ -2,7 +2,6 @@ package runner
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"os/exec"
 	"runtime"
@@ -17,13 +16,6 @@ import (
 
 var defaultConfig config.EngineConf
 var defaultGateway = "192.168.1.1"
-
-type PSNetItem struct {
-	Name                 string `json:"Name"`
-	Status               string `json:"Status"`
-	InterfaceDescription string `json:"InterfaceDescription"`
-	IfIndex              int    `json:"ifIndex"`
-}
 
 func stopTun() {
 	logger.Info("Stopping TUN service...")
@@ -258,32 +250,7 @@ func checkTunDeviceStatus(ifname string) error {
 
 // checkWindowsTunStatus 检查 Windows TUN 设备状态
 func checkWindowsTunStatus(ifname string) error {
-	// 使用 netsh 检查接口状态
-	cmd := utils2.GetRunCommand("powershell", "-Command", `Get-NetIPInterface | Format-Table -AutoSize`)
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("获取接口状态失败: %w", err)
-	}
-	// 转换输出编码
-	outputStr, err := convertGBKToUTF8(string(output))
-	if err != nil {
-		return fmt.Errorf("转换编码失败: %w", err)
-	}
-
-	// 查找 TUN 设备状态
-	lines := strings.Split(outputStr, "\n")
-	for _, line := range lines {
-		if strings.Contains(line, ifname) {
-			logger.Debug(fmt.Sprintf("TUN 设备状态: %s", line))
-			// 检查接口是否启用
-			if strings.Contains(line, "已禁用") || strings.Contains(line, "disabled") {
-				return fmt.Errorf("TUN 设备已禁用")
-			}
-			return nil
-		}
-	}
-
-	return fmt.Errorf("未找到 TUN 设备: %s", ifname)
+	return checkWindowsTunStatusNative(ifname)
 }
 
 // checkDarwinTunStatus 检查 macOS TUN 设备状态
@@ -312,6 +279,10 @@ func checkLinuxTunStatus(ifname string) error {
 
 // waitForTunDeviceReady 等待TUN设备就绪
 func waitForTunDeviceReady(deviceName string, timeout time.Duration) error {
+	if runtime.GOOS == "windows" {
+		return waitForWindowsTunDeviceReady(deviceName, timeout)
+	}
+
 	deadline := time.Now().Add(timeout)
 	var outputStr string
 	for time.Now().Before(deadline) {
@@ -320,10 +291,6 @@ func waitForTunDeviceReady(deviceName string, timeout time.Duration) error {
 
 		// 根据操作系统选择命令
 		switch runtime.GOOS {
-		case "windows":
-			// Windows 使用 netsh 检查接口状态
-			cmd = utils2.GetRunCommand("powershell", "-Command", "@(Get-NetAdapter | Select-Object Name, Status, InterfaceDescription, ifIndex) | ConvertTo-Json")
-			checkString = "connected"
 		case "linux": // darwin 是 macOS
 			// Linux/macOS 使用 ip link show 检查接口状态
 			cmd = utils2.GetRunCommand("ip", "link", "show", deviceName)
@@ -352,16 +319,6 @@ func waitForTunDeviceReady(deviceName string, timeout time.Duration) error {
 
 		// 检查设备是否存在且状态为预期值
 		outputStr = string(output)
-		if runtime.GOOS == "windows" {
-			// Windows 需要处理编码（假设 utils.AutoConvertEncoding 处理 GBK 到 UTF-8）
-			outputStr, err = utils2.AutoConvertEncoding(output)
-			if err != nil {
-				logger.Error(fmt.Sprintf("转换编码失败: %v", err))
-				time.Sleep(2000 * time.Millisecond)
-				continue
-			}
-		}
-
 		// 检查输出是否包含设备名称和状态
 		if strings.Contains(outputStr, deviceName) && strings.Contains(outputStr, checkString) {
 			// 进一步验证网卡可用性，通过 ping 测试
@@ -373,17 +330,6 @@ func waitForTunDeviceReady(deviceName string, timeout time.Duration) error {
 				return nil
 			}
 			logger.Debug("Ping 测试失败，设备可能尚未完全就绪")
-		}
-
-		// win10返回的是deviceName up这样的内容
-		var win10OutputJson []PSNetItem
-		err = json.Unmarshal(output, &win10OutputJson)
-		if err == nil {
-			for _, netItem := range win10OutputJson {
-				if strings.Contains(netItem.Name, "intun") && strings.ToLower(netItem.Status) == "up" {
-					return nil
-				}
-			}
 		}
 
 		time.Sleep(500 * time.Millisecond)

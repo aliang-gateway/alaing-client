@@ -28,9 +28,11 @@ func Start() {
 
 	defer func() {
 		if r := recover(); r != nil {
-			logger.Error(fmt.Sprintf("Recovered from panic in Start: %v", r))
-			FailStartupProgress("panic", fmt.Errorf("Recovered from panic in Start: %v", r))
-			RunStatusChan <- map[string]string{"status": "failed", "message": fmt.Sprintf("Recovered from panic in Start: %v", r)}
+			panicText := logger.SafeRecoveredValueString(r)
+			logger.Error("Recovered from panic in Start: ", panicText)
+			failErr := fmt.Errorf("Recovered from panic in Start: %s", panicText)
+			FailStartupProgress("panic", failErr)
+			RunStatusChan <- map[string]string{"status": "failed", "message": failErr.Error()}
 		}
 	}()
 

@@ -2,7 +2,6 @@ package tunnel
 
 import (
 	"context"
-	"fmt"
 	"runtime/debug"
 	"sync"
 	"time"
@@ -82,7 +81,7 @@ func (t *Tunnel) HandleUDP(conn adapter.UDPConn) {
 func (t *Tunnel) process(ctx context.Context) {
 	defer func() {
 		if r := recover(); r != nil {
-			logger.Error(fmt.Sprintf("Recovered from panic in Tunnel.process: %v", r))
+			logger.Error("Recovered from panic in Tunnel.process: ", logger.SafeRecoveredValueString(r))
 			debug.PrintStack()
 		}
 	}()
@@ -92,7 +91,7 @@ func (t *Tunnel) process(ctx context.Context) {
 		go func(workerID int) {
 			defer func() {
 				if r := recover(); r != nil {
-					logger.Error(fmt.Sprintf("TCP worker %d panic: %v", workerID, r))
+					logger.Error("TCP worker ", workerID, " panic: ", logger.SafeRecoveredValueString(r))
 					debug.PrintStack()
 				}
 			}()
@@ -112,7 +111,7 @@ func (t *Tunnel) process(ctx context.Context) {
 		go func(workerID int) {
 			defer func() {
 				if r := recover(); r != nil {
-					logger.Error(fmt.Sprintf("UDP worker %d panic: %v", workerID, r))
+					logger.Error("UDP worker ", workerID, " panic: ", logger.SafeRecoveredValueString(r))
 					debug.PrintStack()
 				}
 			}()

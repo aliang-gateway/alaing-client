@@ -285,7 +285,7 @@ func (hl *httpLogger) Fatal(v ...interface{}) {
 }
 
 func (hl *httpLogger) Panic(v ...interface{}) {
-	msg := fmt.Sprint(v...)
+	msg := SafeSprint(v...)
 	hl.logf(ERROR, "PANIC", v...)
 	panic(msg)
 }
@@ -332,9 +332,9 @@ func (hl *httpLogger) logf(level LogLevelType, prefix string, v ...interface{}) 
 	hl.mu.RLock()
 	defer hl.mu.RUnlock()
 
-	message := fmt.Sprint(v...)
+	message := SafeSprint(v...)
 	for _, logger := range hl.loggers {
-		logger.Output(3, fmt.Sprintf("[%s] %s\n", prefix, message))
+		safeLoggerOutput(logger, 3, fmt.Sprintf("[%s] %s\n", prefix, message))
 	}
 
 	AppendToBuffer(&LogEntry{

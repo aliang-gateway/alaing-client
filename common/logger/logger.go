@@ -108,15 +108,15 @@ func (ml *mainLogger) Error(v ...interface{}) {
 	if ml.config.Level > ERROR {
 		return
 	}
-	ml.logf(ERROR, "ERROR", v...)
+	msg := SafeSprint(v...)
+	ml.logf(ERROR, "ERROR", msg)
 
 	// Error deduplication and Sentry
-	errHash := ml.generateErrorHash(v...)
+	errHash := ml.generateErrorHash(msg)
 	if ml.shouldSendError(errHash) && ml.config.EnableSentry {
-		msg := fmt.Sprint(v...)
 		sentry.WithScope(func(scope *sentry.Scope) {
 			scope.SetTag("source", "mainLogger")
-			scope.SetExtra("raw_args", fmt.Sprintf("%v", v))
+			scope.SetExtra("raw_args", msg)
 			sentry.CaptureMessage(msg)
 		})
 		go sentry.Flush(2 * time.Second)
@@ -136,7 +136,7 @@ func (ml *mainLogger) Fatal(v ...interface{}) {
 }
 
 func (ml *mainLogger) Panic(v ...interface{}) {
-	msg := fmt.Sprint(v...)
+	msg := SafeSprint(v...)
 	ml.logf(ERROR, "PANIC", v...)
 	panic(msg)
 }
@@ -193,9 +193,9 @@ func (ml *mainLogger) logf(level LogLevelType, prefix string, v ...interface{}) 
 	ml.mu.RLock()
 	defer ml.mu.RUnlock()
 
-	message := fmt.Sprint(v...)
+	message := SafeSprint(v...)
 	for _, logger := range ml.loggers {
-		logger.Output(3, fmt.Sprintf("[%s] %s\n", prefix, message))
+		safeLoggerOutput(logger, 3, fmt.Sprintf("[%s] %s\n", prefix, message))
 	}
 
 	AppendToBuffer(&LogEntry{
@@ -206,9 +206,9 @@ func (ml *mainLogger) logf(level LogLevelType, prefix string, v ...interface{}) 
 	})
 }
 
-func (ml *mainLogger) generateErrorHash(v ...interface{}) string {
+func (ml *mainLogger) generateErrorHash(message string) string {
 	h := md5.New()
-	fmt.Fprint(h, v...)
+	fmt.Fprint(h, message)
 	return fmt.Sprintf("%x", h.Sum(nil))
 }
 

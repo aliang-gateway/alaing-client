@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"sync"
 
+	"aliang.one/nursorgate/common/logger"
 	"aliang.one/nursorgate/inbound/tun/device"
 	"aliang.one/nursorgate/inbound/tun/device/iobased"
 
@@ -30,7 +31,7 @@ type TUN struct {
 func Open(name string, mtu uint32) (_ device.Device, err error) {
 	defer func() {
 		if r := recover(); r != nil {
-			err = fmt.Errorf("open tun: %v", r)
+			err = fmt.Errorf("open tun: %s", logger.SafeRecoveredValueString(r))
 		}
 	}()
 

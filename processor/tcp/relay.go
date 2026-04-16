@@ -47,12 +47,14 @@ func (r *DefaultRelayManager) Relay(ctx context.Context, originConn, remoteConn 
 		connID = metadata.ConnID
 	}
 	logger.Debug(fmt.Sprintf(
-		"[RELAY] conn_id=%s start origin_type=%T remote_type=%T origin=%s remote=%s route=%s host=%s",
+		"[RELAY] conn_id=%s start origin_type=%T remote_type=%T origin=%s remote=%s origin_diag=%s remote_diag=%s route=%s host=%s",
 		connID,
 		originConn,
 		remoteConn,
 		describeConn(originConn),
 		describeConn(remoteConn),
+		describeConnDiagnostics(originConn),
+		describeConnDiagnostics(remoteConn),
 		safeRoute(metadata),
 		safeHost(metadata),
 	))
@@ -123,8 +125,8 @@ func (r *DefaultRelayManager) relayStream(
 	if metadata != nil && metadata.ConnID != "" {
 		connID = metadata.ConnID
 	}
-	logger.Debug(fmt.Sprintf("[RELAY] conn_id=%s stream_start dir=%s dst_type=%T src_type=%T dst=%s src=%s",
-		connID, direction, dst, src, describeConn(dst), describeConn(src)))
+	logger.Debug(fmt.Sprintf("[RELAY] conn_id=%s stream_start dir=%s dst_type=%T src_type=%T dst=%s src=%s dst_diag=%s src_diag=%s",
+		connID, direction, dst, src, describeConn(dst), describeConn(src), describeConnDiagnostics(dst), describeConnDiagnostics(src)))
 
 	// Get buffer from pool
 	buf := buffer.Get(defaultRelayBufferSize)
@@ -139,20 +141,24 @@ func (r *DefaultRelayManager) relayStream(
 	if err != nil && err != io.EOF {
 		// Classify relay errors by severity for better debugging
 		if isTLSBadRecordMAC(err) {
-			logger.Warn(fmt.Sprintf("[RELAY] conn_id=%s TLS record integrity failure [%s]: bytes=%d dst=%s src=%s err=%v",
-				connID, direction, countingDst.written, describeConn(dst), describeConn(src), err))
+			logger.Warn(fmt.Sprintf("[RELAY] conn_id=%s TLS record integrity failure [%s]: bytes=%d dst=%s src=%s dst_diag=%s src_diag=%s err=%v",
+				connID, direction, countingDst.written, describeConn(dst), describeConn(src), describeConnDiagnostics(dst), describeConnDiagnostics(src), err))
 		} else if isUnexpectedConnectionReset(err) {
-			logger.Warn(fmt.Sprintf("[RELAY] conn_id=%s Unexpected connection reset [%s]: %v", connID, direction, err))
+			logger.Warn(fmt.Sprintf("[RELAY] conn_id=%s Unexpected connection reset [%s]: dst_diag=%s src_diag=%s err=%v",
+				connID, direction, describeConnDiagnostics(dst), describeConnDiagnostics(src), err))
 		} else if isTimeoutError(err) {
-			logger.Debug(fmt.Sprintf("[RELAY] conn_id=%s Connection timeout [%s]: %v", connID, direction, err))
+			logger.Debug(fmt.Sprintf("[RELAY] conn_id=%s Connection timeout [%s]: dst_diag=%s src_diag=%s err=%v",
+				connID, direction, describeConnDiagnostics(dst), describeConnDiagnostics(src), err))
 		} else if isConnectionClosedByPeer(err) {
-			logger.Debug(fmt.Sprintf("[RELAY] conn_id=%s Connection closed by peer [%s]: %v", connID, direction, err))
+			logger.Debug(fmt.Sprintf("[RELAY] conn_id=%s Connection closed by peer [%s]: dst_diag=%s src_diag=%s err=%v",
+				connID, direction, describeConnDiagnostics(dst), describeConnDiagnostics(src), err))
 		} else {
-			logger.Warn(fmt.Sprintf("[RELAY] conn_id=%s Data relay error [%s]: %v", connID, direction, err))
+			logger.Warn(fmt.Sprintf("[RELAY] conn_id=%s Data relay error [%s]: dst_diag=%s src_diag=%s err=%v",
+				connID, direction, describeConnDiagnostics(dst), describeConnDiagnostics(src), err))
 		}
 	} else {
-		logger.Debug(fmt.Sprintf("[RELAY] conn_id=%s Stream completed [%s]: bytes=%d dst=%s src=%s",
-			connID, direction, countingDst.written, describeConn(dst), describeConn(src)))
+		logger.Debug(fmt.Sprintf("[RELAY] conn_id=%s Stream completed [%s]: bytes=%d dst=%s src=%s dst_diag=%s src_diag=%s",
+			connID, direction, countingDst.written, describeConn(dst), describeConn(src), describeConnDiagnostics(dst), describeConnDiagnostics(src)))
 	}
 
 	if shouldUseConservativeTeardown(metadata) {
@@ -213,6 +219,34 @@ func describeConn(conn net.Conn) string {
 		remote = addr.String()
 	}
 	return fmt.Sprintf("local=%s remote=%s", local, remote)
+}
+
+func describeConnDiagnostics(conn net.Conn) string {
+	if conn == nil {
+		return "nil"
+	}
+
+	_, canCloseRead := conn.(interface{ CloseRead() error })
+	_, canCloseWrite := conn.(interface{ CloseWrite() error })
+
+	if wrapped, ok := conn.(*WrappedConn); ok {
+		return fmt.Sprintf(
+			"type=%T wrapped=true underlying=%T buf=%d read_offset=%d can_close_read=%t can_close_write=%t",
+			conn,
+			wrapped.Conn,
+			len(wrapped.Buf),
+			wrapped.readOffset,
+			canCloseRead,
+			canCloseWrite,
+		)
+	}
+
+	return fmt.Sprintf(
+		"type=%T wrapped=false can_close_read=%t can_close_write=%t",
+		conn,
+		canCloseRead,
+		canCloseWrite,
+	)
 }
 
 // isUnexpectedConnectionReset checks if the error is an unexpected connection reset

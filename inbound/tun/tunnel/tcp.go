@@ -17,7 +17,7 @@ var tunnelTCPConnCounter uint64
 func getTCPHandler() tcphandler.TCPConnHandler {
 	defer func() {
 		if r := recover(); r != nil {
-			logger.Error(fmt.Sprintf("Panic in getTCPHandler: %v", r))
+			logger.Error("Panic in getTCPHandler: ", logger.SafeRecoveredValueString(r))
 		}
 	}()
 	return tcphandler.GetHandler()
