@@ -424,3 +424,44 @@ func TestPrepareBufferedOutput_FallbackPreservesPreviouslyConsumedFrames(t *test
 		t.Fatal("w.http2PrefaceSent = false, want true after fallback")
 	}
 }
+
+func TestIsHTTP2InitialRequestHeaders(t *testing.T) {
+	if !isHTTP2InitialRequestHeaders([]hpack.HeaderField{
+		{Name: ":method", Value: "POST"},
+		{Name: ":scheme", Value: "https"},
+		{Name: ":authority", Value: "example.com"},
+		{Name: ":path", Value: "/chat"},
+	}) {
+		t.Fatal("initial request headers were not detected")
+	}
+
+	if isHTTP2InitialRequestHeaders([]hpack.HeaderField{
+		{Name: "grpc-status", Value: "0"},
+		{Name: "x-trailer", Value: "done"},
+	}) {
+		t.Fatal("trailers were incorrectly treated as initial request headers")
+	}
+}
+
+func TestRebuildReqHeadersWithInjectedField_EmptyInjectKeyDoesNotAddAuthorizationInner(t *testing.T) {
+	w := NewWatcherWrapConn(nil)
+
+	_, rewrittenFields, err := w.rebuildReqHeadersWithInjectedField(
+		[]hpack.HeaderField{
+			{Name: "grpc-status", Value: "0"},
+			{Name: "x-trailer", Value: "done"},
+		},
+		1,
+		true,
+		http2.PriorityParam{},
+		"",
+		"",
+	)
+	if err != nil {
+		t.Fatalf("rebuildReqHeadersWithInjectedField() error = %v", err)
+	}
+
+	if _, ok := getHTTP2HeaderFieldValue(rewrittenFields, "authorization-inner"); ok {
+		t.Fatal("authorization-inner unexpectedly added to trailer headers")
+	}
+}

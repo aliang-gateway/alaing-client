@@ -46,8 +46,10 @@ type WatcherWrapConn struct {
 	requestEncoderBuffer     *bytes.Buffer
 	requestEncoderToServer   *hpack.Encoder
 
-	streams   map[uint32]*http2Stream
-	streamsMu sync.Mutex
+	streams                map[uint32]*http2Stream
+	recentRequestSummaries map[uint32]string
+	recentRequestOrder     []uint32
+	streamsMu              sync.Mutex
 
 	serverHTTP2Settings map[uint16]uint32
 	settingsMu          sync.Mutex
@@ -62,6 +64,7 @@ func NewWatcherWrapConn(conn net.Conn) *WatcherWrapConn {
 	return &WatcherWrapConn{
 		Conn:                     conn,
 		streams:                  map[uint32]*http2Stream{},
+		recentRequestSummaries:   map[uint32]string{},
 		serverHTTP2Settings:      map[uint16]uint32{},
 		requestDecoderFromClient: hpack.NewDecoder(65536, nil),
 		requestEncoderBuffer:     requestBuffer,

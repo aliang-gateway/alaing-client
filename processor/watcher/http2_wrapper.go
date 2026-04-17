@@ -122,11 +122,15 @@ type http2Stream struct {
 	ReqHeaders   map[string]string
 	ReqBody      bytes.Buffer
 	ReqEndStream bool
+	ReqSummary   string
+	AuthInjected bool
 
 	RespHeaders   map[string]string
 	RespBody      bytes.Buffer
 	RespEndStream bool
 }
+
+const maxRecentHTTP2RequestSummaries = 128
 
 func getHTTP2HeaderFieldValue(fields []hpack.HeaderField, target string) (string, bool) {
 	for _, field := range fields {
@@ -147,12 +151,126 @@ func summarizeHTTP2Request(fields []hpack.HeaderField) string {
 	return fmt.Sprintf("method=%q authority=%q path=%q", method, authority, path)
 }
 
+func summarizeHTTP2RequestMap(headers map[string]string) string {
+	if len(headers) == 0 {
+		return "method=\"\" authority=\"\" path=\"\""
+	}
+	method := headers[":method"]
+	authority := headers[":authority"]
+	if strings.TrimSpace(authority) == "" {
+		authority = headers["host"]
+	}
+	path := headers[":path"]
+	return fmt.Sprintf("method=%q authority=%q path=%q", method, authority, path)
+}
+
+func isHTTP2InitialRequestHeaders(fields []hpack.HeaderField) bool {
+	if len(fields) == 0 {
+		return false
+	}
+	_, hasMethod := getHTTP2HeaderFieldValue(fields, ":method")
+	_, hasPath := getHTTP2HeaderFieldValue(fields, ":path")
+	_, hasScheme := getHTTP2HeaderFieldValue(fields, ":scheme")
+	return hasMethod || hasPath || hasScheme
+}
+
+func http2ErrorCodeName(code uint32) string {
+	switch http2.ErrCode(code) {
+	case http2.ErrCodeNo:
+		return "NO_ERROR"
+	case http2.ErrCodeProtocol:
+		return "PROTOCOL_ERROR"
+	case http2.ErrCodeInternal:
+		return "INTERNAL_ERROR"
+	case http2.ErrCodeFlowControl:
+		return "FLOW_CONTROL_ERROR"
+	case http2.ErrCodeSettingsTimeout:
+		return "SETTINGS_TIMEOUT"
+	case http2.ErrCodeStreamClosed:
+		return "STREAM_CLOSED"
+	case http2.ErrCodeFrameSize:
+		return "FRAME_SIZE_ERROR"
+	case http2.ErrCodeRefusedStream:
+		return "REFUSED_STREAM"
+	case http2.ErrCodeCancel:
+		return "CANCEL"
+	case http2.ErrCodeCompression:
+		return "COMPRESSION_ERROR"
+	case http2.ErrCodeConnect:
+		return "CONNECT_ERROR"
+	case http2.ErrCodeEnhanceYourCalm:
+		return "ENHANCE_YOUR_CALM"
+	case http2.ErrCodeInadequateSecurity:
+		return "INADEQUATE_SECURITY"
+	case http2.ErrCodeHTTP11Required:
+		return "HTTP_1_1_REQUIRED"
+	default:
+		return "UNKNOWN"
+	}
+}
+
 func headerFieldsToMap(fields []hpack.HeaderField) map[string]string {
 	headers := make(map[string]string, len(fields))
 	for _, field := range fields {
 		headers[field.Name] = field.Value
 	}
 	return headers
+}
+
+func (w *WatcherWrapConn) rememberRecentHTTP2RequestSummary(streamID uint32, summary string) {
+	if strings.TrimSpace(summary) == "" {
+		return
+	}
+
+	if _, exists := w.recentRequestSummaries[streamID]; !exists {
+		w.recentRequestOrder = append(w.recentRequestOrder, streamID)
+	}
+	w.recentRequestSummaries[streamID] = summary
+
+	if len(w.recentRequestOrder) <= maxRecentHTTP2RequestSummaries {
+		return
+	}
+
+	oldestID := w.recentRequestOrder[0]
+	w.recentRequestOrder = w.recentRequestOrder[1:]
+	delete(w.recentRequestSummaries, oldestID)
+}
+
+func (w *WatcherWrapConn) summarizeHTTP2RequestByStreamID(streamID uint32) string {
+	w.streamsMu.Lock()
+	defer w.streamsMu.Unlock()
+
+	if stream, ok := w.streams[streamID]; ok {
+		if strings.TrimSpace(stream.ReqSummary) != "" {
+			return stream.ReqSummary
+		}
+		return summarizeHTTP2RequestMap(stream.ReqHeaders)
+	}
+
+	if summary, ok := w.recentRequestSummaries[streamID]; ok && strings.TrimSpace(summary) != "" {
+		return summary
+	}
+
+	return summarizeHTTP2RequestMap(nil)
+}
+
+func (w *WatcherWrapConn) activeHTTP2RequestSummaries() []string {
+	w.streamsMu.Lock()
+	defer w.streamsMu.Unlock()
+
+	summaries := make([]string, 0, len(w.streams))
+	for streamID, stream := range w.streams {
+		summary := summarizeHTTP2RequestMap(nil)
+		if stream != nil {
+			if strings.TrimSpace(stream.ReqSummary) != "" {
+				summary = stream.ReqSummary
+			} else {
+				summary = summarizeHTTP2RequestMap(stream.ReqHeaders)
+			}
+		}
+		summaries = append(summaries, fmt.Sprintf("stream=%d %s", streamID, summary))
+	}
+	return summaries
 }
 
 func (w *WatcherWrapConn) processHttp2RequestFrame(preBuff *bytes.Buffer) error {
@@ -190,13 +308,20 @@ func (w *WatcherWrapConn) processHttp2RequestFrame(preBuff *bytes.Buffer) error 
 				return err
 			}
 
+			injectKey := ""
+			injectValue := ""
+			if isHTTP2InitialRequestHeaders(metaFrame.Fields) {
+				injectKey = "authorization-inner"
+				injectValue = user.GetCurrentAuthorizationHeader()
+			}
+
 			rewritten, rewrittenFields, err := w.rebuildReqHeadersWithInjectedField(
 				metaFrame.Fields,
 				streamID,
 				metaFrame.StreamEnded(),
 				metaFrame.HeadersFrame.Priority,
-				"authorization-inner",
-				user.GetCurrentAuthorizationHeader(),
+				injectKey,
+				injectValue,
 			)
 			if err != nil {
 				logger.Warn(fmt.Sprintf("[HTTP/2 REQ] Header rebuild failed for stream %d: %v", streamID, err))
@@ -206,11 +331,22 @@ func (w *WatcherWrapConn) processHttp2RequestFrame(preBuff *bytes.Buffer) error 
 			w.streamsMu.Lock()
 			stream := w.streams[streamID]
 			if stream != nil {
+				summary := summarizeHTTP2Request(rewrittenFields)
 				stream.ReqHeaders = headerFieldsToMap(rewrittenFields)
+				stream.ReqSummary = summary
+				stream.AuthInjected = injectKey == "authorization-inner" && strings.TrimSpace(injectValue) != ""
+				w.rememberRecentHTTP2RequestSummary(streamID, summary)
+				if isHTTP2InitialRequestHeaders(rewrittenFields) {
+					logger.Info(fmt.Sprintf(
+						"[HTTP/2 REQ] stream=%d request %s auth_inner=%t end_stream=%t",
+						streamID,
+						summary,
+						stream.AuthInjected,
+						metaFrame.StreamEnded(),
+					))
+				}
 				if metaFrame.StreamEnded() {
 					stream.ReqEndStream = true
-					// END_STREAM: cleanup stream
-					delete(w.streams, streamID)
 				}
 			}
 			w.streamsMu.Unlock()
@@ -229,8 +365,6 @@ func (w *WatcherWrapConn) processHttp2RequestFrame(preBuff *bytes.Buffer) error 
 				stream.ReqBody.Write(payload)
 				if flags&flagEndStream != 0 {
 					stream.ReqEndStream = true
-					// END_STREAM: cleanup stream
-					delete(w.streams, streamID)
 				}
 			}
 			w.streamsMu.Unlock()
@@ -240,8 +374,14 @@ func (w *WatcherWrapConn) processHttp2RequestFrame(preBuff *bytes.Buffer) error 
 		case frameTypeRstStream:
 			if len(payload) >= 4 {
 				errorCode := binary.BigEndian.Uint32(payload[0:4])
-				logger.Warn(fmt.Sprintf("[HTTP/2 REQ] Stream %d reset by client, error code=%d", streamID, errorCode))
-				// RST_STREAM: cleanup stream
+				requestSummary := w.summarizeHTTP2RequestByStreamID(streamID)
+				logger.Warn(fmt.Sprintf(
+					"[HTTP/2 REQ] Stream %d reset by client, error code=%d(%s) %s",
+					streamID,
+					errorCode,
+					http2ErrorCodeName(errorCode),
+					requestSummary,
+				))
 				w.streamsMu.Lock()
 				delete(w.streams, streamID)
 				w.streamsMu.Unlock()
@@ -255,7 +395,15 @@ func (w *WatcherWrapConn) processHttp2RequestFrame(preBuff *bytes.Buffer) error 
 			if len(payload) >= 8 {
 				lastStreamID := binary.BigEndian.Uint32(payload[0:4]) & 0x7FFFFFFF
 				errorCode := binary.BigEndian.Uint32(payload[4:8])
-				logger.Warn(fmt.Sprintf("[HTTP/2 REQ] GOAWAY received, last stream=%d, error code=%d", lastStreamID, errorCode))
+				activeSummaries := w.activeHTTP2RequestSummaries()
+				logger.Warn(fmt.Sprintf(
+					"[HTTP/2 REQ] GOAWAY received, last stream=%d, error code=%d(%s), active_streams=%d [%s]",
+					lastStreamID,
+					errorCode,
+					http2ErrorCodeName(errorCode),
+					len(activeSummaries),
+					strings.Join(activeSummaries, "; "),
+				))
 				// GOAWAY: cleanup all streams with ID > lastStreamID
 				w.streamsMu.Lock()
 				for sid := range w.streams {
@@ -309,10 +457,40 @@ func (w *WatcherWrapConn) observeHTTP2ResponseFrames(payload []byte) {
 				w.ParseSettingsFrame(framePayload, http2SettingsSourceServer)
 			}
 
+		case frameTypeHeaders:
+			if flags&flagEndStream != 0 {
+				w.streamsMu.Lock()
+				if stream := w.streams[streamID]; stream != nil {
+					stream.RespEndStream = true
+				}
+				delete(w.streams, streamID)
+				w.streamsMu.Unlock()
+			}
+
+		case frameTypeData:
+			if flags&flagEndStream != 0 {
+				w.streamsMu.Lock()
+				if stream := w.streams[streamID]; stream != nil {
+					stream.RespEndStream = true
+				}
+				delete(w.streams, streamID)
+				w.streamsMu.Unlock()
+			}
+
 		case frameTypeRstStream:
 			if len(framePayload) >= 4 {
 				errorCode := binary.BigEndian.Uint32(framePayload[:4])
-				logger.Warn(fmt.Sprintf("[HTTP/2 RESP] Stream %d reset by server, error code=%d", streamID, errorCode))
+				requestSummary := w.summarizeHTTP2RequestByStreamID(streamID)
+				logger.Warn(fmt.Sprintf(
+					"[HTTP/2 RESP] Stream %d reset by server, error code=%d(%s) %s",
+					streamID,
+					errorCode,
+					http2ErrorCodeName(errorCode),
+					requestSummary,
+				))
+				w.streamsMu.Lock()
+				delete(w.streams, streamID)
+				w.streamsMu.Unlock()
 			} else {
 				logger.Warn(fmt.Sprintf("[HTTP/2 RESP] Malformed RST_STREAM payload on stream %d: len=%d", streamID, len(framePayload)))
 			}
@@ -321,7 +499,15 @@ func (w *WatcherWrapConn) observeHTTP2ResponseFrames(payload []byte) {
 			if len(framePayload) >= 8 {
 				lastStreamID := binary.BigEndian.Uint32(framePayload[0:4]) & 0x7FFFFFFF
 				errorCode := binary.BigEndian.Uint32(framePayload[4:8])
-				logger.Warn(fmt.Sprintf("[HTTP/2 RESP] GOAWAY received from server, last stream=%d, error code=%d", lastStreamID, errorCode))
+				activeSummaries := w.activeHTTP2RequestSummaries()
+				logger.Warn(fmt.Sprintf(
+					"[HTTP/2 RESP] GOAWAY received from server, last stream=%d, error code=%d(%s), active_streams=%d [%s]",
+					lastStreamID,
+					errorCode,
+					http2ErrorCodeName(errorCode),
+					len(activeSummaries),
+					strings.Join(activeSummaries, "; "),
+				))
 			} else {
 				logger.Warn(fmt.Sprintf("[HTTP/2 RESP] Malformed GOAWAY payload: len=%d", len(framePayload)))
 			}
