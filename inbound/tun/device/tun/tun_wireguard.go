@@ -91,6 +91,13 @@ func (t *TUN) Name() string {
 }
 
 func (t *TUN) Close() {
-	defer t.Endpoint.Close()
-	_ = t.nt.Close()
+	if t.Endpoint != nil {
+		t.Endpoint.Close()
+	}
+	if t.nt != nil {
+		_ = t.nt.Close()
+	}
+	if t.Endpoint != nil {
+		t.Endpoint.Wait()
+	}
 }

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"net/netip"
+	"sync"
 	"time"
 
 	"aliang.one/nursorgate/common/logger"
@@ -27,6 +28,7 @@ import (
 )
 
 var (
+	_engineMu sync.Mutex
 
 	// _defaultProxy holds the default proxy for the engine.
 	_defaultProxy proxy.Proxy
@@ -55,6 +57,9 @@ func Stop() {
 }
 
 func start() error {
+	_engineMu.Lock()
+	defer _engineMu.Unlock()
+
 	if config.GetDefaultEngineConf() == nil {
 		return errors.New("empty key")
 	}
@@ -71,12 +76,21 @@ func start() error {
 }
 
 func stop() (err error) {
-	if _defaultDevice != nil {
-		_defaultDevice.Close()
+	_engineMu.Lock()
+	defer _engineMu.Unlock()
+
+	device := _defaultDevice
+	stack := _defaultStack
+	_defaultDevice = nil
+	_defaultStack = nil
+	_defaultProxy = nil
+
+	if device != nil {
+		device.Close()
 	}
-	if _defaultStack != nil {
-		_defaultStack.Close()
-		_defaultStack.Wait()
+	if stack != nil {
+		stack.Close()
+		stack.Wait()
 	}
 	return nil
 }
