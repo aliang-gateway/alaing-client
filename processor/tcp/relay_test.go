@@ -118,3 +118,18 @@ func TestRelayCompletionTrackerClosesBothAfterBothDirectionsComplete(t *testing.
 		t.Fatalf("expected closeOnce semantics, got origin=%d remote=%d", origin.closeCount, remote.closeCount)
 	}
 }
+
+func TestWrapCloseOnceConn_ClosesUnderlyingOnlyOnce(t *testing.T) {
+	conn := newRecordingRelayConn(nil)
+	wrapped := wrapCloseOnceConn(conn)
+
+	if err := wrapped.Close(); err != nil {
+		t.Fatalf("first Close() error = %v", err)
+	}
+	if err := wrapped.Close(); err != nil {
+		t.Fatalf("second Close() error = %v", err)
+	}
+	if conn.closeCount != 1 {
+		t.Fatalf("underlying close count = %d, want 1", conn.closeCount)
+	}
+}

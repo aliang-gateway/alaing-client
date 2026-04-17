@@ -254,6 +254,8 @@ func setMetadataHostFromObservedSNI(metadata *M.Metadata, sni string) {
 // Handle processes a single TCP connection.
 // It is the main orchestration entry point.
 func (h *TCPConnectionHandler) Handle(ctx context.Context, originConn net.Conn, metadata *M.Metadata) error {
+	originConn = wrapCloseOnceConn(originConn)
+
 	// Ensure we close the origin connection when done
 	defer originConn.Close()
 	connID := ensureTCPConnID(metadata)
@@ -307,8 +309,6 @@ func (h *TCPConnectionHandler) Handle(ctx context.Context, originConn net.Conn, 
 		return nil
 	}
 
-	defer remoteConn.Close()
-
 	// Update metadata MidIP/MidPort
 	if localAddr, ok := remoteConn.LocalAddr().(*net.TCPAddr); ok {
 		if ip, err := parseNetIPAddr(localAddr.IP.String()); err == nil {
@@ -322,7 +322,7 @@ func (h *TCPConnectionHandler) Handle(ctx context.Context, originConn net.Conn, 
 		connID, metadata.SourceAddress(), metadata.DstIP, metadata.DstPort, metadata.Route, metadata.AppProto))
 
 	// Track statistics
-	trackedRemote := statistic.NewTCPTracker(remoteConn, metadata, h.statsManager)
+	trackedRemote := statistic.NewTCPTracker(wrapCloseOnceConn(remoteConn), metadata, h.statsManager)
 	defer trackedRemote.Close()
 
 	if metadata != nil && metadata.Route == "RouteToALiang" && metadata.AppProto == AppProtoHTTP1 {

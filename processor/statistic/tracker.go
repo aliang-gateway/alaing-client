@@ -3,6 +3,7 @@ package statistic
 import (
 	"errors"
 	"net"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -28,7 +29,9 @@ type tcpTracker struct {
 	net.Conn `json:"-"`
 
 	*trackerInfo
-	manager *Manager
+	manager    *Manager
+	closeOnce  sync.Once
+	closeError error
 }
 
 func NewTCPTracker(conn net.Conn, metadata *M.Metadata, manager *Manager) net.Conn {
@@ -71,8 +74,11 @@ func (tt *tcpTracker) Write(b []byte) (int, error) {
 }
 
 func (tt *tcpTracker) Close() error {
-	tt.manager.Leave(tt)
-	return tt.Conn.Close()
+	tt.closeOnce.Do(func() {
+		tt.manager.Leave(tt)
+		tt.closeError = tt.Conn.Close()
+	})
+	return tt.closeError
 }
 
 func (tt *tcpTracker) CloseRead() error {
@@ -93,7 +99,9 @@ type udpTracker struct {
 	net.PacketConn `json:"-"`
 
 	*trackerInfo
-	manager *Manager
+	manager    *Manager
+	closeOnce  sync.Once
+	closeError error
 }
 
 func NewUDPTracker(conn net.PacketConn, metadata *M.Metadata, manager *Manager) net.PacketConn {
@@ -136,6 +144,9 @@ func (ut *udpTracker) WriteTo(b []byte, addr net.Addr) (int, error) {
 }
 
 func (ut *udpTracker) Close() error {
-	ut.manager.Leave(ut)
-	return ut.PacketConn.Close()
+	ut.closeOnce.Do(func() {
+		ut.manager.Leave(ut)
+		ut.closeError = ut.PacketConn.Close()
+	})
+	return ut.closeError
 }

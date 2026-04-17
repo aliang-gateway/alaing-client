@@ -79,10 +79,14 @@ func (t *relayCompletionTracker) markDone(direction, connID string) {
 			connID,
 		))
 		if t.originConn != nil {
-			_ = t.originConn.Close()
+			if err := t.originConn.Close(); err != nil && !isConnectionClosedByPeer(err) {
+				logger.Debug(fmt.Sprintf("[RELAY] conn_id=%s tracked teardown origin close err=%v", connID, err))
+			}
 		}
 		if t.remoteConn != nil {
-			_ = t.remoteConn.Close()
+			if err := t.remoteConn.Close(); err != nil && !isConnectionClosedByPeer(err) {
+				logger.Debug(fmt.Sprintf("[RELAY] conn_id=%s tracked teardown remote close err=%v", connID, err))
+			}
 		}
 	})
 }
@@ -241,18 +245,24 @@ func (r *DefaultRelayManager) relayStream(
 	// Try to close the read side on src (source stops sending)
 	if cr, ok := src.(interface{ CloseRead() error }); ok {
 		logger.Debug(fmt.Sprintf("[RELAY] conn_id=%s half_close src CloseRead dir=%s src_type=%T", connID, direction, src))
-		cr.CloseRead()
+		if err := cr.CloseRead(); err != nil && !isConnectionClosedByPeer(err) {
+			logger.Debug(fmt.Sprintf("[RELAY] conn_id=%s half_close src CloseRead failed dir=%s err=%v", connID, direction, err))
+		}
 	}
 
 	// Try to close the write side on dst (destination stops accepting)
 	if cw, ok := dst.(interface{ CloseWrite() error }); ok {
 		logger.Debug(fmt.Sprintf("[RELAY] conn_id=%s half_close dst CloseWrite dir=%s dst_type=%T", connID, direction, dst))
-		cw.CloseWrite()
+		if err := cw.CloseWrite(); err != nil && !isConnectionClosedByPeer(err) {
+			logger.Debug(fmt.Sprintf("[RELAY] conn_id=%s half_close dst CloseWrite failed dir=%s err=%v", connID, direction, err))
+		}
 	}
 
 	// Set a read deadline so we don't wait forever for the other side to close
 	logger.Debug(fmt.Sprintf("[RELAY] conn_id=%s set deadline dir=%s dst_type=%T timeout=%ds", connID, direction, dst, DefaultTCPWaitTimeout))
-	dst.SetReadDeadline(time.Now().Add(time.Duration(DefaultTCPWaitTimeout) * time.Second))
+	if err := dst.SetReadDeadline(time.Now().Add(time.Duration(DefaultTCPWaitTimeout) * time.Second)); err != nil && !isConnectionClosedByPeer(err) {
+		logger.Debug(fmt.Sprintf("[RELAY] conn_id=%s set deadline failed dir=%s err=%v", connID, direction, err))
+	}
 }
 
 func safeRoute(metadata *M.Metadata) string {
