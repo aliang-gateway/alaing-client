@@ -1,6 +1,7 @@
 package tcp
 
 import (
+	"errors"
 	"net"
 	"sync"
 )
@@ -30,4 +31,24 @@ func (c *closeOnceConn) Close() error {
 		c.closeErr = c.Conn.Close()
 	})
 	return c.closeErr
+}
+
+func (c *closeOnceConn) CloseRead() error {
+	if c == nil || c.Conn == nil {
+		return nil
+	}
+	if cr, ok := c.Conn.(interface{ CloseRead() error }); ok {
+		return cr.CloseRead()
+	}
+	return errors.New("CloseRead is not implemented")
+}
+
+func (c *closeOnceConn) CloseWrite() error {
+	if c == nil || c.Conn == nil {
+		return nil
+	}
+	if cw, ok := c.Conn.(interface{ CloseWrite() error }); ok {
+		return cw.CloseWrite()
+	}
+	return errors.New("CloseWrite is not implemented")
 }

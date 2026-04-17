@@ -133,3 +133,30 @@ func TestWrapCloseOnceConn_ClosesUnderlyingOnlyOnce(t *testing.T) {
 		t.Fatalf("underlying close count = %d, want 1", conn.closeCount)
 	}
 }
+
+func TestWrapCloseOnceConn_ForwardsHalfClose(t *testing.T) {
+	conn := newRecordingRelayConn(nil)
+	wrapped := wrapCloseOnceConn(conn)
+
+	cr, ok := wrapped.(interface{ CloseRead() error })
+	if !ok {
+		t.Fatal("wrapped conn does not implement CloseRead")
+	}
+	cw, ok := wrapped.(interface{ CloseWrite() error })
+	if !ok {
+		t.Fatal("wrapped conn does not implement CloseWrite")
+	}
+
+	if err := cr.CloseRead(); err != nil {
+		t.Fatalf("CloseRead() error = %v", err)
+	}
+	if err := cw.CloseWrite(); err != nil {
+		t.Fatalf("CloseWrite() error = %v", err)
+	}
+	if conn.closeReadCount != 1 {
+		t.Fatalf("underlying CloseRead count = %d, want 1", conn.closeReadCount)
+	}
+	if conn.closeWriteCount != 1 {
+		t.Fatalf("underlying CloseWrite count = %d, want 1", conn.closeWriteCount)
+	}
+}

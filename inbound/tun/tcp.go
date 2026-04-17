@@ -1,6 +1,7 @@
 package tun
 
 import (
+	"sync"
 	"time"
 
 	"aliang.one/nursorgate/inbound/tun/adapter"
@@ -74,10 +75,7 @@ func withTCPHandler(handle func(adapter.TCPConn)) option.Option {
 
 			err = setSocketOptions(s, ep)
 
-			conn := &tcpConn{
-				TCPConn: gonet.NewTCPConn(wq, ep),
-				id:      id,
-			}
+			conn := newTCPConn(gonet.NewTCPConn(wq, ep), id)
 			handle(conn)
 		})
 		s.SetTransportProtocolHandler(tcp.ProtocolNumber, tcpForwarder.HandlePacket)
@@ -117,11 +115,112 @@ func setSocketOptions(s *stack.Stack, ep tcpip.Endpoint) tcpip.Error {
 	return nil
 }
 
+type tcpConnControl interface {
+	Close() error
+	CloseRead() error
+	CloseWrite() error
+}
+
 type tcpConn struct {
 	*gonet.TCPConn
-	id stack.TransportEndpointID
+
+	control tcpConnControl
+	id      stack.TransportEndpointID
+
+	mu          sync.Mutex
+	closed      bool
+	readClosed  bool
+	writeClosed bool
+}
+
+func newTCPConn(conn *gonet.TCPConn, id stack.TransportEndpointID) *tcpConn {
+	return &tcpConn{
+		TCPConn:     conn,
+		control:     conn,
+		id:          id,
+		closed:      false,
+		readClosed:  false,
+		writeClosed: false,
+	}
+}
+
+func (c *tcpConn) controller() tcpConnControl {
+	if c == nil {
+		return nil
+	}
+	if c.control != nil {
+		return c.control
+	}
+	return c.TCPConn
 }
 
 func (c *tcpConn) ID() *stack.TransportEndpointID {
 	return &c.id
+}
+
+func (c *tcpConn) Close() error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if c.closed {
+		return nil
+	}
+
+	controller := c.controller()
+	if controller == nil {
+		c.closed = true
+		c.readClosed = true
+		c.writeClosed = true
+		return nil
+	}
+
+	err := controller.Close()
+	if err == nil {
+		c.closed = true
+		c.readClosed = true
+		c.writeClosed = true
+	}
+	return err
+}
+
+func (c *tcpConn) CloseRead() error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if c.closed || c.readClosed {
+		return nil
+	}
+
+	controller := c.controller()
+	if controller == nil {
+		c.readClosed = true
+		return nil
+	}
+
+	err := controller.CloseRead()
+	if err == nil {
+		c.readClosed = true
+	}
+	return err
+}
+
+func (c *tcpConn) CloseWrite() error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if c.closed || c.writeClosed {
+		return nil
+	}
+
+	controller := c.controller()
+	if controller == nil {
+		c.writeClosed = true
+		return nil
+	}
+
+	err := controller.CloseWrite()
+	if err == nil {
+		c.writeClosed = true
+	}
+	return err
 }

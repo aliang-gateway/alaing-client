@@ -1,6 +1,7 @@
 package tcp
 
 import (
+	"errors"
 	"fmt"
 	"net"
 	"net/netip"
@@ -94,6 +95,26 @@ func (w *WrappedConn) Read(p []byte) (int, error) {
 	}
 	// All buffered data consumed, read from underlying connection
 	return w.Conn.Read(p)
+}
+
+func (w *WrappedConn) CloseRead() error {
+	if w == nil || w.Conn == nil {
+		return nil
+	}
+	if cr, ok := w.Conn.(interface{ CloseRead() error }); ok {
+		return cr.CloseRead()
+	}
+	return errors.New("CloseRead is not implemented")
+}
+
+func (w *WrappedConn) CloseWrite() error {
+	if w == nil || w.Conn == nil {
+		return nil
+	}
+	if cw, ok := w.Conn.(interface{ CloseWrite() error }); ok {
+		return cw.CloseWrite()
+	}
+	return errors.New("CloseWrite is not implemented")
 }
 
 // String representation for logging
