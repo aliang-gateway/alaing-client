@@ -115,7 +115,7 @@ Main proxy implementation. Implements the `Proxy` interface with:
 
 ### 2. CursorServerConnector (handshaker.go)
 Handles mTLS handshake using hardcoded client certificates:
-- Loads client certificate from `processor/cert/server`
+- Loads client certificate from `processor/cert/client`
 - Establishes TLS connection
 - Handles handshake errors
 
@@ -226,7 +226,7 @@ When modifying this module:
 
 ## Related Modules
 
-- `processor/cert/server` - Client certificate management
+- `processor/cert/client` - Client certificate management
 - `processor/proxy` - Proxy registry and interface definitions
 - For protocol handling: Implement using the raw connection from this module
 

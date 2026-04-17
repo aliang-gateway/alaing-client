@@ -280,8 +280,6 @@ func registerBuiltinProxies(cfg *Config) error {
 
 	if err := registry.RegisterAliang(coreServer); err != nil {
 		return fmt.Errorf("failed to register aliang proxy: %w", err)
-	} else {
-		config.SetCursorAiGatewayHost(coreServer)
 	}
 
 	return nil

@@ -15,8 +15,8 @@ import (
 
 type aliangContextConnIDKey struct{}
 
-// AliangServerConnector establishes mTLS connections to the cursor server
-// Uses hardcoded client certificates embedded in processor/cert/server
+// AliangServerConnector establishes mTLS connections to the cursor server.
+// Uses hardcoded client certificates embedded in processor/cert/client.
 type AliangServerConnector struct {
 	config *AliangConfig
 }
