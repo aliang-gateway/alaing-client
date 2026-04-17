@@ -484,7 +484,7 @@ func (w *WatcherWrapConn) rebuildReqHeadersWithInjectedField(
 			if err := writer.WriteHeaders(http2.HeadersFrameParam{
 				StreamID:      streamID,
 				BlockFragment: chunk,
-				EndStream:     endStream && endHeaders,
+				EndStream:     endStream,
 				EndHeaders:    endHeaders,
 				Priority:      priority,
 			}); err != nil {

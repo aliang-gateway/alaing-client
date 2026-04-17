@@ -34,6 +34,28 @@ func buildSettingsFrame(t *testing.T, setting http2.Setting) []byte {
 	return buf.Bytes()
 }
 
+func buildHeadersFrame(t *testing.T, p http2.HeadersFrameParam) []byte {
+	t.Helper()
+
+	var buf bytes.Buffer
+	framer := http2.NewFramer(&buf, nil)
+	if err := framer.WriteHeaders(p); err != nil {
+		t.Fatalf("WriteHeaders() error = %v", err)
+	}
+	return buf.Bytes()
+}
+
+func buildDataFrame(t *testing.T, streamID uint32, endStream bool, payload []byte) []byte {
+	t.Helper()
+
+	var buf bytes.Buffer
+	framer := http2.NewFramer(&buf, nil)
+	if err := framer.WriteData(streamID, endStream, payload); err != nil {
+		t.Fatalf("WriteData() error = %v", err)
+	}
+	return buf.Bytes()
+}
+
 func extractHeaderBlockFragments(t *testing.T, frames []byte) []byte {
 	t.Helper()
 
@@ -298,5 +320,107 @@ func TestRebuildReqHeadersWithInjectedField_UsesLatestServerMaxFrameSize(t *test
 				t.Fatalf("continuation fragment length = %d, want <= 32", got)
 			}
 		}
+	}
+}
+
+func TestRebuildReqHeadersWithInjectedField_PreservesEndStreamOnSplitHeaders(t *testing.T) {
+	w := NewWatcherWrapConn(nil)
+	w.ParseSettingsFrame([]byte{
+		0x00, 0x05, // MAX_FRAME_SIZE
+		0x00, 0x00, 0x00, 0x10, // 16
+	}, http2SettingsSourceServer)
+
+	var largeValue bytes.Buffer
+	for i := 0; i < 80; i++ {
+		largeValue.WriteByte('b')
+	}
+
+	frames, _, err := w.rebuildReqHeadersWithInjectedField(
+		[]hpack.HeaderField{
+			{Name: ":method", Value: "GET"},
+			{Name: ":scheme", Value: "https"},
+			{Name: ":authority", Value: "example.com"},
+			{Name: ":path", Value: "/end-stream"},
+			{Name: "x-large", Value: largeValue.String()},
+		},
+		1,
+		true,
+		http2.PriorityParam{},
+		"",
+		"",
+	)
+	if err != nil {
+		t.Fatalf("rebuildReqHeadersWithInjectedField() error = %v", err)
+	}
+
+	reader := bytes.NewReader(frames)
+	framer := http2.NewFramer(nil, reader)
+
+	firstFrame, err := framer.ReadFrame()
+	if err != nil {
+		t.Fatalf("ReadFrame(first) error = %v", err)
+	}
+	headersFrame, ok := firstFrame.(*http2.HeadersFrame)
+	if !ok {
+		t.Fatalf("first frame type = %T, want *http2.HeadersFrame", firstFrame)
+	}
+	if !headersFrame.StreamEnded() {
+		t.Fatal("headers frame StreamEnded = false, want true")
+	}
+	if headersFrame.HeadersEnded() {
+		t.Fatal("headers frame HeadersEnded = true, want false for split header block")
+	}
+
+	secondFrame, err := framer.ReadFrame()
+	if err != nil {
+		t.Fatalf("ReadFrame(second) error = %v", err)
+	}
+	if _, ok := secondFrame.(*http2.ContinuationFrame); !ok {
+		t.Fatalf("second frame type = %T, want *http2.ContinuationFrame", secondFrame)
+	}
+}
+
+func TestPrepareBufferedOutput_FallbackPreservesPreviouslyConsumedFrames(t *testing.T) {
+	w := NewWatcherWrapConn(nil)
+	w.prefetched = true
+
+	settingsFrame := buildSettingsFrame(t, http2.Setting{
+		ID:  http2.SettingHeaderTableSize,
+		Val: 4096,
+	})
+	malformedHeaders := buildHeadersFrame(t, http2.HeadersFrameParam{
+		StreamID:      1,
+		BlockFragment: []byte{0x82},
+		EndStream:     false,
+		EndHeaders:    false,
+	})
+	dataFrame := buildDataFrame(t, 1, false, []byte("not-a-continuation"))
+
+	w.reqBuf.Write(settingsFrame)
+	w.reqBuf.Write(malformedHeaders)
+	w.reqBuf.Write(dataFrame)
+
+	out, progressed, err := w.prepareBufferedOutput()
+	if err != nil {
+		t.Fatalf("prepareBufferedOutput() error = %v", err)
+	}
+	if !progressed {
+		t.Fatal("prepareBufferedOutput() progressed = false, want true")
+	}
+
+	wantFallback := append([]byte(http2.ClientPreface), settingsFrame...)
+	wantFallback = append(wantFallback, malformedHeaders...)
+	wantFallback = append(wantFallback, dataFrame...)
+	if !bytes.Equal(out, wantFallback) {
+		t.Fatalf("fallback output mismatch: got %d bytes want %d bytes", len(out), len(wantFallback))
+	}
+	if !bytes.Contains(out, settingsFrame) {
+		t.Fatal("fallback output did not preserve settings frame")
+	}
+	if !w.passthrough {
+		t.Fatal("w.passthrough = false, want true after fallback")
+	}
+	if !w.http2PrefaceSent {
+		t.Fatal("w.http2PrefaceSent = false, want true after fallback")
 	}
 }

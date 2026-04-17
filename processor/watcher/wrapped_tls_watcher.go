@@ -142,7 +142,7 @@ func (w *WatcherWrapConn) prepareBufferedOutput() ([]byte, bool, error) {
 		out, err := w.parseHttp2Req()
 		if err != nil {
 			logger.Warn(fmt.Sprintf("HTTP/2 request parsing failed, falling back to passthrough: %v", err))
-			return w.fallbackHTTP2ToPassthrough(), true, nil
+			return w.fallbackHTTP2ToPassthrough(out), true, nil
 		}
 		if !w.http2PrefaceSent {
 			w.http2PrefaceSent = true
@@ -243,18 +243,21 @@ func (w *WatcherWrapConn) parseHttp2Req() ([]byte, error) {
 	preBuff := bytes.NewBuffer(nil)
 	if err := w.processHttp2RequestFrame(preBuff); err != nil {
 		logger.Warn(fmt.Sprintf("WatcherWrapConn: HTTP/2 request frame processing failed: %v", err))
-		return nil, err
+		return preBuff.Bytes(), err
 	}
 	return preBuff.Bytes(), nil
 }
 
-func (w *WatcherWrapConn) fallbackHTTP2ToPassthrough() []byte {
+func (w *WatcherWrapConn) fallbackHTTP2ToPassthrough(consumed []byte) []byte {
 	w.passthrough = true
 
 	var out bytes.Buffer
 	if !w.http2PrefaceSent {
 		w.http2PrefaceSent = true
 		out.WriteString(http2.ClientPreface)
+	}
+	if len(consumed) > 0 {
+		out.Write(consumed)
 	}
 	if w.reqBuf.Len() > 0 {
 		out.Write(w.reqBuf.Bytes())
