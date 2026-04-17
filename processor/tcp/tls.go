@@ -10,6 +10,7 @@ import (
 	"os"
 	"strings"
 	"syscall"
+	"time"
 
 	"aliang.one/nursorgate/common/logger"
 	M "aliang.one/nursorgate/inbound/tun/metadata"
@@ -27,6 +28,28 @@ type DefaultTLSHandler struct {
 	cursorProxyEnabled bool
 }
 
+func applyContextReadDeadline(ctx context.Context, conn net.Conn) func() {
+	if ctx == nil || conn == nil {
+		return func() {}
+	}
+
+	deadline, ok := ctx.Deadline()
+	if !ok {
+		return func() {}
+	}
+
+	if err := conn.SetReadDeadline(deadline); err != nil {
+		logger.Debug(fmt.Sprintf("failed to set read deadline from context: %v", err))
+		return func() {}
+	}
+
+	return func() {
+		if err := conn.SetReadDeadline(time.Time{}); err != nil && !isExpectedClientDisconnect(err) {
+			logger.Debug(fmt.Sprintf("failed to clear read deadline from context: %v", err))
+		}
+	}
+}
+
 // NewDefaultTLSHandler creates a new TLS handler
 func NewDefaultTLSHandler() *DefaultTLSHandler {
 	return &DefaultTLSHandler{
@@ -37,10 +60,8 @@ func NewDefaultTLSHandler() *DefaultTLSHandler {
 // ExtractSNI extracts the Server Name Indication from a TLS ClientHello.
 // It delegates to processor/tls/tls_sni_helper.go which has the low-level parsing.
 func (h *DefaultTLSHandler) ExtractSNI(ctx context.Context, conn net.Conn) (string, []byte, error) {
-	// Apply context timeout to the read
-	if deadline, ok := ctx.Deadline(); ok {
-		conn.SetReadDeadline(deadline)
-	}
+	clearDeadline := applyContextReadDeadline(ctx, conn)
+	defer clearDeadline()
 
 	// Use the existing SNI extraction from processor/tls
 	serverName, buffer, err := tls_helper.ExtractSNI(conn)
@@ -69,10 +90,8 @@ func (h *DefaultTLSHandler) PerformMITM(ctx context.Context, originConn net.Conn
 	// Create TLS server connection
 	tlsConn := tls.Server(originConn, tlsConfig)
 
-	// Apply context timeout to handshake
-	if deadline, ok := ctx.Deadline(); ok {
-		originConn.SetReadDeadline(deadline)
-	}
+	clearDeadline := applyContextReadDeadline(ctx, originConn)
+	defer clearDeadline()
 
 	// Perform TLS handshake
 	if err := tlsConn.Handshake(); err != nil {

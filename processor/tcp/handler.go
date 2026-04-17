@@ -251,6 +251,18 @@ func setMetadataHostFromObservedSNI(metadata *M.Metadata, sni string) {
 	logObservedTLSServerName(metadata, "sni")
 }
 
+func prepareTCPConnectionContexts(ctx context.Context, connID string) (context.Context, context.Context, context.CancelFunc) {
+	sessionCtx := context.WithValue(ctx, tcpContextConnIDKey{}, connID)
+
+	timeout := time.Duration(DefaultTCPConnectTimeout) * time.Second
+	if deadline, ok := sessionCtx.Deadline(); ok {
+		timeout = time.Until(deadline)
+	}
+
+	connectCtx, cancel := context.WithTimeout(sessionCtx, timeout)
+	return sessionCtx, connectCtx, cancel
+}
+
 // Handle processes a single TCP connection.
 // It is the main orchestration entry point.
 func (h *TCPConnectionHandler) Handle(ctx context.Context, originConn net.Conn, metadata *M.Metadata) error {
@@ -259,21 +271,14 @@ func (h *TCPConnectionHandler) Handle(ctx context.Context, originConn net.Conn, 
 	// Ensure we close the origin connection when done
 	defer originConn.Close()
 	connID := ensureTCPConnID(metadata)
-	ctx = context.WithValue(ctx, tcpContextConnIDKey{}, connID)
+	sessionCtx, connectCtx, cancel := prepareTCPConnectionContexts(ctx, connID)
+	defer cancel()
 
 	// Log connection arrival at INFO level for business tracking
 	logger.Info(fmt.Sprintf("[TCP] New connection from %s -> %s:%d",
 		metadata.SourceAddress(), metadata.DstIP, metadata.DstPort))
 
 	// Create timeout context (使用父 context 而非 Background)
-	timeout := time.Duration(DefaultTCPConnectTimeout) * time.Second
-	if deadline, ok := ctx.Deadline(); ok {
-		timeout = time.Until(deadline)
-	}
-
-	ctx, cancel := context.WithTimeout(ctx, timeout)
-	defer cancel()
-
 	// Detect protocol
 	protocol := h.protocolDetector.Detect(metadata.DstPort)
 	logger.Debug(fmt.Sprintf("TCP: conn_id=%s handling %v connection to %s:%d src=%s",
@@ -286,11 +291,11 @@ func (h *TCPConnectionHandler) Handle(ctx context.Context, originConn net.Conn, 
 	// Route based on protocol
 	switch protocol {
 	case ProtocolTLS:
-		remoteConn, newOriginConn, err = h.handleTLS(ctx, originConn, metadata)
+		remoteConn, newOriginConn, err = h.handleTLS(sessionCtx, connectCtx, originConn, metadata)
 	case ProtocolHTTP:
-		remoteConn, newOriginConn, err = h.handleNonTLS(ctx, originConn, metadata)
+		remoteConn, newOriginConn, err = h.handleNonTLS(connectCtx, originConn, metadata)
 	default:
-		remoteConn, newOriginConn, err = h.handleNonTLS(ctx, originConn, metadata)
+		remoteConn, newOriginConn, err = h.handleNonTLS(connectCtx, originConn, metadata)
 	}
 
 	if err != nil {
@@ -326,7 +331,7 @@ func (h *TCPConnectionHandler) Handle(ctx context.Context, originConn net.Conn, 
 	defer trackedRemote.Close()
 
 	if metadata != nil && metadata.Route == "RouteToALiang" && metadata.AppProto == AppProtoHTTP1 {
-		http1RelayStats, relayErr := watcher.RelayHTTP1(ctx, newOriginConn, trackedRemote)
+		http1RelayStats, relayErr := watcher.RelayHTTP1(sessionCtx, newOriginConn, trackedRemote)
 		if relayErr == nil {
 			statistic.GetDefaultHTTPStatsCollector().RecordConnection(
 				metadata,
@@ -356,7 +361,7 @@ func (h *TCPConnectionHandler) Handle(ctx context.Context, originConn net.Conn, 
 	}
 
 	// Relay data bidirectionally
-	relayStats, err := h.relayManager.Relay(ctx, newOriginConn, trackedRemote, metadata)
+	relayStats, err := h.relayManager.Relay(sessionCtx, newOriginConn, trackedRemote, metadata)
 	if err == nil {
 		// Log successful relay completion at INFO level
 		logger.Info(fmt.Sprintf("[TCP] Relay completed: %s -> %s:%d (sent=%dKB, recv=%dKB)",
@@ -461,7 +466,8 @@ func (h *TCPConnectionHandler) handleNonTLS(
 // connection. If we can't read an explicit hostname or SNI, we bypass MITM and
 // route direct to avoid certificate and HTTP/2 mismatches on shared IPs.
 func (h *TCPConnectionHandler) handleTLS(
-	ctx context.Context,
+	sessionCtx context.Context,
+	connectCtx context.Context,
 	originConn net.Conn,
 	metadata *M.Metadata,
 ) (remoteConn net.Conn, newOriginConn net.Conn, err error) {
@@ -478,7 +484,7 @@ func (h *TCPConnectionHandler) handleTLS(
 		logObservedTLSServerName(metadata, "preset")
 	} else {
 		logger.Debug("TLS: Extracting SNI from TLS ClientHello")
-		sni, sniBuf, err = h.tlsHandler.ExtractSNI(ctx, originConn)
+		sni, sniBuf, err = h.tlsHandler.ExtractSNI(connectCtx, originConn)
 
 		if err != nil {
 			logger.Warn(fmt.Sprintf("[TLS] SNI extraction error: %v", err))
@@ -575,7 +581,7 @@ func (h *TCPConnectionHandler) handleTLS(
 			))
 		}
 		if metadata.HostName == "" {
-			return h.resolveTLSRoute(ctx, originConn, metadata, RouteDirect, wrapped, "")
+			return h.resolveTLSRoute(sessionCtx, connectCtx, originConn, metadata, RouteDirect, wrapped, "")
 		}
 	}
 
@@ -606,7 +612,7 @@ func (h *TCPConnectionHandler) handleTLS(
 		mitmedSNI = metadata.HostName
 	}
 
-	return h.resolveTLSRoute(ctx, originConn, metadata, route, wrapped, mitmedSNI)
+	return h.resolveTLSRoute(sessionCtx, connectCtx, originConn, metadata, route, wrapped, mitmedSNI)
 }
 
 // dialDirect dials a direct connection to the target using tun dialer
@@ -639,7 +645,8 @@ func (h *TCPConnectionHandler) dialByRoute(ctx context.Context, metadata *M.Meta
 }
 
 func (h *TCPConnectionHandler) resolveTLSRoute(
-	ctx context.Context,
+	sessionCtx context.Context,
+	connectCtx context.Context,
 	originConn net.Conn,
 	metadata *M.Metadata,
 	route ProxyRoute,
@@ -653,14 +660,14 @@ func (h *TCPConnectionHandler) resolveTLSRoute(
 			mitmConn = originConn
 		}
 
-		mitmed, err := h.tlsHandler.PerformMITM(ctx, mitmConn, mitmedSNI)
+		mitmed, err := h.tlsHandler.PerformMITM(connectCtx, mitmConn, mitmedSNI)
 		if err != nil {
 			logger.Warn(fmt.Sprintf("[TLS MITM] MITM failed for %s: %v", mitmedSNI, err))
 			return nil, nil, err
 		}
 		logger.Info(fmt.Sprintf("[TLS MITM] MITM completed for %s", mitmedSNI))
 
-		prefetchedData, sniffErr := prefetchApplicationData(ctx, mitmed, applicationPrefetchMaxBytes)
+		prefetchedData, sniffErr := prefetchApplicationData(connectCtx, mitmed, applicationPrefetchMaxBytes)
 		if sniffErr != nil {
 			logger.Debug(fmt.Sprintf("aliang protocol prefetch failed: %v", sniffErr))
 		}
@@ -670,7 +677,7 @@ func (h *TCPConnectionHandler) resolveTLSRoute(
 		}
 		bufferedMitmed := wrapBufferedConn(mitmed, prefetchedData)
 
-		remote, err := h.dialByRoute(ctx, metadata, route)
+		remote, err := h.dialByRoute(connectCtx, metadata, route)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -680,7 +687,7 @@ func (h *TCPConnectionHandler) resolveTLSRoute(
 		return remote, h.wrapAliangHTTPConnByProto(bufferedMitmed, metadata.AppProto), nil
 	}
 
-	remote, err := h.dialByRoute(ctx, metadata, route)
+	remote, err := h.dialByRoute(connectCtx, metadata, route)
 	if err != nil {
 		return nil, nil, err
 	}

@@ -13,6 +13,10 @@ import (
 
 var tunnelTCPConnCounter uint64
 
+func newTCPHandlerContext() context.Context {
+	return context.Background()
+}
+
 // getTCPHandler safely gets the TCP handler, with error recovery
 func getTCPHandler() tcphandler.TCPConnHandler {
 	defer func() {
@@ -36,8 +40,7 @@ func (t *Tunnel) handleTCPConn(originConn adapter.TCPConn) {
 		DstPort: id.LocalPort,
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), tcpConnectTimeout)
-	defer cancel()
+	ctx := newTCPHandlerContext()
 
 	// Use unified TCP handler from processor/tcp
 	handler := getTCPHandler()
