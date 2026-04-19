@@ -23,6 +23,7 @@ type trackerInfo struct {
 	Metadata      *M.Metadata   `json:"metadata"`
 	UploadTotal   *atomic.Int64 `json:"upload"`
 	DownloadTotal *atomic.Int64 `json:"download"`
+	TrackTraffic  bool          `json:"-"`
 }
 
 type tcpTracker struct {
@@ -36,6 +37,7 @@ type tcpTracker struct {
 
 func NewTCPTracker(conn net.Conn, metadata *M.Metadata, manager *Manager) net.Conn {
 	id, _ := uuid.NewRandom()
+	trackTraffic := shouldTrackTraffic(metadata)
 
 	tt := &tcpTracker{
 		Conn:    conn,
@@ -46,10 +48,13 @@ func NewTCPTracker(conn net.Conn, metadata *M.Metadata, manager *Manager) net.Co
 			Metadata:      metadata,
 			UploadTotal:   atomic.NewInt64(0),
 			DownloadTotal: atomic.NewInt64(0),
+			TrackTraffic:  trackTraffic,
 		},
 	}
 
-	manager.Join(tt)
+	if trackTraffic {
+		manager.Join(tt)
+	}
 	return tt
 }
 
@@ -59,6 +64,9 @@ func (tt *tcpTracker) ID() string {
 
 func (tt *tcpTracker) Read(b []byte) (int, error) {
 	n, err := tt.Conn.Read(b)
+	if !tt.TrackTraffic {
+		return n, err
+	}
 	download := int64(n)
 	tt.manager.PushDownloaded(download)
 	tt.DownloadTotal.Add(download)
@@ -67,6 +75,9 @@ func (tt *tcpTracker) Read(b []byte) (int, error) {
 
 func (tt *tcpTracker) Write(b []byte) (int, error) {
 	n, err := tt.Conn.Write(b)
+	if !tt.TrackTraffic {
+		return n, err
+	}
 	upload := int64(n)
 	tt.manager.PushUploaded(upload)
 	tt.UploadTotal.Add(upload)
@@ -106,6 +117,7 @@ type udpTracker struct {
 
 func NewUDPTracker(conn net.PacketConn, metadata *M.Metadata, manager *Manager) net.PacketConn {
 	id, _ := uuid.NewRandom()
+	trackTraffic := shouldTrackTraffic(metadata)
 
 	ut := &udpTracker{
 		PacketConn: conn,
@@ -116,10 +128,13 @@ func NewUDPTracker(conn net.PacketConn, metadata *M.Metadata, manager *Manager) 
 			Metadata:      metadata,
 			UploadTotal:   atomic.NewInt64(0),
 			DownloadTotal: atomic.NewInt64(0),
+			TrackTraffic:  trackTraffic,
 		},
 	}
 
-	manager.Join(ut)
+	if trackTraffic {
+		manager.Join(ut)
+	}
 	return ut
 }
 
@@ -129,6 +144,9 @@ func (ut *udpTracker) ID() string {
 
 func (ut *udpTracker) ReadFrom(b []byte) (int, net.Addr, error) {
 	n, addr, err := ut.PacketConn.ReadFrom(b)
+	if !ut.TrackTraffic {
+		return n, addr, err
+	}
 	download := int64(n)
 	ut.manager.PushDownloaded(download)
 	ut.DownloadTotal.Add(download)
@@ -137,6 +155,9 @@ func (ut *udpTracker) ReadFrom(b []byte) (int, net.Addr, error) {
 
 func (ut *udpTracker) WriteTo(b []byte, addr net.Addr) (int, error) {
 	n, err := ut.PacketConn.WriteTo(b, addr)
+	if !ut.TrackTraffic {
+		return n, err
+	}
 	upload := int64(n)
 	ut.manager.PushUploaded(upload)
 	ut.UploadTotal.Add(upload)
@@ -149,4 +170,11 @@ func (ut *udpTracker) Close() error {
 		ut.closeError = ut.PacketConn.Close()
 	})
 	return ut.closeError
+}
+
+func shouldTrackTraffic(metadata *M.Metadata) bool {
+	if metadata == nil {
+		return true
+	}
+	return metadata.Route != "RouteDirect"
 }

@@ -57,8 +57,8 @@ func (m *Manager) Snapshot() *Snapshot {
 	var connections []tracker
 	byRoute := make(map[string]*RouteStats)
 
-	// Initialize route statistics
-	routes := []string{"RouteToALiang", "RouteToSocks", "RouteDirect"}
+	// Initialize route statistics for tracked proxy routes only.
+	routes := []string{"RouteToALiang", "RouteToSocks"}
 	for _, route := range routes {
 		byRoute[route] = &RouteStats{
 			RouteType: route,
@@ -76,15 +76,15 @@ func (m *Manager) Snapshot() *Snapshot {
 
 		if tcpT, ok := t.(*tcpTracker); ok {
 			route = tcpT.Metadata.Route
-			if route == "" {
-				route = "RouteDirect" // Default route if not set
+			if route == "" || route == "RouteDirect" {
+				return true
 			}
 			upload = tcpT.UploadTotal.Load()
 			download = tcpT.DownloadTotal.Load()
 		} else if udpT, ok := t.(*udpTracker); ok {
 			route = udpT.Metadata.Route
-			if route == "" {
-				route = "RouteDirect" // Default route if not set
+			if route == "" || route == "RouteDirect" {
+				return true
 			}
 			upload = udpT.UploadTotal.Load()
 			download = udpT.DownloadTotal.Load()
