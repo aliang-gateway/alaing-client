@@ -156,7 +156,7 @@
               </p>
             </div>
           </div>
-          <LogsSettings />
+          <LogsSettings v-if="isAuthenticated" />
         </section>
       </main>
 
@@ -349,7 +349,7 @@ export default {
         return this.t('settings_pageCenter');
       }
       if (this.currentPage === 'log') {
-        return this.t('settings_pageViewer');
+	      return this.t('settings_pageOverview');
       }
       return this.t('settings_pageCenter');
     },

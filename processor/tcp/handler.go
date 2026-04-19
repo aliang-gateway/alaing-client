@@ -325,6 +325,7 @@ func (h *TCPConnectionHandler) Handle(ctx context.Context, originConn net.Conn, 
 	// Log successful connection establishment at INFO level
 	logger.Info(fmt.Sprintf("[TCP] conn_id=%s Connection established: %s -> %s:%d via %s (proto=%s)",
 		connID, metadata.SourceAddress(), metadata.DstIP, metadata.DstPort, metadata.Route, metadata.AppProto))
+	statistic.GetDefaultAIActivityTracker().RecordMetadata(metadata)
 
 	// Track statistics
 	trackedRemote := statistic.NewTCPTracker(wrapCloseOnceConn(remoteConn), metadata, h.statsManager)

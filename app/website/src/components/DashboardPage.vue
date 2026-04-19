@@ -811,6 +811,8 @@ import {
 import { getAliangLinkStatus } from '../services/runApi';
 
 const { t } = useI18n();
+const isProdBuild = import.meta.env.PROD || ['prod', 'production'].includes(String(import.meta.env.MODE || '').toLowerCase());
+const frontEndLogsFetchLimit = isProdBuild ? 200 : 800;
 
 const { certStatus, loading: certLoading, startPolling: startCertPolling, stopPolling: stopCertPolling } = useCertStatus();
 const { currentPage, showSettings } = useNavigation();
@@ -2182,7 +2184,7 @@ async function loadTunStartLogs() {
   }
 
   try {
-    const response = await fetch('/api/logs?limit=200');
+    const response = await fetch(`/api/logs?limit=${frontEndLogsFetchLimit}`);
     const payload = await response.json().catch(() => ({}));
     if (!response.ok || payload?.code !== 0) {
       throw new Error(payload?.msg || payload?.message || `Request failed (${response.status})`);

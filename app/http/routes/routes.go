@@ -31,6 +31,7 @@ type Handlers struct {
 	Config         *handlers.ConfigHandler
 	TrafficStats   *handlers.TrafficStatsHandler
 	HTTPStats      *handlers.HTTPStatsHandler
+	Status         *handlers.StatusHandler
 	Chat           *handlers.ChatHandler
 	UserCenter     *handlers.UserCenterHandler
 	Dashboard      *handlers.DashboardHandler
@@ -63,6 +64,7 @@ func newHandlers(runService *services.RunService) *Handlers {
 	proxyRepository := repositories.NewProxyRepository()
 	statsCollector := statistic.NewStatsCollector()
 	httpStatsCollector := statistic.GetDefaultHTTPStatsCollector()
+	aiActivityTracker := statistic.GetDefaultAIActivityTracker()
 
 	return &Handlers{
 		Logger:             handlers.NewLogHandler(logService, logConfigService),
@@ -81,6 +83,7 @@ func newHandlers(runService *services.RunService) *Handlers {
 		Config:             handlers.NewConfigHandler(),
 		TrafficStats:       handlers.NewTrafficStatsHandler(statsCollector),
 		HTTPStats:          handlers.NewHTTPStatsHandler(httpStatsCollector),
+		Status:             handlers.NewStatusHandler(statsCollector, httpStatsCollector, aiActivityTracker),
 		Chat:               handlers.NewChatHandler(),
 		UserCenter:         handlers.NewUserCenterHandler(),
 		Dashboard:          handlers.NewDashboardHandler(),
@@ -206,6 +209,7 @@ func RegisterRoutes(h *Handlers, mux *http.ServeMux) {
 	register("/api/stats/http/info", h.HTTPStats.HandleGetStats, http.MethodGet)
 	register("/api/stats/http/clear", h.HTTPStats.HandleClear, http.MethodPost, http.MethodDelete)
 	register("/api/stats/http/preset-domains", h.HTTPStats.HandleGetPresetDomains, http.MethodGet)
+	register("/api/status/summary", h.Status.HandleGetSummary, http.MethodGet)
 
 	register("/api/chat/completions", h.Chat.HandleCompletions, http.MethodPost)
 

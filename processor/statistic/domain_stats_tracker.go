@@ -1,7 +1,6 @@
 package statistic
 
 import (
-	"strings"
 	"sync"
 	"time"
 )
@@ -18,9 +17,7 @@ func NewDomainStatsTracker() *DomainStatsTracker {
 		stats: make(map[string]*DomainStats),
 	}
 
-	for _, domain := range PresetDomains {
-		tracker.stats[domain] = &DomainStats{Domain: domain}
-	}
+	tracker.ensureTrackedDomainsLocked()
 
 	return tracker
 }
@@ -33,7 +30,9 @@ func (t *DomainStatsTracker) RecordRequest(record *HTTPRequestRecord) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
-	matchedDomain := t.matchDomain(record.Host)
+	t.ensureTrackedDomainsLocked()
+
+	matchedDomain := matchTrackedAIDomain(record.Host)
 	if matchedDomain == "" {
 		return
 	}
@@ -67,20 +66,6 @@ func (t *DomainStatsTracker) RecordRequest(record *HTTPRequestRecord) {
 	t.totalReq++
 	t.totalTraffic += record.UploadBytes + record.DownloadBytes
 }
-
-func (t *DomainStatsTracker) matchDomain(host string) string {
-	host = strings.ToLower(host)
-	host = strings.TrimPrefix(host, "www.")
-	host = strings.TrimPrefix(host, "api.")
-
-	for _, domain := range PresetDomains {
-		if host == domain || strings.HasSuffix(host, "."+domain) {
-			return domain
-		}
-	}
-	return ""
-}
-
 func (t *DomainStatsTracker) GetStats(domain string) *DomainStats {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -92,8 +77,10 @@ func (t *DomainStatsTracker) GetStats(domain string) *DomainStats {
 }
 
 func (t *DomainStatsTracker) GetAllStats() []*DomainStats {
-	t.mu.RLock()
-	defer t.mu.RUnlock()
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
+	t.ensureTrackedDomainsLocked()
 
 	result := make([]*DomainStats, 0, len(t.stats))
 	for _, stats := range t.stats {
@@ -126,13 +113,19 @@ func (t *DomainStatsTracker) Reset() {
 	defer t.mu.Unlock()
 
 	t.stats = make(map[string]*DomainStats)
-	for _, domain := range PresetDomains {
-		t.stats[domain] = &DomainStats{Domain: domain}
-	}
+	t.ensureTrackedDomainsLocked()
 	t.totalReq = 0
 	t.totalTraffic = 0
 }
 
 func (t *DomainStatsTracker) GetStatsSince(since time.Time) []*DomainStats {
 	return t.GetAllStats()
+}
+
+func (t *DomainStatsTracker) ensureTrackedDomainsLocked() {
+	for _, domain := range currentTrackedAIDomains() {
+		if _, exists := t.stats[domain]; !exists {
+			t.stats[domain] = &DomainStats{Domain: domain}
+		}
+	}
 }
